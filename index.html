@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>手机桌面 UI</title>
+    
+    <!-- 引入 CSS 样式 -->
+    <link rel="stylesheet" href="css/variables.css">
+    <link rel="stylesheet" href="css/base.css">
+    <link rel="stylesheet" href="css/desktop.css">
+    <link rel="stylesheet" href="css/app-icon.css">
+    <link rel="stylesheet" href="css/widgets.css">
+    <link rel="stylesheet" href="css/app-window.css">
+    <link rel="stylesheet" href="css/settings.css">
+</head>
+<body>
+
+    <div class="phone-container" id="phoneContainer">
+
+        <!-- visionOS 空间计算级微晶折射滤镜 -->
+        <svg style="position: absolute; width: 0; height: 0; pointer-events: none;" aria-hidden="true">
+            <filter id="lens-refraction" x="-10%" y="-10%" width="120%" height="120%">
+                <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" result="noise" />
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="G" />
+            </filter>
+        </svg>
+
+        <!-- 隐藏的图片文件上传通道 -->
+        <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
+        <input type="file" id="coupleAvatarInput" accept="image/*" style="display: none;">
+
+        <!-- 桌面主屏幕 -->
+        <div class="home-screen" id="homeScreen">
+            
+            <!-- 多页横向滑动视口 (柔和减速翻页) -->
+            <div class="desktop-viewport" id="desktopViewport">
+                <div class="desktop-track" id="desktopTrack"></div>
+            </div>
+
+            <!-- 浅色分页圆点 + 长按出现的加号 (+) 栏 -->
+            <div class="pagination-bar">
+                <div class="pagination-inner">
+                    <div class="dots-container" id="dotsContainer"></div>
+                    <button class="add-page-btn" id="addPageBtn" title="新建桌面页面">+</button>
+                </div>
+            </div>
+
+            <!-- 无色彩倾向中性灰 Dock 栏 -->
+            <div class="dock-wrapper">
+                <div class="dock" id="dockBar"></div>
+            </div>
+
+        </div>
+
+        <!-- App 打开界面全屏容器 -->
+        <div class="app-window" id="appWindow">
+            <header class="app-header">
+                <div class="app-header-title" id="appTitle">应用名称</div>
+            </header>
+            <main class="app-content">
+            </main>
+            <div class="home-indicator-area" onclick="closeApp()">
+                <div class="home-indicator"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- 引入 JS 脚本 (严格按照依赖顺序) -->
+    <script src="js/data/apps.js"></script>
+    <script src="js/data/state.js"></script>
+    <script src="js/core/grid.js"></script>
+    <script src="js/apps/settings.js"></script>
+    <script src="js/apps/app-manager.js"></script>
+    <script src="js/core/drag.js"></script>
+    <script src="js/ui/dom.js"></script>
+    <script src="js/ui/render.js"></script>
+    <script src="js/core/swipe.js"></script>
+    <script src="js/main.js"></script>
+
+</body>
+</html>

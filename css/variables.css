@@ -1,0 +1,64 @@
+/* =========================================
+   1. 全局变量与配色 (严格遵守 #48373D 与 #FCFAFB)
+   ========================================= */
+:root {
+    --wallpaper-bg: url('../assets/Dark/bizhi.png') no-repeat center center / cover, #09090b;
+    --glass-bg: rgba(255, 255, 255, 0.04);
+    --glass-border: rgba(255, 255, 255, 0.15);
+    --text-dark: #FFFFFF;
+    --text-sub: #A1A1AA;
+    --svg-stroke: #E4E4E7;
+    --icon-stroke-main: #E4E4E7;
+    --icon-stroke-sub: #A1A1AA;
+    --icon-fill-muted: rgba(255, 255, 255, 0.12);
+    --icon-label-color: #E4E4E7;
+    --icon-label-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+    --star-fill: rgba(255, 255, 255, 0.38);
+    --star-stroke: rgba(255, 255, 255, 0.75);
+    --widget-card-bg: rgba(255, 255, 255, 0.08);
+    --widget-card-border: rgba(255, 255, 255, 0.18);
+    --widget-inner-bg: rgba(255, 255, 255, 0.05);
+    --accent-small: #27272A;
+    --app-pure-gray: rgba(255, 255, 255, 0.04);
+    --app-bg: #18181B;
+    --smooth-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 浅色壁纸自适应模式 (自动检测注入) */
+.phone-container.theme-light {
+    --wallpaper-bg: url('../assets/Light/bizhi.png') no-repeat center center / cover, #FCFAFB;
+    --text-dark: #2C272E;
+    --text-sub: #6E6872;
+    --svg-stroke: #2C272E;
+    --icon-stroke-main: #2C272E;
+    --icon-stroke-sub: #6E6872;
+    --icon-fill-muted: rgba(44, 39, 46, 0.07);
+    --icon-label-color: #2C272E;
+    --icon-label-shadow: 0 1px 2px rgba(255, 255, 255, 0.85);
+    --star-fill: rgba(44, 39, 46, 0.25);
+    --star-stroke: rgba(44, 39, 46, 0.8);
+    --widget-card-bg: rgba(255, 255, 255, 0.65);
+    --widget-card-border: rgba(255, 255, 255, 0.85);
+    --widget-inner-bg: rgba(255, 255, 255, 0.4);
+    --accent-small: #2C272E;
+}
+
+/* 深色壁纸自适应模式 */
+.phone-container.theme-dark {
+    --wallpaper-bg: url('../assets/Dark/bizhi.png') no-repeat center center / cover, #09090b;
+    --text-dark: #FFFFFF;
+    --text-sub: #A1A1AA;
+    --svg-stroke: #E4E4E7;
+    --icon-stroke-main: #E4E4E7;
+    --icon-stroke-sub: #A1A1AA;
+    --icon-fill-muted: rgba(255, 255, 255, 0.12);
+    --icon-label-color: #FFFFFF;
+    --icon-label-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+    --star-fill: rgba(255, 255, 255, 0.38);
+    --star-stroke: rgba(255, 255, 255, 0.75);
+    --widget-card-bg: rgba(255, 255, 255, 0.08);
+    --widget-card-border: rgba(255, 255, 255, 0.18);
+    --widget-inner-bg: rgba(255, 255, 255, 0.05);
+    --accent-small: #27272A;
+}

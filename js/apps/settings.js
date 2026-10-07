@@ -1,0 +1,960 @@
+/* =========================================
+   Studio Noir OS · 设置应用核心逻辑
+   ======================================== */
+
+// 内置安全存储代理（自动在 window.DB 与 localStorage 之间无缝切换，杜绝 DB 未定义报错）
+const safeDB = {
+    async save(key, value) {
+        if (window.DB && typeof window.DB.save === 'function') {
+            return await window.DB.save(key, value);
+        }
+        try {
+            localStorage.setItem(`noir_os_${key}`, JSON.stringify(value));
+            console.log('🛡️ [safeDB SAVE] 使用 LocalStorage 成功保存:', key, value);
+            return true;
+        } catch (e) {
+            console.error('❌ [safeDB SAVE ERROR]:', e);
+            return false;
+        }
+    },
+    async load(key, defaultValue = null) {
+        if (window.DB && typeof window.DB.load === 'function') {
+            const res = await window.DB.load(key, defaultValue);
+            if (res !== null && res !== undefined) return res;
+        }
+        try {
+            const item = localStorage.getItem(`noir_os_${key}`);
+            const parsed = item ? JSON.parse(item) : defaultValue;
+            console.log('🛡️ [safeDB LOAD] 使用 LocalStorage 成功读取:', key, parsed);
+            return parsed;
+        } catch (e) {
+            console.error('❌ [safeDB LOAD ERROR]:', e);
+            return defaultValue;
+        }
+    }
+};
+   
+function getSettingsAppHTML() {
+    return `
+    <svg class="svg-filters" style="position:absolute; width:0; height:0; pointer-events:none;">
+        <filter id="lens-refraction" x="-10%" y="-10%" width="120%" height="120%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.015" numOctaves="2" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+    </svg>
+
+    <div class="noir-settings-root" id="noirSettingsRoot">
+        <div class="grid-bg"></div>
+        <div class="top-glow"></div>
+
+        <div class="crosshair tl"></div>
+        <div class="crosshair tr"></div>
+
+        <!-- 波点五角星群 -->
+        <div class="dotted-stars-container">
+            <svg style="position:absolute; top:7%; left:14%; opacity:0.8; width:30px; height:30px;" viewBox="0 0 24 24"><circle cx="12" cy="2" r="1.6"/><circle cx="12" cy="22" r="1.2"/><circle cx="2" cy="12" r="1.6"/><circle cx="22" cy="12" r="1.2"/><circle cx="12" cy="12" r="2.6"/><circle cx="7" cy="7" r="1"/><circle cx="17" cy="7" r="1"/><circle cx="7" cy="17" r="1"/><circle cx="17" cy="17" r="1"/></svg>
+            <svg style="position:absolute; top:16%; right:13%; opacity:0.5; width:22px; height:22px;" viewBox="0 0 24 24"><circle cx="12" cy="2" r="1.3"/><circle cx="12" cy="22" r="1"/><circle cx="2" cy="12" r="1.3"/><circle cx="22" cy="12" r="1"/><circle cx="12" cy="12" r="2.1"/><circle cx="7" cy="7" r="0.8"/><circle cx="17" cy="7" r="0.8"/></svg>
+            <svg style="position:absolute; top:33%; left:7%; opacity:0.25; width:15px; height:15px;" viewBox="0 0 24 24"><circle cx="12" cy="2" r="1"/><circle cx="12" cy="22" r="0.8"/><circle cx="2" cy="12" r="1"/><circle cx="22" cy="12" r="0.8"/><circle cx="12" cy="12" r="1.5"/></svg>
+            <svg style="position:absolute; top:50%; right:8%; opacity:0.6; width:25px; height:25px;" viewBox="0 0 24 24"><circle cx="12" cy="2" r="1.4"/><circle cx="12" cy="22" r="1.1"/><circle cx="2" cy="12" r="1.4"/><circle cx="22" cy="12" r="1.1"/><circle cx="12" cy="12" r="2.3"/><circle cx="7" cy="7" r="0.9"/><circle cx="17" cy="17" r="0.9"/></svg>
+            <svg style="position:absolute; top:78%; right:14%; opacity:0.7; width:26px; height:26px;" viewBox="0 0 24 24"><circle cx="12" cy="2" r="1.5"/><circle cx="12" cy="22" r="1.1"/><circle cx="2" cy="12" r="1.5"/><circle cx="22" cy="12" r="1.1"/><circle cx="12" cy="12" r="2.4"/><circle cx="7" cy="7" r="0.9"/><circle cx="17" cy="7" r="0.9"/><circle cx="7" cy="17" r="0.9"/></svg>
+        </div>
+
+        <!-- 1. 顶部导航 -->
+        <div class="nav-header">
+            <div class="top-glass-pill" onclick="handleSettingsBack()" title="返回">
+                <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+                <span class="mono-font" id="settingsLeftText">HOME</span>
+            </div>
+
+            <div class="header-title-group">
+                <svg class="plane-logo-svg" viewBox="0 0 24 24">
+                    <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                </svg>
+                <span class="header-title mono-font" id="settingsNavTitle">SETTINGS</span>
+            </div>
+
+            <div class="top-glass-pill" onclick="openCenterModal('menu')" title="菜单">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                <span class="mono-font">MENU</span>
+            </div>
+        </div>
+
+        <!-- Hero 大标题 + 圆形头像 -->
+        <div class="hero-zone">
+            <div class="hero-text-col">
+                <div class="hero-kicker mono-font">
+                    <span class="kicker-line"></span>
+                    <span id="settingsHeroKicker">Control Center</span>
+                </div>
+                <div class="hero-main" id="settingsHeroMain">System<br><strong>Preferences</strong></div>
+                <div class="hero-sub" id="settingsHeroSub">外观 · 接口 · 预设管理</div>
+            </div>
+
+            <div class="hero-avatar">
+                <div class="avatar-ring">
+                    <svg class="avatar-plane" viewBox="0 0 24 24">
+                        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    </svg>
+                </div>
+                <div class="avatar-status"></div>
+            </div>
+        </div>
+
+        <!-- 2. 设置面板区 -->
+        <div class="settings-container">
+
+            <!-- 主面板 -->
+            <div class="settings-panel active" id="settingsPanelMain">
+                <div class="section-tag mono-font">Section 01 — General</div>
+                <div class="setting-card">
+                    <div class="setting-row" onclick="switchSettingsPanel('appearance')">
+                        <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>
+                            </div>
+                            <div class="row-text-group">
+                                <span class="row-label">外观设置</span>
+                                <span class="row-note mono-font">Appearance & Icons</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                    </div>
+
+                    <div class="setting-row" onclick="switchSettingsPanel('api')">
+                        <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg>
+                            </div>
+                            <div class="row-text-group">
+                                <span class="row-label">API 接口与预设</span>
+                                <span class="row-note mono-font">Presets & Gateway</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-tag mono-font">Section 02 — Performance</div>
+                <div class="setting-card">
+                    <div class="setting-row">
+                        <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><path d="M17.8 19.2L16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.5 1.2c-.2.4 0 .9.4 1.1l6.5 3.5-3 3-2-.5c-.4-.1-.8.1-1 .4l-.8 1c-.3.4-.2.9.2 1.2l3.5 2.5 2.5 3.5c.3.4.8.5 1.2.2l1-.8c.3-.2.5-.6.4-1l-.5-2 3-3 3.5 6.5c.2.4.7.6 1.1.4l1.2-.5c.4-.2.6-.6.5-1.1z"/></svg>
+                            </div>
+                            <div class="row-text-group">
+                                <span class="row-label">快速巡航</span>
+                                <span class="row-note mono-font">Turbo Cruise</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <div class="ios-switch active" onclick="event.stopPropagation(); this.classList.toggle('active');"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 子面板：外观 -->
+            <div class="settings-panel" id="settingsPanelAppearance">
+                <div class="section-tag mono-font">Appearance — 显示与模式</div>
+                <div class="setting-card">
+                    <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 8px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                            <div class="row-left">
+                                <div class="row-icon-box">
+                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                                </div>
+                                <div class="row-text-group">
+                                    <span class="row-label">外观明暗模式</span>
+                                    <span class="row-note mono-font">Theme Mode</span>
+                                </div>
+                            </div>
+                            <div class="action-text-btn mono-font" onclick="showSettingsThemeTip(event)" style="font-size: 9px; padding: 2px 7px; opacity: 0.8;">Tip</div>
+                        </div>
+                        <div class="theme-seg-picker">
+                            <div class="seg-pill active mono-font" onclick="setSettingsThemeMode('dark', this)">Dark</div>
+                            <div class="seg-pill mono-font" onclick="setSettingsThemeMode('light', this)">Light</div>
+                            <div class="seg-pill mono-font" onclick="setSettingsThemeMode('auto', this)">System</div>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            </div>
+                            <div class="row-text-group">
+                                <span class="row-label">自定义壁纸</span>
+                                <span class="row-note mono-font">Wallpaper Engine</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <input type="file" id="settingsWallpaperInput" style="display:none;" accept="image/*" onchange="handleSettingsWallpaperUpload(event)">
+                            <div class="action-text-btn" onclick="document.getElementById('settingsWallpaperInput').click()">Upload</div>
+                            <div class="action-text-btn" onclick="resetSettingsWallpaper()" style="opacity:0.6;">Reset</div>
+                        </div>
+                    </div>
+
+                    <div class="setting-row" onclick="openCenterModal('iconLib')">
+                        <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+                            </div>
+                            <div class="row-text-group">
+                                <span class="row-label">软件图标库设置</span>
+                                <span class="row-note mono-font">App Icon Library</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                            </div>
+                            <div class="row-text-group">
+                                <span class="row-label">点这全屏</span>
+                                <span class="row-note mono-font">Immersive Mode</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <div class="ios-switch" id="settingsFullscreenSwitch" onclick="toggleSettingsFullscreen()"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-tag mono-font" style="margin-top: 8px;">Section 02 — Advanced Visuals</div>
+                <div class="setting-card">
+                    <div class="setting-row" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                            <div class="row-left">
+                                <div class="row-icon-box">
+                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                                </div>
+                                <div class="row-text-group">
+                                    <span class="row-label">图标深浅自动检测</span>
+                                    <span class="row-note mono-font">Adaptive Icon Contrast</span>
+                                </div>
+                            </div>
+                            <div class="row-right">
+                                <div class="ios-switch" id="adaptiveContrastSwitch" onclick="toggleAdaptiveContrast()"></div>
+                            </div>
+                        </div>
+                        <div class="manual-color-options" id="manualColorOptions">
+                            <span class="field-label mono-font" style="font-size: 8px;">SVG Style Mode · SVG 样式控制</span>
+                            <div class="icon-mode-dots">
+                                <div class="icon-dot dark-dot" id="dotDark" title="强制深色 SVG" onclick="setIconStyleMode('dark')"></div>
+                                <div class="icon-dot light-dot" id="dotLight" title="强制浅色 SVG" onclick="setIconStyleMode('light')"></div>
+                                <div class="icon-dot custom-dot" id="dotCustom" title="自定义颜色" onclick="triggerCustomColorPicker(event)">
+                                    <input type="color" id="customColorInput" style="position:absolute; opacity:0; width:0; height:0;" onchange="applyCustomIconColor(this.value)">
+                                </div>
+                            </div>
+
+                            <!-- 渐显提示语 -->
+                            <div class="hint-toast mono-font" id="appColorHintToast">✦ 点击书签设置 app 文字颜色</div>
+
+                            <!-- 悬空小书签 -->
+                            <div class="bookmark-tab" id="appColorBookmarkTab" onclick="toggleAppNameColorPanel()">
+                                <svg viewBox="0 0 34 46">
+                                    <path d="M4 2 C4 1 5 0 6 0 L28 0 C29 0 30 1 30 2 L30 40 C30 41.5 28.3 42.2 27.1 41.2 L18.9 34.3 C18.4 33.9 17.6 33.9 17.1 34.3 L8.9 41.2 C7.7 42.2 6 41.5 6 40 Z" 
+                                        fill="rgba(255,255,255,0.12)" 
+                                        stroke="rgba(255,255,255,0.55)" 
+                                        stroke-width="1"/>
+                                    <path d="M17 8 L18.2 12.2 L22.5 13.4 L18.2 14.6 L17 18.8 L15.8 14.6 L11.5 13.4 L15.8 12.2 Z" fill="rgba(255,255,255,0.9)"/>
+                                </svg>
+                            </div>
+
+                            <!-- 拉出的 App 名称颜色面板 -->
+                            <div class="app-name-panel" id="appNameColorPanel">
+                                <div>
+                                    <span class="panel-title mono-font">App Name Color</span>
+                                    <span class="panel-sub mono-font">应用名称文字颜色</span>
+                                </div>
+                                <div class="name-color-dots">
+                                    <div class="name-dot nd-white" id="ndWhite" title="白色" onclick="setAppNameColor('#FFFFFF', this)"></div>
+                                    <div class="name-dot nd-black" id="ndBlack" title="黑色" onclick="setAppNameColor('#1E1E24', this)"></div>
+                                    <div class="name-dot nd-gray" id="ndGray" title="灰色" onclick="setAppNameColor('#A1A1AA', this)"></div>
+                                    <div class="name-dot nd-blue" id="ndBlue" title="蓝色" onclick="setAppNameColor('#74b9ff', this)"></div>
+                                    <div class="name-dot nd-pink" id="ndPink" title="粉色" onclick="setAppNameColor('#ff7675', this)"></div>
+                                    <div class="name-dot nd-gold" id="ndGold" title="金色" onclick="setAppNameColor('#ffeaa7', this)"></div>
+                                </div>
+                                <div class="live-preview">
+                                    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                                    <span id="appNamePreviewText" style="color: #FFFFFF;">设置 Settings</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 子面板：API -->
+            <div class="settings-panel" id="settingsPanelApi">
+                <div class="section-tag mono-font">API Gateway & Presets</div>
+                <div class="setting-card" style="padding-top: 10px; padding-bottom: 14px;">
+                    <div class="api-form-group">
+                        <div>
+                            <div class="field-label mono-font">Preset Name · 预设名称</div>
+                            <div style="height:5px;"></div>
+                            <input type="text" class="api-input-field" id="settingsPresetName" placeholder="例如：OpenAI 主力端点" value="默认主线路">
+                        </div>
+                        <div>
+                            <div class="field-label mono-font">Endpoint URL · 接口地址</div>
+                            <div style="height:5px;"></div>
+                            <input type="text" class="api-input-field" id="settingsApiUrl" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1">
+                        </div>
+                        <div>
+                            <div class="field-label mono-font">Secret Key · 密钥</div>
+                            <div style="height:5px;"></div>
+                            <input type="password" class="api-input-field" id="settingsApiKey" placeholder="sk-..." value="sk-proj-mockkey987654321">
+                        </div>
+
+                        <div class="api-action-buttons">
+                            <button class="pill-btn mono-font" onclick="fetchSettingsModels(event)">
+                                <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                                <span>Fetch</span>
+                            </button>
+                            <button class="pill-btn primary mono-font" onclick="saveSettingsPreset()">
+                                <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                                <span>Save Preset</span>
+                            </button>
+                        </div>
+
+                        <div class="model-select-wrapper" id="settingsModelSelectBox">
+                            <div class="field-label mono-font">Select Model · 选模型</div>
+                            <select class="model-dropdown" id="settingsModelDropdown">
+                                <option value="gpt-4o">GPT-4o — Ultra Fast</option>
+                                <option value="gpt-4-turbo">GPT-4 Turbo — Advanced</option>
+                                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet — Haute</option>
+                                <option value="deepseek-v3">DeepSeek V3 — Lightning</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-top: 6px;">
+                            <div class="field-label mono-font">Saved Presets · 已保存的预设</div>
+                            <div class="presets-list-box" id="settingsPresetsListBox"></div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- 底部 footer -->
+        <div class="stage-footer mono-font">
+            <span>NOIR OS</span>
+            <span class="dot-sep"></span>
+            <span>V 2.7.5</span>
+            <span class="dot-sep"></span>
+            <span>READY</span>
+        </div>
+
+        <!-- 左下角独立液态玻璃按钮组 -->
+        <div class="bottom-left-controls">
+            <div class="corner-preset-switcher" onclick="cycleSettingsPreset()" title="切换 API 预设">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="#fff">
+                    <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                </svg>
+                <span class="switcher-text mono-font" id="settingsActivePresetBadge">Preset 1</span>
+            </div>
+            <div class="corner-bg-switcher" onclick="cycleSettingsBackground()" title="切换设置背景">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                </svg>
+            </div>
+        </div>
+
+        <!-- iOS 居中毛玻璃弹窗 -->
+        <div class="modal-backdrop" onclick="closeCenterModal()"></div>
+        <div class="ios-center-modal" id="settingsCenterModal">
+            <div class="center-modal-header">
+                <div class="sheet-title-group">
+                    <svg viewBox="0 0 24 24" id="settingsModalSvg">
+                        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    </svg>
+                    <div>
+                        <span class="sheet-title" id="settingsModalTitle">Flight Options</span>
+                        <span class="sheet-subtitle mono-font" id="settingsModalSubtitle">航空配置</span>
+                    </div>
+                </div>
+                <button class="sheet-close-btn" onclick="closeCenterModal()">
+                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="center-modal-body" id="settingsModalBody"></div>
+        </div>
+
+    </div>
+    `;
+}
+
+async function initSettingsApp() {
+    console.log('🚀 [SETTINGS INIT] 开始初始化设置应用...');
+    renderSettingsPresetsList();
+    updateSettingsActivePresetBadge();
+
+    if (typeof safeDB !== 'undefined') {
+        const savedTheme = await safeDB.load('theme', 'theme-dark');
+        const savedBgIdx = await safeDB.load('settings_bg_index', 0);
+        const savedAdaptive = await safeDB.load('enable_adaptive_contrast', true);
+        const savedMode = await safeDB.load('icon_style_mode', 'dark');
+        const savedCustomColor = await safeDB.load('custom_icon_color', '#ffffff');
+        const savedFullscreen = await safeDB.load('settings_fullscreen', false);
+
+        settingsCurrentBgIndex = savedBgIdx !== null ? savedBgIdx : 0;
+        enableAdaptiveContrast = savedAdaptive;
+        window.enableAdaptiveContrast = enableAdaptiveContrast;
+        currentIconStyleMode = savedMode || 'dark';
+
+        // 1. 先将主题类名应用到设置根节点
+        const root = document.getElementById('noirSettingsRoot');
+        if (root) {
+            root.classList.remove('theme-light', 'theme-dark');
+            root.classList.add(savedTheme);
+            document.querySelectorAll('.noir-settings-root .theme-seg-picker .seg-pill').forEach(p => {
+                p.classList.remove('active');
+                const text = p.textContent.trim().toLowerCase();
+                if (savedTheme === 'theme-light' && text === 'light') p.classList.add('active');
+                if (savedTheme === 'theme-dark' && text === 'dark') p.classList.add('active');
+            });
+        }
+
+        // 2. 主题应用完毕后，再渲染背景及对应深浅遮罩
+        applyCurrentSettingsBackground();
+
+        // 3. 更新自适应开关状态
+        const sw = document.getElementById('adaptiveContrastSwitch');
+        if (sw) {
+            if (enableAdaptiveContrast) sw.classList.add('active');
+            else sw.classList.remove('active');
+        }
+        updateManualColorOptionsVisibility(enableAdaptiveContrast);
+        updateIconDotsUI();
+
+        // 4. 如果关闭了自适应检测，立即将保存的手动 SVG 样式应用到桌面容器
+        if (!enableAdaptiveContrast) {
+            applyIconStyleModeToContainer(currentIconStyleMode, savedCustomColor);
+        }
+
+        // 5. 加载保存的 App 名称颜色并同步预览与容器变量
+        const savedAppNameColor = await safeDB.load('app_name_color', null);
+        if (savedAppNameColor) {
+            if (window.phoneContainer) {
+                window.phoneContainer.style.setProperty('--app-name-color', savedAppNameColor);
+            }
+            const preview = document.getElementById('appNamePreviewText');
+            if (preview) {
+                preview.style.color = savedAppNameColor;
+            }
+            const colorMap = { '#FFFFFF': 'ndWhite', '#1E1E24': 'ndBlack', '#A1A1AA': 'ndGray', '#74b9ff': 'ndBlue', '#ff7675': 'ndPink', '#ffeaa7': 'ndGold' };
+            const dotId = colorMap[savedAppNameColor.toUpperCase()] || colorMap[savedAppNameColor];
+            if (dotId) {
+                const dot = document.getElementById(dotId);
+                if (dot) dot.classList.add('active');
+            }
+        }
+
+        // 5. 更新全屏开关状态
+        const swFs = document.getElementById('settingsFullscreenSwitch');
+        if (swFs) {
+            if (savedFullscreen) swFs.classList.add('active');
+            else swFs.classList.remove('active');
+        }
+    } else {
+        applyCurrentSettingsBackground();
+    }
+}
+
+let settingsCurrentPanel = 'main';
+let settingsApiPresets = [
+    { id: 1, name: '默认主线路', url: 'https://api.openai.com/v1', key: 'sk-proj-mockkey987654321', model: 'gpt-4o' },
+    { id: 2, name: '备用中转站', url: 'https://api.deepseek.com/v1', key: 'sk-ds-abcdef123456', model: 'deepseek-v3' }
+];
+let settingsActivePresetIndex = 0;
+let appLibrary = [
+    { id: 'chat', name: '信息', style: 'Line Art' },
+    { id: 'weather', name: '天气', style: 'Line Art' },
+    { id: 'gallery', name: '相册', style: 'Line Art' },
+    { id: 'notes', name: '便签', style: 'Line Art' },
+    { id: 'settings', name: '设置', style: 'Line Art' }
+];
+
+function switchSettingsPanel(panelName) {
+    const title = document.getElementById('settingsNavTitle');
+    const kicker = document.getElementById('settingsHeroKicker');
+    const heroMain = document.getElementById('settingsHeroMain');
+    const heroSub = document.getElementById('settingsHeroSub');
+    const leftText = document.getElementById('settingsLeftText');
+
+    document.querySelectorAll('.noir-settings-root .settings-panel').forEach(p => p.classList.remove('active'));
+
+    if (panelName === 'appearance') {
+        document.getElementById('settingsPanelAppearance').classList.add('active');
+        title.innerText = 'APPEARANCE';
+        kicker.innerText = 'Section 01';
+        heroMain.innerHTML = 'Look &<br><strong>Feel</strong>';
+        heroSub.innerText = '明暗模式 · 壁纸 · 图标库';
+        leftText.innerText = 'BACK';
+        settingsCurrentPanel = 'appearance';
+    } else if (panelName === 'api') {
+        document.getElementById('settingsPanelApi').classList.add('active');
+        title.innerText = 'API HUB';
+        kicker.innerText = 'Section 02';
+        heroMain.innerHTML = 'Model<br><strong>Gateway</strong>';
+        heroSub.innerText = '接口 · 密钥 · 预设管理';
+        leftText.innerText = 'BACK';
+        settingsCurrentPanel = 'api';
+    } else {
+        document.getElementById('settingsPanelMain').classList.add('active');
+        title.innerText = 'SETTINGS';
+        kicker.innerText = 'Control Center';
+        heroMain.innerHTML = 'System<br><strong>Preferences</strong>';
+        heroSub.innerText = '外观 · 接口 · 预设管理';
+        leftText.innerText = 'HOME';
+        settingsCurrentPanel = 'main';
+    }
+}
+
+function handleSettingsBack() {
+    if (settingsCurrentPanel !== 'main') {
+        switchSettingsPanel('main');
+    } else {
+        closeApp();
+    }
+}
+
+let settingsBackgrounds = [
+    'assets/settings/设置背景.png',
+    'assets/settings/设置背景2.png',
+    'assets/settings/设置背景3.png',
+    'assets/settings/设置背景4.png'
+];
+let settingsCurrentBgIndex = 0;
+
+let enableAdaptiveContrast = true; // 默认开启
+let currentIconStyleMode = 'dark'; // 默认深色
+
+function updateManualColorOptionsVisibility(isAdaptive) {
+    const container = document.getElementById('manualColorOptions');
+    if (!container) return;
+    if (isAdaptive) {
+        container.classList.add('collapsed');
+    } else {
+        container.classList.remove('collapsed');
+    }
+}
+
+async function toggleAdaptiveContrast() {
+    const sw = document.getElementById('adaptiveContrastSwitch');
+    if (!sw) return;
+    sw.classList.toggle('active');
+    enableAdaptiveContrast = sw.classList.contains('active');
+    window.enableAdaptiveContrast = enableAdaptiveContrast;
+    await safeDB.save('enable_adaptive_contrast', enableAdaptiveContrast);
+    updateManualColorOptionsVisibility(enableAdaptiveContrast);
+    if (!enableAdaptiveContrast) {
+        applyIconStyleModeToContainer(currentIconStyleMode);
+        // 展开后触发渐显提示：点击书签可设置 app 文字颜色
+        setTimeout(() => {
+            const toast = document.getElementById('appColorHintToast');
+            if (toast) {
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 1800);
+            }
+        }, 400);
+    } else {
+        const panel = document.getElementById('appNameColorPanel');
+        if (panel) panel.classList.remove('open');
+        if (window.phoneContainer) {
+            window.phoneContainer.classList.remove('force-dark', 'force-light', 'force-custom');
+        }
+        if (typeof updateAllElementsAdaptiveContrast === 'function') {
+            updateAllElementsAdaptiveContrast();
+        }
+    }
+}
+
+function toggleAppNameColorPanel() {
+    const panel = document.getElementById('appNameColorPanel');
+    if (panel) {
+        panel.classList.toggle('open');
+    }
+}
+
+async function setAppNameColor(colorHex, dotEl = null) {
+    if (dotEl) {
+        document.querySelectorAll('.app-name-panel .name-dot').forEach(d => d.classList.remove('active'));
+        dotEl.classList.add('active');
+    }
+    const preview = document.getElementById('appNamePreviewText');
+    if (preview) {
+        preview.style.color = colorHex;
+    }
+    if (window.phoneContainer) {
+        window.phoneContainer.style.setProperty('--app-name-color', colorHex);
+    }
+    await safeDB.save('app_name_color', colorHex);
+}
+
+async function setIconStyleMode(mode) {
+    currentIconStyleMode = mode;
+    await safeDB.save('icon_style_mode', mode);
+    updateIconDotsUI();
+    if (!enableAdaptiveContrast) {
+        applyIconStyleModeToContainer(mode);
+    }
+}
+
+function triggerCustomColorPicker(e) {
+    e.stopPropagation();
+    const picker = document.getElementById('customColorInput');
+    if (picker) picker.click();
+}
+
+async function applyCustomIconColor(colorHex) {
+    currentIconStyleMode = 'custom';
+    await safeDB.save('icon_style_mode', 'custom');
+    await safeDB.save('custom_icon_color', colorHex);
+    updateIconDotsUI();
+    if (!enableAdaptiveContrast) {
+        applyIconStyleModeToContainer('custom', colorHex);
+    }
+}
+
+function updateIconDotsUI() {
+    document.querySelectorAll('.icon-dot').forEach(d => d.classList.remove('active'));
+    if (currentIconStyleMode === 'dark') {
+        const dot = document.getElementById('dotDark');
+        if (dot) dot.classList.add('active');
+    } else if (currentIconStyleMode === 'light') {
+        const dot = document.getElementById('dotLight');
+        if (dot) dot.classList.add('active');
+    } else if (currentIconStyleMode === 'custom') {
+        const dot = document.getElementById('dotCustom');
+        if (dot) dot.classList.add('active');
+    }
+}
+
+function applyIconStyleModeToContainer(mode, customColor = null) {
+    if (!window.phoneContainer) return;
+    window.phoneContainer.classList.remove('force-dark', 'force-light', 'force-custom');
+    if (mode === 'dark') {
+        window.phoneContainer.classList.add('force-dark');
+    } else if (mode === 'light') {
+        window.phoneContainer.classList.add('force-light');
+    } else if (mode === 'custom') {
+        window.phoneContainer.classList.add('force-custom');
+        if (customColor) {
+            window.phoneContainer.style.setProperty('--custom-icon-color', customColor);
+        }
+    }
+}
+
+async function cycleSettingsBackground() {
+    settingsCurrentBgIndex = (settingsCurrentBgIndex + 1) % settingsBackgrounds.length;
+    await safeDB.save('settings_bg_index', settingsCurrentBgIndex);
+    applyCurrentSettingsBackground();
+}
+
+function applyCurrentSettingsBackground() {
+    const root = document.getElementById('noirSettingsRoot');
+    if (!root) return;
+    const bgPath = settingsBackgrounds[settingsCurrentBgIndex] || 'assets/settings/设置背景.png';
+    const isLight = root.classList.contains('theme-light');
+    const overlay = isLight ? 'linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6))' : 'linear-gradient(rgba(6, 6, 8, 0.55), rgba(6, 6, 8, 0.55))';
+    root.style.backgroundImage = `${overlay}, url('${bgPath}')`;
+    root.style.backgroundSize = 'cover';
+    root.style.backgroundPosition = 'center';
+}
+
+async function setSettingsThemeMode(mode, el) {
+    console.log('🎨 [THEME CHANGE] 用户点击切换主题模式参数:', mode);
+    document.querySelectorAll('.noir-settings-root .theme-seg-picker .seg-pill').forEach(p => p.classList.remove('active'));
+    if (el) el.classList.add('active');
+
+    const root = document.getElementById('noirSettingsRoot');
+    root.classList.remove('theme-light', 'theme-dark');
+
+    let targetThemeClass = 'theme-dark';
+    if (mode === 'light') {
+        root.classList.add('theme-light');
+        targetThemeClass = 'theme-light';
+    } else if (mode === 'dark') {
+        root.classList.add('theme-dark');
+        targetThemeClass = 'theme-dark';
+    } else {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+            root.classList.add('theme-light');
+            targetThemeClass = 'theme-light';
+        } else {
+            root.classList.add('theme-dark');
+            targetThemeClass = 'theme-dark';
+        }
+    }
+
+    console.log('🎨 [THEME CHANGE] 确定的目标主题类名:', targetThemeClass);
+
+    if (phoneContainer) {
+        phoneContainer.className = `phone-container ${targetThemeClass}`;
+        if (typeof updateDesktopWallpaperByTheme === 'function') {
+            updateDesktopWallpaperByTheme();
+        }
+    }
+
+    const success = await safeDB.save('theme', targetThemeClass);
+    console.log('💾 [THEME SAVE] 主题写入安全数据库结果:', success);
+
+    applyCurrentSettingsBackground();
+}
+
+function showSettingsThemeTip(e) {
+    e.stopPropagation();
+    const root = document.getElementById('noirSettingsRoot');
+    const title = document.getElementById('settingsModalTitle');
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+
+    title.innerText = 'Notice';
+    subtitle.innerText = '外观提示';
+    body.innerHTML = `
+        <div class="tip-modal-content">（桌面默认布置也会变喔）</div>
+        <button class="tip-modal-btn mono-font" onclick="closeCenterModal()">Got it</button>
+    `;
+
+    root.classList.add('center-modal-open');
+}
+
+async function toggleSettingsFullscreen() {
+    const sw = document.getElementById('settingsFullscreenSwitch');
+    const isActive = sw.classList.toggle('active');
+    
+    await safeDB.save('settings_fullscreen', isActive);
+
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        const docEl = document.documentElement;
+        if (docEl.requestFullscreen) {
+            docEl.requestFullscreen().catch(err => console.log("Fullscreen request failed:", err));
+        } else if (docEl.webkitRequestFullscreen) {
+            docEl.webkitRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen().catch(err => console.log("Exit fullscreen failed:", err));
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
+function handleSettingsWallpaperUpload(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const root = document.getElementById('noirSettingsRoot');
+            root.style.backgroundImage = `url('${evt.target.result}')`;
+            root.style.backgroundSize = 'cover';
+            root.style.backgroundPosition = 'center';
+            alert('自定义壁纸已应用！');
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function resetSettingsWallpaper() {
+    const root = document.getElementById('noirSettingsRoot');
+    root.style.backgroundImage = 'none';
+    alert('已恢复默认背景！');
+}
+
+function fetchSettingsModels(e) {
+    const btn = e.currentTarget;
+    const original = btn.innerHTML;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" style="animation: spin 0.9s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Fetching...</span>`;
+    setTimeout(() => {
+        btn.innerHTML = original;
+        document.getElementById('settingsModelSelectBox').classList.add('show');
+    }, 900);
+}
+
+function saveSettingsPreset() {
+    const name = document.getElementById('settingsPresetName').value.trim();
+    const url = document.getElementById('settingsApiUrl').value.trim();
+    const key = document.getElementById('settingsApiKey').value.trim();
+    const model = document.getElementById('settingsModelDropdown').value;
+
+    if (!name || !url || !key) {
+        alert('预设名称、URL 和 Key 都要填完整');
+        return;
+    }
+
+    const existing = settingsApiPresets.find(p => p.name === name);
+    if (existing) {
+        existing.url = url;
+        existing.key = key;
+        existing.model = model;
+        alert(`预设 "${name}" 已更新！`);
+    } else {
+        settingsApiPresets.push({ id: Date.now(), name, url, key, model });
+        alert(`新预设 "${name}" 保存成功！`);
+    }
+
+    renderSettingsPresetsList();
+    updateSettingsActivePresetBadge();
+}
+
+function renderSettingsPresetsList() {
+    const box = document.getElementById('settingsPresetsListBox');
+    if (!box) return;
+    box.innerHTML = '';
+
+    settingsApiPresets.forEach((p, idx) => {
+        const item = document.createElement('div');
+        item.className = 'preset-accordion-item';
+        item.id = `settings-preset-item-${p.id}`;
+        item.innerHTML = `
+            <div class="preset-accordion-header" onclick="toggleSettingsPresetExpand(${p.id})">
+                <div class="preset-title-wrap">
+                    <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
+                    <span class="preset-name-text">${p.name}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                    ${idx === settingsActivePresetIndex ? '<span class="preset-tag-badge mono-font" style="background:#ffffff; color:#000000;" id="settingsActiveTagBadge">Active</span>' : ''}
+                    <span class="preset-tag-badge mono-font">Edit</span>
+                </div>
+            </div>
+            <div class="preset-accordion-body">
+                <div class="preset-edit-inner">
+                    <input type="text" class="preset-edit-input" id="edit-name-${p.id}" value="${p.name}" placeholder="预设名">
+                    <input type="text" class="preset-edit-input" id="edit-url-${p.id}" value="${p.url}" placeholder="URL">
+                    <input type="password" class="preset-edit-input" id="edit-key-${p.id}" value="${p.key}" placeholder="Key">
+                    
+                    <div style="margin-top:2px;">
+                        <div class="field-label mono-font" style="font-size:7.5px;">Model · 模型</div>
+                        <select class="model-dropdown" id="edit-model-${p.id}" style="margin-top:3px; padding:6px 10px; font-size:11px;">
+                            <option value="gpt-4o" ${p.model==='gpt-4o'?'selected':''}>GPT-4o</option>
+                            <option value="gpt-4-turbo" ${p.model==='gpt-4-turbo'?'selected':''}>GPT-4 Turbo</option>
+                            <option value="deepseek-v3" ${p.model==='deepseek-v3'?'selected':''}>DeepSeek V3</option>
+                        </select>
+                    </div>
+
+                    <div class="preset-edit-row-btns">
+                        <button class="preset-sub-btn mono-font" onclick="alert('已向此预设端点请求模型列表')">Fetch</button>
+                        <button class="preset-sub-btn primary mono-font" onclick="updateSettingsPresetData(${p.id})">Update</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        box.appendChild(item);
+    });
+}
+
+function toggleSettingsPresetExpand(id) {
+    const el = document.getElementById(`settings-preset-item-${id}`);
+    document.querySelectorAll('.noir-settings-root .preset-accordion-item').forEach(node => {
+        if (node !== el) node.classList.remove('expanded');
+    });
+    el.classList.toggle('expanded');
+}
+
+function updateSettingsPresetData(id) {
+    const name = document.getElementById(`edit-name-${id}`).value.trim();
+    const url = document.getElementById(`edit-url-${id}`).value.trim();
+    const key = document.getElementById(`edit-key-${id}`).value.trim();
+    const model = document.getElementById(`edit-model-${id}`).value;
+
+    const target = settingsApiPresets.find(p => p.id === id);
+    if (target) {
+        target.name = name;
+        target.url = url;
+        target.key = key;
+        target.model = model;
+        alert(`预设 "${name}" 更新成功！`);
+        renderSettingsPresetsList();
+        updateSettingsActivePresetBadge();
+    }
+}
+
+function cycleSettingsPreset() {
+    if (settingsApiPresets.length === 0) {
+        alert('请先保存至少一个 API 预设');
+        return;
+    }
+    settingsActivePresetIndex = (settingsActivePresetIndex + 1) % settingsApiPresets.length;
+    const current = settingsApiPresets[settingsActivePresetIndex];
+
+    document.getElementById('settingsPresetName').value = current.name;
+    document.getElementById('settingsApiUrl').value = current.url;
+    document.getElementById('settingsApiKey').value = current.key;
+
+    updateSettingsActivePresetBadge();
+    renderSettingsPresetsList();
+}
+
+function updateSettingsActivePresetBadge() {
+    const badge = document.getElementById('settingsActivePresetBadge');
+    if (settingsApiPresets.length > 0) {
+        badge.innerText = settingsApiPresets[settingsActivePresetIndex].name;
+    } else {
+        badge.innerText = 'No Preset';
+    }
+}
+
+function openCenterModal(type) {
+    const root = document.getElementById('noirSettingsRoot');
+    const title = document.getElementById('settingsModalTitle');
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+    body.innerHTML = '';
+
+    if (type === 'iconLib') {
+        title.innerText = 'App Icon Library';
+        subtitle.innerText = '软件图标库配置';
+        
+        appLibrary.forEach(app => {
+            const item = document.createElement('div');
+            item.className = 'sheet-option-item';
+            item.innerHTML = `
+                <div class="opt-icon">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
+                </div>
+                <span>${app.name} (${app.style})</span>
+                <span class="preset-tag-badge mono-font opt-arrow" onclick="alert('正在切换 ${app.name} 的图标材质')">Change</span>
+            `;
+            body.appendChild(item);
+        });
+    } else {
+        title.innerText = 'Flight Options';
+        subtitle.innerText = '航空配置';
+        body.innerHTML = `
+            <div class="sheet-option-item" onclick="closeCenterModal()">
+                <div class="opt-icon"><svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
+                <span>极速巡航 — Turbo Boost</span>
+                <svg class="opt-arrow" viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor; stroke-width:2; fill:none;"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+            <div class="sheet-option-item" onclick="closeCenterModal()">
+                <div class="opt-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg></div>
+                <span>卫星频段锁定 — Sat Lock</span>
+                <svg class="opt-arrow" viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor; stroke-width:2; fill:none;"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+        `;
+    }
+
+    root.classList.add('center-modal-open');
+}
+
+function closeCenterModal() {
+    const root = document.getElementById('noirSettingsRoot');
+    if (root) root.classList.remove('center-modal-open');
+}

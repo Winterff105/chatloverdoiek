@@ -1,0 +1,168 @@
+/* 主屏幕区域 */
+.home-screen {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.35s var(--smooth-ease), opacity 0.25s ease;
+}
+
+.home-screen.scaled {
+    transform: scale(0.93);
+    opacity: 0.5;
+}
+
+/* 多页横向滑动视口 */
+.desktop-viewport {
+    flex: 1;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+    touch-action: pan-y;
+}
+
+.desktop-track {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    transition: transform 0.38s var(--smooth-ease);
+    will-change: transform;
+}
+
+/* 单个桌面页面 (4列 × 5行，紧凑舒适间距，组件与App比例完美协调) */
+.desktop-page {
+    width: 100%;
+    height: 100%;
+    flex-shrink: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(5, 80px);
+    align-content: center;
+    padding: 0 16px;
+    gap: 10px 8px;
+    position: relative;
+}
+
+/* 浅色分页点点与加号 (+) */
+.pagination-bar {
+    height: 26px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    margin-bottom: 6px;
+    z-index: 10;
+}
+
+.pagination-inner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    min-height: 24px;
+}
+
+.dots-container {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+}
+
+.page-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.2);
+    transition: all 0.28s var(--smooth-ease);
+    cursor: pointer;
+}
+
+.page-dot.active {
+    background-color: rgba(255, 255, 255, 0.85);
+    transform: scale(1.2);
+}
+
+.add-page-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    border: 0.5px solid rgba(255, 255, 255, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    position: absolute;
+    right: -30px;
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.4);
+    transition: all 0.3s var(--smooth-ease);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.phone-container.edit-mode .add-page-btn {
+    opacity: 1;
+    pointer-events: auto;
+    transform: scale(1);
+}
+
+/* 底部 Dock 栏 (上抬并应用 3D 浮空液态透镜质感) */
+.dock-wrapper {
+    padding: 0 16px 36px 16px;
+    padding-bottom: calc(36px + env(safe-area-inset-bottom));
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+}
+
+.dock {
+    background: rgba(255, 255, 255, 0.035) !important;
+    backdrop-filter: url(#lens-refraction) blur(1.5px) saturate(180%);
+    -webkit-backdrop-filter: url(#lens-refraction) blur(1.5px) saturate(180%);
+    border: 0.5px solid rgba(255, 255, 255, 0.18) !important;
+    border-top: 0.75px solid rgba(255, 255, 255, 0.4) !important;
+    border-radius: 32px;
+    height: 86px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 
+        inset 0 0.8px 1px 0 rgba(255, 255, 255, 0.45),
+        inset 0 -1px 2px 0 rgba(255, 255, 255, 0.08),
+        0 24px 50px rgba(0, 0, 0, 0.5);
+    transition: width 0.36s var(--smooth-ease);
+    will-change: width;
+    overflow: hidden;
+    position: relative;
+}
+
+/* 边缘 RGB 色散层 */
+.dock::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: 
+        inset 1px 1px 0 rgba(255, 50, 100, 0.2),
+        inset -1px -1px 0 rgba(0, 220, 255, 0.2);
+    mix-blend-mode: screen;
+}
+
+.dock-slot {
+    height: 100%;
+    width: 56px !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0 !important;
+}
