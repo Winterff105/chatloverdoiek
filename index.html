@@ -3,7 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>手机桌面 UI</title>
+    <title>Forever</title>
+
+    <!-- PWA：添加到桌面后的名字与图标 -->
+    <meta name="application-name" content="Forever">
+    <meta name="theme-color" content="#09090b">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Forever">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="assets/IMG_20261008_161846.jpg">
+    <link rel="apple-touch-icon" href="assets/IMG_20261008_161846.jpg">
     
     <!-- 引入 CSS 样式 -->
     <link rel="stylesheet" href="css/variables.css">
@@ -13,6 +23,14 @@
     <link rel="stylesheet" href="css/widgets.css">
     <link rel="stylesheet" href="css/app-window.css">
     <link rel="stylesheet" href="css/settings.css">
+    <script>
+        // 注册 Service Worker（添加到桌面需要它；需要通过 https 或 localhost 访问）
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service Worker 注册失败:', err));
+            });
+        }
+    </script>
 </head>
 <body>
 
