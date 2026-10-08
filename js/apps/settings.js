@@ -293,6 +293,43 @@ function getSettingsAppHTML() {
                         </div>
                     </div>
                 </div>
+
+                <div class="section-tag mono-font" style="margin-top: 8px;">Section 03 — Viewport Layout</div>
+                <div class="setting-card">
+                    <div class="setting-row viewport-toggle-row" onclick="toggleViewportPaddingPanel()">
+                        <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+                            </div>
+                            <div class="row-text-group">
+                                <span class="row-label">视口边距调整</span>
+                                <span class="row-note mono-font">Viewport Padding (Top / Bottom)</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <div class="action-text-btn viewport-reset" onclick="resetViewportPadding(event)" style="opacity:0.6;">Reset</div>
+                            <svg id="viewportPanelArrow" class="viewport-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                    </div>
+                    <div class="viewport-panel collapsed" id="viewportPaddingPanel">
+                        <div class="viewport-panel-inner">
+                            <div class="appicon-slider-head" style="font-size: 11px;">
+                                <span class="modal-text">顶部距离 (Top)</span>
+                                <span class="modal-text appicon-val" id="viewportTopVal">24px</span>
+                            </div>
+                            <input type="range" class="appicon-range" id="viewportTopRange" min="0" max="80" step="1" value="24" style="--p:30%"
+                                oninput="previewViewportPadding('top', this.value, this)"
+                                onchange="commitViewportPadding('top', this.value)">
+                            <div class="appicon-slider-head" style="font-size: 11px; margin-top: 4px;">
+                                <span class="modal-text">底部距离 (Bottom)</span>
+                                <span class="modal-text appicon-val" id="viewportBottomVal">0px</span>
+                            </div>
+                            <input type="range" class="appicon-range" id="viewportBottomRange" min="0" max="80" step="1" value="0" style="--p:0%"
+                                oninput="previewViewportPadding('bottom', this.value, this)"
+                                onchange="commitViewportPadding('bottom', this.value)">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- 子面板：API -->
@@ -450,6 +487,26 @@ async function initSettingsApp() {
             if (savedFullscreen) swFs.classList.add('active');
             else swFs.classList.remove('active');
         }
+
+        // 6. 加载并应用保存的视口边距
+        const savedVpTop = await safeDB.load('viewport_padding_top', 24);
+        const savedVpBottom = await safeDB.load('viewport_padding_bottom', 0);
+        applyViewportPadding(savedVpTop, savedVpBottom);
+        const topRange = document.getElementById('viewportTopRange');
+        const topValLabel = document.getElementById('viewportTopVal');
+        if (topRange) {
+            topRange.value = savedVpTop;
+            topRange.style.setProperty('--p', ((savedVpTop - topRange.min) / (topRange.max - topRange.min) * 100) + '%');
+        }
+        if (topValLabel) topValLabel.innerText = savedVpTop + 'px';
+
+        const botRange = document.getElementById('viewportBottomRange');
+        const botValLabel = document.getElementById('viewportBottomVal');
+        if (botRange) {
+            botRange.value = savedVpBottom;
+            botRange.style.setProperty('--p', ((savedVpBottom - botRange.min) / (botRange.max - botRange.min) * 100) + '%');
+        }
+        if (botValLabel) botValLabel.innerText = savedVpBottom + 'px';
     } else {
         applyCurrentSettingsBackground();
     }
@@ -700,6 +757,7 @@ function resolveThemeClass(mode) {
 // 只负责把主题画出来：设置根节点、信息样式弹窗、Dark/Light/System 选项、桌面、背景
 function applySettingsThemeClass(targetThemeClass, mode = 'auto') {
     const root = document.getElementById('noirSettingsRoot');
+    // 桌面的类名在下面才改，所以壁纸默认图要在改完类名后再写
     if (root) {
         root.classList.remove('theme-light', 'theme-dark');
         root.classList.add(targetThemeClass);
@@ -721,6 +779,7 @@ function applySettingsThemeClass(targetThemeClass, mode = 'auto') {
         pc.classList.remove('theme-light', 'theme-dark');
         pc.classList.add(targetThemeClass);
     }
+    writeDesktopWallpaperVar();
     if (typeof updateDesktopWallpaperByTheme === 'function') {
         updateDesktopWallpaperByTheme();
     }
@@ -770,7 +829,7 @@ async function resolvePopupThemeClass() {
 
 // 所有弹窗共用一个独立容器；它自带 theme-light / theme-dark，互不影响设置页
 function ensurePopupShell(themeClass) {
-    const host = document.getElementById('phoneContainer') || document.body;
+    const host = document.getElementById('viewportLayer') || document.getElementById('phoneContainer') || document.body;
     let shell = document.getElementById('settingsPopupShell');
     if (!shell) {
         shell = document.createElement('div');
@@ -895,6 +954,35 @@ function cssWallpaperUrl(src) {
 }
 
 // 只决定壁纸并写到桌面容器上（不重新渲染）
+// 写入桌面壁纸：选中的图 -> 当前日夜的默认图（两种路径都写，哪个能读就用哪个）-> 纯色
+// 加载失败的那一层会被浏览器跳过，所以不会变成全黑
+function writeDesktopWallpaperVar() {
+    const pc = document.getElementById('phoneContainer');
+    if (!pc) return;
+    const isLight = pc.classList.contains('theme-light');
+    const themeName = isLight ? 'Light' : 'Dark';
+    const fallbackColor = isLight ? '#FCFAFB' : '#09090b';
+    const layers = [];
+    if (window.currentDesktopWallpaperSrc) {
+        const s = window.currentDesktopWallpaperSrc;
+        if (s.startsWith('data:')) {
+            layers.push(`url('${s}') no-repeat center center / cover`);
+        } else {
+            // 两种路径都写：样式表里的 url() 可能按 css 目录解析
+            const u = cssWallpaperUrl(s);
+            layers.push(`url('${u}') no-repeat center center / cover`);
+            layers.push(`url('../${u}') no-repeat center center / cover`);
+        }
+    }
+    layers.push(`url('assets/${themeName}/bizhi.png') no-repeat center center / cover`);
+    layers.push(`url('../assets/${themeName}/bizhi.png') no-repeat center center / cover`);
+    pc.style.setProperty('--wallpaper-bg', `${layers.join(', ')}, ${fallbackColor}`);
+    pc.style.backgroundImage = '';
+    pc.style.backgroundSize = '';
+    pc.style.backgroundPosition = '';
+    pc.style.backgroundRepeat = '';
+}
+
 async function resolveDesktopWallpaper() {
     const custom = await safeDB.load('desktop_wallpaper', null);
     const builtin = await safeDB.load('builtin_wallpaper', null);
@@ -905,24 +993,7 @@ async function resolveDesktopWallpaper() {
         src = builtinWallpaperSrc(builtin.set, builtin.index);
     }
     window.currentDesktopWallpaperSrc = src;
-    const pc = document.getElementById('phoneContainer');
-    if (pc) {
-        if (src) {
-            const url = cssWallpaperUrl(src);
-            pc.style.setProperty('--wallpaper-bg', `url('${url}') no-repeat center center / cover, #09090b`);
-            pc.style.backgroundImage = `url('${url}')`;
-            pc.style.backgroundSize = 'cover';
-            pc.style.backgroundPosition = 'center';
-            pc.style.backgroundRepeat = 'no-repeat';
-        } else {
-            // 没有选择：移除内联变量，恢复原来按主题（亮/暗）引用的默认壁纸
-            pc.style.removeProperty('--wallpaper-bg');
-            pc.style.backgroundImage = '';
-            pc.style.backgroundSize = '';
-            pc.style.backgroundPosition = '';
-            pc.style.backgroundRepeat = '';
-        }
-    }
+    writeDesktopWallpaperVar();
     return src;
 }
 
@@ -1690,7 +1761,7 @@ async function setChatSvgStyle(styleId) {
 }
 
 // ---------- 桌面 App 图标材质（方圆度 / 磨砂玻璃度 / 透明度 / 材质），用 DB 保存 ----------
-const APP_ICON_STYLE_DEFAULT = { radius: 17, blur: 1.5, transparency: 93, material: 'default', solidColor: null, solidIconColor: null, borderWidth: null, borderColor: null };
+const APP_ICON_STYLE_DEFAULT = { radius: 17, blur: 1.5, transparency: 93, solidTransparency: 0, material: 'default', solidColor: null, solidIconColor: null, borderWidth: null, borderColor: null };
 let liveAppIconStyle = null;
 
 // 内存中的最新样式：避免快速连续修改时，读到旧数据互相覆盖
@@ -1737,19 +1808,15 @@ function applyAppIconStyle(style) {
     const pc = document.getElementById('phoneContainer');
     if (!pc) return;
     const s = Object.assign({}, APP_ICON_STYLE_DEFAULT, style || {});
-    const transparencyRatio = s.transparency / 100;
-    const solidOpacity = 1 - transparencyRatio;
-
-    const alpha = (0.5 * solidOpacity).toFixed(3); // 透明度越高，底色越淡
+    const alpha = (0.5 * (1 - s.transparency / 100)).toFixed(3); // 透明度越高，底色越淡
     pc.style.setProperty('--app-radius', s.radius + 'px');
     pc.style.setProperty('--app-blur', s.blur + 'px');
     pc.style.setProperty('--app-glass-alpha', alpha);
 
-    const isLight = pc.classList.contains('theme-light');
-    const defaultSolid = isLight ? '#e6e6eb' : '#2b2b30';
-    const rawSolidColor = s.solidColor || defaultSolid;
-    const solidRgba = colorToRgba(rawSolidColor, solidOpacity);
-    pc.style.setProperty('--app-solid-bg-rgba', solidRgba);
+    // 纯色材质的不透明度：0% 透明度 = 完全不透明
+    const solidOpacity = (1 - s.solidTransparency / 100).toFixed(3);
+    pc.style.setProperty('--app-solid-opacity', solidOpacity);
+    pc.style.removeProperty('--app-solid-bg-rgba');
 
     if (s.borderWidth !== null && s.borderWidth !== undefined) pc.style.setProperty('--app-border-w', s.borderWidth + 'px');
     else pc.style.removeProperty('--app-border-w');
@@ -1829,7 +1896,7 @@ async function resetAppIconStyle(stayInSettings = false) {
 
 // 底部圆形小胶囊提示：冒出 -> 停留 -> 渐出
 function showCapsuleTip(text) {
-    const host = document.getElementById('phoneContainer') || document.body;
+    const host = document.getElementById('viewportLayer') || document.getElementById('phoneContainer') || document.body;
     const old = document.getElementById('capsuleTip');
     if (old) old.remove();
     const tip = document.createElement('div');
@@ -1900,7 +1967,9 @@ async function openAppIconSettingsView(showTip = false) {
     body.innerHTML =
         row('radius', '方圆度', 0, 28, 1, liveAppIconStyle.radius, 'px') +
         row('blur', '磨砂玻璃度', 0, 20, 0.5, liveAppIconStyle.blur, 'px') +
-        row('transparency', '透明度', 0, 100, 1, liveAppIconStyle.transparency, '%') +
+        (liveAppIconStyle.material === 'solid'
+            ? row('solidTransparency', '透明度（纯色）', 0, 100, 1, liveAppIconStyle.solidTransparency ?? 0, '%')
+            : row('transparency', '透明度', 0, 100, 1, liveAppIconStyle.transparency, '%')) +
         row('borderWidth', '图标边框粗细', 0, 3, 0.5, borderVal, 'px') +
         colorRow('borderColor', '图标边框颜色', borderColorVal) +
         colorRow('solidColor', '纯色材质颜色', bgVal) +
@@ -2000,6 +2069,92 @@ async function openChatStyleModal() {
 }
 window.openChatStyleModal = openChatStyleModal;
 window.openChatStyleModal = openChatStyleModal;
+
+function toggleViewportPaddingPanel() {
+    const panel = document.getElementById('viewportPaddingPanel');
+    const arrow = document.getElementById('viewportPanelArrow');
+    const row = document.querySelector('.viewport-toggle-row');
+    if (!panel) return;
+    panel.classList.toggle('collapsed');
+    const open = !panel.classList.contains('collapsed');
+    if (arrow) arrow.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
+    if (row) row.classList.toggle('expanded', open);
+}
+
+// 视口恢复默认：顶部 24px、底部 0px（和壁纸的 Reset 一样，只恢复视口，不收起面板）
+async function resetViewportPadding(e) {
+    if (e) e.stopPropagation();
+    const top = 24, bottom = 0;
+    await safeDB.save('viewport_padding_top', top);
+    await safeDB.save('viewport_padding_bottom', bottom);
+    applyViewportPadding(top, bottom);
+    const tr = document.getElementById('viewportTopRange');
+    const br = document.getElementById('viewportBottomRange');
+    const tl = document.getElementById('viewportTopVal');
+    const bl = document.getElementById('viewportBottomVal');
+    if (tr) { tr.value = top; tr.style.setProperty('--p', ((top - tr.min) / (tr.max - tr.min) * 100) + '%'); }
+    if (br) { br.value = bottom; br.style.setProperty('--p', ((bottom - br.min) / (br.max - br.min) * 100) + '%'); }
+    if (tl) tl.innerText = top + 'px';
+    if (bl) bl.innerText = bottom + 'px';
+}
+
+// ---------- 视口：把桌面和应用窗口放进“视口层”，上下边距由滑条控制 ----------
+// 壁纸在手机容器自己的 ::before 上（不受影响），所以只有视口层里的界面会移动
+function ensureViewportLayer() {
+    const pc = document.getElementById('phoneContainer');
+    if (!pc) return null;
+    let layer = document.getElementById('viewportLayer');
+    if (!layer) {
+        layer = document.createElement('div');
+        layer.id = 'viewportLayer';
+        layer.className = 'viewport-layer';
+        pc.appendChild(layer);
+        ['homeScreen', 'appWindow'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) layer.appendChild(el);
+        });
+    }
+    return layer;
+}
+
+function applyViewportPadding(topVal, bottomVal) {
+    const pc = document.getElementById('phoneContainer');
+    const layer = ensureViewportLayer();
+    if (!pc || !layer) return;
+    pc.style.paddingTop = '0px';
+    pc.style.paddingBottom = '0px';
+    layer.style.setProperty('--vp-top', topVal + 'px');
+    layer.style.setProperty('--vp-bottom', bottomVal + 'px');
+}
+
+function previewViewportPadding(type, val, el) {
+    if (el) {
+        const pct = ((val - el.min) / (el.max - el.min)) * 100;
+        el.style.setProperty('--p', pct + '%');
+    }
+    const label = document.getElementById(type === 'top' ? 'viewportTopVal' : 'viewportBottomVal');
+    if (label) label.innerText = val + 'px';
+    const layer = ensureViewportLayer();
+    if (!layer) return;
+    if (type === 'top') layer.style.setProperty('--vp-top', val + 'px');
+    else layer.style.setProperty('--vp-bottom', val + 'px');
+}
+
+async function commitViewportPadding(type, val) {
+    const num = parseInt(val, 10);
+    if (type === 'top') {
+        await safeDB.save('viewport_padding_top', num);
+    } else {
+        await safeDB.save('viewport_padding_bottom', num);
+    }
+}
+
+// 页面一加载就应用保存的视口（不必先打开设置）
+document.addEventListener('DOMContentLoaded', async () => {
+    const topVal = await safeDB.load('viewport_padding_top', 24);
+    const bottomVal = await safeDB.load('viewport_padding_bottom', 0);
+    applyViewportPadding(topVal, bottomVal);
+});
 
 // 系统日夜间变化时，如果用户没有手动选择过，就跟随
 if (window.matchMedia) {
