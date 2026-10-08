@@ -1059,32 +1059,32 @@
     background: color-mix(in srgb, var(--app-solid-bg, #ffffff) calc(var(--app-solid-opacity, 1) * 100%), transparent) !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    border: var(--app-border-w, 1px) solid var(--app-border-color, #8a8a92) !important;
-    border-top: var(--app-border-w, 1px) solid var(--app-border-color, #8a8a92) !important;
+    border: var(--app-border-w, 3px) solid var(--app-border-color, #DDDDDD) !important;
+    border-top: var(--app-border-w, 3px) solid var(--app-border-color, #DDDDDD) !important;
 }
 #phoneContainer.app-material-solid.theme-light .app-icon,
 #phoneContainer.app-material-solid.theme-light .dock .app-icon {
     background: color-mix(in srgb, var(--app-solid-bg, #ffffff) calc(var(--app-solid-opacity, 1) * 100%), transparent) !important;
-    border-color: var(--app-border-color, #9a9aa3) !important;
-    border-top-color: var(--app-border-color, #9a9aa3) !important;
+    border-color: var(--app-border-color, #DDDDDD) !important;
+    border-top-color: var(--app-border-color, #DDDDDD) !important;
 }
 #phoneContainer.app-material-solid .app-icon::before { display: none; }
 
 #phoneContainer.app-material-solid .app-icon .stroke-primary,
 #phoneContainer.app-material-solid .app-icon .stroke-secondary,
 #phoneContainer.app-material-solid .app-icon .star-solid-translucent {
-    stroke: var(--app-solid-icon, #1e1e24) !important;
+    stroke: var(--app-solid-icon, #595959) !important;
 }
 #phoneContainer.app-material-solid .app-icon .fill-solid {
-    fill: var(--app-solid-icon, #1e1e24) !important;
+    fill: var(--app-solid-icon, #595959) !important;
 }
 #phoneContainer.app-material-solid.theme-light .app-icon .stroke-primary,
 #phoneContainer.app-material-solid.theme-light .app-icon .stroke-secondary,
 #phoneContainer.app-material-solid.theme-light .app-icon .star-solid-translucent {
-    stroke: var(--app-solid-icon, #1e1e24) !important;
+    stroke: var(--app-solid-icon, #595959) !important;
 }
 #phoneContainer.app-material-solid.theme-light .app-icon .fill-solid {
-    fill: var(--app-solid-icon, #1e1e24) !important;
+    fill: var(--app-solid-icon, #595959) !important;
 }
 
 /* 优先级 3：应用名称颜色（设置了就覆盖自适应和手动颜色） */
@@ -1293,42 +1293,31 @@
     top: 24px; bottom: 0; flex: none;
 }
 
-/* 编辑模式下：分页点上方的黑色五角星按钮 */
+/* 编辑模式下：分页点上方的黑色五角星，星星上写着 Got it */
 .desktop-edit-star {
-    position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
-    width: 28px; height: 28px;
-    display: none; align-items: center; justify-content: center; cursor: pointer;
-    z-index: 12; user-select: none;
+    position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%);
+    width: 84px; height: 84px;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 12; user-select: none;
     transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.desktop-edit-star svg { width: 26px; height: 26px; display: block; }
-.desktop-edit-star:active { transform: translateX(-50%) scale(0.85); }
+.desktop-edit-star svg {
+    position: absolute; left: 0; top: 0; width: 84px; height: 84px; display: block;
+    filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.35));
+}
+.desktop-star-label {
+    position: relative; margin-top: 12px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+    color: #ffffff; pointer-events: none; white-space: nowrap;
+}
 #phoneContainer.edit-mode .desktop-edit-star {
     display: flex; animation: starPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+.desktop-edit-star:active { transform: translateX(-50%) scale(0.88); }
 @keyframes starPop {
     from { opacity: 0; transform: translateX(-50%) scale(0.4); }
     to { opacity: 1; transform: translateX(-50%) scale(1); }
 }
-
-/* 五角星上方的提示：与 tip 弹窗同款（内容 + Got it） */
-.desktop-star-tip {
-    position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%);
-    width: 150px; padding: 10px 12px 12px; border-radius: 18px;
-    background: rgba(18, 18, 22, 0.92); color: #ffffff;
-    backdrop-filter: blur(16px) saturate(160%);
-    -webkit-backdrop-filter: blur(16px) saturate(160%);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
-    cursor: default; white-space: nowrap;
-}
-.desktop-star-tip .tip-modal-content { font-size: 11.5px; padding: 2px 0 4px; }
-.desktop-star-tip .tip-modal-btn { margin-top: 4px; height: 32px; font-size: 11px; }
-.desktop-edit-star.tip-off .desktop-star-tip { display: none; }
-#phoneContainer.theme-light .desktop-star-tip {
-    background: rgba(255, 255, 255, 0.94); color: #000000;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.15);
-}
-#phoneContainer.theme-light .desktop-star-tip .tip-modal-btn { background: #000000; color: #ffffff; }
 }
 
 
@@ -1395,3 +1384,45 @@
 .noir-settings-root.theme-light .appicon-preview-row {
     background: rgba(0, 0, 0, 0.04) !important;
 }
+
+/* ===== 书签弹窗：盖在视口区块上面 ===== */
+.app-name-panel { z-index: 80 !important; }
+
+/* ===== 视口滑块：圆头完整显示，不被裁切 ===== */
+.viewport-panel:not(.collapsed) { overflow: visible; }
+.viewport-panel-inner { padding: 14px 8px 12px; }
+
+/* ===== Dock：方角 / 磨砂 / 透明度 / 间距（由 applyDockStyle 写入变量） ===== */
+#phoneContainer #dockBar { gap: var(--dock-gap, 10px) !important; }
+#phoneContainer .dock {
+    border-radius: var(--dock-radius, 32px) !important;
+    background: rgba(255, 255, 255, var(--dock-alpha, 0.035)) !important;
+    backdrop-filter: var(--dock-filter, url(#lens-refraction) blur(1.5px) saturate(180%)) !important;
+    -webkit-backdrop-filter: var(--dock-filter, url(#lens-refraction) blur(1.5px) saturate(180%)) !important;
+}
+
+/* ===== 书签颜色区块（含书签弹窗）盖在视口区块上面 ===== */
+.manual-color-options { position: relative !important; z-index: 60 !important; }
+.viewport-toggle-row, .viewport-panel { position: static; z-index: auto; }
+/* 书签颜色所在的卡片（自成堆叠上下文）整体提到视口卡片上面 */
+.setting-card:has(#manualColorOptions) { position: relative !important; z-index: 60 !important; }
+
+/* Dock 区块标题行：标题左边，展开按钮在右边 */
+.dock-section-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 14px;
+}
+.dock-expand-btn { cursor: pointer; user-select: none; }
+#phoneContainer #dockBar::before { display: var(--dock-before-display, block) !important; }
+
+/* Dock 区块展开箭头 */
+.dock-expand-btn {
+    width: 26px; height: 26px; border-radius: 50%; cursor: pointer; user-select: none;
+    display: flex; align-items: center; justify-content: center; color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+}
+.dock-expand-btn svg {
+    width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2;
+    stroke-linecap: round; stroke-linejoin: round; transition: transform 0.3s ease;
+}
+.noir-settings-root.theme-light .dock-expand-btn { color: #000000; background: rgba(0, 0, 0, 0.06); }

@@ -1617,7 +1617,7 @@ async function openCenterModal(type) {
         // 纯色材质开启时，列表里的 app 图标颜色跟随“纯色材质图标颜色”
         const styNow = await loadAppIconStyle();
         const listIconColor = styNow.material === 'solid'
-            ? (styNow.solidIconColor || '#1e1e24')
+            ? (styNow.solidIconColor || '#595959')
             : colors.main;
 
         // 列表里的信息图标恢复为最初的样子（样式切换只在主界面进行）
@@ -1961,7 +1961,7 @@ async function openAppIconSettingsView(showTip = false) {
 
     const isLight = themeClass === 'theme-light';
     const bgVal = liveAppIconStyle.solidColor || '#ffffff';
-    const iconVal = liveAppIconStyle.solidIconColor || '#1e1e24';
+    const iconVal = liveAppIconStyle.solidIconColor || '#595959';
     const colorRow = (key, label, val) => `
         <div class="appicon-slider-row">
             <div class="appicon-slider-head">
@@ -1972,8 +1972,9 @@ async function openAppIconSettingsView(showTip = false) {
             </div>
         </div>`;
 
-    const borderVal = liveAppIconStyle.borderWidth !== null && liveAppIconStyle.borderWidth !== undefined ? liveAppIconStyle.borderWidth : 0.5;
-    const borderColorVal = liveAppIconStyle.borderColor || '#ffffff';
+    const solidNow = liveAppIconStyle.material === 'solid';
+    const borderVal = liveAppIconStyle.borderWidth !== null && liveAppIconStyle.borderWidth !== undefined ? liveAppIconStyle.borderWidth : (solidNow ? 3 : 0.5);
+    const borderColorVal = liveAppIconStyle.borderColor || (solidNow ? '#DDDDDD' : '#ffffff');
 
     body.innerHTML =
         `<div class="appicon-preview-row">
@@ -2041,12 +2042,12 @@ function renderAppIconPreview() {
     const isLight = (document.getElementById('phoneContainer') || {}).classList
         ? document.getElementById('phoneContainer').classList.contains('theme-light') : false;
     const solid = s.material === 'solid';
-    const iconCol = s.solidIconColor || '#1e1e24';
+    const iconCol = s.solidIconColor || '#595959';
     if (solid) {
         const bg = s.solidColor || '#ffffff';
         const a = 1 - (s.solidTransparency || 0) / 100;
         tile.style.background = hexToRgbaStr(bg, a.toFixed(2));
-        tile.style.border = `${s.borderWidth != null ? s.borderWidth : 1}px solid ${s.borderColor || '#8a8a92'}`;
+        tile.style.border = `${s.borderWidth != null ? s.borderWidth : 3}px solid ${s.borderColor || '#DDDDDD'}`;
         tile.style.backdropFilter = 'none';
     } else {
         tile.style.background = `rgba(255, 255, 255, ${(0.5 * (1 - s.transparency / 100)).toFixed(3)})`;
@@ -2246,7 +2247,7 @@ async function resetDesktopViewport() {
     const bl = document.getElementById('dvpBottomVal'); if (bl) bl.innerText = bottom + 'px';
 }
 
-// 编辑模式下：分页点上方的黑色五角星“设置”按钮；五角星上方是和 tip 弹窗同款的 Got it
+// 编辑模式下：分页点上方的黑色五角星按钮，星星上写着 Got it；点击打开桌面视口设置
 function ensureDesktopEditButton() {
     if (document.getElementById('desktopEditSettingsBtn')) return;
     const host = document.querySelector('#homeScreen .pagination-bar') || document.getElementById('phoneContainer');
@@ -2256,33 +2257,16 @@ function ensureDesktopEditButton() {
     btn.className = 'desktop-edit-star';
     btn.title = '桌面视口设置';
     btn.innerHTML = `
-        <div class="desktop-star-tip" onclick="event.stopPropagation()">
-            <div class="tip-modal-content">设置桌面视口</div>
-            <button class="tip-modal-btn mono-font" onclick="dismissDesktopStarTip(event)">Got it</button>
-        </div>
         <svg viewBox="0 0 24 24" aria-hidden="true">
-            <polygon points="12.00,2.40 14.53,9.12 21.70,9.45 16.09,13.93 18.00,20.85 12.00,16.90 6.00,20.85 7.91,13.93 2.30,9.45 9.47,9.12" fill="#000000" stroke="rgba(255,255,255,0.7)" stroke-width="0.9" stroke-linejoin="round"/>
-        </svg>`;
+            <polygon points="12.00,2.50 15.82,7.64 21.89,9.69 18.18,14.91 18.11,21.31 12.00,19.40 5.89,21.31 5.82,14.91 2.11,9.69 8.18,7.64" fill="#000000" stroke="#000000" stroke-width="2.4" stroke-linejoin="round"/>
+        </svg>
+        <span class="desktop-star-label mono-font">Got it</span>`;
     btn.addEventListener('pointerdown', (e) => e.stopPropagation());
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
         openDesktopViewportPopup();
     });
     host.appendChild(btn);
-
-    // 退出编辑模式后，下次进入时 Got it 提示重新出现
-    const pc = document.getElementById('phoneContainer');
-    if (pc) {
-        new MutationObserver(() => {
-            if (!pc.classList.contains('edit-mode')) btn.classList.remove('tip-off');
-        }).observe(pc, { attributes: true, attributeFilter: ['class'] });
-    }
-}
-
-function dismissDesktopStarTip(e) {
-    if (e) { e.stopPropagation(); e.preventDefault(); }
-    const btn = document.getElementById('desktopEditSettingsBtn');
-    if (btn) btn.classList.add('tip-off');
 }
 
 async function openDesktopViewportPopup() {
@@ -2300,6 +2284,7 @@ async function openDesktopViewportPopup() {
     const top = await safeDB.load('desktop_viewport_top', 24);
     const bottom = await safeDB.load('desktop_viewport_bottom', 0);
     const pct = (v) => ((v - 0) / (200 - 0)) * 100;
+    const dock = await loadDockStyle();
 
     body.innerHTML = `
         <div class="appicon-slider-row">
@@ -2323,7 +2308,157 @@ async function openDesktopViewportPopup() {
         <div style="display:flex; justify-content:flex-end; margin-top: 10px;">
             <div class="action-text-btn" onclick="resetDesktopViewport()" style="opacity:0.6;">Reset</div>
         </div>
+        ${renderDockSection(dock)}
     `;
+    liveDockStyle = dock;
+    applyDockStyle(dock);
+}
+
+// ---------- Dock 控制：方角 / 磨砂玻璃（开关）/ 透明度 / 还原 ----------
+const DOCK_STYLE_DEFAULT = { radius: 32, frosted: false, transparency: 93, spacingSync: false, disperse: true };
+let dockExpanded = false; // Dock 区块是否展开（默认收起）
+let liveDockStyle = null;
+
+async function loadDockStyle() {
+    const saved = await safeDB.load('dock_style', null);
+    const s = Object.assign({}, DOCK_STYLE_DEFAULT, saved || {});
+    if (saved && saved.radius === undefined && saved.square === true) s.radius = 0; // 兼容旧的“方角”开关
+    delete s.square;
+    return s;
+}
+
+// 写到桌面容器的 CSS 变量：圆角、底色透明度、磨砂强度
+function applyDockStyle(style) {
+    const pc = document.getElementById('phoneContainer');
+    if (!pc) return;
+    const s = Object.assign({}, DOCK_STYLE_DEFAULT, style || {});
+    pc.style.setProperty('--dock-radius', Math.max(0, Math.min(32, s.radius)) + 'px');
+    pc.style.setProperty('--dock-alpha', (0.5 * (1 - s.transparency / 100)).toFixed(3));
+    pc.style.setProperty('--dock-filter', s.frosted
+        ? 'url(#lens-refraction) blur(16px) saturate(180%)'
+        : 'url(#lens-refraction) blur(1.5px) saturate(180%)');
+    pc.style.setProperty('--dock-before-display', s.disperse ? 'block' : 'none');
+    pc.style.setProperty('--dock-gap', dockGapPx(s.spacingSync) + 'px');
+}
+
+// 桌面的列间距（中心到中心）减去 Dock 图标宽度，就是“和桌面一样”的 Dock 间距；
+// 同时不超过 Dock 的可用宽度
+function dockGapPx(sync) {
+    const DEFAULT_GAP = 10, SLOT = 56;
+    if (!sync) return DEFAULT_GAP;
+    const pc = document.getElementById('phoneContainer');
+    if (!pc) return DEFAULT_GAP;
+    // 用手机容器的宽度算，不依赖桌面页 / Dock 是否正在显示（打开应用时它们可能被隐藏）
+    const phoneW = pc.clientWidth || pc.getBoundingClientRect().width;
+    if (!phoneW) return DEFAULT_GAP;
+    const pageCS = document.querySelector('#desktopTrack .desktop-page') ? getComputedStyle(document.querySelector('#desktopTrack .desktop-page')) : null;
+    const padX = pageCS ? (parseFloat(pageCS.paddingLeft) || 0) + (parseFloat(pageCS.paddingRight) || 0) : 32;
+    const colGap = pageCS ? (parseFloat(pageCS.columnGap) || 8) : 8;
+    const cols = pageCS ? ((pageCS.gridTemplateColumns || '').split(' ').filter(Boolean).length || 4) : 4;
+    const colW = (phoneW - padX - colGap * (cols - 1)) / cols;
+    let gap = (colW + colGap) - SLOT;
+    // 不超过 Dock 的可用宽度（Dock 左右各留 16px，内边距 12px）
+    const dockInner = phoneW - 32 - 24;
+    const maxGap = (dockInner - 4 * SLOT) / 3;
+    gap = Math.min(gap, maxGap);
+    return Math.max(0, Math.round(gap * 10) / 10);
+}
+
+function renderDockSection(d) {
+    const sw = (key, label, on) => `
+        <div class="appicon-slider-row">
+            <div class="appicon-slider-head">
+                <span class="modal-text">${label}</span>
+                <div class="ios-switch ${on ? 'active' : ''}" onclick="toggleDockOption('${key}')"></div>
+            </div>
+        </div>`;
+    return `
+        <div class="dock-section-head">
+            <span class="section-tag mono-font" style="margin:0;">Dock</span>
+            <div class="dock-expand-btn" id="dockExpandBtn" onclick="toggleDockSection()" title="展开 / 收起">
+                <svg viewBox="0 0 24 24" style="transform: rotate(${dockExpanded ? 180 : 0}deg);"><polyline points="6 9 12 15 18 9"/></svg>
+            </div>
+        </div>
+        <div id="dockSectionBody" style="display:${dockExpanded ? 'block' : 'none'};">
+            <div class="appicon-slider-row">
+                <div class="appicon-slider-head">
+                    <span class="modal-text">Dock 方角</span>
+                    <span class="modal-text appicon-val" id="dockRadiusVal">${d.radius}px</span>
+                </div>
+                <input type="range" class="appicon-range" id="dockRadiusRange" min="0" max="32" step="1" value="${d.radius}" style="--p:${d.radius / 32 * 100}%"
+                    oninput="previewDockRadius(this.value, this)"
+                    onchange="commitDockRadius(this.value)">
+            </div>
+            ${sw('frosted', 'Dock 磨砂玻璃', d.frosted)}
+            ${sw('disperse', 'Dock 色散', d.disperse)}
+            ${sw('spacingSync', 'Dock 软件间距同桌面', d.spacingSync)}
+            <div class="appicon-slider-row">
+                <div class="appicon-slider-head">
+                    <span class="modal-text">Dock 透明度</span>
+                    <span class="modal-text appicon-val" id="dockTransVal">${d.transparency}%</span>
+                </div>
+                <input type="range" class="appicon-range" id="dockTransRange" min="0" max="100" step="1" value="${d.transparency}" style="--p:${d.transparency}%"
+                    oninput="previewDockTransparency(this.value, this)"
+                    onchange="commitDockTransparency(this.value)">
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top: 10px;">
+                <div class="action-text-btn" onclick="resetDockStyle()" style="opacity:0.6;">还原</div>
+            </div>
+        </div>`;
+}
+
+// Dock 区块展开 / 收起（只切换显示，不重新渲染）
+function toggleDockSection() {
+    dockExpanded = !dockExpanded;
+    const body = document.getElementById('dockSectionBody');
+    const svg = document.querySelector('#dockExpandBtn svg');
+    if (body) body.style.display = dockExpanded ? 'block' : 'none';
+    if (svg) svg.style.transform = dockExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+}
+
+// Dock 方角滑块
+function previewDockRadius(val, el) {
+    if (el) el.style.setProperty('--p', (val / 32 * 100) + '%');
+    const label = document.getElementById('dockRadiusVal');
+    if (label) label.innerText = val + 'px';
+    if (!liveDockStyle) return;
+    liveDockStyle.radius = parseFloat(val);
+    applyDockStyle(liveDockStyle);
+}
+
+async function commitDockRadius(val) {
+    if (liveDockStyle) liveDockStyle.radius = parseFloat(val);
+    await safeDB.save('dock_style', liveDockStyle || Object.assign({}, DOCK_STYLE_DEFAULT, { radius: parseFloat(val) }));
+}
+
+async function toggleDockOption(key) {
+    const d = liveDockStyle || await loadDockStyle();
+    d[key] = !d[key];
+    liveDockStyle = d;
+    await safeDB.save('dock_style', d);
+    applyDockStyle(d);
+    await openDesktopViewportPopup();
+}
+
+function previewDockTransparency(val, el) {
+    if (el) el.style.setProperty('--p', val + '%');
+    const label = document.getElementById('dockTransVal');
+    if (label) label.innerText = val + '%';
+    if (!liveDockStyle) return;
+    liveDockStyle.transparency = parseFloat(val);
+    applyDockStyle(liveDockStyle);
+}
+
+async function commitDockTransparency(val) {
+    if (liveDockStyle) liveDockStyle.transparency = parseFloat(val);
+    await safeDB.save('dock_style', liveDockStyle || Object.assign({}, DOCK_STYLE_DEFAULT, { transparency: parseFloat(val) }));
+}
+
+async function resetDockStyle() {
+    liveDockStyle = Object.assign({}, DOCK_STYLE_DEFAULT);
+    await safeDB.save('dock_style', liveDockStyle);
+    applyDockStyle(liveDockStyle);
+    await openDesktopViewportPopup();
 }
 
 // 页面一加载就应用保存的视口（不必先打开设置）
@@ -2334,7 +2469,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const dTop = await safeDB.load('desktop_viewport_top', 24);
     const dBottom = await safeDB.load('desktop_viewport_bottom', 0);
     applyDesktopViewport(dTop, dBottom);
+    applyDockStyle(await loadDockStyle());
     ensureDesktopEditButton();
+});
+window.addEventListener('resize', async () => {
+    applyDockStyle(await loadDockStyle());
 });
 
 // 系统日夜间变化时，如果用户没有手动选择过，就跟随
