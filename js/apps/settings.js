@@ -91,10 +91,8 @@ function getSettingsAppHTML() {
             </div>
 
             <div class="hero-avatar">
-                <div class="avatar-ring">
-                    <svg class="avatar-plane" viewBox="0 0 24 24">
-                        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                    </svg>
+                <div class="avatar-ring" id="settingsAvatarRing" onclick="openSettingsAvatarMorph(this, event)" title="点击更换头像">
+                    <img class="settings-avatar-img" id="settingsAvatarImg" src="assets/杂七杂八/设置里面的头像.jpg" alt="avatar">
                 </div>
                 <div class="avatar-status"></div>
             </div>
@@ -194,7 +192,7 @@ function getSettingsAppHTML() {
                         <div class="row-right">
                             <input type="file" id="desktopWallpaperInput" style="display:none;" accept="image/*" onchange="handleDesktopWallpaperUpload(event)">
                             <div class="action-text-btn" id="wallpaperTrigger" onclick="openWallpaperMorph(event)">Change</div>
-                            <div class="action-text-btn" onclick="resetDesktopWallpaper()" style="opacity:0.6;">Reset</div>
+                            <div class="action-text-btn restore-btn" onclick="resetDesktopWallpaper()" style="opacity:0.6;">Reset</div>
                         </div>
                     </div>
                     <div class="setting-row" onclick="openCenterModal('iconLib')">
@@ -307,7 +305,7 @@ function getSettingsAppHTML() {
                             </div>
                         </div>
                         <div class="row-right">
-                            <div class="action-text-btn viewport-reset" onclick="resetViewportPadding(event)" style="opacity:0.6;">Reset</div>
+                            <div class="action-text-btn viewport-reset restore-btn" onclick="resetViewportPadding(event)" style="opacity:0.6;">Reset</div>
                             <svg id="viewportPanelArrow" class="viewport-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
                         </div>
                     </div>
@@ -483,6 +481,7 @@ async function initSettingsApp() {
 
         // 5. 更新全屏开关状态
         syncFullscreenSwitch();
+        applySettingsAvatar(await safeDB.load('settings_avatar', null));
 
         // 6. 加载并应用保存的视口边距
         const savedVpTop = await safeDB.load('viewport_padding_top', 24);
@@ -1197,7 +1196,7 @@ async function openSettingsBgMaskPopup() {
                 oninput="previewSettingsMask(this.value, this)"
                 onchange="commitSettingsMask(this.value)">
         </div>
-        <div class="bw-more" onclick="restoreSettingsBg()">还原</div>
+        <div class="bw-more restore-btn" onclick="restoreSettingsBg()">还原</div>
     `;
 }
 
@@ -1656,7 +1655,7 @@ async function openCenterModal(type) {
                 ${rowText(app.name, sub)}
                 <input type="file" id="app-icon-file-${app.id}" style="display:none;" accept="image/*" onchange="handleAppIconUpload(event, '${app.id}')">
                 <span class="preset-tag-badge mono-font opt-arrow" onclick="event.stopPropagation(); document.getElementById('app-icon-file-${app.id}').click()">Change</span>
-                ${customImg ? `<span class="preset-tag-badge mono-font" style="margin-left:4px; cursor:pointer;" onclick="event.stopPropagation(); resetAppIcon('${app.id}')">Reset</span>` : ''}
+                ${customImg ? `<span class="preset-tag-badge mono-font restore-btn" style="margin-left:4px; cursor:pointer;" onclick="event.stopPropagation(); resetAppIcon('${app.id}')">Reset</span>` : ''}
             `;
             body.appendChild(item);
         });
@@ -1843,6 +1842,9 @@ function applyAppIconStyle(style) {
     if (s.solidIconColor) pc.style.setProperty('--app-solid-icon', s.solidIconColor);
     else pc.style.removeProperty('--app-solid-icon');
     pc.classList.toggle('app-material-solid', s.material === 'solid');
+    // 自定义图标图片：跟随当前材质的透明度（最低 0.2，免得完全看不见）
+    const activeT = s.material === 'solid' ? (s.solidTransparency || 0) : (s.transparency || 0);
+    pc.style.setProperty('--custom-icon-opacity', Math.max(0.2, 1 - activeT / 100).toFixed(2));
 }
 
 async function updateAppIconStyle(patch) {
@@ -2306,7 +2308,7 @@ async function openDesktopViewportPopup() {
                 onchange="commitDesktopViewport('bottom', this.value)">
         </div>
         <div style="display:flex; justify-content:flex-end; margin-top: 10px;">
-            <div class="action-text-btn" onclick="resetDesktopViewport()" style="opacity:0.6;">Reset</div>
+            <div class="action-text-btn restore-btn" onclick="resetDesktopViewport()" style="opacity:0.6;">Reset</div>
         </div>
         ${renderDockSection(dock)}
     `;
@@ -2402,7 +2404,7 @@ function renderDockSection(d) {
                     onchange="commitDockTransparency(this.value)">
             </div>
             <div style="display:flex; justify-content:flex-end; margin-top: 10px;">
-                <div class="action-text-btn" onclick="resetDockStyle()" style="opacity:0.6;">还原</div>
+                <div class="action-text-btn restore-btn" onclick="resetDockStyle()" style="opacity:0.6;">还原</div>
             </div>
         </div>`;
 }
@@ -2483,3 +2485,384 @@ if (window.matchMedia) {
     if (systemLightQuery.addEventListener) systemLightQuery.addEventListener('change', onSystemThemeChange);
     else if (systemLightQuery.addListener) systemLightQuery.addListener(onSystemThemeChange);
 }
+
+
+// =====================================================================
+// 小组件：编辑模式下点小组件 -> 文字与颜色设置（Got it 弹窗）
+// 头像：点击 -> 恢复内置 / 上传图片 的方框
+// =====================================================================
+const WIDGET_NAMES = {
+    'w-profile': 'Profile',
+    'w-polaroid': 'Daily Moment',
+    'w-heartbeat': 'Heartbeat',
+    'w-mp3': 'MP3',
+    'w-dialogue': 'Dialogue'
+};
+let widgetOverrides = {};   // { [widgetId]: { [textIndex]: { text?, color? } } }
+
+// 小组件里“原本带文字”的元素（按 DOM 顺序，SVG 里的不算）。
+// 只在小组件刚渲染、还没改过时算一次，并打上 data-wt 编号；之后编号固定，不会因为文字被清空而错位
+function tagWidgetLeaves(widgetEl) {
+    if (widgetEl.dataset.wtTagged) return;
+    let n = 0;
+    widgetEl.querySelectorAll('*').forEach(el => {
+        if (el.tagName.toLowerCase() === 'svg' || el.closest('svg')) return;
+        const hasText = [...el.childNodes].some(c => c.nodeType === 3 && c.textContent.trim());
+        if (hasText) el.setAttribute('data-wt', String(n++));
+    });
+    widgetEl.dataset.wtTagged = '1';
+}
+
+function getWidgetTextLeaves(widgetEl) {
+    tagWidgetLeaves(widgetEl);
+    return [...widgetEl.querySelectorAll('[data-wt]')]
+        .sort((a, b) => (+a.getAttribute('data-wt')) - (+b.getAttribute('data-wt')));
+}
+
+function leafOwnText(el) {
+    return [...el.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent).join('').trim();
+}
+
+function setLeafText(el, text) {
+    const tns = [...el.childNodes].filter(n => n.nodeType === 3);
+    if (!tns.length) return;
+    const trail = /\s$/.test(tns[0].textContent) ? ' ' : '';
+    tns[0].textContent = text + trail;
+    tns.slice(1).forEach(n => { n.textContent = ''; });
+}
+
+function rgbToHex(rgb) {
+    const m = (rgb || '').match(/\d+/g);
+    if (!m || m.length < 3) return '#ffffff';
+    return '#' + m.slice(0, 3).map(v => (+v).toString(16).padStart(2, '0')).join('');
+}
+
+// 把保存的文字 / 颜色套到当前的小组件上（渲染后也会自动套用）
+function applyWidgetOverridesToDom() {
+    document.querySelectorAll('#desktopTrack .widget-item').forEach(w => {
+        tagWidgetLeaves(w);
+        const ov = widgetOverrides[w.dataset.id];
+        if (!ov) return;
+        getWidgetTextLeaves(w).forEach((el, i) => {
+            const o = ov[i];
+            if (!o) return;
+            if (o.text !== undefined && leafOwnText(el) !== o.text) setLeafText(el, o.text);
+            if (o.color) el.style.setProperty('color', o.color, 'important');
+        });
+    });
+}
+
+function saveWidgetOverride(widgetId, index, patch) {
+    widgetOverrides[widgetId] = widgetOverrides[widgetId] || {};
+    widgetOverrides[widgetId][index] = Object.assign({}, widgetOverrides[widgetId][index] || {}, patch);
+    return safeDB.save('widget_text_overrides', widgetOverrides);
+}
+
+function previewWidgetText(widgetId, index, val) {
+    widgetOverrides[widgetId] = widgetOverrides[widgetId] || {};
+    widgetOverrides[widgetId][index] = Object.assign({}, widgetOverrides[widgetId][index] || {}, { text: val });
+    applyWidgetOverridesToDom();
+}
+async function commitWidgetText(widgetId, index, val) {
+    await saveWidgetOverride(widgetId, index, { text: val });
+}
+
+function previewWidgetColor(widgetId, index, val) {
+    widgetOverrides[widgetId] = widgetOverrides[widgetId] || {};
+    widgetOverrides[widgetId][index] = Object.assign({}, widgetOverrides[widgetId][index] || {}, { color: val });
+    applyWidgetOverridesToDom();
+}
+async function commitWidgetColor(widgetId, index, val) {
+    await saveWidgetOverride(widgetId, index, { color: val });
+}
+
+// 还原：清掉这个小组件的所有文字 / 颜色修改，重新渲染回原样
+async function resetWidgetOverrides(widgetId) {
+    delete widgetOverrides[widgetId];
+    await safeDB.save('widget_text_overrides', widgetOverrides);
+    if (typeof renderUI === 'function') renderUI();
+    openWidgetPopup(widgetId);
+}
+
+async function openWidgetPopup(widgetId) {
+    const widgetEl = document.querySelector(`#desktopTrack .widget-item[data-id="${widgetId}"]`);
+    if (!widgetEl) return;
+    settingsModalRerender = () => openWidgetPopup(widgetId);
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+
+    const title = document.getElementById('settingsModalTitle');
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+    title.innerText = WIDGET_NAMES[widgetId] || 'Widget';
+    subtitle.innerText = '小组件文字与颜色';
+    body.style.maxHeight = '380px';
+
+    const leaves = getWidgetTextLeaves(widgetEl);
+    const ov = widgetOverrides[widgetId] || {};
+    const rows = leaves.map((el, i) => {
+        const cur = ov[i] || {};
+        const text = cur.text !== undefined ? cur.text : leafOwnText(el);
+        const color = cur.color || rgbToHex(getComputedStyle(el).color);
+        const safeText = text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        return `
+            <div class="widget-text-row">
+                <span class="modal-text widget-text-idx">${i + 1}</span>
+                <input type="text" class="widget-text-input" value="${safeText}"
+                    oninput="previewWidgetText('${widgetId}', ${i}, this.value)"
+                    onchange="commitWidgetText('${widgetId}', ${i}, this.value)">
+                <input type="color" class="appicon-color" value="${color}"
+                    oninput="previewWidgetColor('${widgetId}', ${i}, this.value)"
+                    onchange="commitWidgetColor('${widgetId}', ${i}, this.value)">
+            </div>`;
+    }).join('');
+
+    body.innerHTML = `
+        ${leaves.length ? rows : '<div class="tip-modal-content">这个小组件没有可编辑的文字</div>'}
+        <div class="widget-popup-actions">
+            <button class="tip-modal-btn mono-font widget-got-btn" onclick="closeCenterModal()">Got it</button>
+            <div class="restore-round restore-btn" title="还原" onclick="resetWidgetOverrides('${widgetId}')">
+                <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.6-6.4"/><polyline points="3 4 3 9.5 8.5 9.5"/></svg>
+            </div>
+        </div>
+    `;
+}
+
+// 头像方框：恢复内置 / 上传图片
+function closeAvatarMorph(immediate = false) {
+    document.removeEventListener('pointerdown', outsideAvatarMorph);
+    const menu = document.getElementById('avatarMorph');
+    if (!menu) return;
+    if (immediate) { menu.remove(); return; }
+    menu.classList.remove('open');
+    menu.style.opacity = '0';
+    setTimeout(() => menu.remove(), 260);
+}
+
+function outsideAvatarMorph(ev) {
+    const menu = document.getElementById('avatarMorph');
+    if (!menu) { document.removeEventListener('pointerdown', outsideAvatarMorph); return; }
+    if (!menu.contains(ev.target)) closeAvatarMorph();
+}
+
+function openAvatarMorph(el) {
+    const phone = document.getElementById('phoneContainer');
+    if (!phone) return;
+    const slot = el.closest('.hb-right, .hb-dialogue-right, .chat-chip.right') ? 'male' : 'female';
+    closeAvatarMorph(true);
+    const pr = phone.getBoundingClientRect();
+    const tr = el.getBoundingClientRect();
+    const W = 156, H = 92;
+    const startL = tr.left - pr.left, startT = tr.top - pr.top;
+    const endL = Math.max(12, Math.min(tr.left - pr.left + tr.width / 2 - W / 2, pr.width - W - 12));
+    const endT = Math.max(12, tr.top - pr.top - H - 8);
+
+    const menu = document.createElement('div');
+    menu.id = 'avatarMorph';
+    menu.className = 'wp-morph';
+    menu.style.left = startL + 'px';
+    menu.style.top = startT + 'px';
+    menu.style.width = tr.width + 'px';
+    menu.style.height = tr.height + 'px';
+    menu.style.zIndex = '90';
+    menu.innerHTML = `
+        <div class="wp-morph-item" onclick="avatarMorphRestore('${slot}', event)">恢复内置</div>
+        <div class="wp-morph-item" onclick="avatarMorphUpload('${slot}', event)">上传图片</div>`;
+    phone.appendChild(menu);
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        menu.style.left = endL + 'px';
+        menu.style.top = endT + 'px';
+        menu.style.width = W + 'px';
+        menu.style.height = H + 'px';
+        menu.classList.add('open');
+    }));
+    setTimeout(() => document.addEventListener('pointerdown', outsideAvatarMorph), 0);
+}
+
+async function avatarMorphRestore(slot, e) {
+    if (e) e.stopPropagation();
+    closeAvatarMorph(true);
+    const phone = document.getElementById('phoneContainer');
+    const isLight = phone && phone.classList.contains('theme-light');
+    const theme = isLight ? 'Light' : 'Dark';
+    if (slot === 'female') {
+        currentUploadedAvatar = `assets/${theme}/avatar-female.png`;
+        await safeDB.save('avatar_female', null);
+    } else {
+        currentCoupleAvatar = `assets/${theme}/avatar-male.png`;
+        await safeDB.save('avatar_male', null);
+    }
+    if (typeof renderUI === 'function') renderUI();
+}
+
+function avatarMorphUpload(slot, e) {
+    if (e) e.stopPropagation();
+    closeAvatarMorph(true);
+    const input = document.getElementById(slot === 'female' ? 'avatarFileInput' : 'coupleAvatarInput');
+    if (input) input.click();
+}
+
+// 捕获阶段拦截：头像 -> 方框；编辑模式下小组件 -> 文字设置
+document.addEventListener('click', (e) => {
+    const avatar = e.target.closest('#desktopTrack .profile-avatar-wrap, #desktopTrack .hb-left, #desktopTrack .hb-right, #desktopTrack .chip-avatar');
+    if (avatar) {
+        e.stopPropagation();
+        e.preventDefault();
+        openAvatarMorph(avatar.classList.contains('chip-avatar') ? avatar : avatar);
+        return;
+    }
+    const phone = document.getElementById('phoneContainer');
+    const widget = e.target.closest('#desktopTrack .widget-item');
+    if (widget && phone && phone.classList.contains('edit-mode')) {
+        e.stopPropagation();
+        openWidgetPopup(widget.dataset.id);
+    }
+}, true);
+
+// 小组件文字修改会在重新渲染后自动套用
+function observeWidgetOverrides() {
+    const track = document.getElementById('desktopTrack');
+    if (!track) return;
+    new MutationObserver(() => applyWidgetOverridesToDom()).observe(track, { childList: true, subtree: true });
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    widgetOverrides = (await safeDB.load('widget_text_overrides', {})) || {};
+    observeWidgetOverrides();
+    applyWidgetOverridesToDom();
+});
+
+
+// =====================================================================
+// 设置页头像圆框：默认 assets/杂七杂八/设置里面的头像.jpg；点击 -> 恢复内置 / 本地上传
+// =====================================================================
+const SETTINGS_AVATAR_DEFAULT = "assets/杂七杂八/设置里面的头像.jpg";
+
+function applySettingsAvatar(src) {
+    const img = document.getElementById('settingsAvatarImg');
+    if (img) img.src = src || SETTINGS_AVATAR_DEFAULT;
+}
+
+function closeSettingsAvatarMorph(immediate = false) {
+    document.removeEventListener('pointerdown', outsideSettingsAvatarMorph);
+    const menu = document.getElementById('settingsAvatarMorph');
+    if (!menu) return;
+    if (immediate) { menu.remove(); return; }
+    menu.classList.remove('open');
+    menu.style.opacity = '0';
+    setTimeout(() => menu.remove(), 260);
+}
+
+function outsideSettingsAvatarMorph(ev) {
+    const menu = document.getElementById('settingsAvatarMorph');
+    if (!menu) { document.removeEventListener('pointerdown', outsideSettingsAvatarMorph); return; }
+    if (!menu.contains(ev.target) && !ev.target.closest('#settingsAvatarRing')) closeSettingsAvatarMorph();
+}
+
+function openSettingsAvatarMorph(el, e) {
+    if (e) e.stopPropagation();
+    const root = document.getElementById('noirSettingsRoot');
+    if (!root) return;
+    closeSettingsAvatarMorph(true);
+    const rr = root.getBoundingClientRect();
+    const tr = el.getBoundingClientRect();
+    const W = 156, H = 92;
+    const startL = tr.left - rr.left, startT = tr.top - rr.top;
+    const endL = Math.max(12, Math.min(tr.right - rr.left - W, rr.width - W - 12));
+    const endT = tr.bottom - rr.top + 8;
+
+    const menu = document.createElement('div');
+    menu.id = 'settingsAvatarMorph';
+    menu.className = 'wp-morph';
+    menu.style.left = startL + 'px';
+    menu.style.top = startT + 'px';
+    menu.style.width = tr.width + 'px';
+    menu.style.height = tr.height + 'px';
+    menu.style.zIndex = '90';
+    menu.innerHTML = `
+        <div class="wp-morph-item" onclick="settingsAvatarRestore(event)">恢复内置</div>
+        <div class="wp-morph-item" onclick="settingsAvatarUpload(event)">本地上传</div>`;
+    root.appendChild(menu);
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        menu.style.left = endL + 'px';
+        menu.style.top = endT + 'px';
+        menu.style.width = W + 'px';
+        menu.style.height = H + 'px';
+        menu.classList.add('open');
+    }));
+    setTimeout(() => document.addEventListener('pointerdown', outsideSettingsAvatarMorph), 0);
+}
+
+async function settingsAvatarRestore(e) {
+    if (e) e.stopPropagation();
+    closeSettingsAvatarMorph(true);
+    await safeDB.save('settings_avatar', null);
+    applySettingsAvatar(SETTINGS_AVATAR_DEFAULT);
+}
+
+function settingsAvatarUpload(e) {
+    if (e) e.stopPropagation();
+    closeSettingsAvatarMorph(true);
+    let input = document.getElementById('settingsAvatarInput');
+    if (!input) {
+        input = document.createElement('input');
+        input.type = 'file';
+        input.id = 'settingsAvatarInput';
+        input.accept = 'image/*';
+        input.style.display = 'none';
+        input.addEventListener('change', (ev) => {
+            const file = ev.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                await safeDB.save('settings_avatar', evt.target.result);
+                applySettingsAvatar(evt.target.result);
+            };
+            reader.readAsDataURL(file);
+            ev.target.value = '';
+        });
+        document.body.appendChild(input);
+    }
+    input.click();
+}
+
+
+// =====================================================================
+// 自定义应用图标：把图标库里上传的图片真正贴到桌面 / Dock 的应用方块上
+// （main.js 里的同名逻辑查的是 data-app-id，而应用元素用的是 data-id，所以这里重新实现）
+// =====================================================================
+const appIconOriginalHTML = new WeakMap();
+
+function applyCustomAppIconsToDom() {
+    const custom = window.noirCustomAppIcons || {};
+    document.querySelectorAll('#desktopTrack .app-item[data-id], #dockBar .app-item[data-id]').forEach(el => {
+        const tile = el.querySelector('.app-icon');
+        if (!tile) return;
+        const src = custom[el.dataset.id];
+        const cur = tile.querySelector(':scope > img.custom-app-img');
+        if (src) {
+            if (!appIconOriginalHTML.has(tile)) appIconOriginalHTML.set(tile, tile.innerHTML);
+            if (cur && cur.getAttribute('src') === src) return;
+            tile.innerHTML = `<img class="custom-app-img" src="${src}" alt="">`;
+        } else if (cur) {
+            tile.innerHTML = appIconOriginalHTML.get(tile) || '';
+            appIconOriginalHTML.delete(tile);
+        }
+    });
+}
+
+function observeCustomAppIcons() {
+    ['desktopTrack', 'dockBar'].forEach(id => {
+        const node = document.getElementById(id);
+        if (node) new MutationObserver(() => applyCustomAppIconsToDom()).observe(node, { childList: true, subtree: true });
+    });
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    applyAppIconStyle(await loadAppIconStyle()); // 让图标透明度变量在默认状态下也生效
+    window.noirCustomAppIcons = (await safeDB.load('app_custom_icons', {})) || {};
+    observeCustomAppIcons();
+    applyCustomAppIconsToDom();
+});
