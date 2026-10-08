@@ -317,14 +317,14 @@ function getSettingsAppHTML() {
                                 <span class="modal-text">顶部距离 (Top)</span>
                                 <span class="modal-text appicon-val" id="viewportTopVal">24px</span>
                             </div>
-                            <input type="range" class="appicon-range" id="viewportTopRange" min="0" max="80" step="1" value="24" style="--p:30%"
+                            <input type="range" class="appicon-range" id="viewportTopRange" min="0" max="200" step="1" value="24" style="--p:30%"
                                 oninput="previewViewportPadding('top', this.value, this)"
                                 onchange="commitViewportPadding('top', this.value)">
                             <div class="appicon-slider-head" style="font-size: 11px; margin-top: 4px;">
                                 <span class="modal-text">底部距离 (Bottom)</span>
                                 <span class="modal-text appicon-val" id="viewportBottomVal">0px</span>
                             </div>
-                            <input type="range" class="appicon-range" id="viewportBottomRange" min="0" max="80" step="1" value="0" style="--p:0%"
+                            <input type="range" class="appicon-range" id="viewportBottomRange" min="0" max="200" step="1" value="0" style="--p:0%"
                                 oninput="previewViewportPadding('bottom', this.value, this)"
                                 onchange="commitViewportPadding('bottom', this.value)">
                         </div>
@@ -829,7 +829,7 @@ async function resolvePopupThemeClass() {
 
 // 所有弹窗共用一个独立容器；它自带 theme-light / theme-dark，互不影响设置页
 function ensurePopupShell(themeClass) {
-    const host = document.getElementById('viewportLayer') || document.getElementById('phoneContainer') || document.body;
+    const host = document.getElementById('phoneContainer') || document.body;
     let shell = document.getElementById('settingsPopupShell');
     if (!shell) {
         shell = document.createElement('div');
@@ -1608,6 +1608,11 @@ async function openCenterModal(type) {
         if (subtitle) subtitle.innerText = '软件图标库配置';
 
         const customIcons = await safeDB.load('app_custom_icons', {});
+        // 纯色材质开启时，列表里的 app 图标颜色跟随“纯色材质图标颜色”
+        const styNow = await loadAppIconStyle();
+        const listIconColor = styNow.material === 'solid'
+            ? (styNow.solidIconColor || (isLightMode ? '#1e1e24' : '#ffffff'))
+            : colors.main;
 
         // 列表里的信息图标恢复为最初的样子（样式切换只在主界面进行）
         const ORIGINAL_CHAT_LIST_ICON = `<svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`;
@@ -1639,7 +1644,7 @@ async function openCenterModal(type) {
                 : '点击 Change 更换图标';
 
             item.innerHTML = `
-                <div class="opt-icon" style="overflow:hidden; display:flex; align-items:center; justify-content:center; background:${customImg ? 'transparent' : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)')}; stroke:${colors.main}; fill:${colors.main};">
+                <div class="opt-icon" style="overflow:hidden; display:flex; align-items:center; justify-content:center; background:${customImg ? 'transparent' : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)')}; stroke:${listIconColor}; fill:${listIconColor};">
                     ${customImg ? `<img src="${customImg}" style="width:100%; height:100%; object-fit:cover; border-radius:8px;">` : svgHtml}
                 </div>
                 ${rowText(app.name, sub)}
@@ -1896,7 +1901,7 @@ async function resetAppIconStyle(stayInSettings = false) {
 
 // 底部圆形小胶囊提示：冒出 -> 停留 -> 渐出
 function showCapsuleTip(text) {
-    const host = document.getElementById('viewportLayer') || document.getElementById('phoneContainer') || document.body;
+    const host = document.getElementById('phoneContainer') || document.body;
     const old = document.getElementById('capsuleTip');
     if (old) old.remove();
     const tip = document.createElement('div');
@@ -2109,7 +2114,7 @@ function ensureViewportLayer() {
         layer.id = 'viewportLayer';
         layer.className = 'viewport-layer';
         pc.appendChild(layer);
-        ['homeScreen', 'appWindow'].forEach(id => {
+        ['appWindow'].forEach(id => {
             const el = document.getElementById(id);
             if (el) layer.appendChild(el);
         });
@@ -2149,11 +2154,111 @@ async function commitViewportPadding(type, val) {
     }
 }
 
+// ---------- 桌面视口：独立于应用窗口的视口，只控制桌面 ----------
+function applyDesktopViewport(topVal, bottomVal) {
+    const home = document.getElementById('homeScreen');
+    if (!home) return;
+    home.style.top = topVal + 'px';
+    home.style.bottom = bottomVal + 'px';
+}
+
+function previewDesktopViewport(type, val, el) {
+    if (el) {
+        const pct = ((val - el.min) / (el.max - el.min)) * 100;
+        el.style.setProperty('--p', pct + '%');
+    }
+    const label = document.getElementById(type === 'top' ? 'dvpTopVal' : 'dvpBottomVal');
+    if (label) label.innerText = val + 'px';
+    const home = document.getElementById('homeScreen');
+    if (!home) return;
+    if (type === 'top') home.style.top = val + 'px';
+    else home.style.bottom = val + 'px';
+}
+
+async function commitDesktopViewport(type, val) {
+    const num = parseInt(val, 10);
+    await safeDB.save(type === 'top' ? 'desktop_viewport_top' : 'desktop_viewport_bottom', num);
+}
+
+async function resetDesktopViewport() {
+    const top = 24, bottom = 0;
+    await safeDB.save('desktop_viewport_top', top);
+    await safeDB.save('desktop_viewport_bottom', bottom);
+    applyDesktopViewport(top, bottom);
+    const tr = document.getElementById('dvpTopRange');
+    const br = document.getElementById('dvpBottomRange');
+    if (tr) { tr.value = top; tr.style.setProperty('--p', ((top - tr.min) / (tr.max - tr.min) * 100) + '%'); }
+    if (br) { br.value = bottom; br.style.setProperty('--p', ((bottom - br.min) / (br.max - br.min) * 100) + '%'); }
+    const tl = document.getElementById('dvpTopVal'); if (tl) tl.innerText = top + 'px';
+    const bl = document.getElementById('dvpBottomVal'); if (bl) bl.innerText = bottom + 'px';
+}
+
+// 编辑模式下桌面上出现的“设置”按钮（点击时不会退出编辑模式）
+function ensureDesktopEditButton() {
+    const pc = document.getElementById('phoneContainer');
+    if (!pc || document.getElementById('desktopEditSettingsBtn')) return;
+    const btn = document.createElement('div');
+    btn.id = 'desktopEditSettingsBtn';
+    btn.className = 'desktop-edit-settings';
+    btn.innerText = '设置';
+    btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openDesktopViewportPopup();
+    });
+    pc.appendChild(btn);
+}
+
+async function openDesktopViewportPopup() {
+    settingsModalRerender = () => openDesktopViewportPopup();
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+
+    const title = document.getElementById('settingsModalTitle');
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+    title.innerText = 'Desktop Viewport';
+    subtitle.innerText = '桌面视口';
+    body.style.maxHeight = 'none';
+
+    const top = await safeDB.load('desktop_viewport_top', 24);
+    const bottom = await safeDB.load('desktop_viewport_bottom', 0);
+    const pct = (v) => ((v - 0) / (200 - 0)) * 100;
+
+    body.innerHTML = `
+        <div class="appicon-slider-row">
+            <div class="appicon-slider-head">
+                <span class="modal-text">顶部距离 (Top)</span>
+                <span class="modal-text appicon-val" id="dvpTopVal">${top}px</span>
+            </div>
+            <input type="range" class="appicon-range" id="dvpTopRange" min="0" max="200" step="1" value="${top}" style="--p:${pct(top)}%"
+                oninput="previewDesktopViewport('top', this.value, this)"
+                onchange="commitDesktopViewport('top', this.value)">
+        </div>
+        <div class="appicon-slider-row">
+            <div class="appicon-slider-head">
+                <span class="modal-text">底部距离 (Bottom)</span>
+                <span class="modal-text appicon-val" id="dvpBottomVal">${bottom}px</span>
+            </div>
+            <input type="range" class="appicon-range" id="dvpBottomRange" min="0" max="200" step="1" value="${bottom}" style="--p:${pct(bottom)}%"
+                oninput="previewDesktopViewport('bottom', this.value, this)"
+                onchange="commitDesktopViewport('bottom', this.value)">
+        </div>
+        <div style="display:flex; justify-content:flex-end; margin-top: 10px;">
+            <div class="action-text-btn" onclick="resetDesktopViewport()" style="opacity:0.6;">Reset</div>
+        </div>
+    `;
+}
+
 // 页面一加载就应用保存的视口（不必先打开设置）
 document.addEventListener('DOMContentLoaded', async () => {
     const topVal = await safeDB.load('viewport_padding_top', 24);
     const bottomVal = await safeDB.load('viewport_padding_bottom', 0);
     applyViewportPadding(topVal, bottomVal);
+    const dTop = await safeDB.load('desktop_viewport_top', 24);
+    const dBottom = await safeDB.load('desktop_viewport_bottom', 0);
+    applyDesktopViewport(dTop, dBottom);
+    ensureDesktopEditButton();
 });
 
 // 系统日夜间变化时，如果用户没有手动选择过，就跟随

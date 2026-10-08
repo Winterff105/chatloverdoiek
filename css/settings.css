@@ -1286,3 +1286,35 @@
 /* 视口行的箭头：深色白、浅色黑，明确指定，避免被其他规则盖成黑色 */
 .noir-settings-root .viewport-toggle-row .viewport-arrow { stroke: rgba(255, 255, 255, 0.6) !important; }
 .noir-settings-root.theme-light .viewport-toggle-row .viewport-arrow { stroke: rgba(0, 0, 0, 0.55) !important; }
+
+/* ===== 桌面：独立视口（homeScreen 不在视口层里，用自己的 top / bottom） ===== */
+#homeScreen {
+    position: absolute !important; left: 0; right: 0;
+    top: 24px; bottom: 0; flex: none;
+}
+
+/* 编辑模式下桌面上的“设置”按钮 */
+.desktop-edit-settings {
+    position: absolute; left: 50%; top: 58px; transform: translateX(-50%);
+    display: none; z-index: 40; padding: 6px 18px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: #ffffff;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px) saturate(150%);
+    -webkit-backdrop-filter: blur(10px) saturate(150%);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+    cursor: pointer; user-select: none; white-space: nowrap;
+}
+#phoneContainer.edit-mode .desktop-edit-settings { display: block; }
+
+/* 主界面编辑模式的提示框：下移 20px（原来 top: 12px） */
+.global-edit-toast { top: 32px !important; }
+
+/* 图标库列表：svg 继承外层 .opt-icon 的颜色（纯色材质时跟随“纯色材质图标颜色”） */
+.noir-settings-root .sheet-option-item .opt-icon svg { stroke: inherit !important; }
+.noir-settings-root .sheet-option-item .opt-icon svg .fill-solid { fill: inherit !important; }
+.noir-settings-root.theme-light .ios-center-modal .sheet-option-item .opt-icon svg { stroke: inherit !important; }
+.noir-settings-root.theme-light .ios-center-modal .sheet-option-item .opt-icon svg .fill-solid { fill: inherit !important; }
+
+/* 视口层本身不拦截点击（否则会挡住桌面）；只有打开的应用窗口才接收点击 */
+.viewport-layer { pointer-events: none; }
+.viewport-layer > #appWindow.active { pointer-events: auto; }
