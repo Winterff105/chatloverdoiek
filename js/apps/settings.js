@@ -212,7 +212,7 @@ function getSettingsAppHTML() {
                         </div>
                     </div>
 
-                    <div class="setting-row">
+                    <div class="setting-row" style="cursor:pointer;" onclick="toggleSettingsFullscreen()">
                         <div class="row-left">
                             <div class="row-icon-box">
                                 <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
@@ -223,7 +223,7 @@ function getSettingsAppHTML() {
                             </div>
                         </div>
                         <div class="row-right">
-                            <div class="ios-switch" id="settingsFullscreenSwitch" onclick="toggleSettingsFullscreen()"></div>
+                            <div class="ios-switch" id="settingsFullscreenSwitch"></div>
                         </div>
                     </div>
                 </div>
@@ -482,11 +482,7 @@ async function initSettingsApp() {
         }
 
         // 5. 更新全屏开关状态
-        const swFs = document.getElementById('settingsFullscreenSwitch');
-        if (swFs) {
-            if (savedFullscreen) swFs.classList.add('active');
-            else swFs.classList.remove('active');
-        }
+        syncFullscreenSwitch();
 
         // 6. 加载并应用保存的视口边距
         const savedVpTop = await safeDB.load('viewport_padding_top', 24);
@@ -912,27 +908,37 @@ async function showSettingsThemeTip(e) {
     `;
 }
 
-async function toggleSettingsFullscreen() {
-    const sw = document.getElementById('settingsFullscreenSwitch');
-    const isActive = sw.classList.toggle('active');
-    
-    await safeDB.save('settings_fullscreen', isActive);
+function isFullscreenNow() {
+    return !!(document.fullscreenElement || document.webkitFullscreenElement);
+}
 
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        const docEl = document.documentElement;
-        if (docEl.requestFullscreen) {
-            docEl.requestFullscreen().catch(err => console.log("Fullscreen request failed:", err));
-        } else if (docEl.webkitRequestFullscreen) {
-            docEl.webkitRequestFullscreen();
+// 开关 = 真实的全屏状态；退出全屏（Esc、浏览器按钮等）时开关自动弹回
+function syncFullscreenSwitch() {
+    const sw = document.getElementById('settingsFullscreenSwitch');
+    const on = isFullscreenNow();
+    if (sw) sw.classList.toggle('active', on);
+    safeDB.save('settings_fullscreen', on);
+}
+
+function toggleSettingsFullscreen() {
+    const docEl = document.documentElement;
+    if (!isFullscreenNow()) {
+        const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen;
+        if (req) {
+            const p = req.call(docEl);
+            if (p && p.catch) p.catch(err => console.log('Fullscreen request failed:', err));
         }
     } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen().catch(err => console.log("Exit fullscreen failed:", err));
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) {
+            const p = exit.call(document);
+            if (p && p.catch) p.catch(err => console.log('Exit fullscreen failed:', err));
         }
     }
 }
+
+document.addEventListener('fullscreenchange', syncFullscreenSwitch);
+document.addEventListener('webkitfullscreenchange', syncFullscreenSwitch);
 
 // ---------- 桌面壁纸（只影响桌面，用 DB 保存） ----------
 // ---------- 桌面壁纸：自己上传 > 内置选择 > 跟随系统 ----------
@@ -1611,7 +1617,7 @@ async function openCenterModal(type) {
         // 纯色材质开启时，列表里的 app 图标颜色跟随“纯色材质图标颜色”
         const styNow = await loadAppIconStyle();
         const listIconColor = styNow.material === 'solid'
-            ? (styNow.solidIconColor || (isLightMode ? '#1e1e24' : '#ffffff'))
+            ? (styNow.solidIconColor || '#1e1e24')
             : colors.main;
 
         // 列表里的信息图标恢复为最初的样子（样式切换只在主界面进行）
@@ -1954,8 +1960,8 @@ async function openAppIconSettingsView(showTip = false) {
     };
 
     const isLight = themeClass === 'theme-light';
-    const bgVal = liveAppIconStyle.solidColor || (isLight ? '#e6e6eb' : '#2b2b30');
-    const iconVal = liveAppIconStyle.solidIconColor || (isLight ? '#1e1e24' : '#ffffff');
+    const bgVal = liveAppIconStyle.solidColor || '#ffffff';
+    const iconVal = liveAppIconStyle.solidIconColor || '#1e1e24';
     const colorRow = (key, label, val) => `
         <div class="appicon-slider-row">
             <div class="appicon-slider-head">
@@ -1970,6 +1976,13 @@ async function openAppIconSettingsView(showTip = false) {
     const borderColorVal = liveAppIconStyle.borderColor || '#ffffff';
 
     body.innerHTML =
+        `<div class="appicon-preview-row">
+            <div class="appicon-preview-tile" id="appiconPreviewTile">${getChatIconSvg('default')}</div>
+            <div class="appicon-preview-text">
+                <span class="modal-text appicon-preview-title">预览</span>
+                <span class="modal-text appicon-hint" id="appiconHint"></span>
+            </div>
+        </div>` +
         row('radius', '方圆度', 0, 28, 1, liveAppIconStyle.radius, 'px') +
         row('blur', '磨砂玻璃度', 0, 20, 0.5, liveAppIconStyle.blur, 'px') +
         (liveAppIconStyle.material === 'solid'
@@ -1982,6 +1995,7 @@ async function openAppIconSettingsView(showTip = false) {
         `<div class="appicon-priority">颜色优先级（高 → 低）：纯色材质 › 图标边框 › 应用名称颜色 › 手动颜色 › 自适应</div>`;
     body.style.maxHeight = '380px';
 
+    renderAppIconPreview();
     footer.style.display = 'flex';
     footer.innerHTML = `
         <div class="pf-item" onclick="resetAppIconStyle(true)">
@@ -1995,6 +2009,7 @@ async function openAppIconSettingsView(showTip = false) {
 }
 
 function previewAppIconSlider(key, val, unit, el) {
+    renderAppIconPreview();
     const label = document.getElementById('appicon-val-' + key);
     if (label) label.innerText = val + unit;
     if (el) el.style.setProperty('--p', ((val - el.min) / (el.max - el.min) * 100) + '%');
@@ -2007,6 +2022,44 @@ function previewAppIconColor(key, val) {
     if (!liveAppIconStyle) return;
     liveAppIconStyle[key] = val;
     applyAppIconStyle(liveAppIconStyle);
+    renderAppIconPreview();
+}
+
+// 设置页顶部的预览方块：实时显示当前的材质、颜色、透明度、边框
+function hexToRgbaStr(hex, a) {
+    let h = (hex || '#2b2b30').replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const r = parseInt(h.substr(0, 2), 16), g = parseInt(h.substr(2, 2), 16), b = parseInt(h.substr(4, 2), 16);
+    return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+function renderAppIconPreview() {
+    const tile = document.getElementById('appiconPreviewTile');
+    const hint = document.getElementById('appiconHint');
+    if (!tile || !liveAppIconStyle) return;
+    const s = liveAppIconStyle;
+    const isLight = (document.getElementById('phoneContainer') || {}).classList
+        ? document.getElementById('phoneContainer').classList.contains('theme-light') : false;
+    const solid = s.material === 'solid';
+    const iconCol = s.solidIconColor || '#1e1e24';
+    if (solid) {
+        const bg = s.solidColor || '#ffffff';
+        const a = 1 - (s.solidTransparency || 0) / 100;
+        tile.style.background = hexToRgbaStr(bg, a.toFixed(2));
+        tile.style.border = `${s.borderWidth != null ? s.borderWidth : 1}px solid ${s.borderColor || '#8a8a92'}`;
+        tile.style.backdropFilter = 'none';
+    } else {
+        tile.style.background = `rgba(255, 255, 255, ${(0.5 * (1 - s.transparency / 100)).toFixed(3)})`;
+        tile.style.border = `${s.borderWidth != null ? s.borderWidth : 0.5}px solid ${s.borderColor || 'rgba(255,255,255,0.18)'}`;
+        tile.style.backdropFilter = `blur(${s.blur}px)`;
+    }
+    tile.style.borderRadius = s.radius + 'px';
+    tile.style.setProperty('--pv-icon', iconCol);
+    if (hint) {
+        hint.innerText = solid
+            ? '纯色材质已开启：颜色实时生效'
+            : '颜色仅在纯色材质下生效，先切换到纯色材质';
+    }
 }
 
 async function commitAppIconColor(key, val) {
@@ -2193,20 +2246,43 @@ async function resetDesktopViewport() {
     const bl = document.getElementById('dvpBottomVal'); if (bl) bl.innerText = bottom + 'px';
 }
 
-// 编辑模式下桌面上出现的“设置”按钮（点击时不会退出编辑模式）
+// 编辑模式下：分页点上方的黑色五角星“设置”按钮；五角星上方是和 tip 弹窗同款的 Got it
 function ensureDesktopEditButton() {
-    const pc = document.getElementById('phoneContainer');
-    if (!pc || document.getElementById('desktopEditSettingsBtn')) return;
+    if (document.getElementById('desktopEditSettingsBtn')) return;
+    const host = document.querySelector('#homeScreen .pagination-bar') || document.getElementById('phoneContainer');
+    if (!host) return;
     const btn = document.createElement('div');
     btn.id = 'desktopEditSettingsBtn';
-    btn.className = 'desktop-edit-settings';
-    btn.innerText = '设置';
+    btn.className = 'desktop-edit-star';
+    btn.title = '桌面视口设置';
+    btn.innerHTML = `
+        <div class="desktop-star-tip" onclick="event.stopPropagation()">
+            <div class="tip-modal-content">设置桌面视口</div>
+            <button class="tip-modal-btn mono-font" onclick="dismissDesktopStarTip(event)">Got it</button>
+        </div>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polygon points="12.00,2.40 14.53,9.12 21.70,9.45 16.09,13.93 18.00,20.85 12.00,16.90 6.00,20.85 7.91,13.93 2.30,9.45 9.47,9.12" fill="#000000" stroke="rgba(255,255,255,0.7)" stroke-width="0.9" stroke-linejoin="round"/>
+        </svg>`;
     btn.addEventListener('pointerdown', (e) => e.stopPropagation());
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
         openDesktopViewportPopup();
     });
-    pc.appendChild(btn);
+    host.appendChild(btn);
+
+    // 退出编辑模式后，下次进入时 Got it 提示重新出现
+    const pc = document.getElementById('phoneContainer');
+    if (pc) {
+        new MutationObserver(() => {
+            if (!pc.classList.contains('edit-mode')) btn.classList.remove('tip-off');
+        }).observe(pc, { attributes: true, attributeFilter: ['class'] });
+    }
+}
+
+function dismissDesktopStarTip(e) {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
+    const btn = document.getElementById('desktopEditSettingsBtn');
+    if (btn) btn.classList.add('tip-off');
 }
 
 async function openDesktopViewportPopup() {
