@@ -61,10 +61,10 @@ function sampleBrightnessAtRect(elemRect, containerRect) {
     return totalWeight > 0 ? (weightedLuma / totalWeight) : 180;
 }
 
-/* 遍历所有图标文字、图标底座与小组件，逐个精准检测判定并赋予深/浅样式 */
+/* 遍历所有图标文字、图标底座与小组件，逐个精准检测判定并赋予深/浅样式（高灵敏模式） */
 function updateAllElementsAdaptiveContrast() {
-    if (!window.enableAdaptiveContrast) return; // 默认关闭自适应检测，彻底杜绝移动闪烁
-    if (window.isGlobalDragging) return; // 拖拽移动时锁死检测，防止高频乱闪
+    if (!window.enableAdaptiveContrast) return; 
+    if (window.isGlobalDragging) return; 
     if (!wallpaperCtx || !phoneContainer) return;
     const containerRect = phoneContainer.getBoundingClientRect();
     if (containerRect.width === 0 || containerRect.height === 0) return;
@@ -73,7 +73,8 @@ function updateAllElementsAdaptiveContrast() {
         if (el.classList.contains('dragging')) return;
         const rect = el.getBoundingClientRect();
         const luma = sampleBrightnessAtRect(rect, containerRect);
-        if (luma < 135) {
+        // 阈值设为 140，提高浅色背景判定的灵敏度
+        if (luma < 140) {
             el.classList.add('adaptive-dark');
             el.classList.remove('adaptive-light');
         } else {
@@ -86,7 +87,8 @@ function updateAllElementsAdaptiveContrast() {
 function updateDesktopWallpaperByTheme() {
     if (!phoneContainer) return;
     const isLight = phoneContainer.classList.contains('theme-light');
-    const wallpaperPath = isLight ? 'assets/Light/bizhi.png' : 'assets/Dark/bizhi.png';
+    // 有自定义桌面壁纸时用它取色，否则用当前日夜对应的内置壁纸
+    const wallpaperPath = window.currentDesktopWallpaperSrc || (isLight ? 'assets/Light/bizhi.png' : 'assets/Dark/bizhi.png');
     loadWallpaperSampler(wallpaperPath);
 
     // 默认头像随主题自动切换 Light/Dark 文件夹（若用户未上传自定义本地或 Base64 头像）
@@ -103,6 +105,21 @@ function updateDesktopWallpaperByTheme() {
     }
 }
 
+window.noirCustomAppIcons = {};
+
+function applyCustomAppIconsToDesktop() {
+    const customIcons = window.noirCustomAppIcons || {};
+    document.querySelectorAll('.app-item').forEach(el => {
+        const appId = el.getAttribute('data-app-id') || el.dataset.app;
+        if (appId && customIcons[appId]) {
+            const glyphBox = el.querySelector('.floating-glyph');
+            if (glyphBox) {
+                glyphBox.innerHTML = `<img src="${customIcons[appId]}" style="width:100%; height:100%; object-fit:cover; border-radius:14px;">`;
+            }
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
     // 初始化 DOM 引用
     phoneContainer = document.getElementById('phoneContainer');
@@ -113,9 +130,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     avatarFileInput = document.getElementById('avatarFileInput');
     coupleAvatarInput = document.getElementById('coupleAvatarInput');
 
-    // 异步从无限制 DB 加载保存的主题模式、自定义头像与自适应检测开关状态
+    // 异步从无限制 DB 加载保存的主题模式、自定义头像、应用图标与自适应检测开关状态
     if (typeof DB !== 'undefined') {
-        const savedTheme = await DB.load('theme', 'theme-dark');
+        // 没有手动选择过（模式为 auto）时，跟随系统的日夜间
+        const savedThemeMode = await DB.load('settings_theme_mode', 'auto');
+        let savedTheme = await DB.load('theme', 'theme-dark');
+        if (savedThemeMode === 'auto') {
+            savedTheme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'theme-light' : 'theme-dark';
+        }
         if (savedTheme) {
             phoneContainer.className = `phone-container ${savedTheme}`;
         } else {
@@ -126,11 +148,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (savedAvatar1) currentUploadedAvatar = savedAvatar1;
         if (savedAvatar2) currentCoupleAvatar = savedAvatar2;
 
+        window.noirCustomAppIcons = await DB.load('app_custom_icons', {});
+
+        // 桌面 App 图标材质（方圆度 / 磨砂 / 透明度 / 材质 / 边框）
+        const savedIconStyle = await DB.load('app_icon_style', null);
+        if (savedIconStyle && typeof applyAppIconStyle === 'function') {
+            applyAppIconStyle(savedIconStyle);
+        }
+
+
+
         const savedAdaptive = await DB.load('enable_adaptive_contrast', true);
         window.enableAdaptiveContrast = savedAdaptive;
 
         const savedMode = await DB.load('icon_style_mode', 'dark');
         const customColor = await DB.load('custom_icon_color', '#ffffff');
+        const savedAppNameColor = await DB.load('app_name_color', null);
+        if (savedAppNameColor) {
+            applyAppNameColorVar(savedAppNameColor);
+        }
+
+        const savedChatStyle = await DB.load('chat_svg_style', 'default');
+        if (savedChatStyle && window.APPS && window.APPS['chat'] && typeof window.getDefaultAppSvgHtml === 'function') {
+            window.APPS['chat'].svg = window.getDefaultAppSvgHtml('chat', savedChatStyle);
+        }
         if (savedAdaptive) {
             phoneContainer.classList.remove('force-dark', 'force-light', 'force-custom');
         } else {
@@ -145,10 +186,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     } else {
-        phoneContainer.classList.add('theme-dark');
+        // 没有 DB 时使用 safeDB（settings.js 中定义）；未手动选择过则跟随系统
+        const elseThemeMode = await safeDB.load('settings_theme_mode', 'auto');
+        phoneContainer.classList.add(resolveThemeClass(elseThemeMode));
         window.enableAdaptiveContrast = true;
     }
 
+    // 解析桌面壁纸：自己上传 > 内置选择 > 跟随系统
+    await resolveDesktopWallpaper();
     updateDesktopWallpaperByTheme();
 
     // 绑定加号按钮事件

@@ -2,65 +2,100 @@
    6. 拖拽引擎
    ========================================= */
 let dragSession = null;
+let dragListenersCleanup = null;
+
+// 统一收尾：不管怎么结束（正常松手 / 被系统打断 / 下一次按下），都清理干净
+function resetDragState() {
+    if (dragListenersCleanup) {
+        dragListenersCleanup();
+        dragListenersCleanup = null;
+    }
+    if (dragSession) {
+        dragSession.avatar.remove();
+        dragSession.sourceEl.classList.remove('dragging');
+        dragSession = null;
+    }
+    document.querySelectorAll('.target-hover').forEach(node => node.classList.remove('target-hover'));
+    window.isGlobalDragging = false;
+}
 
 function attachDragAndHoldEvents(el, itemData) {
     let startX = 0, startY = 0;
     let isDragging = false;
     let holdTimer = null;
+    let didTriggerHold = false;
 
     el.addEventListener('pointerdown', (e) => {
-        if (e.target.closest('.profile-avatar-wrap, .hb-avatar-wrap, .chip-avatar')) return; // 阻止点击头像区域拖拽
+        if (e.target.closest('.profile-avatar-wrap, .hb-avatar-wrap, .chip-avatar')) return;
+
+        // 新的按下之前，先清掉上一次残留的拖拽状态
+        resetDragState();
 
         startX = e.clientX;
         startY = e.clientY;
         isDragging = false;
+        didTriggerHold = false;
 
         holdTimer = setTimeout(() => {
+            didTriggerHold = true;
             phoneContainer.classList.add('edit-mode');
             if (navigator.vibrate) navigator.vibrate(40);
+
+            let existingToast = document.getElementById('globalEditToast');
+            if (existingToast) existingToast.remove();
+
+            const toast = document.createElement('div');
+            toast.id = 'globalEditToast';
+            toast.className = 'global-edit-toast mono-font';
+            toast.innerHTML = `
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                <span>已进入编辑模式…</span>
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 20);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 400);
+            }, 1600);
         }, 500);
+
+        const removeListeners = () => {
+            clearTimeout(holdTimer);
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('pointercancel', onCancel);
+        };
 
         const onMove = (moveEvent) => {
             const dist = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
-            
-            if (dist > 7) {
-                clearTimeout(holdTimer);
-            }
+            if (dist > 7) clearTimeout(holdTimer);
 
             if (!isDragging && dist > 7) {
                 isDragging = true;
-                window.isGlobalDragging = true; // 锁定检测，拖拽期间禁止全局色彩误判与闪烁
+                window.isGlobalDragging = true;
                 el.classList.add('dragging');
 
                 const avatar = el.cloneNode(true);
-                // 继承当前固定的明暗色彩类，防止浮空变色
                 const colorModeClass = el.classList.contains('adaptive-light') ? 'adaptive-light' : 'adaptive-dark';
                 avatar.className = `drag-avatar ${colorModeClass}`;
                 avatar.style.width = `${el.offsetWidth}px`;
                 avatar.style.height = `${el.offsetHeight}px`;
-                avatar.style.left = `${moveEvent.clientX}px`;
-                avatar.style.top = `${moveEvent.clientY}px`;
                 document.body.appendChild(avatar);
 
-                dragSession = {
-                    sourceEl: el,
-                    item: itemData,
-                    avatar: avatar
-                };
+                dragSession = { sourceEl: el, item: itemData, avatar: avatar };
             }
 
             if (isDragging && dragSession) {
-                dragSession.avatar.style.left = `${moveEvent.clientX}px`;
-                dragSession.avatar.style.top = `${moveEvent.clientY}px`;
+                // 用 transform 移动，比改 left/top 更流畅，且以手指为中心
+                dragSession.avatar.style.transform =
+                    `translate(${moveEvent.clientX}px, ${moveEvent.clientY}px) translate(-50%, -50%)`;
 
                 checkEdgePageFlip(moveEvent.clientX);
 
-                dragSession.avatar.style.display = 'none';
+                // 跟随图标 pointer-events:none，elementFromPoint 会自动穿透它，不需要隐藏再显示
                 const hoverEl = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
-                dragSession.avatar.style.display = '';
+                document.querySelectorAll('.target-hover').forEach(node => node.classList.remove('target-hover'));
 
-                document.querySelectorAll('.app-item.target-hover, .widget-item.target-hover').forEach(node => node.classList.remove('target-hover'));
-                
                 const hoverTarget = hoverEl ? hoverEl.closest('.app-item') : null;
                 if (hoverTarget && hoverTarget !== el && itemData.span === 1 && hoverTarget.dataset.type === 'app') {
                     hoverTarget.classList.add('target-hover');
@@ -69,20 +104,19 @@ function attachDragAndHoldEvents(el, itemData) {
         };
 
         const onUp = (upEvent) => {
-            clearTimeout(holdTimer);
-            window.removeEventListener('pointermove', onMove);
-            window.removeEventListener('pointerup', onUp);
+            removeListeners();
+            dragListenersCleanup = null;
 
             if (isDragging && dragSession) {
-                dragSession.avatar.remove();
+                const session = dragSession;
+                dragSession = null;
+                session.avatar.remove();
                 el.classList.remove('dragging');
                 document.querySelectorAll('.target-hover').forEach(node => node.classList.remove('target-hover'));
 
                 const dropTarget = document.elementFromPoint(upEvent.clientX, upEvent.clientY);
-                executeDrop(dropTarget, dragSession, upEvent);
-                dragSession = null;
+                executeDrop(dropTarget, session, upEvent);
 
-                // 释放后等待 300ms 停稳，解除拖拽锁定并平滑单次重测
                 setTimeout(() => {
                     window.isGlobalDragging = false;
                     if (typeof updateAllElementsAdaptiveContrast === 'function') {
@@ -91,15 +125,33 @@ function attachDragAndHoldEvents(el, itemData) {
                 }, 300);
             } else {
                 window.isGlobalDragging = false;
-                if (itemData.type === 'app') {
-                    openApp(itemData.id);
+                const isEditMode = phoneContainer.classList.contains('edit-mode');
+                if (itemData.type === 'app' && !didTriggerHold) {
+                    if (itemData.id === 'settings') {
+                        phoneContainer.classList.remove('edit-mode');
+                        openApp(itemData.id);
+                    } else if (isEditMode) {
+                        phoneContainer.classList.remove('edit-mode');
+                        openApp(itemData.id);
+                    }
                 }
             }
             isDragging = false;
         };
 
+        // 被系统打断（比如浏览器接管了滚动）：只清理，不执行放置
+        const onCancel = () => {
+            removeListeners();
+            dragListenersCleanup = null;
+            isDragging = false;
+            resetDragState();
+            if (typeof renderUI === 'function') renderUI();
+        };
+
+        dragListenersCleanup = removeListeners;
         window.addEventListener('pointermove', onMove);
         window.addEventListener('pointerup', onUp);
+        window.addEventListener('pointercancel', onCancel);
     });
 }
 

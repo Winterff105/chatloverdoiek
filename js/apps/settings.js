@@ -84,7 +84,7 @@ function getSettingsAppHTML() {
             <div class="hero-text-col">
                 <div class="hero-kicker mono-font">
                     <span class="kicker-line"></span>
-                    <span id="settingsHeroKicker">Control Center</span>
+                    <span class="txt" id="settingsHeroKicker">Control Center</span>
                 </div>
                 <div class="hero-main" id="settingsHeroMain">System<br><strong>Preferences</strong></div>
                 <div class="hero-sub" id="settingsHeroSub">外观 · 接口 · 预设管理</div>
@@ -192,12 +192,11 @@ function getSettingsAppHTML() {
                             </div>
                         </div>
                         <div class="row-right">
-                            <input type="file" id="settingsWallpaperInput" style="display:none;" accept="image/*" onchange="handleSettingsWallpaperUpload(event)">
-                            <div class="action-text-btn" onclick="document.getElementById('settingsWallpaperInput').click()">Upload</div>
-                            <div class="action-text-btn" onclick="resetSettingsWallpaper()" style="opacity:0.6;">Reset</div>
+                            <input type="file" id="desktopWallpaperInput" style="display:none;" accept="image/*" onchange="handleDesktopWallpaperUpload(event)">
+                            <div class="action-text-btn" id="wallpaperTrigger" onclick="openWallpaperMorph(event)">Change</div>
+                            <div class="action-text-btn" onclick="resetDesktopWallpaper()" style="opacity:0.6;">Reset</div>
                         </div>
                     </div>
-
                     <div class="setting-row" onclick="openCenterModal('iconLib')">
                         <div class="row-left">
                             <div class="row-icon-box">
@@ -282,11 +281,13 @@ function getSettingsAppHTML() {
                                     <div class="name-dot nd-gray" id="ndGray" title="灰色" onclick="setAppNameColor('#A1A1AA', this)"></div>
                                     <div class="name-dot nd-blue" id="ndBlue" title="蓝色" onclick="setAppNameColor('#74b9ff', this)"></div>
                                     <div class="name-dot nd-pink" id="ndPink" title="粉色" onclick="setAppNameColor('#ff7675', this)"></div>
-                                    <div class="name-dot nd-gold" id="ndGold" title="金色" onclick="setAppNameColor('#ffeaa7', this)"></div>
+                                    <div class="name-dot nd-custom" id="ndCustom" title="自定义颜色" onclick="triggerCustomAppNameColorPicker(event)">
+                                        <input type="color" id="customAppNameColorInput" style="position:absolute; opacity:0; width:0; height:0;" onchange="applyCustomAppNameColor(this.value)">
+                                    </div>
                                 </div>
                                 <div class="live-preview">
                                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                                    <span id="appNamePreviewText" style="color: #FFFFFF;">设置 Settings</span>
+                                    <span class="txt" id="appNamePreviewText" style="color: #FFFFFF;">设置 Settings</span>
                                 </div>
                             </div>
                         </div>
@@ -318,11 +319,11 @@ function getSettingsAppHTML() {
                         <div class="api-action-buttons">
                             <button class="pill-btn mono-font" onclick="fetchSettingsModels(event)">
                                 <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                                <span>Fetch</span>
+                                <span class="txt">Fetch</span>
                             </button>
                             <button class="pill-btn primary mono-font" onclick="saveSettingsPreset()">
                                 <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-                                <span>Save Preset</span>
+                                <span class="txt">Save Preset</span>
                             </button>
                         </div>
 
@@ -349,11 +350,11 @@ function getSettingsAppHTML() {
 
         <!-- 底部 footer -->
         <div class="stage-footer mono-font">
-            <span>NOIR OS</span>
+            <span class="txt">NOIR OS</span>
             <span class="dot-sep"></span>
-            <span>V 2.7.5</span>
+            <span class="txt">V 2.7.5</span>
             <span class="dot-sep"></span>
-            <span>READY</span>
+            <span class="txt">READY</span>
         </div>
 
         <!-- 左下角独立液态玻璃按钮组 -->
@@ -364,7 +365,7 @@ function getSettingsAppHTML() {
                 </svg>
                 <span class="switcher-text mono-font" id="settingsActivePresetBadge">Preset 1</span>
             </div>
-            <div class="corner-bg-switcher" onclick="cycleSettingsBackground()" title="切换设置背景">
+            <div class="corner-bg-switcher" id="settingsBgCorner" onpointerdown="sbgPointerDown(event)" onpointerup="sbgPointerUp(event)" onpointerleave="sbgCancel()" oncontextmenu="return false" title="单击切换背景 · 长按更多选项">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                     <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -373,60 +374,34 @@ function getSettingsAppHTML() {
             </div>
         </div>
 
-        <!-- iOS 居中毛玻璃弹窗 -->
-        <div class="modal-backdrop" onclick="closeCenterModal()"></div>
-        <div class="ios-center-modal" id="settingsCenterModal">
-            <div class="center-modal-header">
-                <div class="sheet-title-group">
-                    <svg viewBox="0 0 24 24" id="settingsModalSvg">
-                        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                    </svg>
-                    <div>
-                        <span class="sheet-title" id="settingsModalTitle">Flight Options</span>
-                        <span class="sheet-subtitle mono-font" id="settingsModalSubtitle">航空配置</span>
-                    </div>
-                </div>
-                <button class="sheet-close-btn" onclick="closeCenterModal()">
-                    <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-            </div>
-            <div class="center-modal-body" id="settingsModalBody"></div>
-        </div>
-
     </div>
     `;
 }
 
 async function initSettingsApp() {
     console.log('🚀 [SETTINGS INIT] 开始初始化设置应用...');
+    settingsCurrentPanel = 'main';
     renderSettingsPresetsList();
     updateSettingsActivePresetBadge();
 
     if (typeof safeDB !== 'undefined') {
-        const savedTheme = await safeDB.load('theme', 'theme-dark');
-        const savedBgIdx = await safeDB.load('settings_bg_index', 0);
+        const themeMode = await safeDB.load('settings_theme_mode', 'auto');
+        const savedTheme = resolveThemeClass(themeMode);
+        const savedBgIdx = await safeDB.load('settings_bg_index', 1);
         const savedAdaptive = await safeDB.load('enable_adaptive_contrast', true);
         const savedMode = await safeDB.load('icon_style_mode', 'dark');
         const savedCustomColor = await safeDB.load('custom_icon_color', '#ffffff');
         const savedFullscreen = await safeDB.load('settings_fullscreen', false);
 
-        settingsCurrentBgIndex = savedBgIdx !== null ? savedBgIdx : 0;
+        settingsCurrentBgIndex = savedBgIdx !== null ? savedBgIdx : 1;
+        settingsCustomBg = await safeDB.load('settings_bg_custom', null);
+        settingsMaskTransparency = await safeDB.load('settings_mask_transparency', null);
         enableAdaptiveContrast = savedAdaptive;
         window.enableAdaptiveContrast = enableAdaptiveContrast;
         currentIconStyleMode = savedMode || 'dark';
 
-        // 1. 先将主题类名应用到设置根节点
-        const root = document.getElementById('noirSettingsRoot');
-        if (root) {
-            root.classList.remove('theme-light', 'theme-dark');
-            root.classList.add(savedTheme);
-            document.querySelectorAll('.noir-settings-root .theme-seg-picker .seg-pill').forEach(p => {
-                p.classList.remove('active');
-                const text = p.textContent.trim().toLowerCase();
-                if (savedTheme === 'theme-light' && text === 'light') p.classList.add('active');
-                if (savedTheme === 'theme-dark' && text === 'dark') p.classList.add('active');
-            });
-        }
+        // 1. 应用主题（统一入口，同时同步桌面、选项按钮和背景）
+        applySettingsThemeClass(savedTheme, themeMode);
 
         // 2. 主题应用完毕后，再渲染背景及对应深浅遮罩
         applyCurrentSettingsBackground();
@@ -449,17 +424,23 @@ async function initSettingsApp() {
         const savedAppNameColor = await safeDB.load('app_name_color', null);
         if (savedAppNameColor) {
             if (window.phoneContainer) {
-                window.phoneContainer.style.setProperty('--app-name-color', savedAppNameColor);
+                applyAppNameColorVar(savedAppNameColor);
             }
             const preview = document.getElementById('appNamePreviewText');
             if (preview) {
                 preview.style.color = savedAppNameColor;
             }
-            const colorMap = { '#FFFFFF': 'ndWhite', '#1E1E24': 'ndBlack', '#A1A1AA': 'ndGray', '#74b9ff': 'ndBlue', '#ff7675': 'ndPink', '#ffeaa7': 'ndGold' };
+            const colorMap = { '#FFFFFF': 'ndWhite', '#1E1E24': 'ndBlack', '#A1A1AA': 'ndGray', '#74b9ff': 'ndBlue', '#ff7675': 'ndPink' };
             const dotId = colorMap[savedAppNameColor.toUpperCase()] || colorMap[savedAppNameColor];
             if (dotId) {
                 const dot = document.getElementById(dotId);
                 if (dot) dot.classList.add('active');
+            } else {
+                const customDot = document.getElementById('ndCustom');
+                if (customDot) {
+                    customDot.classList.add('active');
+                    customDot.style.background = savedAppNameColor;
+                }
             }
         }
 
@@ -538,7 +519,7 @@ let settingsBackgrounds = [
     'assets/settings/设置背景3.png',
     'assets/settings/设置背景4.png'
 ];
-let settingsCurrentBgIndex = 0;
+let settingsCurrentBgIndex = 1; // 默认：设置背景2.png
 
 let enableAdaptiveContrast = true; // 默认开启
 let currentIconStyleMode = 'dark'; // 默认深色
@@ -602,7 +583,30 @@ async function setAppNameColor(colorHex, dotEl = null) {
         preview.style.color = colorHex;
     }
     if (window.phoneContainer) {
-        window.phoneContainer.style.setProperty('--app-name-color', colorHex);
+        applyAppNameColorVar(colorHex);
+    }
+    await safeDB.save('app_name_color', colorHex);
+}
+
+function triggerCustomAppNameColorPicker(e) {
+    e.stopPropagation();
+    const picker = document.getElementById('customAppNameColorInput');
+    if (picker) picker.click();
+}
+
+async function applyCustomAppNameColor(colorHex) {
+    const customDot = document.getElementById('ndCustom');
+    if (customDot) {
+        document.querySelectorAll('.app-name-panel .name-dot').forEach(d => d.classList.remove('active'));
+        customDot.classList.add('active');
+        customDot.style.background = colorHex;
+    }
+    const preview = document.getElementById('appNamePreviewText');
+    if (preview) {
+        preview.style.color = colorHex;
+    }
+    if (window.phoneContainer) {
+        applyAppNameColorVar(colorHex);
     }
     await safeDB.save('app_name_color', colorHex);
 }
@@ -663,76 +667,190 @@ function applyIconStyleModeToContainer(mode, customColor = null) {
 
 async function cycleSettingsBackground() {
     settingsCurrentBgIndex = (settingsCurrentBgIndex + 1) % settingsBackgrounds.length;
+    settingsCustomBg = null;
+    await safeDB.save('settings_bg_custom', null);
     await safeDB.save('settings_bg_index', settingsCurrentBgIndex);
     applyCurrentSettingsBackground();
 }
 
+// 设置背景：自定义图片 > 内置四张；遮罩透明度有值就用它，没有则用日夜默认
+let settingsCustomBg = null;
+let settingsMaskTransparency = null;
+
 function applyCurrentSettingsBackground() {
     const root = document.getElementById('noirSettingsRoot');
     if (!root) return;
-    const bgPath = settingsBackgrounds[settingsCurrentBgIndex] || 'assets/settings/设置背景.png';
+    const bgPath = settingsCustomBg || settingsBackgrounds[settingsCurrentBgIndex] || 'assets/settings/设置背景.png';
     const isLight = root.classList.contains('theme-light');
-    const overlay = isLight ? 'linear-gradient(rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.6))' : 'linear-gradient(rgba(6, 6, 8, 0.55), rgba(6, 6, 8, 0.55))';
-    root.style.backgroundImage = `${overlay}, url('${bgPath}')`;
+    const hasMask = settingsMaskTransparency !== null && settingsMaskTransparency !== undefined;
+    const alpha = hasMask ? (1 - settingsMaskTransparency / 100) : (isLight ? 0.6 : 0.55);
+    const rgb = isLight ? '255, 255, 255' : '6, 6, 8';
+    const overlay = `linear-gradient(rgba(${rgb}, ${alpha.toFixed(2)}), rgba(${rgb}, ${alpha.toFixed(2)}))`;
+    root.style.backgroundImage = `${overlay}, url('${cssWallpaperUrl(bgPath)}')`;
     root.style.backgroundSize = 'cover';
     root.style.backgroundPosition = 'center';
 }
 
-async function setSettingsThemeMode(mode, el) {
-    console.log('🎨 [THEME CHANGE] 用户点击切换主题模式参数:', mode);
-    document.querySelectorAll('.noir-settings-root .theme-seg-picker .seg-pill').forEach(p => p.classList.remove('active'));
-    if (el) el.classList.add('active');
+function resolveThemeClass(mode) {
+    if (mode === 'light') return 'theme-light';
+    if (mode === 'dark') return 'theme-dark';
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'theme-light' : 'theme-dark';
+}
 
+// 只负责把主题画出来：设置根节点、信息样式弹窗、Dark/Light/System 选项、桌面、背景
+function applySettingsThemeClass(targetThemeClass, mode = 'auto') {
     const root = document.getElementById('noirSettingsRoot');
-    root.classList.remove('theme-light', 'theme-dark');
-
-    let targetThemeClass = 'theme-dark';
-    if (mode === 'light') {
-        root.classList.add('theme-light');
-        targetThemeClass = 'theme-light';
-    } else if (mode === 'dark') {
-        root.classList.add('theme-dark');
-        targetThemeClass = 'theme-dark';
-    } else {
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-            root.classList.add('theme-light');
-            targetThemeClass = 'theme-light';
-        } else {
-            root.classList.add('theme-dark');
-            targetThemeClass = 'theme-dark';
-        }
+    if (root) {
+        root.classList.remove('theme-light', 'theme-dark');
+        root.classList.add(targetThemeClass);
     }
 
-    console.log('🎨 [THEME CHANGE] 确定的目标主题类名:', targetThemeClass);
-
-    if (phoneContainer) {
-        phoneContainer.className = `phone-container ${targetThemeClass}`;
-        if (typeof updateDesktopWallpaperByTheme === 'function') {
-            updateDesktopWallpaperByTheme();
-        }
+    const chatRoot = document.getElementById('chatStyleModalRoot');
+    if (chatRoot) {
+        chatRoot.classList.remove('theme-light', 'theme-dark');
+        chatRoot.classList.add(targetThemeClass);
     }
 
-    const success = await safeDB.save('theme', targetThemeClass);
-    console.log('💾 [THEME SAVE] 主题写入安全数据库结果:', success);
+    const activeText = mode === 'auto' ? 'system' : (targetThemeClass === 'theme-light' ? 'light' : 'dark');
+    document.querySelectorAll('.noir-settings-root .theme-seg-picker .seg-pill').forEach(p => {
+        p.classList.toggle('active', p.textContent.trim().toLowerCase() === activeText);
+    });
+
+    const pc = document.getElementById('phoneContainer');
+    if (pc) {
+        pc.classList.remove('theme-light', 'theme-dark');
+        pc.classList.add(targetThemeClass);
+    }
+    if (typeof updateDesktopWallpaperByTheme === 'function') {
+        updateDesktopWallpaperByTheme();
+    }
 
     applyCurrentSettingsBackground();
 }
 
-function showSettingsThemeTip(e) {
-    e.stopPropagation();
-    const root = document.getElementById('noirSettingsRoot');
+// 用户手动选择（设置页选项 或 弹窗按钮）：会保存
+async function setSettingsThemeMode(mode, el) {
+    const targetThemeClass = resolveThemeClass(mode);
+    applySettingsThemeClass(targetThemeClass, mode);
+
+    // 第一次切换到浅色：背景改为 设置背景.png，之后保留用户的选择
+    if (targetThemeClass === 'theme-light') {
+        const alreadySwitched = await safeDB.load('settings_bg_light_switched', false);
+        if (!alreadySwitched) {
+            settingsCurrentBgIndex = 0;
+            await safeDB.save('settings_bg_index', 0);
+            await safeDB.save('settings_bg_light_switched', true);
+            applyCurrentSettingsBackground();
+        }
+    }
+
+    await safeDB.save('settings_theme_mode', mode);
+    await safeDB.save('theme', targetThemeClass);
+}
+
+// 没有手动选择过（模式为 auto）时，跟随系统的日夜间
+async function followSystemThemeIfAuto() {
+    const mode = await safeDB.load('settings_theme_mode', 'auto');
+    if (mode !== 'auto') return;
+    const t = resolveThemeClass('auto');
+    applySettingsThemeClass(t, 'auto');
+    await safeDB.save('theme', t);
+}
+
+// 弹窗右上角的日夜切换按钮
+let settingsModalRerender = null;
+
+// ---------- 弹窗主题（与设置页、系统分开；未手动设置则跟随系统） ----------
+async function resolvePopupThemeClass() {
+    const mode = await safeDB.load('popup_theme_mode', 'auto');
+    if (mode === 'light') return 'theme-light';
+    if (mode === 'dark') return 'theme-dark';
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'theme-light' : 'theme-dark';
+}
+
+// 所有弹窗共用一个独立容器；它自带 theme-light / theme-dark，互不影响设置页
+function ensurePopupShell(themeClass) {
+    const host = document.getElementById('phoneContainer') || document.body;
+    let shell = document.getElementById('settingsPopupShell');
+    if (!shell) {
+        shell = document.createElement('div');
+        shell.id = 'settingsPopupShell';
+        shell.className = 'noir-settings-root';
+        shell.style.cssText = 'position:absolute; inset:0; z-index:9000; background:transparent; padding:0; display:block; pointer-events:none;';
+        shell.innerHTML = `
+            <div class="modal-backdrop" onclick="closeCenterModal()"></div>
+            <div class="ios-center-modal" id="settingsCenterModal">
+                <div class="center-modal-header">
+                    <div class="sheet-title-group">
+                        <svg viewBox="0 0 24 24" id="settingsModalSvg">
+                            <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                        </svg>
+                        <div>
+                            <span class="sheet-title" id="settingsModalTitle"></span>
+                            <span class="sheet-subtitle mono-font" id="settingsModalSubtitle"></span>
+                        </div>
+                    </div>
+                    <div class="sheet-header-actions">
+                        <button class="sheet-close-btn sheet-theme-btn" onclick="toggleSettingsThemeFromModal(event)" title="切换日夜间">
+                            <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+                            <svg class="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+                        </button>
+                        <button class="sheet-close-btn" onclick="closeCenterModal()">
+                            <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="center-modal-body" id="settingsModalBody"></div>
+            </div>
+            <div class="popup-floating-footer" id="settingsModalFooter"></div>
+        `;
+        host.appendChild(shell);
+    }
+    shell.classList.remove('theme-light', 'theme-dark');
+    shell.classList.add(themeClass);
+    shell.classList.add('center-modal-open');
+    // 每次打开弹窗先隐藏底部按钮，需要的弹窗自己再显示
+    const footer = document.getElementById('settingsModalFooter');
+    if (footer) { footer.style.display = 'none'; footer.innerHTML = ''; }
+    return shell;
+}
+
+// 弹窗右上角按钮：只切换弹窗自己的日夜，并保存
+async function toggleSettingsThemeFromModal(e) {
+    if (e) e.stopPropagation();
+    const shell = document.getElementById('settingsPopupShell');
+    const isLight = shell && shell.classList.contains('theme-light');
+    await safeDB.save('popup_theme_mode', isLight ? 'dark' : 'light');
+    if (typeof settingsModalRerender === 'function') {
+        await settingsModalRerender();
+    }
+}
+
+// 系统日夜间变化时：弹窗若仍处于“跟随系统”，就重新渲染
+async function refreshPopupIfAuto() {
+    const shell = document.getElementById('settingsPopupShell');
+    if (!shell || !shell.classList.contains('center-modal-open')) return;
+    const mode = await safeDB.load('popup_theme_mode', 'auto');
+    if (mode === 'auto' && typeof settingsModalRerender === 'function') {
+        await settingsModalRerender();
+    }
+}
+
+async function showSettingsThemeTip(e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    settingsModalRerender = () => showSettingsThemeTip(null);
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+
     const title = document.getElementById('settingsModalTitle');
     const subtitle = document.getElementById('settingsModalSubtitle');
     const body = document.getElementById('settingsModalBody');
-
     title.innerText = 'Notice';
     subtitle.innerText = '外观提示';
     body.innerHTML = `
         <div class="tip-modal-content">（桌面默认布置也会变喔）</div>
         <button class="tip-modal-btn mono-font" onclick="closeCenterModal()">Got it</button>
     `;
-
-    root.classList.add('center-modal-open');
 }
 
 async function toggleSettingsFullscreen() {
@@ -757,31 +875,466 @@ async function toggleSettingsFullscreen() {
     }
 }
 
-function handleSettingsWallpaperUpload(e) {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-            const root = document.getElementById('noirSettingsRoot');
-            root.style.backgroundImage = `url('${evt.target.result}')`;
-            root.style.backgroundSize = 'cover';
-            root.style.backgroundPosition = 'center';
-            alert('自定义壁纸已应用！');
-        };
-        reader.readAsDataURL(file);
+// ---------- 桌面壁纸（只影响桌面，用 DB 保存） ----------
+// ---------- 桌面壁纸：自己上传 > 内置选择 > 跟随系统 ----------
+const BUILTIN_WALLPAPER_FOLDER = { dark: '内置壁纸暗', light: '内置壁纸亮' };
+const BUILTIN_WALLPAPER_NAME = { dark: '暗', light: '亮' };
+
+function builtinWallpaperSrc(set, index) {
+    return `assets/${BUILTIN_WALLPAPER_FOLDER[set]}/${BUILTIN_WALLPAPER_NAME[set]}${index}.png`;
+}
+
+function systemWallpaperSrc() {
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
+        ? 'assets/Light/bizhi.png'
+        : 'assets/Dark/bizhi.png';
+}
+
+function cssWallpaperUrl(src) {
+    return src.startsWith('data:') ? src : encodeURI(src);
+}
+
+// 只决定壁纸并写到桌面容器上（不重新渲染）
+async function resolveDesktopWallpaper() {
+    const custom = await safeDB.load('desktop_wallpaper', null);
+    const builtin = await safeDB.load('builtin_wallpaper', null);
+    let src = null;
+    if (custom) {
+        src = custom;
+    } else if (builtin && builtin.set && builtin.index) {
+        src = builtinWallpaperSrc(builtin.set, builtin.index);
+    }
+    window.currentDesktopWallpaperSrc = src;
+    const pc = document.getElementById('phoneContainer');
+    if (pc) {
+        if (src) {
+            const url = cssWallpaperUrl(src);
+            pc.style.setProperty('--wallpaper-bg', `url('${url}') no-repeat center center / cover, #09090b`);
+            pc.style.backgroundImage = `url('${url}')`;
+            pc.style.backgroundSize = 'cover';
+            pc.style.backgroundPosition = 'center';
+            pc.style.backgroundRepeat = 'no-repeat';
+        } else {
+            // 没有选择：移除内联变量，恢复原来按主题（亮/暗）引用的默认壁纸
+            pc.style.removeProperty('--wallpaper-bg');
+            pc.style.backgroundImage = '';
+            pc.style.backgroundSize = '';
+            pc.style.backgroundPosition = '';
+            pc.style.backgroundRepeat = '';
+        }
+    }
+    return src;
+}
+
+// 决定壁纸并刷新桌面（取色、图标）
+async function applyDesktopWallpaper() {
+    await resolveDesktopWallpaper();
+    if (typeof updateDesktopWallpaperByTheme === 'function') {
+        updateDesktopWallpaperByTheme();
     }
 }
 
-function resetSettingsWallpaper() {
+// ---------- 切换壁纸按钮（设置背景）：长按出方框；短按打开遮罩透明度 ----------
+let sbgTimer = null;
+let sbgLong = false;
+
+function sbgPointerDown(e) {
+    sbgLong = false;
+    const el = e.currentTarget;
+    clearTimeout(sbgTimer);
+    sbgTimer = setTimeout(() => {
+        sbgLong = true;
+        openSettingsBgMorph(el);
+    }, 450);
+}
+
+function sbgPointerUp(e) {
+    clearTimeout(sbgTimer);
+    if (!sbgLong) cycleSettingsBackground();
+}
+
+function sbgCancel() {
+    clearTimeout(sbgTimer);
+}
+
+function openSettingsBgMorph(trigger) {
     const root = document.getElementById('noirSettingsRoot');
-    root.style.backgroundImage = 'none';
-    alert('已恢复默认背景！');
+    closeWallpaperMorph(true);
+    closeSettingsBgMorph(true);
+
+    const rr = root.getBoundingClientRect();
+    const tr = trigger.getBoundingClientRect();
+    const W = 200, H = 124;
+    const startLeft = tr.left - rr.left;
+    const startTop = tr.top - rr.top;
+    const endLeft = Math.max(12, Math.min(tr.left - rr.left, rr.width - W - 12));
+    const endTop = Math.max(12, tr.top - rr.top - H - 8);
+
+    const menu = document.createElement('div');
+    menu.id = 'settingsBgMorph';
+    menu.className = 'wp-morph sb-morph';
+    menu.style.left = startLeft + 'px';
+    menu.style.top = startTop + 'px';
+    menu.style.width = tr.width + 'px';
+    menu.style.height = tr.height + 'px';
+    menu.innerHTML = `
+        <div class="sb-grid">
+            <div class="wp-morph-item" onclick="settingsBgChooseBuiltin(event)">内置</div>
+            <div class="wp-morph-item" onclick="settingsBgPickUpload(event)">自己上传</div>
+            <div class="wp-morph-item" onclick="settingsBgOpenMask(event)">遮罩透明度</div>
+            <div class="wp-morph-item" onclick="settingsBgRestore(event)">还原</div>
+        </div>
+    `;
+    root.appendChild(menu);
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        menu.style.left = endLeft + 'px';
+        menu.style.top = endTop + 'px';
+        menu.style.width = W + 'px';
+        menu.style.height = H + 'px';
+        menu.classList.add('open');
+    }));
+
+    setTimeout(() => document.addEventListener('pointerdown', outsideSettingsBgMorph), 0);
+}
+
+function outsideSettingsBgMorph(ev) {
+    const menu = document.getElementById('settingsBgMorph');
+    if (!menu) {
+        document.removeEventListener('pointerdown', outsideSettingsBgMorph);
+        return;
+    }
+    if (!menu.contains(ev.target) && !ev.target.closest('#settingsBgCorner')) {
+        closeSettingsBgMorph();
+    }
+}
+
+function closeSettingsBgMorph(immediate = false) {
+    document.removeEventListener('pointerdown', outsideSettingsBgMorph);
+    const menu = document.getElementById('settingsBgMorph');
+    if (!menu) return;
+    if (immediate) {
+        menu.remove();
+        return;
+    }
+    menu.classList.remove('open');
+    menu.style.opacity = '0';
+    setTimeout(() => menu.remove(), 260);
+}
+
+function settingsBgChooseBuiltin(e) {
+    e.stopPropagation();
+    closeSettingsBgMorph(true);
+    openSettingsBgBuiltinPopup();
+}
+
+function settingsBgOpenMask(e) {
+    e.stopPropagation();
+    closeSettingsBgMorph(true);
+    openSettingsBgMaskPopup();
+}
+
+// 方框里的“还原”：只还原并提示，不改弹窗
+async function settingsBgRestore(e) {
+    e.stopPropagation();
+    closeSettingsBgMorph(true);
+    await restoreSettingsBgQuiet();
+}
+
+function settingsBgPickUpload(e) {
+    e.stopPropagation();
+    closeSettingsBgMorph(true);
+    document.getElementById('settingsBgInput').click();
+}
+
+async function handleSettingsBgUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+        settingsCustomBg = evt.target.result;
+        await safeDB.save('settings_bg_custom', settingsCustomBg);
+        applyCurrentSettingsBackground();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+}
+
+// 内置设置背景：四张，选中即应用
+async function openSettingsBgBuiltinPopup() {
+    settingsModalRerender = () => openSettingsBgBuiltinPopup();
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+
+    const title = document.getElementById('settingsModalTitle');
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+    title.innerText = 'Background';
+    subtitle.innerText = '设置背景 · 内置';
+    body.style.maxHeight = 'none';
+
+    body.innerHTML = `
+        <div class="bw-grid">
+            ${settingsBackgrounds.map((src, i) => `
+                <div class="bw-thumb ${!settingsCustomBg && settingsCurrentBgIndex === i ? 'selected' : ''}" onclick="selectSettingsBgBuiltin(${i})">
+                    <img src="${encodeURI(src)}" alt="${i + 1}" onerror="this.style.visibility='hidden'">
+                    <span class="bw-num">${i + 1}</span>
+                </div>`).join('')}
+        </div>
+    `;
+}
+
+async function selectSettingsBgBuiltin(i) {
+    settingsCurrentBgIndex = i;
+    settingsCustomBg = null;
+    await safeDB.save('settings_bg_custom', null);
+    await safeDB.save('settings_bg_index', i);
+    applyCurrentSettingsBackground();
+    await openSettingsBgBuiltinPopup();
+}
+
+// 遮罩透明度：滑条 + 还原
+async function openSettingsBgMaskPopup() {
+    settingsModalRerender = () => openSettingsBgMaskPopup();
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+
+    const title = document.getElementById('settingsModalTitle');
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+    title.innerText = 'Mask';
+    subtitle.innerText = '设置背景遮罩透明度';
+    body.style.maxHeight = 'none';
+
+    const isLight = themeClass === 'theme-light';
+    const defaultTrans = isLight ? 40 : 45;
+    const val = settingsMaskTransparency !== null && settingsMaskTransparency !== undefined ? settingsMaskTransparency : defaultTrans;
+
+    body.innerHTML = `
+        <div class="appicon-slider-row">
+            <div class="appicon-slider-head">
+                <span class="modal-text">遮罩透明度</span>
+                <span class="modal-text appicon-val" id="mask-val">${val}%</span>
+            </div>
+            <input type="range" class="appicon-range" min="0" max="100" step="1" value="${val}" style="--p:${val}%"
+                oninput="previewSettingsMask(this.value, this)"
+                onchange="commitSettingsMask(this.value)">
+        </div>
+        <div class="bw-more" onclick="restoreSettingsBg()">还原</div>
+    `;
+}
+
+function previewSettingsMask(val, el) {
+    const label = document.getElementById('mask-val');
+    if (label) label.innerText = val + '%';
+    if (el) el.style.setProperty('--p', val + '%');
+    settingsMaskTransparency = parseFloat(val);
+    applyCurrentSettingsBackground();
+}
+
+async function commitSettingsMask(val) {
+    settingsMaskTransparency = parseFloat(val);
+    await safeDB.save('settings_mask_transparency', settingsMaskTransparency);
+}
+
+// 还原：遮罩、背景图片都回到默认（不改弹窗）
+async function restoreSettingsBgQuiet() {
+    settingsMaskTransparency = null;
+    settingsCustomBg = null;
+    settingsCurrentBgIndex = 1;
+    await safeDB.save('settings_mask_transparency', null);
+    await safeDB.save('settings_bg_custom', null);
+    await safeDB.save('settings_bg_index', 1);
+    applyCurrentSettingsBackground();
+    showCapsuleTip('已还原');
+}
+
+// 还原（遮罩弹窗里的按钮）
+async function restoreSettingsBg() {
+    await restoreSettingsBgQuiet();
+    await openSettingsBgMaskPopup();
+}
+
+// 点击“Change”：从按钮处展开一个圆角方框，里面有“内置 / 自己上传”
+function openWallpaperMorph(e) {
+    e.stopPropagation();
+    const root = document.getElementById('noirSettingsRoot');
+    const trigger = e.currentTarget;
+    closeWallpaperMorph(true);
+
+    const rr = root.getBoundingClientRect();
+    const tr = trigger.getBoundingClientRect();
+    const W = 168, H = 104;
+    const startLeft = tr.left - rr.left;
+    const startTop = tr.top - rr.top;
+    const endLeft = Math.max(12, Math.min(tr.right - rr.left - W, rr.width - W - 12));
+    const endTop = tr.bottom - rr.top + 8;
+
+    const menu = document.createElement('div');
+    menu.id = 'wallpaperMorph';
+    menu.className = 'wp-morph';
+    menu.style.left = startLeft + 'px';
+    menu.style.top = startTop + 'px';
+    menu.style.width = tr.width + 'px';
+    menu.style.height = tr.height + 'px';
+    menu.innerHTML = `
+        <div class="wp-morph-item" onclick="chooseBuiltinWallpaper(event)">内置</div>
+        <div class="wp-morph-item" onclick="pickCustomWallpaper(event)">自己上传</div>
+    `;
+    root.appendChild(menu);
+
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        menu.style.left = endLeft + 'px';
+        menu.style.top = endTop + 'px';
+        menu.style.width = W + 'px';
+        menu.style.height = H + 'px';
+        menu.classList.add('open');
+    }));
+
+    setTimeout(() => document.addEventListener('pointerdown', outsideWallpaperMorph), 0);
+}
+
+function outsideWallpaperMorph(ev) {
+    const menu = document.getElementById('wallpaperMorph');
+    if (!menu) {
+        document.removeEventListener('pointerdown', outsideWallpaperMorph);
+        return;
+    }
+    if (!menu.contains(ev.target) && ev.target.id !== 'wallpaperTrigger') {
+        closeWallpaperMorph();
+    }
+}
+
+function closeWallpaperMorph(immediate = false) {
+    document.removeEventListener('pointerdown', outsideWallpaperMorph);
+    const menu = document.getElementById('wallpaperMorph');
+    if (!menu) return;
+    if (immediate) {
+        menu.remove();
+        return;
+    }
+    menu.classList.remove('open');
+    menu.style.opacity = '0';
+    setTimeout(() => menu.remove(), 260);
+}
+
+async function chooseBuiltinWallpaper(e) {
+    e.stopPropagation();
+    closeWallpaperMorph(true);
+    await openBuiltinWallpaperPopup();
+}
+
+// 内置壁纸弹窗的界面状态：当前是暗色还是亮色、当前是第几批（每批 3 张）
+let bwUi = { mode: 'dark', batch: 0 };
+
+// 内置壁纸弹窗：顶部“跟随系统”横条开关；暗/亮分段；每次三张，换一批
+async function openBuiltinWallpaperPopup() {
+    settingsModalRerender = () => openBuiltinWallpaperPopup();
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+
+    const title = document.getElementById('settingsModalTitle');
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+    title.innerText = 'Wallpaper';
+    subtitle.innerText = '内置壁纸';
+    body.style.maxHeight = 'none';
+
+    const cur = await safeDB.load('builtin_wallpaper', null);
+    const custom = await safeDB.load('desktop_wallpaper', null);
+    const isSel = (set, i) => !custom && cur && cur.set === set && cur.index === i;
+    const followOn = !custom && !cur;
+
+    const first = bwUi.batch * 3 + 1;
+    const thumbs = [first, first + 1, first + 2].map(i => `
+        <div class="bw-thumb ${isSel(bwUi.mode, i) ? 'selected' : ''}" onclick="selectBuiltinWallpaper('${bwUi.mode}', ${i})">
+            <img src="${encodeURI(builtinWallpaperSrc(bwUi.mode, i))}" alt="${i}" onerror="this.style.visibility='hidden'">
+            <span class="bw-num">${i}</span>
+        </div>`).join('');
+
+    body.innerHTML = `
+        <div class="bw-switch-bar" onclick="toggleFollowSystemWallpaper()">
+            <span class="modal-text bw-switch-label">跟随系统壁纸</span>
+            <div class="bw-switch ${followOn ? 'on' : ''}"><div class="bw-knob"></div></div>
+        </div>
+        <div class="bw-seg">
+            <div class="bw-seg-item ${bwUi.mode === 'dark' ? 'active' : ''}" onclick="setBwMode('dark')">暗色</div>
+            <div class="bw-seg-item ${bwUi.mode === 'light' ? 'active' : ''}" onclick="setBwMode('light')">亮色</div>
+        </div>
+        <div class="bw-row3">${thumbs}</div>
+        <div class="bw-more" onclick="nextBwBatch()">换一批 ›</div>
+    `;
+}
+
+function setBwMode(mode) {
+    bwUi.mode = mode;
+    bwUi.batch = 0;
+    openBuiltinWallpaperPopup();
+}
+
+function nextBwBatch() {
+    bwUi.batch = (bwUi.batch + 1) % 2;
+    openBuiltinWallpaperPopup();
+}
+
+// 开关：开 = 跟随系统；关 = 使用当前这一批的第一张
+async function toggleFollowSystemWallpaper() {
+    const cur = await safeDB.load('builtin_wallpaper', null);
+    const custom = await safeDB.load('desktop_wallpaper', null);
+    const followOn = !custom && !cur;
+    if (followOn) {
+        await selectBuiltinWallpaper(bwUi.mode, bwUi.batch * 3 + 1);
+    } else {
+        await followSystemWallpaper();
+    }
+}
+
+async function selectBuiltinWallpaper(set, index) {
+    await safeDB.save('builtin_wallpaper', { set, index });
+    await safeDB.save('desktop_wallpaper', null);
+    await applyDesktopWallpaper();
+    await openBuiltinWallpaperPopup();
+}
+
+async function followSystemWallpaper() {
+    await safeDB.save('builtin_wallpaper', null);
+    await safeDB.save('desktop_wallpaper', null);
+    await applyDesktopWallpaper();
+    await openBuiltinWallpaperPopup();
+}
+
+// 恢复默认：桌面壁纸回到内置（随日夜变化）
+async function resetDesktopWallpaper() {
+    await safeDB.save('desktop_wallpaper', null);
+    await safeDB.save('builtin_wallpaper', null);
+    await applyDesktopWallpaper();
+    alert('已恢复默认壁纸！');
+}
+
+function pickCustomWallpaper(e) {
+    e.stopPropagation();
+    closeWallpaperMorph(true);
+    document.getElementById('desktopWallpaperInput').click();
+}
+
+function handleDesktopWallpaperUpload(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+        const dataUrl = evt.target.result;
+        await safeDB.save('builtin_wallpaper', null);
+        await safeDB.save('desktop_wallpaper', dataUrl);
+        await applyDesktopWallpaper();
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
 }
 
 function fetchSettingsModels(e) {
     const btn = e.currentTarget;
     const original = btn.innerHTML;
-    btn.innerHTML = `<svg viewBox="0 0 24 24" style="animation: spin 0.9s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span>Fetching...</span>`;
+    btn.innerHTML = `<svg viewBox="0 0 24 24" style="animation: spin 0.9s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span class="txt">Fetching...</span>`;
     setTimeout(() => {
         btn.innerHTML = original;
         document.getElementById('settingsModelSelectBox').classList.add('show');
@@ -911,50 +1464,547 @@ function updateSettingsActivePresetBadge() {
     }
 }
 
-function openCenterModal(type) {
-    const root = document.getElementById('noirSettingsRoot');
+// 默认：原来的圆角气泡（带小尾巴）
+const CHAT_ICON_GLYPH = `
+    <path class="stroke-primary" d="M13.5 8.5h12a6 6 0 0 1 6 6v7a6 6 0 0 1-6 6H18l-4.5 3.5v-3.5a6 6 0 0 1-6-6v-7a6 6 0 0 1 6-6z"/>
+    <line class="stroke-primary" x1="13.5" y1="15.5" x2="25.5" y2="15.5"/>
+    <line class="stroke-secondary" x1="13.5" y1="20" x2="20.5" y2="20"/>
+    <circle class="fill-solid" cx="24" cy="20" r="1.1"/>
+    <path class="star-solid-translucent" d="M33.5 6v4M31.5 8h4"/>
+`;
+
+// 圆形：圆圆的气泡 + 短短的小尾巴（左下角）
+const CHAT_ICON_ROUND_GLYPH = `
+    <path class="stroke-primary" d="M15.98 31.36 A13 13 0 1 0 11.99 29.24 L10.6 33.2 Z"/>
+    <circle class="fill-solid" cx="14.6" cy="19" r="1.5"/>
+    <circle class="fill-solid" cx="20" cy="19" r="1.5"/>
+    <circle class="fill-solid" cx="25.4" cy="19" r="1.5"/>
+`;
+
+function getChatIconSvg(styleId = 'default') {
+    if (styleId === 'circular') {
+        return `<svg viewBox="0 0 40 40">${CHAT_ICON_ROUND_GLYPH}</svg>`;
+    }
+    return `<svg viewBox="0 0 40 40">${CHAT_ICON_GLYPH}</svg>`;
+}
+
+function getDefaultAppSvgHtml(appId, chatStyle = 'default') {
+    if (appId === 'chat') {
+        return getChatIconSvg(chatStyle);
+    } else if (appId === 'weather') {
+        return `<svg viewBox="0 0 24 24"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/></svg>`;
+    } else if (appId === 'gallery') {
+        return `<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+    } else if (appId === 'notes') {
+        return `<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`;
+    } else {
+        return `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l-.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0-2.83l-.06-.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+    }
+}
+
+function getModalTextColors(isLightMode) {
+    return {
+        main: isLightMode ? '#000' : '#fff',
+        sub: isLightMode ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.35)'
+    };
+}
+
+async function openCenterModal(type) {
+    settingsModalRerender = () => openCenterModal(type);
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+
+    const title = document.getElementById('settingsModalTitle');
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+    body.innerHTML = '';
+    body.style.maxHeight = '';
+
+    const isLightMode = themeClass === 'theme-light';
+    const colors = getModalTextColors(isLightMode);
+
+    if (title) title.style.color = colors.main;
+    if (subtitle) subtitle.style.color = colors.sub;
+
+    const rowText = (main, sub) => `
+        <div style="display:flex; flex-direction:column; gap:3px; min-width:0; flex:1;">
+            <span class="modal-text" style="color:${colors.main}; font-size:13px; font-weight:600; line-height:1.3;">${main}</span>
+            <span class="modal-text" style="color:${colors.sub}; font-size:10px; font-weight:500; line-height:1.3;">${sub}</span>
+        </div>`;
+
+    if (type === 'iconLib') {
+        if (title) title.innerText = 'App Icon Library';
+        if (subtitle) subtitle.innerText = '软件图标库配置';
+
+        const customIcons = await safeDB.load('app_custom_icons', {});
+
+        // 列表里的信息图标恢复为最初的样子（样式切换只在主界面进行）
+        const ORIGINAL_CHAT_LIST_ICON = `<svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`;
+
+        // 名称来自真实的 APPS；这五个应用的图标保留固定示意图形
+        const FIXED_ICON_IDS = ['chat', 'weather', 'gallery', 'notes', 'settings'];
+        const registry = (typeof APPS !== 'undefined') ? APPS : (window.APPS || {});
+        const appsList = Object.keys(registry).map(id => ({
+            id,
+            name: registry[id].name
+        }));
+
+        appsList.forEach(app => {
+            const customImg = customIcons[app.id];
+            const item = document.createElement('div');
+            item.className = 'sheet-option-item';
+
+            let svgHtml;
+            if (app.id === 'chat') {
+                svgHtml = ORIGINAL_CHAT_LIST_ICON;
+            } else if (FIXED_ICON_IDS.includes(app.id)) {
+                svgHtml = getDefaultAppSvgHtml(app.id);
+            } else {
+                svgHtml = registry[app.id].svg;
+            }
+
+            const sub = app.id === 'chat'
+                ? '样式请在主界面长按信息图标后切换'
+                : '点击 Change 更换图标';
+
+            item.innerHTML = `
+                <div class="opt-icon" style="overflow:hidden; display:flex; align-items:center; justify-content:center; background:${customImg ? 'transparent' : (isLightMode ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.07)')}; stroke:${colors.main}; fill:${colors.main};">
+                    ${customImg ? `<img src="${customImg}" style="width:100%; height:100%; object-fit:cover; border-radius:8px;">` : svgHtml}
+                </div>
+                ${rowText(app.name, sub)}
+                <input type="file" id="app-icon-file-${app.id}" style="display:none;" accept="image/*" onchange="handleAppIconUpload(event, '${app.id}')">
+                <span class="preset-tag-badge mono-font opt-arrow" onclick="event.stopPropagation(); document.getElementById('app-icon-file-${app.id}').click()">Change</span>
+                ${customImg ? `<span class="preset-tag-badge mono-font" style="margin-left:4px; cursor:pointer;" onclick="event.stopPropagation(); resetAppIcon('${app.id}')">Reset</span>` : ''}
+            `;
+            body.appendChild(item);
+        });
+    } else {
+        if (title) title.innerText = 'Flight Options';
+        if (subtitle) subtitle.innerText = '航空配置';
+
+        const rows = [
+            {
+                icon: '<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>',
+                name: '极速巡航 — Turbo Boost',
+                sub: '加速模式（占位，尚未接入功能）'
+            },
+            {
+                icon: '<circle cx="12" cy="12" r="2"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/>',
+                name: '卫星频段锁定 — Sat Lock',
+                sub: '频段锁定（占位，尚未接入功能）'
+            }
+        ];
+
+        body.innerHTML = rows.map(r => `
+            <div class="sheet-option-item" onclick="closeCenterModal()">
+                <div class="opt-icon" style="stroke:${colors.main}; fill:none;"><svg viewBox="0 0 24 24">${r.icon}</svg></div>
+                ${rowText(r.name, r.sub)}
+                <svg class="opt-arrow" viewBox="0 0 24 24" width="13" height="13" style="stroke:${colors.main}; stroke-width:2; fill:none;"><polyline points="9 18 15 12 9 6"/></svg>
+            </div>
+        `).join('');
+    }
+    if (type === 'iconLib') {
+        await renderIconLibFooter();
+    }
+}
+
+async function handleAppIconUpload(e, appId) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = async function(evt) {
+            const base64 = evt.target.result;
+            const customIcons = await safeDB.load('app_custom_icons', {});
+            customIcons[appId] = base64;
+            await safeDB.save('app_custom_icons', customIcons);
+            window.noirCustomAppIcons = customIcons;
+            alert(`应用 "${appId}" 图标更新成功！`);
+            if (typeof renderUI === 'function') {
+                renderUI();
+            }
+            openCenterModal('iconLib'); // 刷新弹窗列表
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+async function resetAppIcon(appId) {
+    const customIcons = await safeDB.load('app_custom_icons', {});
+    delete customIcons[appId];
+    await safeDB.save('app_custom_icons', customIcons);
+    window.noirCustomAppIcons = customIcons;
+    alert(`应用 "${appId}" 已恢复默认图标！`);
+    if (typeof renderUI === 'function') {
+        renderUI();
+    }
+    openCenterModal('iconLib'); // 刷新弹窗列表
+}
+
+async function openChatSvgStyleModal() {
+    settingsModalRerender = () => openChatSvgStyleModal();
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+    const isLightMode = themeClass === 'theme-light';
+
     const title = document.getElementById('settingsModalTitle');
     const subtitle = document.getElementById('settingsModalSubtitle');
     const body = document.getElementById('settingsModalBody');
     body.innerHTML = '';
 
-    if (type === 'iconLib') {
-        title.innerText = 'App Icon Library';
-        subtitle.innerText = '软件图标库配置';
-        
-        appLibrary.forEach(app => {
-            const item = document.createElement('div');
-            item.className = 'sheet-option-item';
-            item.innerHTML = `
-                <div class="opt-icon">
-                    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/></svg>
-                </div>
-                <span>${app.name} (${app.style})</span>
-                <span class="preset-tag-badge mono-font opt-arrow" onclick="alert('正在切换 ${app.name} 的图标材质')">Change</span>
-            `;
-            body.appendChild(item);
-        });
-    } else {
-        title.innerText = 'Flight Options';
-        subtitle.innerText = '航空配置';
-        body.innerHTML = `
-            <div class="sheet-option-item" onclick="closeCenterModal()">
-                <div class="opt-icon"><svg viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg></div>
-                <span>极速巡航 — Turbo Boost</span>
-                <svg class="opt-arrow" viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor; stroke-width:2; fill:none;"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-            <div class="sheet-option-item" onclick="closeCenterModal()">
-                <div class="opt-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg></div>
-                <span>卫星频段锁定 — Sat Lock</span>
-                <svg class="opt-arrow" viewBox="0 0 24 24" width="13" height="13" style="stroke:currentColor; stroke-width:2; fill:none;"><polyline points="9 18 15 12 9 6"/></svg>
-            </div>
-        `;
-    }
+    title.innerText = 'Chat Icon Style';
+    subtitle.innerText = '信息应用图标样式';
 
-    root.classList.add('center-modal-open');
+    const currentStyle = await safeDB.load('chat_svg_style', 'default');
+
+    const styles = [
+        { id: 'default', name: '标准气泡样式 (Default)' },
+        { id: 'circular', name: '精致圆形样式 (Circular)' }
+    ];
+
+    styles.forEach(s => {
+        const isSelected = currentStyle === s.id;
+        const item = document.createElement('div');
+        item.className = 'sheet-option-item';
+        item.onclick = () => setChatSvgStyle(s.id);
+        item.innerHTML = `
+            <div class="opt-icon" style="overflow:hidden; display:flex; align-items:center; justify-content:center; stroke:${isLightMode ? '#000' : '#fff'}; fill:${isLightMode ? '#000' : '#fff'};">
+                ${getDefaultAppSvgHtml('chat', s.id)}
+            </div>
+            <span class="modal-text" style="color:${isLightMode ? '#000' : '#fff'};">${s.name}</span>
+            ${isSelected ? '<span class="preset-tag-badge mono-font" style="background:#fff; color:#000; margin-left:auto;">Active</span>' : ''}
+        `;
+        body.appendChild(item);
+    });
+}
+
+async function setChatSvgStyle(styleId) {
+    await safeDB.save('chat_svg_style', styleId);
+    if (window.APPS && window.APPS['chat']) {
+        window.APPS['chat'].svg = getChatIconSvg(styleId);
+    }
+    alert('信息图标样式已切换！');
+    if (typeof renderUI === 'function') {
+        renderUI();
+    }
+    openCenterModal('iconLib');
+}
+
+// ---------- 桌面 App 图标材质（方圆度 / 磨砂玻璃度 / 透明度 / 材质），用 DB 保存 ----------
+const APP_ICON_STYLE_DEFAULT = { radius: 17, blur: 1.5, transparency: 93, material: 'default', solidColor: null, solidIconColor: null, borderWidth: null, borderColor: null };
+let liveAppIconStyle = null;
+
+// 内存中的最新样式：避免快速连续修改时，读到旧数据互相覆盖
+let appIconStyleCache = null;
+
+async function loadAppIconStyle() {
+    if (!appIconStyleCache) {
+        const saved = await safeDB.load('app_icon_style', null);
+        appIconStyleCache = Object.assign({}, APP_ICON_STYLE_DEFAULT, saved || {});
+    }
+    return Object.assign({}, appIconStyleCache);
+}
+
+// 应用名称颜色：有值时加标记类，让它的优先级高于自适应和手动颜色
+function applyAppNameColorVar(color) {
+    const pc = document.getElementById('phoneContainer');
+    if (!pc) return;
+    if (color) {
+        pc.style.setProperty('--app-name-color', color);
+        pc.classList.add('app-name-custom');
+    } else {
+        pc.style.removeProperty('--app-name-color');
+        pc.classList.remove('app-name-custom');
+    }
+}
+
+function colorToRgba(color, opacity) {
+    if (!color) return color;
+    if (color.startsWith('#')) {
+        let hex = color.replace('#', '');
+        if (hex.length === 3) {
+            hex = hex.split('').map(h => h + h).join('');
+        }
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+    }
+    return color;
+}
+
+// 把材质写到桌面容器的 CSS 变量上；透明度 93% 对应原来的 0.035 底色
+function applyAppIconStyle(style) {
+    const pc = document.getElementById('phoneContainer');
+    if (!pc) return;
+    const s = Object.assign({}, APP_ICON_STYLE_DEFAULT, style || {});
+    const transparencyRatio = s.transparency / 100;
+    const solidOpacity = 1 - transparencyRatio;
+
+    const alpha = (0.5 * solidOpacity).toFixed(3); // 透明度越高，底色越淡
+    pc.style.setProperty('--app-radius', s.radius + 'px');
+    pc.style.setProperty('--app-blur', s.blur + 'px');
+    pc.style.setProperty('--app-glass-alpha', alpha);
+
+    const isLight = pc.classList.contains('theme-light');
+    const defaultSolid = isLight ? '#e6e6eb' : '#2b2b30';
+    const rawSolidColor = s.solidColor || defaultSolid;
+    const solidRgba = colorToRgba(rawSolidColor, solidOpacity);
+    pc.style.setProperty('--app-solid-bg-rgba', solidRgba);
+
+    if (s.borderWidth !== null && s.borderWidth !== undefined) pc.style.setProperty('--app-border-w', s.borderWidth + 'px');
+    else pc.style.removeProperty('--app-border-w');
+    if (s.borderColor) {
+        pc.style.setProperty('--app-border-color', s.borderColor);
+        pc.classList.add('app-border-custom');
+    } else {
+        pc.style.removeProperty('--app-border-color');
+        pc.classList.remove('app-border-custom');
+    }
+    if (s.solidColor) pc.style.setProperty('--app-solid-bg', s.solidColor);
+    else pc.style.removeProperty('--app-solid-bg');
+    if (s.solidIconColor) pc.style.setProperty('--app-solid-icon', s.solidIconColor);
+    else pc.style.removeProperty('--app-solid-icon');
+    pc.classList.toggle('app-material-solid', s.material === 'solid');
+}
+
+async function updateAppIconStyle(patch) {
+    if (!appIconStyleCache) await loadAppIconStyle();
+    // 读取缓存与写回缓存之间没有 await，连续调用也不会互相覆盖
+    const next = Object.assign({}, appIconStyleCache, patch);
+    appIconStyleCache = next;
+    applyAppIconStyle(next);
+    await safeDB.save('app_icon_style', next);
+    return next;
+}
+
+// 图标库弹窗底部：取消 | 设置 | 切换材质
+async function renderIconLibFooter() {
+    const footer = document.getElementById('settingsModalFooter');
+    if (!footer) return;
+    const st = await loadAppIconStyle();
+    const ICON_CANCEL = '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.6-6.4"/><polyline points="3 4 3 9.5 8.5 9.5"/></svg>';
+    const ICON_SETTINGS = '<svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="9" cy="7" r="2.2" fill="#000"/><circle cx="15" cy="12" r="2.2" fill="#000"/><circle cx="9" cy="17" r="2.2" fill="#000"/></svg>';
+    const ICON_MATERIAL_DEFAULT = '<svg viewBox="0 0 24 24"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>';
+    const ICON_MATERIAL_SOLID = '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="5" fill="#ffffff" stroke="none"/><rect x="4" y="4" width="16" height="16" rx="5" stroke="#8a8a92"/></svg>';
+    const isSolid = st.material === 'solid';
+    const ICON_MATERIAL = isSolid ? ICON_MATERIAL_SOLID : ICON_MATERIAL_DEFAULT;
+    footer.style.display = 'flex';
+    footer.innerHTML = `
+        <div class="pf-item" onclick="resetAppIconStyle(false)">
+            <div class="pf-btn" title="取消：恢复默认">${ICON_CANCEL}</div>
+        </div>
+        <div class="pf-item" onclick="openAppIconSettingsView(true)">
+            <div class="pf-btn" title="设置方圆度、磨砂玻璃度、透明度">${ICON_SETTINGS}</div>
+        </div>
+        <div class="pf-item" onclick="toggleAppMaterial()">
+            <div class="pf-btn" title="切换 App 材质">${ICON_MATERIAL}</div>
+        </div>
+    `;
+    positionPopupFooter();
+}
+
+// 把底部按钮放在弹窗正下方（用布局尺寸计算，不受缩放动画影响）
+function positionPopupFooter() {
+    const shell = document.getElementById('settingsPopupShell');
+    const card = document.getElementById('settingsCenterModal');
+    const footer = document.getElementById('settingsModalFooter');
+    if (!shell || !card || !footer || footer.style.display === 'none') return;
+    const bottom = card.offsetTop + card.offsetHeight / 2;
+    footer.style.top = (bottom + 16) + 'px';
+}
+window.addEventListener('resize', positionPopupFooter);
+
+// 取消：恢复默认的方圆度、磨砂、透明度和材质
+async function resetAppIconStyle(stayInSettings = false) {
+    showCapsuleTip('已恢复默认');
+    appIconStyleCache = Object.assign({}, APP_ICON_STYLE_DEFAULT);
+    applyAppIconStyle(APP_ICON_STYLE_DEFAULT);
+    await safeDB.save('app_icon_style', Object.assign({}, APP_ICON_STYLE_DEFAULT));
+    if (stayInSettings) {
+        await openAppIconSettingsView();
+    } else {
+        await openCenterModal('iconLib');
+    }
+}
+
+// 底部圆形小胶囊提示：冒出 -> 停留 -> 渐出
+function showCapsuleTip(text) {
+    const host = document.getElementById('phoneContainer') || document.body;
+    const old = document.getElementById('capsuleTip');
+    if (old) old.remove();
+    const tip = document.createElement('div');
+    tip.id = 'capsuleTip';
+    tip.className = 'capsule-tip';
+    tip.innerText = text;
+    host.appendChild(tip);
+    requestAnimationFrame(() => requestAnimationFrame(() => tip.classList.add('show')));
+    setTimeout(() => {
+        tip.classList.remove('show');
+        setTimeout(() => tip.remove(), 450);
+    }, 1400);
+}
+
+// 切换材质：默认 <-> 纯色带灰色边框
+async function toggleAppMaterial() {
+    const st = await loadAppIconStyle();
+    const next = st.material === 'solid' ? 'default' : 'solid';
+    showCapsuleTip(next === 'solid' ? '材质：纯色' : '材质：默认');
+    await updateAppIconStyle({ material: next });
+    await renderIconLibFooter();
+}
+
+// 设置：方圆度 / 磨砂玻璃度 / 透明度 三个滑条
+async function openAppIconSettingsView(showTip = false) {
+    if (showTip) showCapsuleTip('材质设置');
+    settingsModalRerender = () => openAppIconSettingsView();
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+
+    liveAppIconStyle = await loadAppIconStyle();
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+    const footer = document.getElementById('settingsModalFooter');
+
+    subtitle.innerText = '应用图标材质设置';
+
+    const row = (key, label, min, max, step, val, unit) => {
+        const pct = ((val - min) / (max - min)) * 100;
+        return `
+        <div class="appicon-slider-row">
+            <div class="appicon-slider-head">
+                <span class="modal-text">${label}</span>
+                <span class="modal-text appicon-val" id="appicon-val-${key}">${val}${unit}</span>
+            </div>
+            <input type="range" class="appicon-range" min="${min}" max="${max}" step="${step}" value="${val}" style="--p:${pct}%"
+                oninput="previewAppIconSlider('${key}', this.value, '${unit}', this)"
+                onchange="commitAppIconSlider('${key}', this.value)">
+        </div>`;
+    };
+
+    const isLight = themeClass === 'theme-light';
+    const bgVal = liveAppIconStyle.solidColor || (isLight ? '#e6e6eb' : '#2b2b30');
+    const iconVal = liveAppIconStyle.solidIconColor || (isLight ? '#1e1e24' : '#ffffff');
+    const colorRow = (key, label, val) => `
+        <div class="appicon-slider-row">
+            <div class="appicon-slider-head">
+                <span class="modal-text">${label}</span>
+                <input type="color" class="appicon-color" value="${val}"
+                    oninput="previewAppIconColor('${key}', this.value)"
+                    onchange="commitAppIconColor('${key}', this.value)">
+            </div>
+        </div>`;
+
+    const borderVal = liveAppIconStyle.borderWidth !== null && liveAppIconStyle.borderWidth !== undefined ? liveAppIconStyle.borderWidth : 0.5;
+    const borderColorVal = liveAppIconStyle.borderColor || '#ffffff';
+
+    body.innerHTML =
+        row('radius', '方圆度', 0, 28, 1, liveAppIconStyle.radius, 'px') +
+        row('blur', '磨砂玻璃度', 0, 20, 0.5, liveAppIconStyle.blur, 'px') +
+        row('transparency', '透明度', 0, 100, 1, liveAppIconStyle.transparency, '%') +
+        row('borderWidth', '图标边框粗细', 0, 3, 0.5, borderVal, 'px') +
+        colorRow('borderColor', '图标边框颜色', borderColorVal) +
+        colorRow('solidColor', '纯色材质颜色', bgVal) +
+        colorRow('solidIconColor', '纯色材质图标颜色', iconVal) +
+        `<div class="appicon-priority">颜色优先级（高 → 低）：纯色材质 › 图标边框 › 应用名称颜色 › 手动颜色 › 自适应</div>`;
+    body.style.maxHeight = '380px';
+
+    footer.style.display = 'flex';
+    footer.innerHTML = `
+        <div class="pf-item" onclick="resetAppIconStyle(true)">
+            <div class="pf-btn" title="取消：恢复默认"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.6-6.4"/><polyline points="3 4 3 9.5 8.5 9.5"/></svg></div>
+        </div>
+        <div class="pf-item" onclick="showCapsuleTip('已完成'); openCenterModal('iconLib')">
+            <div class="pf-btn" title="完成"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>
+    `;
+    positionPopupFooter();
+}
+
+function previewAppIconSlider(key, val, unit, el) {
+    const label = document.getElementById('appicon-val-' + key);
+    if (label) label.innerText = val + unit;
+    if (el) el.style.setProperty('--p', ((val - el.min) / (el.max - el.min) * 100) + '%');
+    if (!liveAppIconStyle) return;
+    liveAppIconStyle[key] = parseFloat(val);
+    applyAppIconStyle(liveAppIconStyle);
+}
+
+function previewAppIconColor(key, val) {
+    if (!liveAppIconStyle) return;
+    liveAppIconStyle[key] = val;
+    applyAppIconStyle(liveAppIconStyle);
+}
+
+async function commitAppIconColor(key, val) {
+    if (liveAppIconStyle) liveAppIconStyle[key] = val;
+    await updateAppIconStyle({ [key]: val });
+}
+
+async function commitAppIconSlider(key, val) {
+    if (liveAppIconStyle) liveAppIconStyle[key] = parseFloat(val);
+    await updateAppIconStyle({ [key]: parseFloat(val) });
 }
 
 function closeCenterModal() {
-    const root = document.getElementById('noirSettingsRoot');
-    if (root) root.classList.remove('center-modal-open');
+    const shell = document.getElementById('settingsPopupShell');
+    if (shell) shell.classList.remove('center-modal-open');
+    settingsModalRerender = null;
+}
+
+window.getDefaultAppSvgHtml = getDefaultAppSvgHtml;
+
+async function openChatStyleModal() {
+    settingsModalRerender = () => openChatStyleModal();
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+    const isLightMode = themeClass === 'theme-light';
+
+    const title = document.getElementById('settingsModalTitle');
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+    body.innerHTML = '';
+
+    title.innerText = 'Chat Icon Style';
+    subtitle.innerText = '信息图标样式';
+
+    const currentStyle = await safeDB.load('chat_svg_style', 'default');
+
+    const styles = [
+        { id: 'default', name: '标准气泡样式 (Default)' },
+        { id: 'circular', name: '精致圆形样式 (Circular)' }
+    ];
+
+    styles.forEach(s => {
+        const isSelected = currentStyle === s.id;
+        const item = document.createElement('div');
+        item.className = 'sheet-option-item';
+        item.onclick = async () => {
+            await safeDB.save('chat_svg_style', s.id);
+            if (window.APPS && window.APPS['chat']) {
+                window.APPS['chat'].svg = window.getDefaultAppSvgHtml('chat', s.id);
+            }
+            if (typeof renderUI === 'function') {
+                renderUI();
+            }
+            closeCenterModal();
+        };
+        item.innerHTML = `
+            <div class="opt-icon" style="overflow:hidden; display:flex; align-items:center; justify-content:center; stroke:${isLightMode ? '#000' : '#fff'}; fill:${isLightMode ? '#000' : '#fff'};">
+                ${window.getDefaultAppSvgHtml('chat', s.id)}
+            </div>
+            <span class="modal-text" style="color:${isLightMode ? '#000' : '#fff'};">${s.name}</span>
+            ${isSelected ? '<span class="preset-tag-badge mono-font" style="background:#fff; color:#000; margin-left:auto;">Active</span>' : ''}
+        `;
+        body.appendChild(item);
+    });
+}
+window.openChatStyleModal = openChatStyleModal;
+window.openChatStyleModal = openChatStyleModal;
+
+// 系统日夜间变化时，如果用户没有手动选择过，就跟随
+if (window.matchMedia) {
+    const systemLightQuery = window.matchMedia('(prefers-color-scheme: light)');
+    const onSystemThemeChange = () => { followSystemThemeIfAuto(); refreshPopupIfAuto(); applyDesktopWallpaper(); };
+    if (systemLightQuery.addEventListener) systemLightQuery.addEventListener('change', onSystemThemeChange);
+    else if (systemLightQuery.addListener) systemLightQuery.addListener(onSystemThemeChange);
 }

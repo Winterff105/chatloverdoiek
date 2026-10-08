@@ -1,106 +1,103 @@
-/* App 启动界面全屏容器 */
+/* App 启动界面全屏容器（彻底去除默认边框、背景、头部及底部横条） */
 .app-window {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: var(--app-bg);
+    background: transparent !important;
     z-index: 20;
     display: flex;
     flex-direction: column;
-    transform: translateY(100%) scale(0.9);
+    transform: scale(0.98);
     opacity: 0;
-    border-radius: 40px;
+    visibility: hidden;
+    border-radius: 0;
     pointer-events: none;
-    transition: transform 0.38s var(--smooth-ease), 
-                opacity 0.28s ease,
-                border-radius 0.35s;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), 
+                opacity 0.25s ease,
+                visibility 0.25s ease;
 }
 
 .app-window.active {
-    transform: translateY(0) scale(1);
+    transform: scale(1);
     opacity: 1;
-    border-radius: 0;
+    visibility: visible;
     pointer-events: auto;
 }
 
 .app-header {
-    height: 50px;
-    background-color: #18181b;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.app-header-title {
-    font-size: 17px;
-    font-weight: 600;
-    color: #ffffff;
+    display: none !important;
 }
 
 .app-content {
     flex: 1;
     overflow-y: auto;
-    padding: 20px;
+    padding: 0 !important;
+    background: transparent !important;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    color: #a1a1aa;
-    gap: 12px;
+    color: transparent !important;
+    font-size: 0 !important;
+    gap: 0;
 }
 
+/* 彻底隐藏所有未实现应用的“应用开发中”默认占位文本及无类名占位元素 */
+.app-window .app-content > *:not([class]),
+.app-window .app-content p,
+.app-window .app-content span:not([class]) {
+    display: none !important;
+}
+
+.app-window .app-content > * {
+    font-size: initial !important;
+}
 .home-indicator-area {
-    height: 34px;
-    width: 100%;
-    background-color: #18181b;
+    display: none !important;
+}
+.app-header {
+    display: none !important;
+}
+
+.app-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 !important;
+    background: transparent !important;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
     align-items: center;
-    cursor: pointer;
-    padding-bottom: env(safe-area-inset-bottom);
+    justify-content: center;
+    color: transparent !important;
+    font-size: 0 !important;
+    gap: 0;
 }
 
-.home-indicator {
-    width: 130px;
-    height: 5px;
-    background-color: #ffffff;
-    border-radius: 10px;
-    transition: background-color 0.2s;
+/* 彻底隐藏所有未实现应用的“应用开发中”默认占位文本及无类名占位元素 */
+.app-window .app-content > *:not([class]),
+.app-window .app-content p,
+.app-window .app-content span:not([class]) {
+    display: none !important;
 }
 
-.home-indicator-area:active .home-indicator {
-    background-color: #71717a;
+.app-window .app-content > * {
+    font-size: initial !important;
+}
+.home-indicator-area {
+    display: none !important;
 }
 
-/* 拖拽态与反馈 */
-.target-hover {
-    transform: scale(0.88);
-    opacity: 0.55;
+/* 设置应用专属渐显渐出动画 */
+.app-window.settings-fade-mode {
+    transform: scale(0.96) !important;
+    opacity: 0 !important;
+    border-radius: 0 !important;
+    transition: opacity 0.32s ease, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
-.dragging {
-    opacity: 0.2;
-    transform: scale(0.85);
-}
-
-.drag-avatar {
-    position: fixed;
-    pointer-events: none;
-    z-index: 9999;
-    transform: translate(-50%, -50%) scale(1.06);
-    filter: drop-shadow(0 14px 24px rgba(72, 55, 61, 0.16));
-    transition: none;
-}
-
-.just-swapped {
-    animation: swapBounce 0.3s var(--smooth-ease);
-}
-
-@keyframes swapBounce {
-    0% { transform: scale(0.8); }
-    65% { transform: scale(1.04); }
-    100% { transform: scale(1); }
+.app-window.settings-fade-mode.active {
+    transform: scale(1) !important;
+    opacity: 1 !important;
 }

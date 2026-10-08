@@ -175,4 +175,4 @@ const APPS = {
 
 // 组件手绘可爱爱心矢量
 const COMPONENT_HEART_SVG = `<svg viewBox="0 0 24 16" width="14" height="10" style="display:inline-block; vertical-align:middle; stroke:none; fill:var(--svg-stroke);"><path d="M 12 15.2 C 7.5 12.2 3.5 10.2 3.5 6.8 A 4.2 3.4 0 0 1 12 5 A 4.2 3.4 0 0 1 20.5 6.8 C 20.5 10.2 16.5 12.2 12 15.2 Z"/></svg>`;
-
+window.APPS = APPS;

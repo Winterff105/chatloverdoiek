@@ -224,4 +224,171 @@
     pointer-events: none;
     letter-spacing: -0.1px;
     transition: all 0.25s ease;
+    color: var(--app-name-color, inherit) !important;
+}
+
+/* 当开启自动检测时，App 名字随背景明暗自适应高灵敏变色 */
+.adaptive-dark .app-label {
+    color: rgba(255, 255, 255, 0.88) !important;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85) !important;
+}
+
+.adaptive-light .app-label {
+    color: #121216 !important;
+    text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9) !important;
+}
+/* 浅色模式下分页指示点（pagination dots）显式适配 */
+.phone-container.theme-light .pagination-dots .dot,
+.phone-container.theme-light .dots-container .dot,
+.phone-container.theme-light .pagination-dot {
+    background: rgba(0, 0, 0, 0.25) !important;
+    border: 0.5px solid rgba(0, 0, 0, 0.15) !important;
+}
+
+.phone-container.theme-light .pagination-dots .dot.active,
+.phone-container.theme-light .dots-container .dot.active,
+.phone-container.theme-light .pagination-dot.active {
+    background: #000000 !important;
+    border-color: #000000 !important;
+}
+
+/* 全局编辑模式通知横幅样式（纯方形半透明矩形，背景加载指定图片，上移并渐显） */
+.global-edit-toast {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-12px) scale(0.95);
+    background: linear-gradient(rgba(10, 10, 12, 0.5), rgba(10, 10, 12, 0.5)), url('/assets/杂七杂八/编辑中弹窗.jpg');
+    background-size: cover;
+    background-position: center;
+    border: 0.5px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+    color: #ffffff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.global-edit-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+}
+.global-edit-toast svg { stroke: #fff; flex-shrink: 0; }
+
+/* 浅色模式下分页添加按钮（add-page-btn）自适应样式 */
+.phone-container.theme-light .add-page-btn {
+    background: linear-gradient(135deg, rgba(0, 0, 0, 0.06) 0%, rgba(0, 0, 0, 0.02) 100%) !important;
+    border: 0.5px solid rgba(0, 0, 0, 0.15) !important;
+    border-top: 1px solid rgba(0, 0, 0, 0.25) !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08), inset 0 1px 1px rgba(255, 255, 255, 0.9) !important;
+}
+.phone-container.theme-light .add-page-btn svg {
+    stroke: #000000 !important;
+}
+
+/* =========================================
+   全新设计的精致分页指示点系统 (Noir Dots)
+   ========================================= */
+#dotsContainer,
+.dots-container,
+.pagination-dots {
+    position: relative !important;
+    z-index: 100 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    height: 16px !important;
+    padding: 0 12px !important;
+    border-radius: 999px !important;
+    background: rgba(0, 0, 0, 0.2) !important;
+    backdrop-filter: blur(10px) !important;
+    -webkit-backdrop-filter: blur(10px) !important;
+    border: 0.5px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.3) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transition: all 0.4s ease !important;
+}
+
+.phone-container.theme-light #dotsContainer,
+.phone-container.theme-light .dots-container,
+.phone-container.theme-light .pagination-dots {
+    background: rgba(0, 0, 0, 0.06) !important;
+    border-color: rgba(0, 0, 0, 0.08) !important;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.05) !important;
+}
+
+#dotsContainer .dot,
+.dots-container .dot,
+.pagination-dots .dot,
+.pagination-dot {
+    width: 6px !important;
+    height: 6px !important;
+    border-radius: 50% !important;
+    background: rgba(255, 255, 255, 0.35) !important;
+    border: 0.5px solid rgba(0, 0, 0, 0.3) !important;
+    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    display: inline-block !important;
+    opacity: 1 !important;
+    cursor: pointer !important;
+    box-shadow: none !important;
+}
+
+.phone-container.theme-light #dotsContainer .dot,
+.phone-container.theme-light .dots-container .dot,
+.phone-container.theme-light .pagination-dots .dot,
+.phone-container.theme-light .pagination-dot {
+    background: rgba(0, 0, 0, 0.25) !important;
+    border-color: rgba(255, 255, 255, 0.6) !important;
+}
+
+#dotsContainer .dot.active,
+.dots-container .dot.active,
+.pagination-dots .dot.active,
+.pagination-dot.active {
+    width: 20px !important;
+    height: 6px !important;
+    border-radius: 999px !important;
+    background: #ffffff !important;
+    border-color: transparent !important;
+    box-shadow: 0 2px 8px rgba(255,255,255,0.5) !important;
+}
+
+.phone-container.theme-light #dotsContainer .dot.active,
+.phone-container.theme-light .dots-container .dot.active,
+.phone-container.theme-light .pagination-dots .dot.active,
+.phone-container.theme-light .pagination-dot.active {
+    background: #000000 !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25) !important;
+}
+
+/* 进入编辑模式（edit-mode）时，每个 App 图标边缘泛起轻盈淡雅的粉色发光 */
+.phone-container.edit-mode .app-icon {
+    box-shadow: 
+        0 0 8px rgba(255, 150, 200, 0.2), 
+        inset 0 0 4px rgba(255, 150, 200, 0.12),
+        0 14px 32px -6px rgba(0, 0, 0, 0.45) !important;
+    border-color: rgba(255, 180, 220, 0.22) !important;
+}
+/* 拖拽时跟随手指的浮空图标：固定定位、不占布局、不接收点击 */
+.drag-avatar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    margin: 0;
+    z-index: 99999;
+    pointer-events: none;
+    transform-origin: center center;
+    will-change: transform;
+    opacity: 0.92;
+    filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.45));
 }
