@@ -92,7 +92,7 @@ function getSettingsAppHTML() {
 
             <div class="hero-avatar">
                 <div class="avatar-ring" id="settingsAvatarRing" onclick="openSettingsAvatarMorph(this, event)" title="点击更换头像">
-                    <img class="settings-avatar-img" id="settingsAvatarImg" src="assets/杂七杂八/设置里面的头像.jpg" alt="avatar">
+                    <img class="settings-avatar-img" id="settingsAvatarImg" src="https://raw.githubusercontent.com/Winterff105/104225/main/%E8%AE%BE%E7%BD%AE%E9%87%8C%E9%9D%A2%E7%9A%84%E5%A4%B4%E5%83%8F.jpg" alt="avatar">
                 </div>
                 <div class="avatar-status"></div>
             </div>
@@ -984,8 +984,8 @@ function builtinWallpaperSrc(set, index) {
 
 function systemWallpaperSrc() {
     return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches)
-        ? 'assets/Light/bizhi.png'
-        : 'assets/Dark/bizhi.png';
+        ? 'https://raw.githubusercontent.com/Winterff105/104225/main/bizhi.png'
+        : 'https://raw.githubusercontent.com/Winterff105/104225/main/bizhi.png';
 }
 
 function cssWallpaperUrl(src) {
@@ -1013,8 +1013,8 @@ function writeDesktopWallpaperVar() {
             layers.push(`url('../${u}') no-repeat center center / cover`);
         }
     }
-    layers.push(`url('assets/${themeName}/bizhi.png') no-repeat center center / cover`);
-    layers.push(`url('../assets/${themeName}/bizhi.png') no-repeat center center / cover`);
+    layers.push(`url('https://raw.githubusercontent.com/Winterff105/104225/main/bizhi.png') no-repeat center center / cover`);
+    layers.push(`url('https://raw.githubusercontent.com/Winterff105/104225/main/bizhi.png') no-repeat center center / cover`);
     pc.style.setProperty('--wallpaper-bg', `${layers.join(', ')}, ${fallbackColor}`);
     pc.style.backgroundImage = '';
     pc.style.backgroundSize = '';
@@ -2727,10 +2727,10 @@ async function avatarMorphRestore(slot, e) {
     const isLight = phone && phone.classList.contains('theme-light');
     const theme = isLight ? 'Light' : 'Dark';
     if (slot === 'female') {
-        currentUploadedAvatar = `assets/${theme}/avatar-female.png`;
+        currentUploadedAvatar = "https://raw.githubusercontent.com/Winterff105/104225/main/avatar-female.png";
         await safeDB.save('avatar_female', null);
     } else {
-        currentCoupleAvatar = `assets/${theme}/avatar-male.png`;
+        currentCoupleAvatar = "https://raw.githubusercontent.com/Winterff105/104225/main/avatar-male.png";
         await safeDB.save('avatar_male', null);
     }
     if (typeof renderUI === 'function') renderUI();
@@ -2777,7 +2777,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // =====================================================================
 // 设置页头像圆框：默认 assets/杂七杂八/设置里面的头像.jpg；点击 -> 恢复内置 / 本地上传
 // =====================================================================
-const SETTINGS_AVATAR_DEFAULT = "https://raw.githubusercontent.com/Winterff105/image-host/main/avatar-female.png";
+const SETTINGS_AVATAR_DEFAULT = "https://raw.githubusercontent.com/Winterff105/104225/main/%E8%AE%BE%E7%BD%AE%E9%87%8C%E9%9D%A2%E7%9A%84%E5%A4%B4%E5%83%8F.jpg";
 
 function applySettingsAvatar(src) {
     const img = document.getElementById('settingsAvatarImg');
