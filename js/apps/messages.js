@@ -1,0 +1,2341 @@
+window.initMessagesModule = function(root) {
+if (root) root.classList.add('messages-app');
+
+/* ---------------- 数据（黑白灰） ---------------- */
+let CONTACTS = loadStoredContacts();
+let CHAT_IDS = loadStoredChatIds();
+let CHAT_MAP = loadStoredChatMap();
+const ME_DEFAULT = { name: 'Kitty Angel', id: '1004', status: '오늘도 날개를 펴는 중', sig: '작은 구름 위에서 안부를 전해요', avatar: '', persona: '', speech: '', relation: '', backstory: '', replies: [] };
+let ME = loadStoredMe();
+const SIDE = { open: false, pickedId: null, liveId: null };
+const IDN_KEY = 'forever_messages_identities_v2';
+let IDENTITIES = loadStoredIdentities();
+let pendingPersonaAvatar = null;
+const ACTIVE_KEY = 'forever_messages_active_identity_v1';
+let ACTIVE_ID = 'self';
+try { ACTIVE_ID = localStorage.getItem(ACTIVE_KEY) || 'self'; } catch (_) {}
+function setActiveIdentity(id) { ACTIVE_ID = id || 'self'; try { localStorage.setItem(ACTIVE_KEY, ACTIVE_ID); } catch (_) {} }
+function activeIdentity() { return ACTIVE_ID === 'self' ? null : (IDENTITIES.find(x => x.id === ACTIVE_ID) || null); }
+function normalizeIdentity(x) {
+    return { id: String(x.id), name: String(x.name || '未命名'), avatar: x.avatar || '', ini: String(x.ini || x.name || '?').slice(0, 1).toUpperCase(),
+        g: x.g || 'g1', status: x.status || '身份', sig: x.sig || '', persona: x.persona || '', speech: x.speech || '',
+        relation: x.relation || '', backstory: x.backstory || '', replies: Array.isArray(x.replies) ? x.replies : [],
+        cover: '', online: false, unread: 0, time: '', msgs: [], folder: null };
+}
+function loadStoredIdentities() { try { const v = JSON.parse(localStorage.getItem(IDN_KEY) || '[]'); return Array.isArray(v) ? v.map(normalizeIdentity) : []; } catch (_) { return []; } }
+function persistIdentities() { try { localStorage.setItem(IDN_KEY, JSON.stringify(IDENTITIES)); } catch (e) { toast('保存失败：存储空间可能不足'); } }
+function loadStoredMe() { try { const v = JSON.parse(localStorage.getItem('forever_messages_me_v1') || 'null'); return Object.assign({}, ME_DEFAULT, v && typeof v === 'object' ? v : {}); } catch (_) { return Object.assign({}, ME_DEFAULT); } }
+function persistMe() { try { localStorage.setItem('forever_messages_me_v1', JSON.stringify(ME)); } catch (e) { toast('保存失败：存储空间可能不足'); console.error(e); } }
+
+
+function loadStoredChatIds(){ try { const v=JSON.parse(localStorage.getItem('forever_messages_chat_ids_v1')||'[]'); return Array.isArray(v)?v.map(String):[]; } catch(_){ return []; } }
+
+
+const MOMENT_KEY = 'forever_messages_moments_v1';
+const MOMENT_BG_KEY = 'forever_messages_moments_bg_v1';
+let POSTS = loadStoredMoments();
+let MOMENT_BG = loadMomentBg();
+
+const APPS = [
+    { name: 'Notes',    dark: false, icon: '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/>' },
+    { name: 'Camera',   dark: false, icon: '<rect x="3" y="7" width="18" height="13" rx="3"/><circle cx="12" cy="13.5" r="3.5"/><path d="M8 7l1.5-3h5L16 7"/>' },
+    { name: 'Music',    dark: true,  icon: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>' },
+    { name: 'Weather',  dark: false, icon: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>' },
+    { name: 'Calendar', dark: false, icon: '<rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/>' },
+    { name: 'Files',    dark: false, icon: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>' },
+    { name: 'Maps',     dark: false, icon: '<path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>' },
+    { name: 'Photos',   dark: false, icon: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 16l-5-5-8 9"/>' },
+    { name: 'Clock',    dark: false, icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>' },
+    { name: 'Mail',     dark: false, icon: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>' },
+    { name: 'Wallet',   dark: false, icon: '<rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16 15h2"/>' },
+    { name: 'Settings', dark: true,  icon: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/>' },
+];
+
+let activeTab = 'chats';
+let activeId = null;
+let typingTimer = null;
+let editingContactId = null;
+let pendingCover = null;
+let pendingAvatar = null;
+let editingPersonaId = null;
+
+/* ---------------- 本地真实数据：没有内置假联系人 ---------------- */
+function loadStoredContacts() {
+    try {
+        const raw = localStorage.getItem('forever_messages_contacts_v1');
+        const list = raw ? JSON.parse(raw) : [];
+        return Array.isArray(list) ? list.map(normalizeContact) : [];
+    } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
+}
+function normalizeContact(c) {
+    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '' };
+}
+
+
+function loadStoredFolders() { try { const v=JSON.parse(localStorage.getItem('forever_messages_folders_v1') || '[]'); return Array.isArray(v) ? v.filter(x=>x && x.id && x.name).map(x=>({id:String(x.id),name:String(x.name)})) : []; } catch (_) { return []; } }
+function persistFolders() { try { localStorage.setItem('forever_messages_folders_v1', JSON.stringify(FOLDERS)); } catch(e) { console.warn('[Messages] 文件夹保存失败',e); } }
+async function importDeviceContacts() {
+    if (!('contacts' in navigator) || !navigator.contacts || typeof navigator.contacts.select !== 'function') {
+        toast('当前浏览器不支持读取手机通讯录，请点 New 手动新建'); return;
+    }
+    try {
+        const picked = await navigator.contacts.select(['name','tel','email'], {multiple:true});
+        let added = 0;
+        for (const p of picked || []) {
+            const name = (p.name && p.name[0] || '').trim();
+            const phone = (p.tel && p.tel[0] || '').trim();
+            const email = (p.email && p.email[0] || '').trim();
+            if (!name) continue;
+            if (CONTACTS.some(c => c.name.toLowerCase() === name.toLowerCase() && ((phone && c.phone === phone) || (!phone && c.email === email)))) continue;
+            CONTACTS.unshift(normalizeContact({id:makeContactId(),name,phone,email,status:phone || email || '手机联系人',time:nowTime(),msgs:[],avatar:'',ini:name.slice(0,1)})); added++;
+        }
+        persistContacts(); renderContacts(); renderChats(); toast(added ? `已导入 ${added} 位联系人` : '没有新的联系人');
+    } catch (e) { if (e && e.name !== 'AbortError') { console.error(e); toast('读取通讯录失败，请检查浏览器权限'); } }
+}
+function openApiSettings() { toast('请返回主界面，打开「设置 → API」配置聊天接口'); }
+
+function exitMessagesToHome() {
+    // 信息模块是直接挂载在主页面的 appWindow 中，不在 iframe 里；
+    // 因此必须调用同一页面的 closeApp()，否则返回按钮会看起来完全无效。
+    if (typeof window.closeApp === 'function') { window.closeApp(); return; }
+    if (window.parent && window.parent !== window && typeof window.parent.closeApp === 'function') { window.parent.closeApp(); return; }
+    toast('主界面关闭方法未加载，请检查 js/apps/app-manager.js');
+}
+
+
+
+
+
+
+function directAddContact(id) {
+    const c = CONTACTS.find(x => String(x.id) === String(id));
+    if (!c) return;
+    if (CHAT_IDS.includes(c.id)) { toast('这个联系人已经添加'); return; }
+    CHAT_IDS.unshift(c.id); persistChatIds(); closeContactIdModal(); switchTab('chats'); renderChats(); openChat(c.id);
+}
+
+
+function previewContactById(raw) {
+    const id = String(raw || '').trim();
+    const c = id ? CONTACTS.find(x => String(x.id).toLowerCase() === id.toLowerCase()) : null;
+    const preview = document.getElementById('contactIdPreview'); const status = document.getElementById('contactIdStatus'); const start = document.getElementById('contactIdStart');
+    if (!preview || !status || !start) return;
+    if (!id) { preview.innerHTML = '<div class="contact-id-preview-empty">输入 ID 后会在这里显示联系人资料</div>'; status.textContent='仅能添加已创建并保存在本项目中的联系人'; start.disabled=true; return; }
+    if (!c) { preview.innerHTML = '<div class="contact-id-preview-empty"><span class="contact-id-not-found">?</span><span>暂未找到这个 ID</span></div>'; status.textContent='请核对 ID，或先在「联系人」里创建该联系人'; start.disabled=true; return; }
+    preview.innerHTML = `<div class="contact-id-person">${avatar(c, 'md')}<div class="contact-id-preview-info"><strong>${esc(c.name)}</strong><span>${esc(c.status || '联系人')}</span><code>ID · ${esc(c.id)}</code></div><span class="contact-id-found">已匹配</span></div>`;
+    const already = CHAT_IDS.includes(c.id);
+    status.textContent = already ? '这个联系人已经在 Chats 列表里了' : '请确认头像、名称和 ID 无误后添加';
+    start.disabled = already;
+    start.querySelector('span').textContent = already ? '已添加' : '确认并添加';
+}
+function addChatByContactId() {
+    const input = document.getElementById('contactIdInput'); const id = input && input.value.trim();
+    const c = CONTACTS.find(x => String(x.id).toLowerCase() === String(id || '').toLowerCase());
+    if (!c) { previewContactById(id); return; }
+    if (!CHAT_IDS.includes(c.id)) CHAT_IDS.unshift(c.id);
+    persistChatIds(); closeContactIdModal(); switchTab('chats'); renderChats(); openChat(c.id);
+}
+
+/* ---------------- 工具 ---------------- */
+const esc = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+const last = c => c.msgs[c.msgs.length - 1];
+function avatar(c, size) {
+    const img = c.avatar ? `<img src="${c.avatar}" alt="" onerror="this.remove()">` : '';
+    return `<div class="av ${size || 'lg'} ${c.g}">${img}<span class="ini">${c.ini}</span></div>`;
+}
+function nowTime() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+/* ---------------- 侧边栏 · 账号登录 ---------------- */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* 底栏样式：长按第一个图标切换参考材质 / 经典黑色 */
+(function initTabbarStyle() {
+    const bar = document.getElementById('tabbar');
+    const first = document.querySelector('.messages-app').querySelector('.tab[data-tab="chats"]');
+    let timer = null, fired = false;
+    first.addEventListener('pointerdown', () => {
+        fired = false;
+        timer = setTimeout(() => {
+            fired = true;
+            bar.classList.toggle('glass');
+            toast(bar.classList.contains('glass') ? '已切换为玻璃底栏' : '已切换为经典黑色底栏');
+        }, 600);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => first.addEventListener(ev, () => clearTimeout(timer)));
+    first.addEventListener('contextmenu', e => e.preventDefault());
+    first.addEventListener('click', e => {
+        if (fired) { fired = false; e.stopImmediatePropagation(); return; }
+        switchTab('chats');
+    });
+})();
+
+function toast(text) {
+    const t = document.getElementById('toast');
+    t.textContent = text; t.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 1500);
+}
+function focusSearch() { document.getElementById('searchInput').focus(); }
+
+/* ---------------- 标签页 ---------------- */
+function switchTab(name) {
+    activeTab = name;
+    document.querySelector('.messages-app').querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === name));
+    document.querySelector('.messages-app').querySelectorAll('.view').forEach(v => v.classList.remove('on'));
+    document.getElementById('v-' + name).classList.add('on');
+    const fab = document.getElementById('fab');
+    fab.title = { chats: '写消息', contacts: '添加联系人', moments: '发布动态', settings: '设置' }[name];
+    if (name === 'contacts') renderContacts();
+    if (name === 'chats') renderChats();
+    if (name === 'moments') renderMoments();
+}
+function fabAction() {
+    if (activeTab === 'chats') { openContactIdModal(); return; }
+    if (activeTab === 'contacts') { openContactEditor(null); return; }
+    if (activeTab === 'moments') { openMomentComposer(); return; }
+    if (activeTab === 'settings') { toast('聊天 API 请在主界面「设置 → API」中配置'); return; }
+    toast('此功能暂不可用');
+}
+
+/* ---------------- 消息列表 ---------------- */
+function renderChats() {
+    const chatContacts = CHAT_IDS.map(id => CONTACTS.find(c => c.id === id)).filter(Boolean);
+    document.getElementById('storyRow').innerHTML = THEME === 'tabs'
+        ? KR_HEAD + profileCard()
+        : chatContacts.map(c =>
+            `<button class="story ${c.unread ? 'unread' : ''}" title="${esc(c.name)}" onclick="openChat('${c.id}')">${avatar(c, 'lg')}</button>`).join('');
+    const q = document.getElementById('searchInput').value.trim().toLowerCase();
+    const list = chatContacts.filter(c => !q || c.name.toLowerCase().includes(q) || String(c.id).toLowerCase().includes(q) || c.msgs.some(m => m.text.toLowerCase().includes(q)));
+    const unreadTotal = chatContacts.reduce((s, c) => s + c.unread, 0);
+    document.querySelector('.messages-app').querySelectorAll('.chatsSub').forEach(el => el.textContent = unreadTotal ? `${unreadTotal} unread` : 'All caught up');
+    document.getElementById('tabDot').style.display = unreadTotal ? 'block' : 'none';
+    const box = document.getElementById('chatList');
+    if (!list.length) { box.innerHTML = '<div class="empty"><div style="font-size:28px;margin-bottom:12px">＋</div><strong>还没有聊天</strong><p style="margin-top:8px;line-height:1.7">先到「联系人」创建联系人并生成 ID，再点击右下角圆形按钮，粘贴 ID 添加聊天。</p></div>'; return; }
+    box.innerHTML = list.map(c => {
+        const m = last(c) || {me:false,text:'还没有消息',t:''};
+        return `
+        <div class="row ${c.unread ? 'unread' : ''}" onclick="openChat('${c.id}')">
+            ${avatar(c, 'lg')}
+            <div class="info">
+                <div class="top"><span class="name">${esc(c.name)}</span><span class="time">${esc(c.time)}</span></div>
+                <div class="bottom">
+                    <span class="preview">${m.me ? 'You: ' : ''}${esc(m.text)}</span>
+                    ${c.unread ? `<span class="badge">${c.unread}</span>` : ''}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+/* ---------------- 联系人 (信封角色卡) ---------------- */
+const CLIP_SVG = '<svg viewBox="0 0 24 24"><defs><linearGradient id="clipGlass" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#050505"/><stop offset="0.42" stop-color="#2a2a2a"/><stop offset="0.52" stop-color="#cfcfcf"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" stroke="url(#clipGlass)" stroke-width="1.9"/><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" stroke="rgba(255,255,255,0.55)" stroke-width="0.5" transform="translate(-0.25,-0.3)"/></svg>';
+
+const STAR_PATH = 'M12 2.5l2.9 6.2 6.7.8-5 4.6 1.4 6.7L12 17.4l-6 3.4 1.4-6.7-5-4.6 6.7-.8z';
+
+/* 每张卡片随机撒 5~12 颗星，按卡片 id 生成，每次渲染位置一致 */
+function starsHtml(seedStr) {
+    let seed = 7;
+    for (const ch of String(seedStr)) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0;
+    const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+    const count = 5 + Math.floor(rnd() * 8);
+    const out = [];
+    let tries = 0;
+    while (out.length < count && tries < 400) {
+        tries++;
+        const x = 3 + rnd() * 90;
+        const y = 3 + rnd() * 88;
+        // 避开：右上未读角标、中缝曲别针、头像、右下文字区
+        if (x > 84 && y < 20) continue;
+        if (x > 40 && x < 60 && y > 5 && y < 48) continue;
+        if (x > 10 && x < 36 && y > 18 && y < 82) continue;
+        if (x > 48 && y > 32) continue;
+        const size = 10 + Math.pow(rnd(), 1.6) * 11;
+        const op = 0.6 + rnd() * 0.35;
+        const rot = Math.round(rnd() * 60 - 30);
+        const color = x < 46 ? '#000' : '#fff';
+        out.push(`<svg class="env-star" viewBox="0 0 24 24" style="left:${x.toFixed(1)}%;top:${y.toFixed(1)}%;width:${size.toFixed(1)}px;height:${size.toFixed(1)}px;opacity:${op.toFixed(2)};color:${color};transform:translate(-50%,-50%) rotate(${rot}deg)"><path d="${STAR_PATH}" fill="currentColor"/></svg>`);
+    }
+    return `<div class="env-stars">${out.join('')}</div>`;
+}
+
+function cardHtml(c, i) {
+    const preview = (c.persona || '').trim() || (c.msgs && c.msgs.length ? c.msgs[c.msgs.length - 1].text : '');
+    const rightBg = c.cover
+        ? `<div class="env-bg" style="background-image: url('${c.cover}')"></div>`
+        : `<span class="env-wm">${esc(c.ini)}</span>`;
+    const no = String((i || 0) + 1).padStart(2, '0');
+    return `
+        <div class="env-wrap">
+            <div class="env" onclick="openContactEditor('${c.id}')">
+                ${starsHtml(c.id)}
+                <div class="env-right${c.cover ? '' : ' fallback'}">
+                    ${rightBg}
+                    <div class="env-shade"></div>
+                    ${c.unread > 0 ? `<span class="cc-badge env-badge">${c.unread}</span>` : ''}
+                    <div class="env-info">
+                        <span class="cc-status"><span class="cc-dot ${c.online ? '' : 'offline'}"></span>${esc(c.status)}</span>
+                        <div class="cc-name">${esc(c.name)}</div>
+                        ${preview ? `<div class="cc-preview">${esc(preview)}</div>` : ''}
+                    </div>
+                </div>
+                <div class="env-left"><div class="av-frame">${avatar(c, 'lg')}</div><span class="env-no">NO.${no}</span></div>
+                <span class="env-deco">₊⋆°₊꒰১</span>
+                <div class="env-seam"></div>
+                <button class="env-clip" title="人设与信息" aria-label="人设与信息" onclick="event.stopPropagation(); openPersonaEditor('${c.id}')">${CLIP_SVG}</button>
+            </div>
+        </div>`;
+}
+
+function addCardHtml() {
+    return `
+        <div class="env-wrap">
+            <div class="add-contact-card" onclick="openContactEditor(null)">
+                <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span>添加联系人</span>
+            </div>
+        </div>`;
+}
+
+
+
+function openContactEditor(id) {
+    editingContactId = id || null;
+    pendingCover = null;
+    pendingAvatar = null;
+    
+    const editor = document.getElementById('contactEditor');
+    const title = document.getElementById('editorTitle');
+    const deleteBtn = document.getElementById('deleteBtn');
+    
+    if (id) {
+        const c = CONTACTS.find(x => x.id === id);
+        if (!c) return;
+        title.innerText = '编辑联系人';
+        deleteBtn.style.display = 'block';
+        
+        document.getElementById('editName').value = c.name;
+        document.getElementById('editStatus').value = c.status;
+        document.getElementById('editId').value = c.id;
+        
+        const coverPreview = document.getElementById('coverPreview');
+        const coverPlaceholder = document.getElementById('coverPlaceholder');
+        if (c.cover) {
+            coverPreview.src = c.cover;
+            coverPreview.style.display = 'block';
+            coverPlaceholder.style.display = 'none';
+        } else {
+            coverPreview.src = '';
+            coverPreview.style.display = 'none';
+            coverPlaceholder.style.display = 'flex';
+        }
+
+        const avEl = document.getElementById('avatarPreview');
+        avEl.innerHTML = c.avatar ? `<img src="${c.avatar}" id="avatarPreviewImg" alt="" onerror="this.remove()"><span class="ini" id="avatarIni" style="display:none">${c.ini}</span>` : `<span class="ini" id="avatarIni">${c.ini}</span>`;
+        avEl.className = `av ${c.g || 'g1'}`;
+    } else {
+        title.innerText = '新建联系人';
+        deleteBtn.style.display = 'none';
+        
+        document.getElementById('editName').value = '';
+        document.getElementById('editStatus').value = '';
+        document.getElementById('editId').value = '';
+        
+        document.getElementById('coverPreview').src = '';
+        document.getElementById('coverPreview').style.display = 'none';
+        document.getElementById('coverPlaceholder').style.display = 'flex';
+        
+        const avEl = document.getElementById('avatarPreview');
+        avEl.innerHTML = `<span class="ini" id="avatarIni">N</span>`;
+        avEl.className = 'av g1';
+    }
+    
+    editor.classList.add('open');
+    document.getElementById('tabbar').classList.add('hide');
+}
+
+function closeContactEditor() {
+    document.getElementById('contactEditor').classList.remove('open');
+    if (!FD_ID) document.getElementById('tabbar').classList.remove('hide');
+}
+
+let personaMode = 'edit';      // 'edit' 编辑已有联系人 / 'create' 新建联系人
+let personaNewFolder = null;   // 新建时放进哪个文件夹（null = 不放进任何文件夹）
+
+
+
+function openNewContactFromCurrentFolder() { openNewContact(FD_ID); }
+
+function openNewContact(folderId) {
+    personaMode = 'create';
+    personaNewFolder = folderId && folderId !== 'all' ? folderId : null;
+    editingPersonaId = null;
+    fillPersona(null);
+    showPersona();
+}
+
+function showPersona() {
+    const pe = document.getElementById('personaEditor');
+    pe.classList.toggle('glass-top', personaMode === 'identity');
+    pe.classList.add('open');
+    document.getElementById('tabbar').classList.add('hide');
+}
+
+
+
+function previewPersonaName(v) {
+    const el = document.getElementById('personaHeroName');
+    if (el) el.textContent = v.trim() || (personaMode === 'create' ? '新建联系人' : '未命名');
+}
+
+function closePersonaEditor() {
+    document.getElementById('personaEditor').classList.remove('open');
+    if (!FD_ID) document.getElementById('tabbar').classList.remove('hide');
+    editingPersonaId = null;
+    personaMode = 'edit';
+}
+
+
+
+
+
+
+
+function loadImage(input, imgId, placeholderId) {
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const dataUrl = e.target.result;
+        if (imgId === 'coverPreview') {
+            const img = document.getElementById(imgId);
+            img.src = dataUrl;
+            img.style.display = 'block';
+            document.getElementById(placeholderId).style.display = 'none';
+            pendingCover = dataUrl;
+        } else {
+            const img = document.getElementById(imgId);
+            const ini = document.getElementById('avatarIni');
+            if (img) {
+                img.src = dataUrl;
+                img.style.display = 'block';
+            } else {
+                const newImg = document.createElement('img');
+                newImg.id = 'avatarPreviewImg';
+                newImg.src = dataUrl;
+                document.getElementById('avatarPreview').prepend(newImg);
+            }
+            if (ini) ini.style.display = 'none';
+            pendingAvatar = dataUrl;
+        }
+    };
+    reader.readAsDataURL(file);
+}
+
+function saveContact() {
+    const name = document.getElementById('editName').value.trim();
+    if (!name) {
+        toast('姓名不能为空');
+        return;
+    }
+    const status = document.getElementById('editStatus').value.trim() || '未知状态';
+    let id = document.getElementById('editId').value.trim();
+    if (!id) { id = makeContactId(); document.getElementById('editId').value = id; }
+    id = id.toUpperCase(); document.getElementById('editId').value = id;
+    if (!isValidContactId(id) && !(editingContactId && CONTACTS.some(c => c.id === editingContactId && c.id === id))) { toast('ID 格式应为 ID- 加 8 位大写字母或数字，例如 ID-PXESX38G'); return; }
+    if (CONTACTS.some(c => c.id.toLowerCase() === id.toLowerCase() && c.id !== editingContactId)) { toast('这个 ID 已存在，请检查或直接编辑该联系人'); return; }
+    
+    if (editingContactId) {
+        // Update
+        const c = CONTACTS.find(x => x.id === editingContactId);
+        if (c) {
+            const oldId = c.id;
+            c.id = id;
+            migrateContactId(oldId, id);
+            c.name = name;
+            c.status = status;
+            c.ini = name[0].toUpperCase();
+            if (pendingCover) c.cover = pendingCover;
+            if (pendingAvatar) c.avatar = pendingAvatar;
+        }
+        toast('联系人已更新');
+    } else {
+        // Create
+        const newContact = {
+            id: id,
+            name: name,
+            status: status,
+            ini: name[0].toUpperCase(),
+            g: 'g' + (Math.floor(Math.random() * 4) + 1),
+            cover: pendingCover,
+            avatar: pendingAvatar,
+            online: false,
+            unread: 0,
+            time: nowTime(),
+            msgs: [],
+            replies: []
+        };
+        CONTACTS.unshift(newContact);
+        toast('联系人已创建 · ID：' + id);
+    }
+    
+    persistContacts();
+    closeContactEditor();
+    renderContacts();
+    renderChats();
+}
+
+function deleteContact() {
+    if (!editingContactId) return;
+    CONTACTS = CONTACTS.filter(c => c.id !== editingContactId);
+    persistContacts();
+    toast('联系人已删除');
+    closeContactEditor();
+    renderContacts();
+    renderChats();
+}
+
+/* ---------------- 朋友圈 ---------------- */
+const PIC_ICON = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="M21 16l-5-5-8 9"/></svg>';
+const HEART = '<svg viewBox="0 0 24 24"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/></svg>';
+const CHAT_ICON = '<svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z"/></svg>';
+
+
+
+/* ---------------- 聊天详情 ---------------- */
+function openChat(id) {
+    const c = CONTACTS.find(x => x.id === id);
+    if (!c) return;
+    activeId = id;
+    c.unread = 0;
+    persistContacts();
+    document.getElementById('headAv').outerHTML = avatar(c, 'md').replace('class="av ', 'id="headAv" class="av ');
+    document.getElementById('headName').textContent = c.name;
+    document.getElementById('headStatus').textContent = c.online ? '在线' : c.status;
+    renderThread();
+    applyRoomBeauty(c);
+    document.getElementById('chatView').classList.add('open');
+    document.getElementById('tabbar').classList.add('hide');
+    renderChats();
+}
+function closeChat() {
+    clearTimeout(typingTimer);
+    document.getElementById('chatView').classList.remove('open');
+    document.getElementById('tabbar').classList.remove('hide');
+    activeId = null;
+    renderChats();
+}
+function renderThread() {
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!c) return;
+    const box = document.getElementById('thread');
+    let html = '<div class="day">Today</div>';
+    c.msgs.forEach((m, i) => {
+        const prev = c.msgs[i - 1], next = c.msgs[i + 1];
+        const newGroup = !prev || prev.me !== m.me;
+        const lastInGroup = !next || next.me !== m.me;
+        const meta = lastInGroup ? `<span class="mt">${esc(m.t)}</span>` : '';
+        const sp = m.me ? '' : (newGroup ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div>` : '<div class="sp"></div>');
+        const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
+        const grp = (pos === 'g-head') ? 'grp-head' : '';
+        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp}">${sp}<div class="bubble ${pos}">${esc(m.text)}</div>${meta}</div>`;
+    });
+    box.innerHTML = html;
+    box.scrollTop = box.scrollHeight;
+}
+function showTyping(c) {
+    const box = document.getElementById('thread');
+    const el = document.createElement('div');
+    el.className = 'mrow typing'; el.id = 'typingRow';
+    el.innerHTML = `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div><div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>`;
+    box.appendChild(el); box.scrollTop = box.scrollHeight;
+}
+let pullTimer = null;
+async function pullReply() {
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!c || c._busy) return;
+    if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('请先在主界面「设置 → API」保存接口配置'); return; }
+    c._busy = true;
+    const cap = document.querySelector('.messages-app').querySelector('.send-capsule'); if (cap) cap.classList.add('pulling');
+    showTyping(c);
+    try {
+        const reply = await window.MessagesAPI.replyFor(c, '请结合上下文自然地继续回复，不要重复已经说过的话。');
+        const row = document.getElementById('typingRow'); if (row) row.remove();
+        c.msgs.push({me:false,text:reply,t:nowTime()}); c.time=nowTime(); persistContacts();
+        if (activeId === c.id) renderThread(); renderChats();
+    } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); toast(e.message || 'API 请求失败'); }
+    finally { c._busy=false; if(cap) cap.classList.remove('pulling'); }
+}
+async function sendMessage() {
+    const input = document.getElementById('input');
+    const text = input.value.trim();
+    if (!text || !activeId) return;
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!c || c._busy) return;
+    c.msgs.push({me:true,text,t:nowTime()}); c.time=nowTime();
+    input.value=''; autoGrow(); updateSend(); persistContacts(); renderThread(); renderChats();
+    if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('消息已保存；请在主界面「设置 → API」保存接口配置后再试'); return; }
+    c._busy=true; showTyping(c);
+    try {
+        const reply = await window.MessagesAPI.replyFor(c, '请自然地回复用户刚刚发送的消息。');
+        const row=document.getElementById('typingRow'); if(row) row.remove();
+        c.msgs.push({me:false,text:reply,t:nowTime()}); c.time=nowTime(); persistContacts();
+        if (activeId===c.id) renderThread(); renderChats();
+    } catch(e) { const row=document.getElementById('typingRow'); if(row) row.remove(); toast(e.message || 'API 请求失败；你的消息已保存'); }
+    finally { c._busy=false; }
+}
+function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function onTyping() { autoGrow(); updateSend(); }
+function autoGrow() { const t = document.getElementById('input'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 100) + 'px'; }
+function updateSend() { document.getElementById('sendBtn').classList.toggle('ready', document.getElementById('input').value.trim().length > 0); }
+
+/* ---------------- 输入手势 ---------------- */
+let touchStartY = 0;
+let touchStartX = 0;
+
+function toggleQuickMenu(force) {
+    const menu = document.getElementById('quickMenu');
+    if (!menu) return;
+    const show = typeof force === 'boolean' ? force : !menu.classList.contains('show');
+    menu.classList.toggle('show', show);
+}
+
+function initComposerGesture() {
+    const composer = document.getElementById('composer');
+    if (!composer) return;
+
+    composer.addEventListener('touchstart', e => {
+        const t = e.touches[0];
+        touchStartY = t.clientY;
+        touchStartX = t.clientX;
+    }, { passive: true });
+
+    composer.addEventListener('touchend', e => {
+        const t = e.changedTouches[0];
+        const dy = touchStartY - t.clientY;
+        const dx = Math.abs(t.clientX - touchStartX);
+        if (dy > 28 && dx < 70) toggleQuickMenu(true);
+        else if (dy < -28 && dx < 70) toggleQuickMenu(false);
+    }, { passive: true });
+}
+
+root.addEventListener('click', e => {
+    const composer = document.getElementById('composer');
+    const menu = document.getElementById('quickMenu');
+    if (composer && menu && !composer.contains(e.target)) menu.classList.remove('show');
+});
+
+/* ---------------- 身份选择 ---------------- */
+
+
+
+
+
+
+/* ---------------- 外观切换 ---------------- */
+// 1 = 默认（黑白灰简洁风），2 = 标签页风格（无边框，顶部固定一张资料卡）
+const THEMES = [
+    { id: 'classic', name: '1 · 默认', sub: '黑白灰简洁风格' },
+    { id: 'tabs',    name: '2 · 标签页', sub: '无边框，顶部固定一张资料卡' }
+];
+let THEME = 'tabs';
+const KR_HEAD = '<div class="kr-head"><div class="kr-title">나의 프로필</div><div class="kr-sub">오늘도 좋은 하루 보내세요</div></div>';
+
+
+
+function applyTheme(id) {
+    THEME = id;
+    document.body.classList.toggle('theme-tabs', id === 'tabs');
+    const t = THEMES.find(x => x.id === id);
+    document.getElementById('appearanceSub').textContent = '当前 · ' + t.name;
+    renderThemeList();
+    renderChats();
+}
+function renderThemeList() {
+    document.getElementById('themeList').innerHTML = THEMES.map(t => `
+        <div class="theme-opt ${THEME === t.id ? 'on' : ''}" onclick="applyTheme('${t.id}')">
+            <div class="t-main"><div class="t-name">${t.name}</div><div class="t-sub">${t.sub}</div></div>
+            <div class="t-check">${THEME === t.id ? '✓' : ''}</div>
+        </div>`).join('');
+}
+function openAppearance() {
+    renderThemeList();
+    document.getElementById('appearanceMgr').classList.add('open');
+    document.getElementById('tabbar').classList.add('hide');
+}
+function closeAppearance() {
+    document.getElementById('appearanceMgr').classList.remove('open');
+    document.getElementById('tabbar').classList.remove('hide');
+}
+
+/* ---------------- 文件夹 ---------------- */
+const FOLDERS = loadStoredFolders(); // 用户自己创建的文件夹
+let FD_ID = null;            // 当前打开的文件夹（'all' = 全部联系人）
+const FOLDER_SVG = '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>';
+
+
+
+function folderMembers(fid) {
+    return fid === 'all' ? CONTACTS : CONTACTS.filter(c => c.folder === fid);
+}
+function folderName(fid) {
+    const f = FOLDERS.find(x => x.id === fid);
+    return f ? f.name : '';
+}
+
+function renderContacts() {
+    const tiles = [{ id: 'all', name: '全部联系人', count: CONTACTS.length }]
+        .concat(FOLDERS.map(f => ({ id: f.id, name: f.name, count: folderMembers(f.id).length })))
+        .map(f => `
+            <div class="folder-tile" onclick="openFolderDetail('${f.id}')">
+                ${folderTileIcon(f.id)}
+                <div>
+                    <div class="ft-name">${esc(f.name)}</div>
+                    <div class="ft-count">${f.count} 位</div>
+                </div>
+            </div>`).join('');
+    document.getElementById('contactGrid').innerHTML =
+        tiles + `<div class="folder-tile add" onclick="openFolderNew()"><span>+</span><div class="ft-count">新建文件夹</div></div>`;
+    if (FD_ID) renderFolderDetail();
+}
+
+function openFolderDetail(fid, idx = 0) {
+    FD_ID = fid;
+    WHEEL.sel = idx;
+    renderFolderDetail();
+    const target = document.querySelector('.messages-app').querySelectorAll('#fdCards .env-wrap')[idx];
+    document.getElementById('fdScroll').scrollTop = target ? target.offsetTop : 0;
+    document.getElementById('folderDetail').classList.add('open');
+    document.getElementById('tabbar').classList.add('hide');
+    updateFdArrows();
+}
+function closeFolderDetail() {
+    FD_ID = null;
+    document.getElementById('folderDetail').classList.remove('open');
+    document.getElementById('tabbar').classList.remove('hide');
+}
+function renderFolderDetail() {
+    if (!FD_ID) return;
+    const isAll = FD_ID === 'all';
+    const name = isAll ? '全部联系人' : folderName(FD_ID);
+    if (!name) { closeFolderDetail(); return; }
+    const list = folderMembers(FD_ID);
+    document.getElementById('fdName').textContent = name;
+    document.getElementById('fdCount').textContent = list.length + ' 位联系人';
+    document.getElementById('fdEdit').style.display = isAll ? 'none' : '';
+    document.getElementById('fdDelete').style.display = isAll ? 'none' : '';
+    document.getElementById('fdCards').innerHTML = list.length
+        ? list.map((c, i) => cardHtml(c, i)).join('')
+        : `<div class="env-wrap"><div class="fd-empty"><div>还没有联系人</div><button onclick="openFolderPicker()">添加联系人</button></div></div>`;
+    renderWheel();
+    updateFdArrows();
+}
+
+function openFolderPicker() {
+    if (!FD_ID || FD_ID === 'all') return;
+    renderFolderPicker();
+    document.getElementById('folderPicker').classList.add('open');
+}
+function closeFolderPicker() {
+    document.getElementById('folderPicker').classList.remove('open');
+    renderFolderDetail();
+    renderContacts();
+}
+function renderFolderPicker() {
+    document.getElementById('fpName').textContent = folderName(FD_ID);
+    document.getElementById('fpList').innerHTML = CONTACTS.map(c => {
+        const on = c.folder === FD_ID;
+        const other = c.folder && !on ? '在「' + folderName(c.folder) + '」' : (c.status || '');
+        return `
+            <div class="fp-row ${on ? 'on' : ''}" onclick="toggleFolderMember('${c.id}')">
+                ${avatar(c, 'md')}
+                <div class="fp-info"><div class="fp-name">${esc(c.name)}</div><div class="fp-sub">${esc(other)}</div></div>
+                <div class="fp-check">${on ? '✓' : ''}</div>
+            </div>`;
+    }).join('') || '<div class="fp-empty">还没有联系人</div>';
+}
+function toggleFolderMember(id) {
+    const c = CONTACTS.find(x => x.id === id);
+    if (!c) return;
+    c.folder = c.folder === FD_ID ? null : FD_ID;   // 一个联系人只属于一个文件夹
+    persistContacts();
+    renderFolderPicker();
+}
+
+function openFolderNew() {
+    document.getElementById('fnName').value = '';
+    document.getElementById('folderNew').classList.add('open');
+    document.getElementById('tabbar').classList.add('hide');
+}
+function closeFolderNew() {
+    document.getElementById('folderNew').classList.remove('open');
+    document.getElementById('tabbar').classList.remove('hide');
+}
+function saveFolderNew() {
+    const name = document.getElementById('fnName').value.trim();
+    if (!name) { toast('请输入文件夹名字'); return; }
+    FOLDERS.push({ id: 'f' + Date.now(), name });
+    persistFolders();
+    closeFolderNew();
+    renderContacts();
+}
+
+
+/* ---------------- 半圆轮盘 ---------------- */
+const WHEEL = { step: 22, R: 228, rot: 0, sel: 0, drag: false, lastAng: 0, moved: 0, idle: false, idleT: null };
+
+function wheelList() { return FD_ID ? folderMembers(FD_ID) : []; }
+
+function renderWheel() {
+    const ring = document.getElementById('wheelRing');
+    if (!ring) return;
+    ring.innerHTML = wheelList().map((c, k) => {
+        const a = k * WHEEL.step;
+        return `<button class="wheel-item" data-k="${k}" style="transform: rotate(${a}deg) translateY(-${WHEEL.R}px) rotate(${-a}deg)" onclick="wheelTap(${k})">${avatar(c, 'md')}</button>`;
+    }).join('');
+    WHEEL.sel = Math.min(WHEEL.sel, Math.max(0, wheelList().length - 1));
+    WHEEL.rot = -WHEEL.sel * WHEEL.step;
+    applyWheel(false);
+    updateWheelUI();
+}
+function applyWheel(anim) {
+    const ring = document.getElementById('wheelRing');
+    ring.style.transition = anim ? 'transform .18s ease-out' : 'none';
+    ring.style.transform = `rotate(${WHEEL.rot}deg)`;
+}
+function updateWheelUI() {
+    document.querySelector('.messages-app').querySelectorAll('.wheel-item').forEach(el => el.classList.toggle('sel', +el.dataset.k === WHEEL.sel));
+    const c = wheelList()[WHEEL.sel];
+    document.getElementById('wheelLabel').textContent = c ? c.name : '';
+}
+function wheelAngle(e) {
+    const r = document.getElementById('wheelDisk').getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    return Math.atan2(e.clientX - cx, cy - e.clientY) * 180 / Math.PI;
+}
+function wheelDown(e) {
+    if (!wheelList().length) return;
+    WHEEL.drag = true; WHEEL.moved = 0; WHEEL.idle = false;
+    WHEEL.lastAng = wheelAngle(e);
+    window.addEventListener('pointermove', wheelMove);
+    window.addEventListener('pointerup', wheelUp);
+    window.addEventListener('pointercancel', wheelUp);
+    updateWheelUI();
+}
+function wheelMove(e) {
+    if (!WHEEL.drag) return;
+    const a = wheelAngle(e);
+    let d = a - WHEEL.lastAng;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    WHEEL.lastAng = a;
+    WHEEL.moved += Math.abs(d);
+    const min = -(wheelList().length - 1) * WHEEL.step;
+    WHEEL.rot = Math.max(min, Math.min(0, WHEEL.rot + d));
+    WHEEL.sel = Math.round(-WHEEL.rot / WHEEL.step);
+    applyWheel(false);
+    updateWheelUI();
+}
+function wheelUp() {
+    if (!WHEEL.drag) return;
+    WHEEL.drag = false;
+    window.removeEventListener('pointermove', wheelMove);
+    window.removeEventListener('pointerup', wheelUp);
+    window.removeEventListener('pointercancel', wheelUp);
+    WHEEL.rot = -WHEEL.sel * WHEEL.step;     // 松手吸附到最近的联系人
+    applyWheel(true);
+    updateWheelUI();
+    if (WHEEL.moved > 6) openWheelCard(WHEEL.sel);   // 滑动后直接跳到卡片
+}
+function wheelTap(k) {
+    if (WHEEL.moved > 6) return;   // 拖动结束时的误触不处理
+    WHEEL.sel = k; WHEEL.rot = -k * WHEEL.step;
+    applyWheel(true);
+    updateWheelUI();
+    openWheelCard(k);
+}
+function openWheelCard(k) {
+    fdGo(k, false);
+}
+document.getElementById('wheelDisk').addEventListener('pointerdown', wheelDown);
+document.getElementById('fdScroll').addEventListener('scroll', () => updateFdArrows());
+
+/* 上下箭头：当前是第几张卡片，哪一边没有了就变淡 */
+function fdCards() { return [...document.querySelector('.messages-app').querySelectorAll('#fdCards .env-wrap')]; }
+function fdCurrentIndex() {
+    const st = document.getElementById('fdScroll').scrollTop;
+    let best = 0, bd = Infinity;
+    fdCards().forEach((w, i) => { const d = Math.abs(w.offsetTop - st); if (d < bd) { bd = d; best = i; } });
+    return best;
+}
+let fdLockT = 0;   // 程序滚动期间不把滚动位置回写到轮盘，避免轮盘被一格一格拖着走
+function fdGo(i, smooth = true) {
+    const wraps = fdCards();
+    if (!wraps.length) return;
+    const t = Math.max(0, Math.min(wraps.length - 1, i));
+    fdLockT = Date.now() + 700;
+    document.getElementById('fdScroll').scrollTo({ top: wraps[t].offsetTop, behavior: smooth ? 'smooth' : 'auto' });
+}
+function fdStep(dir) { fdGo(fdCurrentIndex() + dir); }
+function updateFdArrows() {
+    const n = fdCards().length;
+    const up = document.getElementById('fdUp'), down = document.getElementById('fdDown');
+    up.style.display = down.style.display = n ? '' : 'none';
+    if (!n) return;
+    const i = fdCurrentIndex();
+    up.classList.toggle('off', i <= 0);
+    down.classList.toggle('off', i >= n - 1);
+    // 手动滑动卡片时，轮盘跟着走
+    if (!WHEEL.drag && Date.now() >= fdLockT && WHEEL.sel !== i) { WHEEL.sel = i; WHEEL.rot = -i * WHEEL.step; applyWheel(false); updateWheelUI(); }
+}
+
+/* ---------------- 分步调取（登录 / 刷新）---------------- */
+const SYNC_SCREENS = [
+    { key: 'chats',      name: '消息',     en: 'Chats' },
+    { key: 'contacts',   name: '联系人',   en: 'Contacts' },
+    { key: 'folders',    name: '文件夹',   en: 'Folders' },
+    { key: 'moments',    name: '朋友圈',   en: 'Moments' },
+    { key: 'settings',   name: '设置',     en: 'Settings' },
+    { key: 'appearance', name: '外观设置', en: 'Appearance' },
+    { key: 'account',    name: '账号管理', en: 'Account' }
+];
+const SYNC_CHECK = '<svg viewBox="0 0 24 24"><polyline points="5 12.5 10 17.5 19 7.5"/></svg>';
+let SYNC_RUN = 0;
+
+// 这里换成你们内部的接口：按界面 key 调取该界面的数据，完成后 resolve
+function fetchScreen(key) {
+    // 检查本地真实数据源，不再伪造随机网络延迟。
+    if (key === 'contacts' || key === 'chats' || key === 'folders') {
+        return Promise.resolve(key === 'folders' ? FOLDERS : CONTACTS);
+    }
+    if (key === 'settings' || key === 'appearance' || key === 'account' || key === 'moments') return Promise.resolve(true);
+    return Promise.resolve(false);
+}
+
+function drawSync(states) {
+    const list = document.getElementById('syncList');
+    if (!list.children.length) {
+        list.innerHTML = SYNC_SCREENS.map(s => `
+            <div class="sync-row pending" data-st="pending">
+                <div class="sr-text"><div class="sr-name">${s.name}</div><div class="sr-en">${s.en}</div></div>
+                <div class="sr-mark"></div>
+            </div>`).join('');
+    }
+    [...list.children].forEach((row, i) => {
+        if (row.dataset.st === states[i]) return;
+        row.dataset.st = states[i];
+        row.className = 'sync-row ' + states[i];
+        row.querySelector('.sr-mark').innerHTML = states[i] === 'done' ? SYNC_CHECK : '';
+    });
+    const n = states.filter(x => x === 'done').length;
+    document.getElementById('syncCount').textContent = n + ' / ' + SYNC_SCREENS.length;
+    document.getElementById('syncBar').style.width = (n / SYNC_SCREENS.length * 100) + '%';
+}
+
+async function startSync() {
+    const run = ++SYNC_RUN;
+    setSunSpin(true);
+    document.getElementById('syncHeroTitle').textContent = '正在调取';
+    const states = SYNC_SCREENS.map(() => 'pending');
+    document.getElementById('syncList').innerHTML = '';
+    document.getElementById('syncDone').classList.remove('show');
+    document.getElementById('syncPage').classList.add('open');
+    document.getElementById('tabbar').classList.add('hide');
+    drawSync(states);
+    for (let i = 0; i < SYNC_SCREENS.length; i++) {
+        states[i] = 'loading'; drawSync(states);
+        await fetchScreen(SYNC_SCREENS[i].key);
+        if (run !== SYNC_RUN) return;      // 中途关掉了，就不再继续
+        states[i] = 'done'; drawSync(states);
+    }
+    setSunSpin(false);
+    document.getElementById('syncHeroTitle').textContent = '调取完成';
+    document.getElementById('syncDone').classList.add('show');
+}
+
+function closeSync() {
+    SYNC_RUN++;
+    setSunSpin(false);
+    document.getElementById('syncPage').classList.remove('open');
+    document.getElementById('tabbar').classList.remove('hide');
+}
+
+/* ---------------- 管理我 · 默认人设（我就是我，联系人只是联系人） ---------------- */
+const PLANE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>';
+
+
+
+
+
+/* ---------------- 聊天页资料卡：纯展示，独立数据，和身份/联系人无关 ---------------- */
+const PROFILE_DB_KEY = 'messages_profile_card_v1';
+const PROFILE_DEFAULT = { label: '프로필', name: '구름천사', id: '1004', cap: '1004', status: '오늘도 날개를 펴는 중', sig: '작은 구름 위에서 안부를 전해요' };
+let PROFILE = Object.assign({}, PROFILE_DEFAULT);
+
+function profileCard() {
+    const f = key => `<span class="pc-edit" data-f="${key}" onclick="startProfileEdit(this)">${esc(PROFILE[key])}</span>`;
+    return `
+    <div class="story-card">
+        <div class="polaroid">
+            <div class="sq" style="background:#111"><span>${esc(initOf(PROFILE.name))}</span></div>
+            <div class="cap">${f('cap')}</div>
+        </div>
+        <div class="profile-card">
+            <div class="pc-label">${f('label')}</div>
+            <div class="pc-name">${f('name')}</div>
+            <div class="pc-id">ID · ${f('id')}</div>
+            <div class="pc-status"><i></i>${f('status')}</div>
+            <div class="pc-sig">${f('sig')}</div>
+        </div>
+    </div>`;
+}
+function loadProfileCard() {
+    if (!window.DB || typeof window.DB.load !== 'function') return;
+    Promise.resolve(window.DB.load(PROFILE_DB_KEY, null)).then(v => {
+        if (v && typeof v === 'object') { PROFILE = Object.assign({}, PROFILE_DEFAULT, v); renderChats(); }
+    }).catch(() => {});
+}
+function saveProfileCard() {
+    if (!window.DB || typeof window.DB.save !== 'function') { toast('保存失败：数据库不可用'); return; }
+    Promise.resolve(window.DB.save(PROFILE_DB_KEY, PROFILE))
+        .then(ok => toast(ok === false ? '保存失败，请检查存储空间' : '已保存'))
+        .catch(() => toast('保存失败，请检查存储空间'));
+}
+function startProfileEdit(el) {
+    if (el.classList.contains('editing')) return;
+    el.classList.add('editing');
+    el.contentEditable = 'true';
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    el.onkeydown = e => {
+        if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+        else if (e.key === 'Escape') { el.textContent = PROFILE[el.dataset.f]; el.blur(); }
+    };
+    el.onpaste = e => {
+        e.preventDefault();
+        const t = (e.clipboardData || window.clipboardData).getData('text') || '';
+        document.execCommand('insertText', false, t.replace(/\s+/g, ' '));
+    };
+    el.onblur = () => finishProfileEdit(el);
+}
+function finishProfileEdit(el) {
+    el.onblur = null; el.onkeydown = null; el.onpaste = null;
+    el.contentEditable = 'false';
+    el.classList.remove('editing');
+    const key = el.dataset.f;
+    const orig = PROFILE[key];
+    const next = el.textContent.replace(/\s+/g, ' ').trim().slice(0, 24);
+    if (!next || next === orig) { el.textContent = orig; return; }
+    askConfirm('保存修改？', `把「${orig}」改为「${next}」`, '保存', () => {
+        PROFILE[key] = next;
+        saveProfileCard();
+        renderChats();
+    }, () => { el.textContent = PROFILE[key]; });
+}
+
+/* ---------------- 弹窗：统一居中 + 设置弹窗同款飞机图标 ---------------- */
+let POP = { ok: null, cancel: null };
+function ensureSheet() {
+    let b = document.getElementById('genericSheet');
+    if (b) return b;
+    b = document.createElement('div');
+    b.id = 'genericSheet';
+    b.className = 'identity-sheet-backdrop';
+    b.innerHTML = '<div class="identity-sheet" onclick="event.stopPropagation()"></div>';
+    b.addEventListener('click', e => { if (e.target === b) popupCancel(); });
+    (document.querySelector('.messages-app') || document.body).appendChild(b);
+    return b;
+}
+
+function closeSheet(event) {
+    if (event && event.target !== event.currentTarget) return;
+    const b = document.getElementById('genericSheet');
+    if (b) b.classList.remove('show');
+}
+function askConfirm(title, text, okLabel, onOk, onCancel) {
+    openSheet(`<div class="sheet-title sheet-title-plane">${PLANE_SVG}<span>${esc(title)}</span></div>
+        <div class="pop-text">${esc(text)}</div>
+        <div class="pop-actions"><button class="identity-cancel" type="button" onclick="popupCancel()">取消</button><button class="cid-btn" type="button" onclick="popupOk()">${esc(okLabel || '确定')}</button></div>`);
+    POP = { ok: onOk || null, cancel: onCancel || null };
+}
+function popupOk() { const f = POP.ok; POP = { ok: null, cancel: null }; closeSheet(); if (f) f(); }
+function popupCancel() { const f = POP.cancel; POP = { ok: null, cancel: null }; closeSheet(); if (f) f(); }
+
+/* ---------------- 添加聊天（居中弹窗） ---------------- */
+function contactIdShell(titleEn, titleZh, bodyHtml) {
+    openSheet(`<div class="sheet-title sheet-title-plane">${PLANE_SVG}<span id="contactIdTitle">${titleEn}</span><em>${titleZh}</em></div><div class="sheet-body">${bodyHtml}</div>`);
+}
+
+
+/* ---------------- 聊天室设置：全屏界面 ---------------- */
+let roomEl = null;
+
+
+
+
+
+
+/* ---------------- 聊天软件设置（设置 → Chats） ---------------- */
+
+function softAction(kind) {
+    if (kind === 'bar') {
+        const bar = document.getElementById('tabbar');
+        bar.classList.toggle('glass');
+        toast(bar.classList.contains('glass') ? '已切换为玻璃底栏' : '已切换为经典黑色底栏');
+        openChatsSettings();
+        return;
+    }
+    if (kind === 'appearance') { closeSheet(); openAppearance(); return; }
+    if (kind === 'clearAll') {
+        askConfirm('清空全部聊天记录', '所有联系人的消息都会删除，联系人会保留。', '清空', () => {
+            CONTACTS.forEach(c => { c.msgs = []; c.unread = 0; c.time = ''; });
+            persistContacts(); renderChats();
+            if (activeId) renderThread();
+            toast('已清空全部聊天记录');
+        });
+    }
+}
+
+/* ---------------- 管理我（设置 → 管理我，只有我自己的默认人设） ---------------- */
+function openAccountMgr() {
+    renderAccountList();
+    document.getElementById('accountMgr').classList.add('open');
+    document.getElementById('tabbar').classList.add('hide');
+}
+
+
+/* ---------------- 文件夹删除：统一弹窗 ---------------- */
+function deleteFolder() {
+    if (!FD_ID || FD_ID === 'all') return;
+    const fid = FD_ID;
+    askConfirm('删除文件夹', '删除这个文件夹？里面的联系人不会被删除。', '删除', () => {
+        CONTACTS.forEach(c => { if (c.folder === fid) c.folder = null; });
+        const i = FOLDERS.findIndex(x => x.id === fid);
+        if (i >= 0) FOLDERS.splice(i, 1);
+        persistFolders(); persistContacts();
+        closeFolderDetail(); renderContacts();
+    });
+}
+
+function isValidContactId(id) { return /^ID-[A-Z0-9]{8}$/.test(id) || /^ID-[A-Z]+\d{2}$/.test(id); }
+function makeContactId() {
+    const CH = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    return 'ID-' + Array.from({ length: 8 }, () => CH[Math.floor(Math.random() * CH.length)]).join('');
+}
+function initOf(name) { return (String(name || '').trim().charAt(0) || '?').toUpperCase(); }
+function ioInner(name, avatarUrl) {
+    const img = avatarUrl ? `<img src="${avatarUrl}" alt="" onerror="this.remove()">` : '';
+    return `${img}<span>${esc(initOf(name))}</span>`;
+}
+function selfAvatarHtml(size) {
+    const img = ME.avatar ? `<img src="${ME.avatar}" alt="" onerror="this.remove()">` : '';
+    return `<div class="av ${size || 'lg'} g1">${img}<span class="ini">${esc(initOf(ME.name))}</span></div>`;
+}
+function sheetRow(iconHtml, title, sub, action, active) {
+    return `<button class="identity-option ${active ? 'active' : ''}" type="button" onclick="${action}"><div class="io-avatar">${iconHtml}</div><div class="io-info"><div class="io-name">${esc(title)}</div>${sub ? `<div class="io-sub">${esc(sub)}</div>` : ''}</div><div class="check">✓</div></button>`;
+}
+function showContactIdEntry() {
+    contactIdShell('Enter ID', '输入联系人 ID', `
+        <p class="cid-desc">匹配成功后会显示头像、名称和状态</p>
+        <label class="contact-id-label" for="contactIdInput">联系人 ID</label>
+        <div class="contact-id-input-wrap"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 21 20H3z"/><path d="M12 9v5m0 2.5v.1"/></svg><input id="contactIdInput" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="例如 ID-PXESX38G" oninput="previewContactById(this.value)" /></div>
+        <div id="contactIdPreview" class="contact-id-preview"><div class="contact-id-preview-empty">输入 ID 后显示联系人资料</div></div>
+        <div id="contactIdStatus" class="contact-id-status">请先在联系人页面创建联系人</div>
+        <button id="contactIdStart" class="cid-btn" type="button" onclick="addChatByContactId()" disabled><span>确认并添加</span></button>
+        <button class="cid-back" type="button" onclick="renderContactAddChoice()">‹ 返回选择方式</button>`);
+    setTimeout(() => document.getElementById('contactIdInput')?.focus(), 100);
+}
+function showDirectContactList() {
+    const list = CONTACTS.length ? CONTACTS.map(c => `<button class="contact-id-direct-row" type="button" onclick="directAddContact('${esc(c.id).replace(/'/g, '&#39;')}')">${avatar(c, 'md')}<span class="contact-id-direct-info"><strong>${esc(c.name)}</strong><small>${esc(c.status || '联系人')}</small><code>${esc(c.id)}</code></span><span class="cid-option-arrow">${CHAT_IDS.includes(c.id) ? '已添加' : '＋'}</span></button>`).join('') : '<div class="contact-id-preview-empty">还没有联系人，请先到「联系人」页面创建</div>';
+    contactIdShell('Direct Add', '直接添加', `
+        <p class="cid-desc">选择联系人即可加入 Chats</p>
+        <div class="contact-id-direct-list">${list}</div>
+        <button class="cid-back" type="button" onclick="renderContactAddChoice()">‹ 返回选择方式</button>`);
+}
+function openContactIdModal() { renderContactAddChoice(); }
+function closeContactIdModal() { closeSheet(); }
+function openPersonaEditor(id) {
+    const c = CONTACTS.find(x => x.id === id);
+    if (!c) return;
+    personaMode = 'edit';
+    editingPersonaId = id;
+    fillPersona(c);
+    showPersona();
+}
+function openSelfPersona() {
+    personaMode = 'self';
+    editingPersonaId = null;
+    fillPersona(ME);
+    showPersona();
+}
+
+
+
+
+function closeAccountMgr() {
+    document.getElementById('accountMgr').classList.remove('open');
+    document.getElementById('tabbar').classList.remove('hide');
+}
+
+function resetFrameScroll() {
+    document.getElementById('phone').scrollTop = 0;
+    document.getElementById('phone').scrollLeft = 0;
+    document.getElementById('appShell').scrollTop = 0;
+    document.getElementById('appShell').scrollLeft = 0;
+}
+
+function openSidebar() {
+    if (SIDE.open) return;
+    SIDE.open = true;
+    resetFrameScroll();
+    renderStrip();
+    document.getElementById('appShell').classList.add('pushed');
+    setTimeout(() => { if (SIDE.open && !SIDE.liveId) showLoginMask(null); }, 420);
+}
+
+function closeSidebar() {
+    if (!SIDE.open) return;
+    SIDE.open = false;
+    resetFrameScroll();
+    document.getElementById('appShell').classList.remove('pushed');
+    hideLoginMask();
+}
+
+function showLoginMask(id) {
+    const m = document.getElementById('loginMask');
+    m.classList.add('show');
+    m.classList.toggle('picked', !!id);
+}
+
+function hideLoginMask() {
+    document.getElementById('loginMask').classList.remove('show', 'picked');
+}
+
+function renderStrip() {
+    document.getElementById('stripAccounts').innerHTML = CONTACTS.map(c => `
+        <button class="strip-acc ${SIDE.pickedId === c.id ? 'sel' : ''} ${SIDE.liveId === c.id ? 'live' : ''}" title="${esc(c.name)}" onclick="event.stopPropagation(); pickAccount('${c.id}')">${avatar(c, 'md')}</button>`).join('');
+}
+
+function pickAccount(id) {
+    const c = CONTACTS.find(x => x.id === id);
+    if (!c) return;
+    SIDE.pickedId = id;
+    document.getElementById('lpAvatar').innerHTML = avatar(c, 'lg');
+    document.getElementById('lpName').textContent = c.name;
+    document.getElementById('lpId').textContent = 'ID · ' + c.id;
+    document.getElementById('lpPwd').value = '';
+    showLoginMask(id);
+    renderStrip();
+}
+
+function refreshAccounts() {
+    SIDE.pickedId = null;
+    document.getElementById('lpPwd').value = '';
+    if (SIDE.open) closeSidebar();
+    renderStrip();
+    startSync();
+}
+
+function doLogin() {
+    if (!SIDE.pickedId) { toast(CONTACTS.length ? '请先选择账号' : '请先新建或导入联系人'); return; }
+    const pwd = document.getElementById('lpPwd').value.trim();
+    if (!pwd) {
+        const f = document.getElementById('lpField');
+        f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake');
+        toast('请输入密码');
+        return;
+    }
+    const c = CONTACTS.find(x => x.id === SIDE.pickedId); if (!c) { toast('账号不存在，请刷新列表'); return; }
+    finishLogin(c);
+}
+
+function directLogin() {
+    if (!SIDE.pickedId) { toast(CONTACTS.length ? '请先选择账号' : '请先新建或导入联系人'); return; }
+    const c = CONTACTS.find(x => x.id === SIDE.pickedId); if (!c) { toast('账号不存在，请刷新列表'); return; }
+    finishLogin(c);
+}
+
+function finishLogin(c) {
+    if (!c) { toast('没有可登录的联系人，请先新建或导入'); return; }
+    SIDE.liveId = c.id;
+    document.getElementById('capName').textContent = c.name;
+    document.getElementById('accountCapsule').classList.add('show');
+    document.getElementById('topTools').classList.add('logged');
+    applyPersona(c);
+    hideLoginMask();
+    renderStrip();
+    toast('已登录 ' + c.name);
+    startSync();
+}
+
+
+
+/* ---------------- 我的默认人设 / 身份（身份独立于联系人） ---------------- */
+
+
+
+/* 点击顶部胶囊：切换身份（我 / 我的身份列表） */
+
+
+function identityAvatarHtml(c) {
+    const url = pendingPersonaAvatar || (c && c.avatar) || '';
+    const img = url ? `<img src="${url}" alt="" onerror="this.remove()">` : '';
+    return `<div class="av lg g1">${img}<span class="ini">${esc(initOf(c && c.name ? c.name : '?'))}</span></div>`;
+}
+
+
+/* 管理我：默认人设 + 我的身份（身份只来自这里，不读取联系人） */
+function renderAccountList() {
+    const rows = IDENTITIES.map(c => `
+        <div class="acct-row" onclick="openIdentityEditor('${c.id}')">
+            ${avatar(c, 'lg')}
+            <div class="acct-info">
+                <div class="acct-name">${esc(c.name)}</div>
+                <div class="acct-id">ID · ${esc(c.id)}</div>
+                <div class="acct-persona ${c.persona ? '' : 'is-none'}">${esc(c.persona || '还没有人设，点击填写')}</div>
+            </div>
+            <button class="acct-remove" type="button" onclick="event.stopPropagation(); deleteIdentity('${c.id}')">删除</button>
+        </div>`).join('');
+    document.getElementById('accountList').innerHTML = `
+        <div class="section-label" style="padding:16px 4px 10px;">我的默认人设</div>
+        <div class="acct-row" onclick="openSelfPersona()">
+            ${selfAvatarHtml('lg')}
+            <div class="acct-info">
+                <div class="acct-name">${esc(ME.name)}</div>
+                <div class="acct-id">ID · ${esc(ME.id)}</div>
+                <div class="acct-persona ${ME.persona ? '' : 'is-none'}">${esc(ME.persona || '还没有人设，点击填写')}</div>
+            </div>
+            <span class="acct-chev">›</span>
+        </div>
+        <div class="section-label" style="padding:18px 4px 10px;">我的身份</div>
+        ${rows || '<div class="acct-empty">还没有身份。添加后可以在侧边栏登录，或从顶部切换。</div>'}
+        <button class="acct-add" type="button" onclick="openIdentityEditor(null)">＋ 添加身份</button>`;
+}
+function openIdentityEditor(id) {
+    personaMode = 'identity';
+    const c = id ? IDENTITIES.find(x => x.id === id) : null;
+    if (id && !c) return;
+    editingPersonaId = c ? c.id : null;
+    pendingPersonaAvatar = null;
+    fillPersona(c || { id: '', name: '', status: '', sig: '', persona: '', speech: '', relation: '', backstory: '', replies: [], avatar: '' });
+    showPersona();
+}
+
+function pickPersonaAvatar() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            const url = e.target.result;
+            let slot;
+            if (personaMode === 'self') {
+                ME.avatar = url; persistMe(); applySelf(); renderChats();
+                slot = document.querySelector('#personaHero .persona-hero-av');
+                if (slot) slot.innerHTML = selfAvatarHtml('lg');
+            } else if (personaMode === 'identity') {
+                const c = editingPersonaId ? IDENTITIES.find(x => x.id === editingPersonaId) : null;
+                if (c) { c.avatar = url; persistIdentities(); if (ACTIVE_ID === c.id) applySelf(); renderAccountList(); }
+                else pendingPersonaAvatar = url;
+                slot = document.querySelector('#personaHero .persona-hero-av');
+                if (slot) slot.innerHTML = identityAvatarHtml(c || { name: '' });
+            }
+            toast('头像已更新');
+        };
+        reader.readAsDataURL(file);
+    };
+    input.click();
+}
+function fillPersona(c) {
+    const g = id => document.getElementById(id);
+    const mode = personaMode;
+    const isNewIdentity = mode === 'identity' && !editingPersonaId;
+    const titles = { self: '我的人设', identity: isNewIdentity ? '新建身份' : '身份人设', edit: '人设与信息', create: '新建联系人' };
+    g('personaTitle').textContent = titles[mode] || '人设与信息';
+    let heroAv;
+    if (mode === 'self') heroAv = `<div class="persona-hero-av" onclick="pickPersonaAvatar()">${selfAvatarHtml('lg')}</div>`;
+    else if (mode === 'identity') heroAv = `<div class="persona-hero-av" onclick="pickPersonaAvatar()">${identityAvatarHtml(c)}</div>`;
+    else if (c) heroAv = avatar(c, 'lg');
+    else heroAv = `<div class="av g1"><span class="ini">N</span></div>`;
+    const heroName = c && c.name ? c.name : (isNewIdentity ? '新建身份' : '新建联系人');
+    const heroSub = mode === 'self' ? '点击头像可更换 · 这是你的默认身份'
+        : mode === 'identity' ? '点击头像可更换 · 登录时使用这个身份'
+        : c ? '这里的设定会影响它的说话方式' : '先写下它是谁，再开始聊天';
+    g('personaHero').innerHTML = heroAv + `<div class="persona-hero-name" id="personaHeroName">${esc(heroName)}</div><div class="persona-hero-sub">${heroSub}</div>`;
+    if (c && c.id !== undefined) {
+        g('pName').value = c.name || '';
+        g('pStatus').value = c.status || '';
+        g('pId').value = c.id || '';
+        g('pId').placeholder = mode === 'self' || editingPersonaId ? '' : '留空则自动生成';
+        g('pPersona').value = c.persona || '';
+        g('pSig').value = c.sig || '';
+        g('pSpeech').value = c.speech || '';
+        g('pRelation').value = c.relation || '';
+        g('pBackstory').value = c.backstory || '';
+        g('pReplies').value = (c.replies || []).join('\n');
+    } else {
+        g('pName').value = '';
+        g('pStatus').value = '';
+        g('pId').value = '';
+        g('pId').placeholder = '留空则点击完成时自动生成';
+        ['pPersona', 'pSig', 'pSpeech', 'pRelation', 'pBackstory', 'pReplies'].forEach(id => g(id).value = '');
+    }
+}
+function savePersona() {
+    const name = document.getElementById('pName').value.trim();
+    if (!name) { toast('姓名不能为空'); return; }
+    const status = document.getElementById('pStatus').value.trim() || '未知状态';
+    const lines = document.getElementById('pReplies').value.split('\n').map(x => x.trim()).filter(Boolean);
+    const persona = {
+        persona: document.getElementById('pPersona').value.trim(),
+        sig: document.getElementById('pSig').value.trim(),
+        speech: document.getElementById('pSpeech').value.trim(),
+        relation: document.getElementById('pRelation').value.trim(),
+        backstory: document.getElementById('pBackstory').value.trim(),
+        replies: lines
+    };
+    const typedId = document.getElementById('pId').value.trim().toUpperCase();
+
+    if (personaMode === 'self') {
+        Object.assign(ME, { name, status, id: typedId || ME_DEFAULT.id }, persona);
+        persistMe(); applySelf(); syncSettingsMode(); renderChats();
+        closePersonaEditor(); renderAccountList(); toast('我的人设已保存');
+        return;
+    }
+
+    if (personaMode === 'identity') {
+        if (typedId && !isValidContactId(typedId)) { toast('ID 格式应为 ID- 加 8 位大写字母或数字，例如 ID-PXESX38G'); return; }
+        const takenByOther = (id, self) => IDENTITIES.some(x => x.id === id && x.id !== self) || CONTACTS.some(x => x.id === id);
+        if (editingPersonaId) {
+            const c = IDENTITIES.find(x => x.id === editingPersonaId);
+            if (!c) return;
+            const newId = typedId || c.id;
+            if (takenByOther(newId, c.id)) { toast('这个 ID 已存在'); return; }
+            const oldId = c.id;
+            Object.assign(c, persona, { name, status, id: newId, ini: name[0].toUpperCase() });
+            renameIdentityKey(oldId, newId);
+            if (ACTIVE_ID === oldId) { setActiveIdentity(newId); applyActiveThreads(); renderChats(); }
+        } else {
+            const newId = typedId || makeContactId();
+            if (takenByOther(newId, null)) { toast('这个 ID 已存在'); return; }
+            IDENTITIES.unshift(normalizeIdentity(Object.assign({
+                id: newId, name, status, ini: name[0].toUpperCase(),
+                g: 'g' + (Math.floor(Math.random() * 4) + 1), avatar: pendingPersonaAvatar || ''
+            }, persona)));
+        }
+        pendingPersonaAvatar = null;
+        persistIdentities();
+        closePersonaEditor(); renderAccountList(); renderStrip();
+        applySelf();
+        toast('身份已保存');
+        return;
+    }
+
+    // 联系人（人设与信息 / 新建联系人）
+    const personaId = typedId || makeContactId();
+    if (!isValidContactId(personaId) && !(personaMode === 'edit' && CONTACTS.some(c => c.id === editingPersonaId && c.id === personaId))) { toast('ID 格式应为 ID- 加 8 位大写字母或数字，例如 ID-PXESX38G'); return; }
+    if (CONTACTS.some(c => String(c.id).toLowerCase() === personaId.toLowerCase() && c.id !== editingPersonaId)) { toast('这个 ID 已存在'); return; }
+    if (personaMode === 'create') {
+        const c = Object.assign({
+            id: personaId, name, status,
+            ini: name[0].toUpperCase(),
+            g: 'g' + (Math.floor(Math.random() * 4) + 1),
+            cover: null, avatar: null, online: false, unread: 0,
+            time: nowTime(), msgs: []
+        }, persona);
+        if (personaNewFolder) c.folder = personaNewFolder;
+        CONTACTS.unshift(c);
+        toast('联系人已创建 · ID：' + personaId);
+    } else {
+        const c = CONTACTS.find(x => x.id === editingPersonaId);
+        if (!c) return;
+        const oldId = c.id;
+        Object.assign(c, { name, status, ini: name[0].toUpperCase() }, persona);
+        c.id = personaId;
+        migrateContactId(oldId, personaId);
+        toast('人设已保存');
+    }
+    persistContacts();
+    closePersonaEditor(); renderContacts(); renderChats(); renderAccountList();
+}
+
+function applySelf() {
+    const root = document.querySelector('.messages-app');
+    const a = activeIdentity();
+    const name = a ? a.name : ME.name;
+    const av = a ? a.avatar : ME.avatar;
+    const id = a ? a.id : ME.id;
+    root.querySelector('#identityPill .pill-avatar').innerHTML = ioInner(name, av);
+    document.getElementById('identityPillName').textContent = name;
+    root.querySelector('.settings-profile .big-avatar').innerHTML = ioInner(name, av);
+    root.querySelector('.settings-profile .profile-name').textContent = name;
+    root.querySelector('.settings-profile .profile-sub').textContent = 'ID · ' + id;
+}
+
+function syncSettingsMode() {
+    const c = CONTACTS.find(x => x.id === SIDE.liveId);
+    document.getElementById('v-settings').classList.toggle('as-contact', !!c);
+    document.getElementById('contactSigText').textContent = c ? (c.sig || '还没有个人签名') : (ME.sig || '还没有个人签名');
+}
+
+function applyPersona(c) {
+    syncSettingsMode();
+    document.getElementById('capName').textContent = c.name;
+}
+
+function exitContactLogin() {
+    if (!SIDE.liveId) { toast('当前没有登录联系人账号'); return; }
+    askConfirm('退出联系人账号', '退出当前登录的联系人账号？', '退出', () => {
+        SIDE.liveId = null;
+        SIDE.pickedId = null;
+        document.getElementById('accountCapsule').classList.remove('show');
+        document.getElementById('topTools').classList.remove('logged');
+        syncSettingsMode();
+        renderStrip();
+        closeSync();
+        toast('已退出');
+    });
+}
+
+
+
+
+
+function persistChatIds() {
+    CHAT_IDS = [...new Set(CHAT_IDS.map(String).filter(id => CONTACTS.some(c => String(c.id) === id)))];
+    CHAT_MAP[ACTIVE_ID] = CHAT_IDS;
+    try { localStorage.setItem('forever_messages_chat_map_v2', JSON.stringify(CHAT_MAP)); }
+    catch (e) { console.warn('[Messages] 聊天列表保存失败', e); }
+}
+
+function persistContacts() {
+    CONTACTS.forEach(c => { c.threads = c.threads || {}; c.threads[ACTIVE_ID] = c.msgs; });
+    try { localStorage.setItem('forever_messages_contacts_v1', JSON.stringify(CONTACTS, (k, v) => (k === 'msgs' ? undefined : v))); }
+    catch (e) { toast('保存失败：存储空间可能不足'); console.error(e); }
+}
+
+function migrateContactId(oldId, newId) {
+    const fix = arr => arr.map(x => (x === oldId ? newId : x));
+    Object.keys(CHAT_MAP).forEach(k => { CHAT_MAP[k] = fix(CHAT_MAP[k]); });
+    CHAT_IDS = fix(CHAT_IDS);
+    persistChatIds();
+}
+
+function loadStoredChatMap() {
+    try {
+        const v = JSON.parse(localStorage.getItem('forever_messages_chat_map_v2') || 'null');
+        if (v && typeof v === 'object') {
+            const out = {};
+            Object.keys(v).forEach(k => { out[k] = Array.isArray(v[k]) ? v[k].map(String) : []; });
+            return out;
+        }
+    } catch (_) {}
+    return { self: loadStoredChatIds() };   // 旧版本只有一份列表，归到「我」下面
+}
+/* 切换身份时：每个联系人的聊天记录和聊天列表换成当前身份的那一份 */
+function applyActiveThreads() {
+    CONTACTS.forEach(c => { c.threads = c.threads || {}; c.msgs = c.threads[ACTIVE_ID] || []; });
+    CHAT_IDS = (CHAT_MAP[ACTIVE_ID] || []).slice();
+}
+function renameIdentityKey(oldId, newId) {
+    if (oldId === newId) return;
+    persistContacts();
+    if (CHAT_MAP[oldId]) { CHAT_MAP[newId] = CHAT_MAP[oldId]; delete CHAT_MAP[oldId]; }
+    CONTACTS.forEach(c => { if (c.threads && c.threads[oldId]) { c.threads[newId] = c.threads[oldId]; delete c.threads[oldId]; } });
+    persistChatIds();
+}
+function dropIdentityData(id) {
+    delete CHAT_MAP[id];
+    CONTACTS.forEach(c => { if (c.threads) delete c.threads[id]; });
+    persistChatIds();
+}
+
+function openSheet(innerHtml, bottom) {
+    POP = { ok: null, cancel: null };
+    const b = ensureSheet();
+    b.classList.toggle('bottom', !!bottom);
+    b.querySelector('.identity-sheet').innerHTML = innerHtml;
+    b.classList.add('show');
+}
+function openIdentitySheet() {
+    const cur = ACTIVE_ID;
+    const rows = [sheetRow(ioInner(ME.name, ME.avatar), ME.name, 'ID · ' + ME.id + ' · 默认', "pickIdentity('self')", cur === 'self')];
+    IDENTITIES.forEach(c => rows.push(sheetRow(ioInner(c.name, c.avatar), c.name, c.status || '身份', `pickIdentity('${c.id}')`, cur === c.id)));
+    const hint = IDENTITIES.length ? '' : '<div class="cid-footnote">还没有其他身份，可在「设置 → 管理我」里添加</div>';
+    openSheet(`<div class="sheet-title">Switch Account</div>${rows.join('')}${hint}<button class="identity-cancel" type="button" onclick="closeSheet()">取消</button>`, true);
+}
+/* 右下角切换：直接切换到对应身份（不需要密码），聊天记录跟着身份走 */
+function pickIdentity(id) {
+    closeSheet();
+    if (id === ACTIVE_ID) return;
+    persistContacts();
+    if (document.getElementById('chatView').classList.contains('open')) closeChat();
+    setActiveIdentity(id);
+    applyActiveThreads();
+    applySelf();
+    renderChats();
+    const a = activeIdentity();
+    toast('已切换为 ' + (a ? a.name : ME.name));
+}
+function deleteIdentity(id) {
+    const c = IDENTITIES.find(x => x.id === id);
+    if (!c) return;
+    askConfirm('删除身份', `删除身份「${c.name}」？这个身份下的聊天记录也会一起删除，联系人不受影响。`, '删除', () => {
+        persistContacts();
+        dropIdentityData(id);
+        IDENTITIES = IDENTITIES.filter(x => x.id !== id);
+        persistIdentities();
+        if (ACTIVE_ID === id) { setActiveIdentity('self'); applyActiveThreads(); }
+        applySelf(); renderChats(); renderAccountList(); renderStrip();
+    });
+}
+
+function setSunSpin(on) {
+    const btn = document.getElementById('syncBtn');
+    if (btn) btn.classList.toggle('spinning', !!on);
+    const sun = document.getElementById('syncSun');
+    if (sun) sun.classList.toggle('spin', !!on);
+}
+
+/* ---------------- 聊天室设置：全屏 · 五角星滑轮 ---------------- */
+const ROOM_STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.00 0.80 L16.09 6.38 L22.65 8.54 L18.61 14.15 L18.58 21.06 L12.00 18.95 L5.42 21.06 L5.39 14.15 L1.35 8.54 L7.91 6.38 Z" fill="#fff" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg>';
+const ROOM_TABS = ['聊天设置', '人设设置', '聊天美化'];
+const BUBBLE_PRESETS = {
+    default: { label: '默认', bg: '#efeff2', fg: '#111111' },
+    ink:     { label: '墨黑', bg: '#111111', fg: '#ffffff' },
+    mist:    { label: '雾灰', bg: '#dcdce2', fg: '#111111' },
+    paper:   { label: '奶白', bg: '#fff5e6', fg: '#3a2e22' }
+};
+/* CSS 模板：点一下就把对应的样式填进输入框 */
+const CSS_TEMPLATES = {
+    ink:   '.mrow.me .bubble{background:#111111;color:#ffffff}',
+    mist:  '.mrow.me .bubble{background:#dcdce2;color:#111111}',
+    paper: '.mrow.me .bubble{background:#fff5e6;color:#3a2e22}',
+    round: '.bubble{border-radius:4px !important}'
+};
+const CSS_TEMPLATE_LABELS = { ink: '墨黑', mist: '雾灰', paper: '奶白', round: '方角' };
+let ROOM_TAB = 0;
+
+/* 给用户写的 CSS 每条选择器加上前缀，只影响当前聊天，不会改到别的页面 */
+function scopeCss(css, scope) {
+    const src = String(css || '').replace(/\/\*[\s\S]*?\*\//g, '');
+    let out = '';
+    let i = 0;
+    while (i < src.length) {
+        const open = src.indexOf('{', i);
+        if (open < 0) break;
+        const sel = src.slice(i, open).trim();
+        let depth = 1, j = open + 1;
+        while (j < src.length && depth > 0) {
+            if (src[j] === '{') depth++;
+            else if (src[j] === '}') depth--;
+            j++;
+        }
+        const body = src.slice(open + 1, j - 1);
+        if (sel.startsWith('@')) {
+            const keepInside = /^@(media|supports)/.test(sel);
+            out += sel + '{' + (keepInside ? scopeCss(body, scope) : body) + '}';
+        } else if (sel) {
+            out += sel.split(',').map(s => s.trim()).filter(Boolean)
+                .map(s => (s === 'body' || s === 'html' ? scope : scope + ' ' + s)).join(', ') + '{' + body + '}';
+        }
+        i = j;
+    }
+    return out;
+}
+function applyChatCss(css) {
+    let st = document.getElementById('chatCustomCss');
+    if (!st) { st = document.createElement('style'); st.id = 'chatCustomCss'; document.head.appendChild(st); }
+    st.textContent = scopeCss(css, '#chatView');
+}
+function chatCssOf(c) {
+    const b = (c && c.beauty) || {};
+    if (typeof b.css === 'string') return b.css;
+    const p = BUBBLE_PRESETS[b.bubble];          // 旧版本的气泡预设，转成 CSS
+    return (p && b.bubble !== 'default') ? `.mrow.me .bubble{background:${p.bg};color:${p.fg}}` : '';
+}
+/* 把美化应用到当前聊天页 */
+function applyRoomBeauty(c) {
+    const v = document.getElementById('chatView');
+    if (!v || !c) return;
+    const b = c.beauty || {};
+    if (b.bg) { v.dataset.bg = '1'; v.style.backgroundImage = `url("${b.bg}")`; }
+    else { delete v.dataset.bg; v.style.backgroundImage = ''; }
+    applyChatCss(chatCssOf(c));
+}
+
+function ensureRoomView() {
+    if (roomEl && roomEl.isConnected) return roomEl;
+    roomEl = document.createElement('section');
+    roomEl.className = 'edit-view room-view';
+    roomEl.id = 'roomView';
+    roomEl.innerHTML = `
+        <header class="room-head">
+            <button class="room-back" type="button" onclick="closeRoomView()" title="返回"><svg viewbox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg></button>
+            <span class="room-head-title">聊天室设置</span>
+            <span class="room-head-sp"></span>
+        </header>
+        <div class="room-body">
+            <div class="room-hero" id="roomHero"></div>
+            <div class="room-pane" id="roomPane"></div>
+        </div>
+        <div class="room-dock">
+            <div class="room-track" id="roomTrack"><span class="room-thumb" id="roomThumb">${ROOM_STAR}</span></div>
+            <div class="room-labels">${ROOM_TABS.map((t, i) => `<button class="room-lbl" type="button" data-i="${i}" onclick="setRoomTab(${i})">${t}</button>`).join('')}</div>
+        </div>`;
+    document.querySelector('.messages-app').appendChild(roomEl);
+    bindRoomTrack();
+    return roomEl;
+}
+
+function bindRoomTrack() {
+    const track = document.getElementById('roomTrack');
+    const thumb = document.getElementById('roomThumb');
+    if (!track || track.dataset.bound) return;
+    track.dataset.bound = '1';
+    const idxAt = x => {
+        const r = track.getBoundingClientRect();
+        const rel = (x - r.left - 4) / (r.width - 8);
+        return Math.max(0, Math.min(ROOM_TABS.length - 1, Math.floor(rel * ROOM_TABS.length)));
+    };
+    let drag = false;
+    track.addEventListener('pointerdown', e => { drag = true; try { track.setPointerCapture(e.pointerId); } catch (_) {} thumb.classList.add('drag'); });
+    track.addEventListener('pointermove', e => {
+        if (!drag) return;
+        const r = track.getBoundingClientRect();
+        thumb.style.left = (e.clientX - r.left - 11.5) + 'px';
+    });
+    const end = e => {
+        if (!drag) return;
+        drag = false;
+        thumb.classList.remove('drag');
+        setRoomTab(idxAt(e.clientX));
+    };
+    track.addEventListener('pointerup', end);
+    track.addEventListener('pointercancel', end);
+}
+function setRoomTab(i) {
+    ROOM_TAB = Math.max(0, Math.min(ROOM_TABS.length - 1, i));
+    const track = document.getElementById('roomTrack');
+    const thumb = document.getElementById('roomThumb');
+    if (track) track.style.setProperty('--i', ROOM_TAB);
+    if (thumb) thumb.style.left = '';
+    document.querySelectorAll('#roomView .room-lbl').forEach(b => b.classList.toggle('on', +b.dataset.i === ROOM_TAB));
+    renderRoomPane();
+}
+function renderRoomHero(c) {
+    document.getElementById('roomHero').innerHTML =
+        avatar(c, 'lg') +
+        `<div class="room-name">${esc(c.name)}</div><div class="room-id">ID · ${esc(c.id)}</div>` +
+        (c.status ? `<div class="room-status">${esc(c.status)}</div>` : '');
+}
+function rpRow(title, sub, action, danger) {
+    return `<button class="rp-row ${danger ? 'danger' : ''}" type="button" onclick="${action}"><span class="rp-t">${esc(title)}</span><span class="rp-s">${esc(sub)}</span></button>`;
+}
+
+
+function roomPersonaPane(c) {
+    const kv = [['说话风格', c.speech], ['与你的关系', c.relation], ['个人签名', c.sig], ['背景', c.backstory]].filter(x => x[1]);
+    return `
+        <div class="rp-quote">${esc(c.persona || '还没有设定人设，点击下方编辑。')}</div>
+        ${kv.length ? `<div class="rp-kv">${kv.map(x => `<div class="rp-kv-row"><span>${x[0]}</span><b>${esc(x[1])}</b></div>`).join('')}</div>` : ''}
+        <div class="rp-label">编辑</div>
+        ${rpRow('人设与信息', '性格、说话风格与背景', "roomAction('persona')")}
+        ${rpRow('联系人资料', '姓名、状态、头像与封面', "roomAction('contact')")}`;
+}
+function roomBeautyPane(c) {
+    const hasBg = !!(c.beauty && c.beauty.bg);
+    return `
+        <div class="rp-label">预览</div>
+        ${rpRow('预览效果', '点开看看这段聊天的样子', 'openCssPreview()')}
+        <div class="rp-label">聊天背景</div>
+        ${rpRow(hasBg ? '更换背景图片' : '选择背景图片', '会自动压缩，适合手机', 'pickRoomBg()')}
+        ${hasBg ? rpRow('恢复默认背景', '去掉这个聊天的背景图', 'clearRoomBg()', true) : ''}
+        <div class="rp-label">CSS 样式</div>
+        <div class="css-box">
+            <div class="css-hint">写在这里的样式只作用于这个聊天，例如 <code>.bubble{border-radius:4px}</code></div>
+            <textarea id="roomCssInput" class="css-input" spellcheck="false" autocapitalize="off" placeholder="例如 .mrow.me .bubble{background:#111;color:#fff}" oninput="previewRoomCss(this.value)"></textarea>
+            <div class="css-tpl">${Object.keys(CSS_TEMPLATES).map(k => `<button class="css-tpl-btn" type="button" onclick="fillRoomCss('${k}')">${CSS_TEMPLATE_LABELS[k]}</button>`).join('')}</div>
+        </div>
+        <div class="css-actions"><button class="css-clear" type="button" onclick="clearRoomCss()">清空</button><button class="css-save" type="button" onclick="saveRoomCss()">保存样式</button></div>`;
+}
+function fillRoomCss(key) {
+    const ta = document.getElementById('roomCssInput');
+    if (!ta || !CSS_TEMPLATES[key]) return;
+    ta.value = (ta.value.trim() ? ta.value.replace(/\s*$/, '\n') : '') + CSS_TEMPLATES[key];
+    previewRoomCss(ta.value);
+}
+function previewRoomCss(v) { applyChatCss(v); }
+function saveRoomCss() {
+    const c = CONTACTS.find(x => x.id === activeId);
+    const ta = document.getElementById('roomCssInput');
+    if (!c || !ta) return;
+    c.beauty = Object.assign({}, c.beauty || {}, { css: ta.value });
+    delete c.beauty.bubble;
+    persistContacts();
+    applyRoomBeauty(c);
+    toast('样式已保存');
+}
+function clearRoomCss() {
+    const ta = document.getElementById('roomCssInput');
+    if (ta) ta.value = '';
+    saveRoomCss();
+}
+function ensurePreviewStyle() {
+    let st = document.getElementById('chatPreviewCss');
+    if (!st) { st = document.createElement('style'); st.id = 'chatPreviewCss'; document.head.appendChild(st); }
+    return st;
+}
+/* 预览：收成一个按钮，点开后是一段示例聊天，样式和真实聊天一样 */
+function openCssPreview() {
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!c) return;
+    const bg = c.beauty && c.beauty.bg ? `background-image:url("${c.beauty.bg}");` : '';
+    openSheet(`<div class="sheet-title sheet-title-plane">${PLANE_SVG}<span>预览效果</span></div>
+        <div class="css-preview-box" id="cssPreviewScope" style="${bg}">
+            <div class="mrow"><div class="bubble g-single">你今天想吃什么？</div></div>
+            <div class="mrow me"><div class="bubble g-single">都可以，你来决定吧</div></div>
+            <div class="mrow"><div class="bubble g-single">那就火锅吧！</div></div>
+            <div class="mrow me"><div class="bubble g-single">好，我去订位</div></div>
+        </div>
+        <button class="identity-cancel" type="button" onclick="closeSheet()">关闭</button>`);
+    ensurePreviewStyle().textContent = scopeCss(chatCssOf(c), '#cssPreviewScope');
+}
+function clearRoomBg() {
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!c) return;
+    c.beauty = Object.assign({}, c.beauty || {});
+    delete c.beauty.bg;
+    persistContacts(); applyRoomBeauty(c); renderRoomPane(); toast('已恢复默认背景');
+}
+function compressImage(file, maxSide) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => {
+            const img = new Image();
+            img.onerror = reject;
+            img.onload = () => {
+                const s = Math.min(1, (maxSide || 900) / Math.max(img.width, img.height));
+                const w = Math.max(1, Math.round(img.width * s));
+                const h = Math.max(1, Math.round(img.height * s));
+                const cv = document.createElement('canvas');
+                cv.width = w; cv.height = h;
+                cv.getContext('2d').drawImage(img, 0, 0, w, h);
+                resolve(cv.toDataURL('image/jpeg', 0.82));
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+function pickRoomBg() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async () => {
+        const file = input.files && input.files[0];
+        const c = CONTACTS.find(x => x.id === activeId);
+        if (!file || !c) return;
+        try {
+            const url = await compressImage(file, 900);
+            c.beauty = Object.assign({}, c.beauty || {}, { bg: url });
+            persistContacts(); applyRoomBeauty(c); renderRoomPane();
+            toast('背景已更新');
+        } catch (e) { toast('图片读取失败，请换一张试试'); }
+    };
+    input.click();
+}
+function openRoomSettings() {
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!c) return;
+    ensureRoomView();
+    renderRoomHero(c);
+    setRoomTab(0);
+    roomEl.classList.add('open');
+}
+function roomAction(kind) {
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!c) { closeRoomView(); return; }
+    if (kind === 'persona') { closeRoomView(); openPersonaEditor(c.id); return; }
+    if (kind === 'contact') { closeRoomView(); openContactEditor(c.id); return; }
+    if (kind === 'clear') {
+        askConfirm('清空聊天记录', `清空与「${c.name}」的全部消息？联系人会保留。`, '清空', () => {
+            c.msgs = []; c.unread = 0; c.time = '';
+            persistContacts(); renderThread(); renderChats(); renderRoomPane();
+            toast('聊天记录已清空');
+        });
+        return;
+    }
+    if (kind === 'remove') {
+        askConfirm('从消息列表移除', `「${c.name}」会从消息列表移除，联系人不会删除。`, '移除', () => {
+            CHAT_IDS = CHAT_IDS.filter(x => x !== c.id); persistChatIds();
+            closeRoomView(); closeChat(); toast('已从消息列表移除');
+        });
+    }
+}
+
+function renderRoomPane() {
+    stopRoomTicker();
+    const c = CONTACTS.find(x => x.id === activeId);
+    const pane = document.getElementById('roomPane');
+    if (!c || !pane) return;
+    if (ROOM_TAB === 0) { pane.innerHTML = roomChatPane(c); startRoomTicker(); }
+    else if (ROOM_TAB === 1) pane.innerHTML = roomPersonaPane(c);
+    else {
+        pane.innerHTML = roomBeautyPane(c);
+        const ta = document.getElementById('roomCssInput');
+        if (ta) ta.value = chatCssOf(c);
+    }
+}
+
+function closeRoomView() {
+    stopRoomTicker();
+    if (roomEl) roomEl.classList.remove('open');
+}
+
+function roomChatPane(c) {
+    const a = activeIdentity();
+    return `
+        <div class="rp-stats">
+            <div class="rp-stat"><b>${c.msgs.length}</b><span>条消息</span></div>
+            <div class="rp-stat"><b>${esc(a ? a.name : ME.name)}</b><span>当前身份</span></div>
+        </div>
+        <div class="rp-label">时间</div>
+        ${roomTimerHtml(c)}
+        <div class="rp-label">管理这段聊天</div>
+        ${rpRow('清空聊天记录', '只删除消息，联系人会保留', "roomAction('clear')", true)}
+        ${rpRow('从消息列表移除', '不会删除联系人', "roomAction('remove')", true)}`;
+}
+
+/* ---------------- 朋友圈 ---------------- */
+function loadStoredMoments() { try { const v = JSON.parse(localStorage.getItem(MOMENT_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; } }
+function persistMoments() { try { localStorage.setItem(MOMENT_KEY, JSON.stringify(POSTS)); } catch (e) { toast('保存失败：存储空间可能不足'); } }
+function loadMomentBg() { try { return localStorage.getItem(MOMENT_BG_KEY) || ''; } catch (_) { return ''; } }
+function momentAuthor(by) {
+    if (by && by !== 'self') { const c = IDENTITIES.find(x => x.id === by); if (c) return { name: c.name, avatar: c.avatar }; }
+    return { name: ME.name, avatar: ME.avatar };
+}
+function momentAvatarHtml(a, size) {
+    const img = a.avatar ? `<img src="${a.avatar}" alt="" onerror="this.remove()">` : '';
+    return `<div class="av ${size || 'md'} g1">${img}<span class="ini">${esc(initOf(a.name))}</span></div>`;
+}
+function fmtMoment(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+
+
+
+
+function pickMomentCover() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        try {
+            MOMENT_BG = await compressImage(file, 1100);
+            try { localStorage.setItem(MOMENT_BG_KEY, MOMENT_BG); } catch (_) { toast('背景太大，已只在本次生效'); }
+            renderMoments(); toast('背景已更新');
+        } catch (e) { toast('图片读取失败，请换一张试试'); }
+    };
+    input.click();
+}
+
+/* ---------------- 通讯录文件夹图标：填充的磨砂玻璃 + 包着成员头像 ---------------- */
+
+
+/* ---------------- 聊天室设置：时间控制条（实时 / 自定义计时） ---------------- */
+let ROOM_TICKER = null;
+function pad2(n) { return String(n).padStart(2, '0'); }
+function fmtFullTime(ms) { const d = new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; }
+function toLocalInput(ms) { const d = new Date(ms); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; }
+function roomTimerHtml(c) {
+    const t = c.timer || {};
+    const mode = t.mode === 'count' ? 'count' : 'clock';
+    const seg = `<div class="rt-seg"><button class="rt-seg-btn ${mode === 'clock' ? 'on' : ''}" type="button" onclick="setRoomTimerMode('clock')">实时时间</button><button class="rt-seg-btn ${mode === 'count' ? 'on' : ''}" type="button" onclick="setRoomTimerMode('count')">自定义计时</button></div>`;
+    let body;
+    if (mode === 'clock') {
+        body = `<div class="rt-big" id="roomTimeBig">--:--:--</div><div class="rt-sub" id="roomTimeSub"></div>`;
+    } else if (t.start) {
+        body = `<div class="rt-big" id="roomTimeBig"></div><div class="rt-sub" id="roomTimeSub">从 ${fmtFullTime(t.start)} 开始计数</div>
+            <div class="rt-set"><input id="roomTimerInput" class="rt-input" type="datetime-local" step="1" value="${toLocalInput(t.start)}"><button class="rt-save" type="button" onclick="saveRoomTimer()">修改并重新计数</button></div>`;
+    } else {
+        body = `<div class="rt-big" id="roomTimeBig">未设置</div><div class="rt-sub" id="roomTimeSub">选一个时间（精确到秒），保存后开始计数</div>
+            <div class="rt-set"><input id="roomTimerInput" class="rt-input" type="datetime-local" step="1" value=""><button class="rt-save" type="button" onclick="saveRoomTimer()">开始计数</button></div>`;
+    }
+    return `${seg}<div class="rt-card">${body}</div>`;
+}
+function tickRoomTimer() {
+    const c = CONTACTS.find(x => x.id === activeId);
+    const big = document.getElementById('roomTimeBig');
+    const sub = document.getElementById('roomTimeSub');
+    if (!c || !big) return;
+    const t = c.timer || {};
+    if (t.mode !== 'count') {
+        const d = new Date();
+        big.textContent = `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+        if (sub) sub.textContent = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} · 星期${'日一二三四五六'[d.getDay()]}`;
+    } else if (t.start) {
+        const diff = Date.now() - t.start;
+        const s = Math.floor(Math.abs(diff) / 1000);
+        const days = Math.floor(s / 86400), hh = Math.floor((s % 86400) / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+        big.textContent = `${diff < 0 ? '还有 ' : ''}${days}天 ${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`;
+        if (sub) sub.textContent = `${diff < 0 ? '距离' : '已过去，'}从 ${fmtFullTime(t.start)} ${diff < 0 ? '开始' : '开始计数'}`;
+    }
+}
+function startRoomTicker() { stopRoomTicker(); tickRoomTimer(); ROOM_TICKER = setInterval(tickRoomTimer, 1000); }
+function stopRoomTicker() { if (ROOM_TICKER) { clearInterval(ROOM_TICKER); ROOM_TICKER = null; } }
+function setRoomTimerMode(mode) {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
+    c.timer = Object.assign({}, c.timer || {}, { mode });
+    persistContacts(); renderRoomPane();
+}
+function saveRoomTimer() {
+    const c = CONTACTS.find(x => x.id === activeId);
+    const input = document.getElementById('roomTimerInput');
+    if (!c || !input) return;
+    const ms = input.value ? new Date(input.value).getTime() : NaN;
+    if (isNaN(ms)) { toast('请先选择一个时间'); return; }
+    c.timer = { mode: 'count', start: ms };
+    persistContacts(); renderRoomPane(); toast('已开始计数');
+}
+
+
+
+function ensureFullMask() {
+    let m = document.getElementById('fullMask');
+    if (m) return m;
+    m = document.createElement('div');
+    m.id = 'fullMask';
+    m.innerHTML = '<div class="fm-body"></div>';
+    (document.querySelector('.messages-app') || document.body).appendChild(m);
+    return m;
+}
+function closeFullMask() {
+    const m = document.getElementById('fullMask');
+    if (m) m.classList.remove('show');
+}
+
+
+
+
+/* ---------------- 线条图标（替代手机上显示不出来的字符） ---------------- */
+const ICO_PATHS = {
+    bar: '<rect x="3" y="15" width="18" height="5" rx="2.5"/>',
+    appearance: '<circle cx="12" cy="12" r="9"/><path d="M12 3v18"/>',
+    clear: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>',
+    id: '<rect x="3" y="6" width="18" height="12" rx="3"/><line x1="8" y1="12" x2="16" y2="12"/>',
+    eye: '<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.5 3.6 5.3 3.6 8.5s-1.2 6-3.6 8.5c-2.4-2.5-3.6-5.3-3.6-8.5s1.2-6 3.6-8.5z"/>',
+    lock2: '<rect x="5.5" y="10.5" width="13" height="10" rx="3"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/><circle cx="12" cy="15.5" r="1.2"/>',
+    users: '<circle cx="9" cy="8.5" r="3.4"/><path d="M2.8 19.5a6.2 6.2 0 0 1 12.4 0"/><circle cx="17.2" cy="9.2" r="2.6"/><path d="M16.6 13.5a5 5 0 0 1 4.9 5.2"/>',
+    check: '<polyline points="5 12.5 10 17.5 19 7.5"/>',
+    back: '<polyline points="15 18 9 12 15 6"/>',
+    plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+    close: '<line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/>',
+    person: '<circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/>'
+};
+function icoSvg(name) { return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${ICO_PATHS[name] || ''}</svg>`; }
+
+/* ---------------- 添加聊天（选择方式） ---------------- */
+function renderContactAddChoice() {
+    contactIdShell('Add Chat', '添加聊天', `
+        <p class="cid-desc">选择一种方式，开始新的对话</p>
+        ${sheetRow(icoSvg('person'), '直接添加', '从已创建的联系人中选择', 'showDirectContactList()')}
+        ${sheetRow(icoSvg('id'), '输入 ID 添加', '输入对方的 ID 并确认资料', 'showContactIdEntry()')}
+        <div class="cid-footnote">联系人 ID 格式：ID- 加 8 位大写字母或数字</div>
+        <button class="identity-cancel" type="button" onclick="closeContactIdModal()">取消</button>`);
+}
+
+/* ---------------- 聊天软件设置：图标改为线条图标 ---------------- */
+function openChatsSettings() {
+    const glass = document.getElementById('tabbar').classList.contains('glass');
+    openSheet(`<div class="sheet-title sheet-title-plane">${PLANE_SVG}<span>聊天软件设置</span></div>`
+        + sheetRow(icoSvg('bar'), '底栏样式', glass ? '当前：玻璃底栏（点击切换为经典）' : '当前：经典黑色底栏（点击切换为玻璃）', "softAction('bar')")
+        + sheetRow(icoSvg('appearance'), '外观设置', '消息页的样式（1 默认 / 2 标签页）', "softAction('appearance')")
+        + sheetRow(icoSvg('clear'), '清空全部聊天记录', '保留联系人，删除所有消息', "softAction('clearAll')")
+        + '<button class="identity-cancel" type="button" onclick="closeSheet()">关闭</button>');
+}
+
+/* ---------------- 发朋友圈：重新设计的白色全屏界面 ---------------- */
+function updateMomentCount() {
+    const t = document.getElementById('momentInput');
+    const c = document.getElementById('momentCount');
+    if (t && c) c.textContent = t.value.length + '/300';
+}
+
+
+/* ---------------- 文件夹：白色磨砂玻璃，标签角在正面，里面叠加成员卡片 ---------------- */
+
+
+function folderTileIcon(fid) {
+    const n = Math.min(folderMembers(fid).length, 4);
+    let layers = '';
+    for (let i = 0; i < n; i++) layers += `<i class="ft-layer" style="--k:${i}"></i>`;
+    return `${layers}${FOLDER_SVG}<i class="ft-tab"></i><b class="ft-body"></b>`;
+}
+
+
+
+
+
+
+
+/* ---------------- 朋友圈：可见度 / 点赞 / 评论 ---------------- */
+
+function toggleMomentLike(id) {
+    const p = POSTS.find(x => x.id === id); if (!p) return;
+    p.likes = p.likes || [];
+    const i = p.likes.indexOf(ACTIVE_ID);
+    if (i >= 0) p.likes.splice(i, 1); else p.likes.push(ACTIVE_ID);
+    persistMoments(); renderMoments();
+}
+function openMomentComments(id) {
+    const p = POSTS.find(x => x.id === id); if (!p) return;
+    const list = (p.comments || []).map(c => {
+        const a = momentAuthor(c.by);
+        return `<div class="mf-cmt-row">${momentAvatarHtml(a, 'sm')}<div><b>${esc(a.name)}</b><p>${esc(c.text)}</p></div></div>`;
+    }).join('') || '<div class="mf-cmt-empty">还没有评论，来说第一句吧</div>';
+    openSheet(`<div class="sheet-title">评论</div>
+        <div class="mf-cmt-list">${list}</div>
+        <div class="mf-cmt-bar"><input id="mfCmtInput" class="mf-cmt-input" maxlength="120" placeholder="写评论…"><button class="mf-cmt-send" type="button" onclick="sendMomentComment('${id}')">发送</button></div>`);
+}
+function sendMomentComment(id) {
+    const p = POSTS.find(x => x.id === id); if (!p) return;
+    const input = document.getElementById('mfCmtInput');
+    const text = input ? input.value.trim() : '';
+    if (!text) { toast('写点什么再发送吧'); return; }
+    p.comments = p.comments || [];
+    p.comments.push({ by: ACTIVE_ID, text, t: Date.now() });
+    persistMoments(); renderMoments(); openMomentComments(id);
+}
+
+
+
+
+
+
+
+/* ---------------- 朋友圈：谁可以看（可见度设置） ---------------- */
+let MOMENT_VIS = 'public';        // public = 所有人，self = 仅自己，some = 部分联系人
+let MOMENT_VIS_TO = [];
+function visIcon() { return icoSvg(MOMENT_VIS === 'public' ? 'globe' : (MOMENT_VIS === 'self' ? 'lock2' : 'users')); }
+function momentVisText(p) {
+    if (p.vis === 'self') return '仅自己可见';
+    if (p.vis === 'some') return `${(p.visTo || []).length} 位联系人可见`;
+    return '';
+}
+function ensureVisPanel() {
+    let p = document.getElementById('mcVisPanel');
+    if (p) return p;
+    p = document.createElement('div');
+    p.id = 'mcVisPanel';
+    document.getElementById('fullMask').appendChild(p);
+    return p;
+}
+
+function openMomentVisPanel() {
+    renderMomentVisPanel();
+    ensureVisPanel().classList.add('show');
+}
+function closeMomentVisPanel() {
+    const p = document.getElementById('mcVisPanel');
+    if (p) p.classList.remove('show');
+    const b = document.getElementById('mcVis');
+    if (b) b.innerHTML = visIcon();
+}
+function setMomentVis(k) { MOMENT_VIS = k; renderMomentVisPanel(); }
+function toggleMomentVisTo(id) {
+    const i = MOMENT_VIS_TO.indexOf(id);
+    if (i >= 0) MOMENT_VIS_TO.splice(i, 1); else MOMENT_VIS_TO.push(id);
+    renderMomentVisPanel();
+}
+
+
+
+
+
+function renderMomentVisPanel() {
+    const p = ensureVisPanel();
+    const tabs = [['public', '所有'], ['some', '部分'], ['self', '仅自己']];
+    const seg = tabs.map(t => `<button class="vs-seg ${MOMENT_VIS === t[0] ? 'on' : ''}" type="button" onclick="setMomentVis('${t[0]}')">${t[1]}</button>`).join('');
+    const hero = (ico, title, desc) => `<div class="vs-hero"><div class="vs-hero-ico">${icoSvg(ico)}</div><div class="vs-hero-title">${title}</div><div class="vs-hero-desc">${desc}</div></div>`;
+    let body;
+    if (MOMENT_VIS === 'public') body = hero('globe', '所有联系人', '所有联系人都可以看到这条朋友圈');
+    else if (MOMENT_VIS === 'self') body = hero('lock2', '仅自己', '只有你自己可以看到这条朋友圈');
+    else {
+        const rows = CONTACTS.map(c => {
+            const on = MOMENT_VIS_TO.indexOf(c.id) >= 0;
+            return `<button class="vs-person ${on ? 'on' : ''}" type="button" onclick="toggleMomentVisTo('${c.id}')">${avatar(c, 'sm')}<span class="vs-name">${esc(c.name)}</span><span class="vs-check">${on ? icoSvg('check') : ''}</span></button>`;
+        }).join('');
+        body = `<div class="vs-count">已选 ${MOMENT_VIS_TO.length} 位联系人</div><div class="vs-people">${rows || '<div class="vs-empty">还没有联系人</div>'}</div>`;
+    }
+    p.innerHTML = `
+        <div class="vs-head"><button class="vs-back" type="button" onclick="closeMomentVisPanel()" aria-label="返回">${icoSvg('back')}</button><span class="vs-title">谁可以看</span><span class="vs-sp"></span></div>
+        <div class="vs-seg-wrap">${seg}</div>
+        <div class="vs-body">${body}</div>
+        <button class="vs-done" type="button" onclick="closeMomentVisPanel()">完成</button>`;
+}
+
+/* ---------------- 朋友圈：真正的照片上传 ---------------- */
+let PENDING_IMGS = [];            // 发布前选好的照片（压缩后的 dataURL）
+const MOMENT_IMG_CACHE = {};      // 已经从数据库读出来的照片
+function renderPendingPhotos() {
+    const box = document.getElementById('mcPhotos');
+    if (!box) return;
+    const thumbs = PENDING_IMGS.map((u, i) => `<div class="mc-ph"><img src="${u}" alt=""><button class="mc-ph-x" type="button" onclick="removePendingPhoto(${i})" aria-label="移除">×</button></div>`).join('');
+    const add = PENDING_IMGS.length < 9 ? `<button class="mc-ph-add" type="button" onclick="pickMomentPhotos()" aria-label="添加照片">${icoSvg('plus')}</button>` : '';
+    box.innerHTML = thumbs + add;
+}
+function removePendingPhoto(i) {
+    PENDING_IMGS.splice(i, 1);
+    renderPendingPhotos();
+}
+function pickMomentPhotos() {
+    const room = 9 - PENDING_IMGS.length;
+    if (room <= 0) { toast('最多选 9 张照片'); return; }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.multiple = true;
+    input.onchange = async () => {
+        const files = Array.from(input.files || []).slice(0, room);
+        for (const f of files) {
+            try { PENDING_IMGS.push(await compressImage(f, 1200)); }
+            catch (e) { toast('有一张照片读取失败'); }
+        }
+        renderPendingPhotos();
+    };
+    input.click();
+}
+function hydrateMomentImages() {
+    if (!window.DB) return;
+    document.querySelectorAll('#momentsFrame img[data-mkey]').forEach(img => {
+        const k = img.dataset.mkey;
+        if (MOMENT_IMG_CACHE[k]) { img.src = MOMENT_IMG_CACHE[k]; return; }
+        Promise.resolve(window.DB.load(k, '')).then(v => {
+            if (v) { MOMENT_IMG_CACHE[k] = v; img.src = v; }
+        });
+    });
+}
+
+function renderMoments() {
+    const frame = document.getElementById('momentsFrame');
+    if (!frame) return;
+    const who = momentAuthor(ACTIVE_ID);
+    const bgStyle = MOMENT_BG ? `background-image:url("${MOMENT_BG}");` : '';
+    const cards = POSTS.slice().sort((a, b) => b.t - a.t).map(p => {
+        const a = momentAuthor(p.by);
+        const likes = p.likes || [];
+        const cmts = p.comments || [];
+        const imgs = p.imgs || [];
+        const liked = likes.indexOf(ACTIVE_ID) >= 0;
+        const preview = cmts.slice(0, 2).map(c => `<div class="mf-cmt-line"><b>${esc(momentAuthor(c.by).name)}</b>${esc(c.text)}</div>`).join('');
+        const photos = imgs.length ? `<div class="mf-imgs n${Math.min(imgs.length, 3)}">${imgs.map(k => `<img class="mf-img" data-mkey="${k}" alt="">`).join('')}</div>` : '';
+        return `<div class="mf-card">
+            <div class="mf-card-head">${momentAvatarHtml(a, 'sm')}
+                <div class="mf-card-who"><b>${esc(a.name)}</b><span>${fmtMoment(p.t)}${momentVisText(p) ? ' · ' + momentVisText(p) : ''}</span></div>
+                <button class="mf-del" type="button" onclick="deleteMoment('${p.id}')">删除</button>
+            </div>
+            ${p.text ? `<div class="mf-card-text">${esc(p.text)}</div>` : ''}
+            ${photos}
+            <div class="mf-card-foot">
+                <button class="mf-act ${liked ? 'on' : ''}" type="button" onclick="toggleMomentLike('${p.id}')">${HEART}<span>${likes.length || ''}</span></button>
+                <button class="mf-act" type="button" onclick="openMomentComments('${p.id}')">${CHAT_ICON}<span>${cmts.length || ''}</span></button>
+            </div>
+            ${cmts.length ? `<div class="mf-cmts">${preview}${cmts.length > 2 ? `<button class="mf-cmt-more" type="button" onclick="openMomentComments('${p.id}')">查看全部 ${cmts.length} 条评论</button>` : ''}</div>` : ''}
+        </div>`;
+    }).join('');
+    frame.innerHTML = `
+        <div class="mf-cover" style="${bgStyle}" onclick="pickMomentCover()"><span class="mf-cover-tip">点击更换背景</span></div>
+        <div class="mf-me"><div class="mf-avatar">${momentAvatarHtml(who, 'lg')}</div><div class="mf-name">${esc(who.name)}</div></div>
+        <div class="mf-posts">${cards || '<div class="mf-empty">还没有朋友圈，点右上角的加号发一条吧</div>'}</div>`;
+    hydrateMomentImages();
+}
+
+function openMomentComposer() {
+    const m = ensureFullMask();
+    const who = momentAuthor(ACTIVE_ID);
+    MOMENT_VIS = 'public';
+    MOMENT_VIS_TO = [];
+    PENDING_IMGS = [];
+    m.querySelector('.fm-body').innerHTML = `
+        <div class="mc-top"><span class="mc-title">${PLANE_SVG}<span>发朋友圈</span></span></div>
+        <div class="mc-who">${momentAvatarHtml(who, 'sm')}<span class="mc-who-name">${esc(who.name)}</span></div>
+        <textarea id="momentInput" class="mc-text" maxlength="300" placeholder="这一刻在想什么…" oninput="updateMomentCount()"></textarea>
+        <div class="mc-photos" id="mcPhotos"></div>
+        <div class="mc-count" id="momentCount">0/300</div>
+        <div class="mc-line"></div>
+        <div class="mc-rail">
+            <button class="mc-tab" id="mcVis" type="button" onclick="openMomentVisPanel()" title="谁可以看">${visIcon()}</button>
+            <button class="mc-tab" type="button" onclick="closeFullMask()" title="取消">${icoSvg('close')}</button>
+            <button class="mc-tab mc-go" type="button" onclick="publishMoment()" title="发布">${PLANE_SVG}</button>
+        </div>`;
+    m.classList.add('show');
+    renderPendingPhotos();
+    setTimeout(() => { const t = document.getElementById('momentInput'); if (t) t.focus(); }, 150);
+}
+
+async function publishMoment() {
+    const ta = document.getElementById('momentInput');
+    const text = ta ? ta.value.trim() : '';
+    if (!text && !PENDING_IMGS.length) { toast('写点什么或选张照片吧'); return; }
+    const id = 'm' + Date.now();
+    const imgs = [];
+    for (let i = 0; i < PENDING_IMGS.length; i++) {
+        const key = `mimg_${id}_${i}`;
+        const ok = window.DB ? await window.DB.save(key, PENDING_IMGS[i]) : false;
+        if (!ok) {
+            for (const k of imgs) { if (window.DB) await window.DB.remove(k); }
+            toast('照片保存失败，请试试少选几张');
+            return;
+        }
+        imgs.push(key);
+    }
+    POSTS.unshift({ id, text, t: Date.now(), by: ACTIVE_ID, vis: MOMENT_VIS,
+        visTo: MOMENT_VIS === 'some' ? MOMENT_VIS_TO.slice() : [],
+        likes: [], comments: [], imgs });
+    PENDING_IMGS = [];
+    persistMoments(); closeFullMask(); renderMoments(); toast('已发布');
+}
+
+function deleteMoment(id) {
+    askConfirm('删除朋友圈', '删除这条朋友圈？', '删除', async () => {
+        const p = POSTS.find(x => x.id === id);
+        if (p && p.imgs && window.DB) { for (const k of p.imgs) await window.DB.remove(k); }
+        POSTS = POSTS.filter(x => x.id !== id);
+        persistMoments(); renderMoments();
+    });
+}
+
+/* ---------------- 初始化 ---------------- */
+CONTACTS = CONTACTS.map(normalizeContact);
+applyActiveThreads();
+renderContacts();
+applySelf();
+syncSettingsMode();
+loadProfileCard();
+applyTheme(THEME);
+initComposerGesture();
+
+const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto};
+for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
+};

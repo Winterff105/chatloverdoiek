@@ -1,105 +1,107 @@
 /* =========================================
-   Studio Noir OS · 无容量限制的高性能持久化存储引擎 (db.js)
-   基于 IndexedDB 架构，彻底打破 iOS Safari 5MB 限制，支持海量高清图片与状态秒存
+   Forever · 本地持久化（IndexedDB 优先，不可用时回退 localStorage）
+   对外接口保持不变：DB.save / DB.load / DB.remove，均返回 Promise
    ========================================= */
 const DB = {
     dbName: 'NoirOS_Unlimited_DB',
     storeName: 'kv_store',
+    version: 1,
     dbInstance: null,
+    _opening: null,
+    _lsPrefix: 'noir_os_',
 
+    /* 所有调用共用同一个打开请求，避免并发时开出多个连接 */
     init() {
-        return new Promise((resolve) => {
-            if (this.dbInstance) {
-                resolve(this.dbInstance);
+        if (this.dbInstance) return Promise.resolve(this.dbInstance);
+        if (this._opening) return this._opening;
+        this._opening = new Promise((resolve) => {
+            if (!('indexedDB' in window)) { resolve(null); return; }
+            let req;
+            try {
+                req = indexedDB.open(this.dbName, this.version);
+            } catch (e) {
+                console.warn('[DB] indexedDB.open 失败，使用 localStorage');
+                resolve(null);
                 return;
             }
-            const request = indexedDB.open(this.dbName, 1);
-            request.onerror = () => {
-                console.warn('IndexedDB 初始化失败，自动降级至 LocalStorage');
-                resolve(null);
-            };
-            request.onsuccess = (e) => {
-                this.dbInstance = e.target.result;
-                resolve(this.dbInstance);
-            };
-            request.onupgradeneeded = (e) => {
+            req.onupgradeneeded = (e) => {
                 const db = e.target.result;
-                if (!db.objectStoreNames.contains(this.storeName)) {
-                    db.createObjectStore(this.storeName);
-                }
+                if (!db.objectStoreNames.contains(this.storeName)) db.createObjectStore(this.storeName);
             };
+            req.onsuccess = (e) => {
+                const db = e.target.result;
+                // 版本升级或其他页面需要时主动让出连接，避免卡住
+                db.onversionchange = () => { db.close(); this.dbInstance = null; this._opening = null; };
+                this.dbInstance = db;
+                this._requestPersist();
+                resolve(db);
+            };
+            req.onerror = () => { console.warn('[DB] IndexedDB 打开失败，使用 localStorage'); resolve(null); };
+            req.onblocked = () => console.warn('[DB] 数据库被其他页面占用，等待中');
         });
+        // 打开失败时允许下一次调用重试
+        this._opening.then((db) => { if (!db) this._opening = null; });
+        return this._opening;
     },
 
-    async save(key, value) {
-        console.log('🛠️ [DB SAVE] 准备保存键值 ->', key, value);
+    /* 请求持久存储，减少系统在存储紧张时清理数据的概率 */
+    _requestPersist() {
         try {
-            const db = await this.init();
-            if (!db) {
-                localStorage.setItem(`noir_os_${key}`, JSON.stringify(value));
-                console.log('⚠️ [DB SAVE] IndexedDB 未就绪，已回退至 LocalStorage 保存成功:', key);
-                return true;
-            }
-            return new Promise((resolve) => {
-                const transaction = db.transaction(this.storeName, 'readwrite');
-                const store = transaction.objectStore(this.storeName);
-                const request = store.put(value, key);
-                request.onsuccess = () => {
-                    console.log('✅ [DB SAVE] IndexedDB 保存成功 ->', key, value);
-                    resolve(true);
-                };
-                request.onerror = (err) => {
-                    console.error('❌ [DB SAVE] IndexedDB 保存失败，尝试 LocalStorage 回退:', err);
-                    try {
-                        localStorage.setItem(`noir_os_${key}`, JSON.stringify(value));
-                        resolve(true);
-                    } catch (fallbackErr) {
-                        console.error('❌ [DB SAVE] 回退 LocalStorage 同样失败:', fallbackErr);
-                        resolve(false);
-                    }
-                };
-            });
+            if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+        } catch (_) {}
+    },
+
+    _lsSet(key, value) {
+        try {
+            localStorage.setItem(this._lsPrefix + key, JSON.stringify(value));
+            return true;
         } catch (e) {
-            console.error('❌ [DB SAVE EXCEPTION]:', e);
+            console.warn('[DB] localStorage 写入失败（可能超出容量）:', key);
             return false;
         }
     },
 
-    async load(key, defaultValue = null) {
-        console.log('🔍 [DB LOAD] 准备读取键 ->', key, '默认值:', defaultValue);
+    _lsGet(key, defaultValue) {
+        try {
+            const raw = localStorage.getItem(this._lsPrefix + key);
+            return raw === null ? defaultValue : JSON.parse(raw);
+        } catch (e) {
+            return defaultValue;
+        }
+    },
+
+    async save(key, value) {
         try {
             const db = await this.init();
-            if (!db) {
-                const item = localStorage.getItem(`noir_os_${key}`);
-                const parsed = item ? JSON.parse(item) : defaultValue;
-                console.log('⚠️ [DB LOAD] IndexedDB 未就绪，从 LocalStorage 读取结果 ->', key, parsed);
-                return parsed;
-            }
-            return new Promise((resolve) => {
-                const transaction = db.transaction(this.storeName, 'readonly');
-                const store = transaction.objectStore(this.storeName);
-                const request = store.get(key);
-                request.onsuccess = (e) => {
-                    const result = e.target.result;
-                    if (result !== undefined && result !== null) {
-                        console.log('✅ [DB LOAD] IndexedDB 读取成功 ->', key, result);
-                        resolve(result);
-                    } else {
-                        const fallback = localStorage.getItem(`noir_os_${key}`);
-                        const parsedFallback = fallback ? JSON.parse(fallback) : defaultValue;
-                        console.log('🔍 [DB LOAD] IndexedDB 无数据，读取 LocalStorage 备份 ->', key, parsedFallback);
-                        resolve(parsedFallback);
-                    }
-                };
-                request.onerror = (err) => {
-                    console.error('❌ [DB LOAD ERROR] 读取出错，尝试 LocalStorage:', err);
-                    const fallback = localStorage.getItem(`noir_os_${key}`);
-                    resolve(fallback ? JSON.parse(fallback) : defaultValue);
-                };
+            if (!db) return this._lsSet(key, value);
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(this.storeName, 'readwrite');
+                tx.objectStore(this.storeName).put(value, key);
+                tx.oncomplete = () => resolve();                         // 等事务真正提交后才算保存成功
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error('transaction aborted'));
             });
+            return true;
         } catch (e) {
-            console.error('❌ [DB LOAD EXCEPTION]:', e);
-            return defaultValue;
+            console.warn('[DB] 保存失败，改用 localStorage:', key, e && e.name);
+            return this._lsSet(key, value);
+        }
+    },
+
+    async load(key, defaultValue = null) {
+        try {
+            const db = await this.init();
+            if (!db) return this._lsGet(key, defaultValue);
+            const value = await new Promise((resolve, reject) => {
+                const req = db.transaction(this.storeName, 'readonly').objectStore(this.storeName).get(key);
+                req.onsuccess = () => resolve(req.result);
+                req.onerror = () => reject(req.error);
+            });
+            if (value !== undefined && value !== null) return value;
+            return this._lsGet(key, defaultValue);
+        } catch (e) {
+            console.warn('[DB] 读取失败，改用 localStorage:', key, e && e.name);
+            return this._lsGet(key, defaultValue);
         }
     },
 
@@ -107,13 +109,17 @@ const DB = {
         try {
             const db = await this.init();
             if (db) {
-                const transaction = db.transaction(this.storeName, 'readwrite');
-                transaction.objectStore(this.storeName).delete(key);
+                await new Promise((resolve, reject) => {
+                    const tx = db.transaction(this.storeName, 'readwrite');
+                    tx.objectStore(this.storeName).delete(key);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = () => reject(tx.error);
+                });
             }
-            localStorage.removeItem(`noir_os_${key}`);
         } catch (e) {
-            console.error('DB Remove Error:', e);
+            console.warn('[DB] 删除失败:', key);
         }
+        try { localStorage.removeItem(this._lsPrefix + key); } catch (_) {}
     }
 };
 

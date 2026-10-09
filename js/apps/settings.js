@@ -416,6 +416,7 @@ function getSettingsAppHTML() {
 async function initSettingsApp() {
     console.log('🚀 [SETTINGS INIT] 开始初始化设置应用...');
     settingsCurrentPanel = 'main';
+    restoreActiveSettingsApi();
     renderSettingsPresetsList();
     updateSettingsActivePresetBadge();
 
@@ -513,6 +514,39 @@ let settingsApiPresets = [
     { id: 2, name: '备用中转站', url: 'https://api.deepseek.com/v1', key: 'sk-ds-abcdef123456', model: 'deepseek-v3' }
 ];
 let settingsActivePresetIndex = 0;
+
+function publishActiveSettingsApi(preset) {
+    if (!preset) return;
+    try {
+        localStorage.setItem('forever_settings_active_api_v1', JSON.stringify({
+            name: String(preset.name || ''), url: String(preset.url || '').trim(),
+            key: String(preset.key || '').trim(), model: String(preset.model || '').trim(), updatedAt: Date.now()
+        }));
+    } catch (e) { console.warn('[Settings API] 无法同步 API 配置到聊天模块', e); }
+}
+function restoreActiveSettingsApi() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('forever_settings_active_api_v1') || 'null');
+        if (!saved || !saved.url || !saved.model) return;
+        let idx = settingsApiPresets.findIndex(p => p.name === saved.name);
+        if (idx < 0) {
+            settingsApiPresets.unshift({ id: Date.now(), name: saved.name || '当前 API', url: saved.url, key: saved.key || '', model: saved.model });
+            idx = 0;
+        } else {
+            Object.assign(settingsApiPresets[idx], { url: saved.url, key: saved.key || '', model: saved.model });
+        }
+        settingsActivePresetIndex = idx;
+        const name = document.getElementById('settingsPresetName');
+        const url = document.getElementById('settingsApiUrl');
+        const key = document.getElementById('settingsApiKey');
+        const model = document.getElementById('settingsModelDropdown');
+        if (name) name.value = settingsApiPresets[idx].name;
+        if (url) url.value = saved.url;
+        if (key) key.value = saved.key || '';
+        if (model) model.value = saved.model;
+    } catch (e) { console.warn('[Settings API] 配置恢复失败', e); }
+}
+
 let appLibrary = [
     { id: 'chat', name: '信息', style: 'Line Art' },
     { id: 'weather', name: '天气', style: 'Line Art' },
@@ -1439,6 +1473,8 @@ function saveSettingsPreset() {
         alert(`新预设 "${name}" 保存成功！`);
     }
 
+    settingsActivePresetIndex = settingsApiPresets.findIndex(p => p.name === name);
+    publishActiveSettingsApi(settingsApiPresets[settingsActivePresetIndex]);
     renderSettingsPresetsList();
     updateSettingsActivePresetBadge();
 }
@@ -1509,6 +1545,7 @@ function updateSettingsPresetData(id) {
         target.url = url;
         target.key = key;
         target.model = model;
+        if (settingsApiPresets[settingsActivePresetIndex] === target) publishActiveSettingsApi(target);
         alert(`预设 "${name}" 更新成功！`);
         renderSettingsPresetsList();
         updateSettingsActivePresetBadge();
@@ -1526,6 +1563,9 @@ function cycleSettingsPreset() {
     document.getElementById('settingsPresetName').value = current.name;
     document.getElementById('settingsApiUrl').value = current.url;
     document.getElementById('settingsApiKey').value = current.key;
+    const modelSelect = document.getElementById('settingsModelDropdown');
+    if (modelSelect) modelSelect.value = current.model;
+    publishActiveSettingsApi(current);
 
     updateSettingsActivePresetBadge();
     renderSettingsPresetsList();
@@ -2737,7 +2777,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // =====================================================================
 // 设置页头像圆框：默认 assets/杂七杂八/设置里面的头像.jpg；点击 -> 恢复内置 / 本地上传
 // =====================================================================
-const SETTINGS_AVATAR_DEFAULT = "assets/杂七杂八/设置里面的头像.jpg";
+const SETTINGS_AVATAR_DEFAULT = "https://raw.githubusercontent.com/Winterff105/image-host/main/avatar-female.png";
 
 function applySettingsAvatar(src) {
     const img = document.getElementById('settingsAvatarImg');

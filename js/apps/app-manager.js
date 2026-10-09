@@ -1,65 +1,63 @@
-/* =========================================
-   8. 启动与退出 App
-   ========================================= */
+/* Robust app launcher: always opens the host window, even if a module has an initialization error. */
 function openApp(appId) {
-    console.log('🚀 [openApp] 尝试打开应用:', appId);
-    const def = APPS[appId];
-    if (!def) {
-        console.warn('⚠️ [openApp] 未找到应用定义:', appId);
-        return;
-    }
-
+    const def = (typeof APPS !== 'undefined' && APPS[appId]) || { name: appId === 'chat' ? '信息' : appId, svg: '' };
     const home = document.getElementById('homeScreen');
     const win = document.getElementById('appWindow');
+    if (!home || !win) { console.error('[Forever] 找不到主屏幕或应用窗口容器'); return; }
     const contentArea = win.querySelector('.app-content');
-
-    document.getElementById('appTitle').textContent = def.name;
-
-    if (appId === 'settings') {
-        win.classList.add('noir-mode');
-        contentArea.innerHTML = getSettingsAppHTML();
-        initSettingsApp();
-    } else if (appId === 'chat') {
-        if (typeof window.openChatStyleModal === 'function') {
-            window.openChatStyleModal();
-        }
-        return;
-    } else {
-        win.classList.remove('noir-mode');
-        contentArea.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 14px;">
-                <div class="app-icon" style="width:68px;height:68px;">
-                    <div class="floating-glyph" style="width:40px;height:40px;">${def.svg}</div>
-                </div>
-                <h2 style="color: var(--text-dark); font-size: 17px; font-weight: 600;">${def.name}</h2>
-                <p style="font-size: 13px; color: var(--text-sub);">应用开发中...</p>
-            </div>
-        `;
-    }
-
+    const title = document.getElementById('appTitle');
+    if (title) title.textContent = def.name || '应用';
+    win.classList.remove('noir-mode', 'messages-window');
+    // 先显示窗口，模块初始化失败也不会表现为完全点不开。
     home.classList.add('scaled');
     win.classList.add('active');
-    console.log('✅ [openApp] 应用已成功打开，当前窗口类名:', win.className);
-}
-
-function closeApp() {
-    console.log('🚪 [closeApp] 尝试关闭应用，返回主屏幕');
-    const home = document.getElementById('homeScreen');
-    const win = document.getElementById('appWindow');
-    const contentArea = win.querySelector('.app-content');
-    
-    home.classList.remove('scaled');
-    win.classList.remove('active');
-    win.classList.remove('noir-mode');
-
-    setTimeout(() => {
-        if (!win.classList.contains('active')) {
-            contentArea.innerHTML = '';
+    try {
+        if (appId === 'settings') {
+            win.classList.add('noir-mode');
+            if (typeof getSettingsAppHTML === 'function') {
+                contentArea.innerHTML = getSettingsAppHTML();
+                if (typeof initSettingsApp === 'function') initSettingsApp();
+            } else contentArea.innerHTML = '<div style="padding:24px">设置模块未加载，请检查 js/apps/settings.js 路径。</div>';
+        } else if (appId === 'chat') {
+            win.classList.add('messages-window');
+            if (!window.MESSAGES_APP_MARKUP) {
+                contentArea.innerHTML = '<div style="padding:24px;color:#fff">信息界面模板未加载。请检查 js/apps/messages-markup.js 的路径。</div>';
+                console.error('[Forever] MESSAGES_APP_MARKUP is missing'); return;
+            }
+            contentArea.innerHTML = window.MESSAGES_APP_MARKUP;
+            const root = contentArea.querySelector('.messages-app');
+            if (!root) {
+                contentArea.innerHTML = '<div style="padding:24px;color:#fff">信息界面模板结构异常：未找到 .messages-app。</div>';
+                console.error('[Forever] .messages-app root is missing'); return;
+            }
+            if (typeof window.initMessagesModule === 'function') {
+                try { window.initMessagesModule(root); }
+                catch (err) {
+                    console.error('[Forever] 信息模块初始化失败:', err);
+                    const note = document.createElement('div');
+                    note.style.cssText = 'position:absolute;z-index:99999;left:12px;right:12px;bottom:64px;padding:12px;border-radius:12px;background:#292929;color:#fff;font:12px/1.5 sans-serif;white-space:normal;';
+                    note.textContent = '信息界面已打开，但初始化遇到错误：' + (err && err.message ? err.message : String(err)) + '。请截图反馈此提示。';
+                    root.appendChild(note);
+                }
+            } else {
+                console.error('[Forever] initMessagesModule is missing');
+                const note = document.createElement('div'); note.style.cssText = 'padding:24px;color:#fff';
+                note.textContent = '信息脚本未加载，请检查 js/apps/messages.js 的路径。'; root.appendChild(note);
+            }
+        } else {
+            contentArea.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;"><div class="app-icon" style="width:68px;height:68px;"><div class="floating-glyph" style="width:40px;height:40px;">${def.svg || ''}</div></div><h2 style="color:var(--text-dark);font-size:17px;font-weight:600;">${def.name || '应用'}</h2><p style="font-size:13px;color:var(--text-sub);">应用开发中...</p></div>`;
         }
-    }, 300);
-
-    console.log('✅ [closeApp] 应用已关闭，主屏幕恢复，当前窗口类名:', win.className);
+    } catch (err) {
+        console.error('[Forever] 打开应用失败:', err);
+        contentArea.innerHTML = '<div style="padding:24px;color:#fff">应用打开失败：' + String(err && err.message || err).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])) + '</div>';
+    }
 }
-
-// 供 HTML 内联 onclick 使用
+function closeApp() {
+    const home = document.getElementById('homeScreen'), win = document.getElementById('appWindow');
+    const contentArea = win && win.querySelector('.app-content');
+    if (home) home.classList.remove('scaled');
+    if (win) win.classList.remove('active', 'noir-mode', 'messages-window');
+    setTimeout(() => { if (win && !win.classList.contains('active') && contentArea) contentArea.innerHTML = ''; }, 300);
+}
+window.openApp = openApp;
 window.closeApp = closeApp;

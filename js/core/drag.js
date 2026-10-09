@@ -127,12 +127,11 @@ function attachDragAndHoldEvents(el, itemData) {
                 window.isGlobalDragging = false;
                 const isEditMode = phoneContainer.classList.contains('edit-mode');
                 if (itemData.type === 'app' && !didTriggerHold) {
-                    if (itemData.id === 'settings') {
+                    // Normal tap must open the Information app too; previously only Settings
+                    // opened outside edit mode, making the Chat/Information icon look dead.
+                    if (itemData.id === 'settings' || itemData.id === 'chat' || isEditMode) {
                         phoneContainer.classList.remove('edit-mode');
-                        openApp(itemData.id);
-                    } else if (isEditMode) {
-                        phoneContainer.classList.remove('edit-mode');
-                        openApp(itemData.id);
+                        if (typeof openApp === 'function') openApp(itemData.id);
                     }
                 }
             }
