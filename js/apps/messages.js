@@ -709,15 +709,6 @@ async function sendMessage() {
     if (!c || c._busy) return;
     c.msgs.push({me:true,text,t:nowTime()}); c.time=nowTime();
     input.value=''; autoGrow(); updateSend(); persistContacts(); renderThread(); renderChats();
-    if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('消息已保存；请在主界面「设置 → API」保存接口配置后再试'); return; }
-    c._busy=true; showTyping(c);
-    try {
-        const reply = await window.MessagesAPI.replyFor(c, '请自然地回复用户刚刚发送的消息。');
-        const row=document.getElementById('typingRow'); if(row) row.remove();
-        c.msgs.push({me:false,text:reply,t:nowTime()}); c.time=nowTime(); persistContacts();
-        if (activeId===c.id) renderThread(); renderChats();
-    } catch(e) { const row=document.getElementById('typingRow'); if(row) row.remove(); toast(e.message || 'API 请求失败；你的消息已保存'); }
-    finally { c._busy=false; }
 }
 function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
 function onTyping() { autoGrow(); updateSend(); }
@@ -1170,6 +1161,13 @@ function finishProfileEdit(el) {
     }, () => { el.textContent = PROFILE[key]; });
 }
 
+/* 统一的选图入口：输入框挂在页面上（隐藏），再 click，手机上才能弹出选择器 */
+function makeFilePicker() {
+    const input = document.createElement('input');
+    input.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
+    document.body.appendChild(input);
+    return input;
+}
 /* ---------------- 拍立得照片上传（资料卡左侧相纸）：压缩后保存，保留原色 ---------------- */
 function compressImageFile(file, maxSide, quality) {
     return new Promise((resolve, reject) => {
@@ -1198,7 +1196,7 @@ function compressImageFile(file, maxSide, quality) {
 }
 function pickProfilePhoto(e) {
     if (e) e.stopPropagation();
-    const input = document.createElement('input');
+    const input = makeFilePicker();
     input.type = 'file';
     input.accept = 'image/*';
     input.style.display = 'none';
@@ -1569,7 +1567,7 @@ function openIdentityEditor(id) {
 }
 
 function pickPersonaAvatar() {
-    const input = document.createElement('input');
+    const input = makeFilePicker();
     input.type = 'file';
     input.accept = 'image/*';
     input.onchange = () => {
@@ -1580,7 +1578,7 @@ function pickPersonaAvatar() {
             const url = e.target.result;
             let slot;
             if (personaMode === 'self') {
-                ME.avatar = url; persistMe(); applySelf(); renderChats();
+                ME.avatar = url; persistMe(); applySelf(); renderChats(); renderMoments();
                 slot = document.querySelector('#personaHero .persona-hero-av');
                 if (slot) slot.innerHTML = selfAvatarHtml('lg');
             } else if (personaMode === 'identity') {
@@ -2082,7 +2080,7 @@ function compressImage(file, maxSide) {
     });
 }
 function pickRoomBg() {
-    const input = document.createElement('input');
+    const input = makeFilePicker();
     input.type = 'file';
     input.accept = 'image/*';
     input.onchange = async () => {
@@ -2194,7 +2192,7 @@ function fmtMoment(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.g
 
 
 function pickMomentCover() {
-    const input = document.createElement('input');
+    const input = makeFilePicker();
     input.type = 'file';
     input.accept = 'image/*';
     input.onchange = async () => {
@@ -2463,7 +2461,7 @@ function removePendingPhoto(i) {
 function pickMomentPhotos() {
     const room = 9 - PENDING_IMGS.length;
     if (room <= 0) { toast('最多选 9 张照片'); return; }
-    const input = document.createElement('input');
+    const input = makeFilePicker();
     input.type = 'file';
     input.accept = 'image/*';
     input.multiple = true;
