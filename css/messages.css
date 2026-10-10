@@ -2043,3 +2043,198 @@
 .messages-app .mf-inline-bar{ margin-top: 8px; gap: 6px; }
 .messages-app .mf-inline-input{ height: 30px; font-size: 12px; border-radius: 15px; padding: 0 12px; background: #F0F0F0; }
 .messages-app .mf-inline-send{ height: 30px; padding: 0 12px; border-radius: 15px; font-size: 12px; }
+
+/* ===== 朋友圈评论区：无色调底色 ===== */
+.messages-app .mf-cmts{ background: #F2F2F2; }
+
+/* ===== 联系人页：背景图 + 半透明遮罩 ===== */
+.messages-app #v-contacts{
+    background-color: #000000;
+    background-image: linear-gradient(rgba(0,0,0,0.88), rgba(0,0,0,0.88)), url("../assets/聊天室设置背景图/contacts.jpg");
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+}
+
+/* ===== 聊天室设置 · 人设设置 第一区：基本信息（可折叠，SVG 箭头，折叠时底部渐隐） ===== */
+.messages-app .rf-fold{ margin-bottom: 8px; }
+.messages-app .rf-head{ display:flex; align-items:center; justify-content:space-between; width:100%; padding:2px 4px 6px; border:0; background:none; cursor:pointer; font-family:inherit; }
+.messages-app .rf-title{ margin:0; }
+.messages-app .rf-chev{ width:14px; height:14px; fill:none; stroke:#FFFFFF; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; transition: transform .3s ease; flex:none; }
+.messages-app .rf-fold.collapsed .rf-chev{ transform: rotate(-90deg); }
+.messages-app .rf-body{ max-height: 1400px; overflow: hidden; transition: max-height .45s cubic-bezier(.22,1,.36,1); }
+.messages-app .rf-fold.collapsed .rf-body{
+    max-height: 70px; pointer-events: none;
+    -webkit-mask-image: linear-gradient(#000 30%, transparent 100%); mask-image: linear-gradient(#000 30%, transparent 100%);
+}
+
+/* ===== 弹窗紧凑：除“切换身份”外，所有弹窗纵向缩短 ===== */
+.messages-app .identity-sheet.compact{ padding: 8px; border-radius: 24px; }
+.messages-app .identity-sheet.compact .sheet-title{ padding: 6px 8px 4px; }
+.messages-app .identity-sheet.compact .sheet-body{ gap: 5px; padding: 0 2px 2px; }
+.messages-app .identity-sheet.compact .identity-option{ min-height: 0; padding: 7px 10px; border-radius: 16px; }
+.messages-app .identity-sheet.compact .io-avatar{ width: 34px; height: 34px; }
+.messages-app .identity-sheet.compact .io-name{ font-size: 14px; }
+.messages-app .identity-sheet.compact .io-sub{ margin-top: 1px; }
+.messages-app .identity-sheet.compact .cid-desc{ margin: 0 0 2px; }
+.messages-app .identity-sheet.compact .cid-btn, .messages-app .identity-sheet.compact .cid-back{ padding-top: 9px; padding-bottom: 9px; margin-top: 2px; }
+.messages-app .identity-sheet.compact .cid-footnote{ padding: 2px 0; }
+
+/* 基本信息折叠：默认收起，收起时箭头朝下，展开时朝上 */
+.messages-app .rf-fold.collapsed .rf-chev{ transform: none; }
+.messages-app .rf-fold:not(.collapsed) .rf-chev{ transform: rotate(180deg); }
+
+/* ===== 新建联系人：导入 txt / docx ===== */
+.messages-app .import-row{ padding: 4px 18px 14px; }
+.messages-app .import-btn{ width: 100%; height: 40px; border: 0; border-radius: 20px; background: #F2F2F2; color: #111; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; transition: transform .15s ease, background .2s ease; }
+.messages-app .import-btn:active{ transform: scale(.98); background: #E6E6E6; }
+
+/* ===== 底栏发送键 / 调取键：左移 7px，略微放大 ===== */
+.messages-app .send-capsule{ right: -23px; width: 68px; height: 40px; }
+.messages-app .send, .messages-app .pull{ width: 33px; height: 40px; }
+.messages-app .send svg, .messages-app .pull svg{ width: 16px; height: 16px; }
+.messages-app .send-capsule.pulling{ width: 108px; }
+.messages-app .send-capsule.pulling .pull{ width: 72px; }
+
+/* ===== 朋友圈评论区：浅灰蓝底色；输入框与发送键缩矮缩小 ===== */
+.messages-app .mf-cmts{ background: #F3F5F8; }
+.messages-app .mf-inline-bar{ margin-top: 6px; gap: 5px; }
+.messages-app .mf-inline-input{ height: 26px; font-size: 11.5px; border-radius: 13px; padding: 0 10px; background: #F6F8FA; }
+.messages-app .mf-inline-send{ height: 26px; padding: 0 10px; border-radius: 13px; font-size: 11px; }
+
+/* ===== 朋友圈评论区：再灰一点，饱和度更低 ===== */
+.messages-app .mf-cmts{ background: #F5F5F6; }
+.messages-app .mf-inline-input{ background: #F8F8F9; }
+
+/* ===== 朋友圈评论输入框：稍微变白 ===== */
+.messages-app .mf-inline-input{ background: #FCFCFD; }
+
+
+/* ===== 朋友圈卡片时间（可见） ===== */
+.messages-app .mf-time-line{ font-size: 11px; color: #8E8E93; padding: 0 2px 8px; }
+/* ===== 评论：时间 + 黑胶囊名字 ===== */
+.messages-app .mf-cmt-line{ display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.messages-app .mf-cmt-name{ display: inline-block; background: #111111; color: #FFFFFF; font-size: 11px; font-weight: 600; line-height: 1; padding: 4px 9px; border-radius: 999px; margin-right: 0; }
+.messages-app .mf-cmt-time{ font-size: 10px; color: #8E8E93; }
+.messages-app .mf-cmt-text{ flex-basis: 100%; font-size: 13px; color: #111; margin-top: 3px; }
+
+/* ===================== 朋友圈可见度面板：重做 ===================== */
+.messages-app .vs-head{ display:flex; align-items:center; justify-content:space-between; margin: 4px 0 18px; }
+.messages-app .vs-back{ width: 36px; height: 36px; border-radius: 50%; border: .5px solid rgba(0,0,0,0.08); background: #FFFFFF; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: grid; place-items: center; cursor: pointer; }
+.messages-app .vs-title{ font-size: 16px; font-weight: 700; letter-spacing: -0.2px; color: #111; }
+.messages-app .vs-seg-wrap{ display: flex; padding: 4px; margin: 0 0 16px; background: #EFEFF1; border-radius: 14px; }
+.messages-app .vs-seg{ flex: 1; height: 34px; border: 0; border-radius: 11px; background: transparent; font-size: 13px; font-weight: 600; color: #8E8E93; transition: background .25s ease, color .25s ease, box-shadow .25s ease; }
+.messages-app .vs-seg.on{ background: #FFFFFF; color: #111; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.messages-app .vs-hero{ display: flex; flex-direction: column; align-items: center; padding: 22px 0 18px; }
+.messages-app .vs-hero-ico{ width: 84px; height: 84px; border-radius: 50%; background: #F5F5F7; display: grid; place-items: center; }
+.messages-app .vs-hero-ico svg{ width: 36px; height: 36px; stroke: #8E8E93; stroke-width: 1.6; fill: none; }
+.messages-app .vs-count{ display: inline-block; margin: 0 2px 10px; padding: 4px 10px; border-radius: 999px; background: #F2F2F4; font-size: 11px; color: #8E8E93; }
+.messages-app .vs-people{ display: flex; flex-direction: column; gap: 8px; max-height: 300px; overflow-y: auto; }
+.messages-app .vs-person{ display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: 0; border-radius: 16px; background: #F7F7F8; text-align: left; transition: background .2s ease, transform .15s ease; }
+.messages-app .vs-person:active{ transform: scale(.985); }
+.messages-app .vs-person.on{ background: #111111; }
+.messages-app .vs-person .av{ width: 32px; height: 32px; flex: none; }
+.messages-app .vs-name{ flex: 1; font-size: 14px; font-weight: 600; color: #111; }
+.messages-app .vs-person.on .vs-name{ color: #FFFFFF; }
+.messages-app .vs-check{ width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #CFCFD4; display: grid; place-items: center; flex: none; }
+.messages-app .vs-person.on .vs-check{ background: #FFFFFF; border-color: #FFFFFF; }
+.messages-app .vs-person.on .vs-check svg{ stroke: #111111; }
+.messages-app .vs-empty{ padding: 28px 0; text-align: center; font-size: 13px; color: #A0A0A6; }
+.messages-app .vs-done{ width: 100%; height: 48px; margin-top: 16px; border: 0; border-radius: 24px; background: #111111; color: #FFFFFF; font-size: 15px; font-weight: 600; box-shadow: 0 10px 22px rgba(0,0,0,0.16); cursor: pointer; }
+.messages-app .vs-done:active{ transform: scale(.98); }
+
+/* ===================== 记忆全屏页 ===================== */
+.messages-app #memPage{ position: absolute; inset: 0; z-index: 130; background: #F4F4F6; display: flex; flex-direction: column; opacity: 0; visibility: hidden; transform: translateY(16px); transition: opacity .3s ease, transform .35s cubic-bezier(.22,1,.36,1), visibility .3s; }
+.messages-app #memPage.open{ opacity: 1; visibility: visible; transform: none; }
+.messages-app .mem-top{ display: flex; align-items: center; justify-content: space-between; padding: 58px 16px 12px; background: #FFFFFF; border-bottom: .5px solid #E5E5EA; }
+.messages-app .mem-back{ border: 0; background: none; font-size: 15px; color: #111; padding: 4px 0; cursor: pointer; }
+.messages-app .mem-title{ font-size: 16px; font-weight: 700; color: #111; }
+.messages-app .mem-spacer{ width: 36px; }
+.messages-app .mem-scroll{ flex: 1; overflow-y: auto; padding: 8px 14px 40px; }
+.messages-app .mem-sec{ font-size: 12px; color: #8E8E93; padding: 14px 6px 6px; letter-spacing: .3px; }
+.messages-app .mem-card{ background: #FFFFFF; border-radius: 18px; padding: 6px 14px; margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+.messages-app .mem-row{ display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 46px; font-size: 14px; color: #111; border-bottom: .5px solid #EEEEF0; }
+.messages-app .mem-row:last-child{ border-bottom: 0; }
+.messages-app .mem-row input[type=number]{ width: 64px; height: 30px; border: 0; border-radius: 10px; background: #F2F2F4; text-align: center; font-size: 13px; color: #111; font-family: inherit; }
+.messages-app .mem-range{ display: flex; align-items: center; gap: 6px; }
+.messages-app .mem-range i{ font-style: normal; color: #8E8E93; }
+.messages-app .mem-switch{ width: 50px; height: 30px; border: 0; border-radius: 999px; background: #D9D9DE; position: relative; cursor: pointer; transition: background .25s ease; }
+.messages-app .mem-switch::after{ content: ''; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.18); transition: transform .25s cubic-bezier(.22,1,.36,1); }
+.messages-app .mem-switch.on{ background: #111111; }
+.messages-app .mem-switch.on::after{ transform: translateX(20px); }
+.messages-app .mem-btn{ height: 38px; padding: 0 14px; margin: 8px 0; border: 0; border-radius: 19px; background: #F2F2F4; color: #111; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; }
+.messages-app .mem-btn.mem-primary{ width: 100%; background: #111111; color: #FFFFFF; }
+.messages-app .mem-select{ height: 32px; border: 0; border-radius: 10px; background: #F2F2F4; padding: 0 10px; font-size: 13px; color: #111; font-family: inherit; max-width: 60%; }
+.messages-app .mem-instr{ width: 100%; box-sizing: border-box; margin: 8px 0 4px; border: 0; border-radius: 14px; padding: 10px 12px; background: #F7F7F8; font-size: 12.5px; line-height: 1.55; color: #111; font-family: inherit; resize: vertical; outline: none; }
+.messages-app .mem-btns{ display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 6px; }
+.messages-app .mem-btns .mem-btn{ margin: 4px 0 2px; }
+.messages-app .mem-hint{ font-size: 11px; color: #A0A0A6; padding: 2px 2px 10px; }
+.messages-app .mem-item{ padding: 12px 14px; }
+.messages-app .mem-head{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.messages-app .mem-prio{ font-size: 12px; color: #8E8E93; display: flex; align-items: center; gap: 6px; }
+.messages-app .mem-prio input{ width: 48px; height: 26px; border: 0; border-radius: 9px; background: #F2F2F4; text-align: center; font-size: 12px; color: #111; font-family: inherit; }
+.messages-app .mem-del{ border: 0; background: none; font-size: 12px; color: #E0403A; cursor: pointer; }
+.messages-app .mem-label{ font-size: 11px; color: #8E8E93; margin-bottom: 4px; }
+.messages-app .mem-text{ font-size: 13.5px; line-height: 1.6; color: #111; margin-bottom: 6px; }
+.messages-app .mem-points{ font-size: 12.5px; line-height: 1.6; color: #333; margin-bottom: 6px; }
+.messages-app .mem-rel{ font-size: 12.5px; line-height: 1.6; color: #333; background: #F7F7F8; border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; }
+.messages-app .mem-rel span{ display: block; font-size: 11px; color: #8E8E93; margin-bottom: 2px; }
+.messages-app .mem-keys{ display: flex; flex-wrap: wrap; gap: 6px; }
+.messages-app .mem-keys em{ font-style: normal; font-size: 11px; color: #111; background: #EFEFF2; padding: 3px 9px; border-radius: 999px; }
+.messages-app .mem-empty{ text-align: center; font-size: 13px; color: #A0A0A6; padding: 30px 10px; }
+
+/* 聊天室设置：记忆区入口 */
+
+/* ===== 朋友圈：时间放卡片右下角（按钮行最右，不含评论） ===== */
+.messages-app .mf-card-foot{ display: flex; align-items: center; }
+.messages-app .mf-time-br{ margin-left: auto; font-size: 11px; color: #8E8E93; }
+.messages-app .mf-time-line{ display: none; }
+
+/* ===== 评论人名字：半透明黑胶囊 ===== */
+.messages-app .mf-cmt-name{ background: rgba(17,17,17,0.56); color: rgba(255,255,255,0.96); backdrop-filter: blur(8px) saturate(140%); -webkit-backdrop-filter: blur(8px) saturate(140%); border: .5px solid rgba(255,255,255,0.22); }
+
+/* ===== 记忆页：文字颜色显式指定，避免消失 ===== */
+.messages-app #memPage, .messages-app #memPage *{ color: #111111; }
+.messages-app #memPage .mem-primary{ color: #FFFFFF; }
+.messages-app #memPage .mem-del{ color: #E0403A; }
+.messages-app #memPage .mem-keys em{ color: #111111; }
+.messages-app #memPage .mem-sec, .messages-app #memPage .mem-label, .messages-app #memPage .mem-hint, .messages-app #memPage .mem-empty, .messages-app #memPage .mem-prio{ color: #8E8E93; }
+.messages-app #memPage .mem-title{ color: #111111; }
+.messages-app #memPage input, .messages-app #memPage select, .messages-app #memPage textarea{ color: #111111; background-color: #F2F2F4; }
+
+/* 记忆页：设置行的左侧标题强制可见 */
+.messages-app #memPage .mem-lbl{ display: block !important; position: static !important; flex: 1 1 auto; min-width: 0; font-size: 14px !important; color: #111111 !important; opacity: 1 !important; visibility: visible !important; line-height: 1.35; }
+
+/* ===== 记忆页：按钮缩小 + SVG 图标 ===== */
+.messages-app #memPage .mem-btns{ display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 4px; }
+.messages-app #memPage .mem-btns .mem-btn{ height: 30px; padding: 0 11px; margin: 0; font-size: 12px; border-radius: 15px; display: inline-flex; align-items: center; gap: 5px; }
+.messages-app #memPage .mem-btn svg{ width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.messages-app #memPage .mem-btn.mem-danger{ color: #E0403A; background: #FBEBEA; }
+.messages-app #memPage .mem-primary{ display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.messages-app #memPage .mem-primary svg{ width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.messages-app #memPage .mem-stamp{ display: inline-block; margin-right: 4px; padding: 1px 6px; border-radius: 8px; background: #F2F2F4; font-size: 11.5px; color: #8E8E93; }
+
+/* ===== 朋友圈：没有卡片时也存在的白色区域，加斜线底纹（不动卡片） ===== */
+.messages-app .mf-frame{ background-color: transparent; background-image: repeating-linear-gradient(-30deg, rgba(0,0,0,0.03) 0px, rgba(0,0,0,0.03) 1px, transparent 1px, transparent 6px); }
+
+/* ===== 朋友圈头像 / 背景：点击弹出的玻璃框 ===== */
+.messages-app #momentPickBack{ position: absolute; inset: 0; z-index: 140; background: rgba(0,0,0,0.12); }
+.messages-app .mp-pick{ position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 141; width: 210px; padding: 14px; border-radius: 22px; display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,0.72); backdrop-filter: blur(20px) saturate(170%); -webkit-backdrop-filter: blur(20px) saturate(170%); border: .5px solid rgba(255,255,255,0.9); box-shadow: 0 16px 36px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.9); animation: mpPickIn .22s cubic-bezier(.22,1,.36,1) both; }
+@keyframes mpPickIn { from { opacity: 0; transform: translate(-50%, -46%) scale(.96); } to { opacity: 1; transform: translate(-50%, -50%); } }
+.messages-app .mp-pick-t{ text-align: center; font-size: 12px; color: #8E8E93; padding: 2px 0 4px; }
+.messages-app .mp-pick-b{ height: 40px; border: 0; border-radius: 14px; background: rgba(255,255,255,0.75); font-size: 14px; font-weight: 600; color: #111; font-family: inherit; cursor: pointer; }
+.messages-app .mp-pick-b:active{ transform: scale(.98); }
+.messages-app .mp-pick-b.primary{ background: rgba(17,17,17,0.88); color: #FFFFFF; }
+.messages-app .mf-avatar, .messages-app .mf-cover{ cursor: pointer; }
+
+/* ===== 朋友圈头像 / 背景选择框：与小组件“编辑模式”提示框同款 ===== */
+.messages-app .mp-pick{
+    width: auto; min-width: 200px; padding: 12px 16px; border-radius: 8px; gap: 8px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace; color: #FFFFFF;
+    background: linear-gradient(rgba(10,10,12,0.5), rgba(10,10,12,0.5)), url('../assets/杂七杂八/编辑中弹窗.jpg');
+    background-size: cover; background-position: center;
+    border: 0.5px solid rgba(255,255,255,0.3);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.6);
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+.messages-app .mp-pick-t{ padding: 0; font-size: 11px; font-weight: 600; letter-spacing: .4px; color: rgba(255,255,255,0.85); }
+.messages-app .mp-pick-b{ height: 34px; border-radius: 8px; border: 0.5px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.06); color: #FFFFFF; font-size: 11px; font-weight: 600; letter-spacing: .3px; }
+.messages-app .mp-pick-b.primary{ background: rgba(255,255,255,0.92); color: #111111; border-color: transparent; }

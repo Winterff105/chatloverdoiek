@@ -33,11 +33,15 @@ function loadStoredChatIds(){ try { const v=JSON.parse(localStorage.getItem('for
 
 const MOMENT_KEY = 'forever_messages_moments_v1';
 const MOMENT_BG_KEY = 'forever_messages_moments_bg_v1';
+const MOMENT_AVATAR_KEY = 'forever_messages_moments_avatar_v1';
 let POSTS = loadStoredMoments();
 let MOMENT_BG = loadMomentBg();
+let MOMENT_AVATAR = loadMomentAvatar();
 let MOMENT_CMT_OPEN = {};
 const DEFAULT_CHAT_AVATAR = 'assets/聊天默认头像/morentouxiang.jpg';
 const DEFAULT_POLAROID = 'assets/聊天默认头像/pailide.jpg';
+const DEFAULT_CHAR_AVATAR = 'assets/聊天默认头像/chartouxiang.jpg';
+const DEFAULT_CHAR_BG = 'assets/聊天默认头像/charbjt.jpg';
 
 const APPS = [
     { name: 'Notes',    dark: false, icon: '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/>' },
@@ -71,7 +75,7 @@ function loadStoredContacts() {
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
 }
 function normalizeContact(c) {
-    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null };
+    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0) };
 }
 
 
@@ -90,7 +94,7 @@ async function importDeviceContacts() {
             const email = (p.email && p.email[0] || '').trim();
             if (!name) continue;
             if (CONTACTS.some(c => c.name.toLowerCase() === name.toLowerCase() && ((phone && c.phone === phone) || (!phone && c.email === email)))) continue;
-            CONTACTS.unshift(normalizeContact({id:makeContactId(),name,phone,email,status:phone || email || '手机联系人',time:nowTime(),msgs:[],avatar:'',ini:name.slice(0,1)})); added++;
+            CONTACTS.unshift(normalizeContact({fresh:true,id:makeContactId(),name,phone,email,status:phone || email || '手机联系人',time:nowTime(),msgs:[],avatar:'',ini:name.slice(0,1)})); added++;
         }
         persistContacts(); renderContacts(); renderChats(); toast(added ? `已导入 ${added} 位联系人` : '没有新的联系人');
     } catch (e) { if (e && e.name !== 'AbortError') { console.error(e); toast('读取通讯录失败，请检查浏览器权限'); } }
@@ -143,7 +147,7 @@ function addChatByContactId() {
 const esc = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const last = c => c.msgs[c.msgs.length - 1];
 function avatar(c, size) {
-    const img = (c.avatar || DEFAULT_CHAT_AVATAR) ? `<img src="${c.avatar || DEFAULT_CHAT_AVATAR}" alt="" onerror="this.remove()">` : '';
+    const img = (c.avatar || DEFAULT_CHAR_AVATAR) ? `<img src="${c.avatar || DEFAULT_CHAR_AVATAR}" alt="" onerror="this.remove()">` : '';
     return `<div class="av ${size || 'lg'} ${c.g}">${img}<span class="ini">${c.ini}</span></div>`;
 }
 function nowTime() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
@@ -207,7 +211,7 @@ function switchTab(name) {
 }
 function fabAction() {
     if (activeTab === 'chats') { openContactIdModal(); return; }
-    if (activeTab === 'contacts') { openContactEditor(null); return; }
+    if (activeTab === 'contacts') { openNewContact(null); return; }
     if (activeTab === 'moments') { openMomentComposer(); return; }
     if (activeTab === 'settings') { toast('聊天 API 请在主界面「设置 → API」中配置'); return; }
     toast('此功能暂不可用');
@@ -279,15 +283,16 @@ function starsHtml(seedStr) {
 
 function cardHtml(c, i) {
     const preview = (c.persona || '').trim() || (c.msgs && c.msgs.length ? c.msgs[c.msgs.length - 1].text : '');
-    const rightBg = c.cover
-        ? `<div class="env-bg" style="background-image: url('${c.cover}')"></div>`
+    const coverUrl = c.cover || DEFAULT_CHAR_BG;
+    const rightBg = coverUrl
+        ? `<div class="env-bg" style="background-image: url('${coverUrl}')"></div>`
         : `<span class="env-wm">${esc(c.ini)}</span>`;
     const no = String((i || 0) + 1).padStart(2, '0');
     return `
         <div class="env-wrap">
             <div class="env" onclick="openContactEditor('${c.id}')">
                 ${starsHtml(c.id)}
-                <div class="env-right${c.cover ? '' : ' fallback'}">
+                <div class="env-right${coverUrl ? '' : ' fallback'}">
                     ${rightBg}
                     <div class="env-shade"></div>
                     ${c.unread > 0 ? `<span class="cc-badge env-badge">${c.unread}</span>` : ''}
@@ -338,8 +343,8 @@ function openContactEditor(id) {
         
         const coverPreview = document.getElementById('coverPreview');
         const coverPlaceholder = document.getElementById('coverPlaceholder');
-        if (c.cover) {
-            coverPreview.src = c.cover;
+        if (c.cover || DEFAULT_CHAR_BG) {
+            coverPreview.src = c.cover || DEFAULT_CHAR_BG;
             coverPreview.style.display = 'block';
             coverPlaceholder.style.display = 'none';
         } else {
@@ -349,7 +354,7 @@ function openContactEditor(id) {
         }
 
         const avEl = document.getElementById('avatarPreview');
-        avEl.innerHTML = c.avatar ? `<img src="${c.avatar}" id="avatarPreviewImg" alt="" onerror="this.remove()"><span class="ini" id="avatarIni" style="display:none">${c.ini}</span>` : `<span class="ini" id="avatarIni">${c.ini}</span>`;
+        avEl.innerHTML = (c.avatar || DEFAULT_CHAR_AVATAR) ? `<img src="${c.avatar || DEFAULT_CHAR_AVATAR}" id="avatarPreviewImg" alt="" onerror="this.remove()"><span class="ini" id="avatarIni" style="display:none">${c.ini}</span>` : `<span class="ini" id="avatarIni">${c.ini}</span>`;
         avEl.className = `av ${c.g || 'g1'}`;
     } else {
         title.innerText = '新建联系人';
@@ -359,12 +364,12 @@ function openContactEditor(id) {
         document.getElementById('editStatus').value = '';
         document.getElementById('editId').value = '';
         
-        document.getElementById('coverPreview').src = '';
-        document.getElementById('coverPreview').style.display = 'none';
-        document.getElementById('coverPlaceholder').style.display = 'flex';
+        document.getElementById('coverPreview').src = DEFAULT_CHAR_BG;
+        document.getElementById('coverPreview').style.display = 'block';
+        document.getElementById('coverPlaceholder').style.display = 'none';
         
         const avEl = document.getElementById('avatarPreview');
-        avEl.innerHTML = `<span class="ini" id="avatarIni">N</span>`;
+        avEl.innerHTML = `<img src="${DEFAULT_CHAR_AVATAR}" id="avatarPreviewImg" alt="" onerror="this.remove()"><span class="ini" id="avatarIni" style="display:none">N</span>`;
         avEl.className = 'av g1';
     }
     
@@ -422,9 +427,7 @@ function closePersonaEditor() {
 function loadImage(input, imgId, placeholderId) {
     const file = input.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = e => {
-        const dataUrl = e.target.result;
+    compressImage(file, imgId === 'coverPreview' ? 1100 : 512).then(dataUrl => {
         if (imgId === 'coverPreview') {
             const img = document.getElementById(imgId);
             img.src = dataUrl;
@@ -446,8 +449,7 @@ function loadImage(input, imgId, placeholderId) {
             if (ini) ini.style.display = 'none';
             pendingAvatar = dataUrl;
         }
-    };
-    reader.readAsDataURL(file);
+    }).catch(() => toast('图片读取失败，请换一张试试'));
 }
 
 function saveContact() {
@@ -493,7 +495,7 @@ function saveContact() {
             msgs: [],
             replies: []
         };
-        CONTACTS.unshift(newContact);
+        newContact.fresh = true; CONTACTS.unshift(newContact);
         toast('联系人已创建 · ID：' + id);
     }
     
@@ -543,6 +545,187 @@ function closeChat() {
     activeId = null;
     renderChats();
 }
+/* 默认头像 / 背景：启动时预加载，加载完成后刷新列表，避免第一次渲染时漏掉 */
+function preloadDefaultImages() {
+    [DEFAULT_CHAR_AVATAR, DEFAULT_CHAR_BG, DEFAULT_CHAT_AVATAR, DEFAULT_POLAROID].forEach(src => {
+        const im = new Image();
+        im.onload = () => {
+            ['storyRow', 'chatList'].forEach(id => { const el = document.getElementById(id); if (el) el.dataset.html = ''; });
+            renderChats();
+            if (typeof renderContacts === 'function') renderContacts();
+        };
+        im.src = src;
+    });
+}
+/* ---------------- 记忆区：总结、记忆列表、全屏页面 ---------------- */
+const MEM_PRESET_KEY = 'forever_memory_presets_v1';
+const DEFAULT_SUMMARY_INSTR = [
+    '你是聊天记录的记忆整理员。请阅读下面的对话，写出这段时间里发生的事情经过。',
+    '【格式必须遵守】',
+    '1. 用户消息里会给出“时间范围”，形如 [年月日时分—年月日时分]。summary 必须以这个时间范围原样开头，方括号一起保留，之后紧跟事情经过。',
+    '2. 事情经过用第三人称、直白客观地叙述，直接写角色名 {{char}} 和用户名 {{user}}，不要用“他、她、我、你”指代他们。',
+    '3. points：挑出 2 到 5 句最关键的原话或要点。',
+    '4. relation：写清关系与感情的变化；如有多人，逐一写出每个人的变化；没有变化就写“无明显变化”。',
+    '5. priority：1 到 10 的整数，越大越重要。keys：3 到 6 个关键词。',
+    '只输出一个 JSON 对象，不要代码块，不要任何其他文字，格式如下：',
+    '{"summary":"[时间范围]事情经过","points":["要点"],"relation":"关系与感情的变化","priority":5,"keys":["关键词"]}'
+].join('\n');
+function memPresets() { try { const v = JSON.parse(localStorage.getItem(MEM_PRESET_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; } }
+function saveMemPresets(list) { try { localStorage.setItem(MEM_PRESET_KEY, JSON.stringify(list)); } catch (_) {} }
+function memOf(c) { c.mem = Object.assign({ ctx: 30, auto: false, every: 40, instr: DEFAULT_SUMMARY_INSTR, presetIdx: -1 }, c.mem || {}); return c.mem; }
+function memStamp(ts) { const d = new Date(ts); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日${pad2(d.getHours())}时${pad2(d.getMinutes())}分`; }
+function memLabelFor(part) {
+    const f = x => x.ts ? memStamp(x.ts) : `${memDateLabel()} ${String(x.t || '').replace(':', '时')}分`;
+    return `[${f(part[0])}—${f(part[part.length - 1])}]`;
+}
+function memDateLabel() { const d = new Date(); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; }
+function fillMemInstr(text, c) { return String(text || '').split('{{char}}').join(c.name).split('{{user}}').join(ME.name); }
+function parseSummaryJson(raw) {
+    const t = String(raw || '').replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    try { return JSON.parse(t); } catch (_) {}
+    const a = t.indexOf('{'), b = t.lastIndexOf('}');
+    if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b + 1)); } catch (_) {} }
+    return null;
+}
+async function runSummary(c, from, to) {
+    const m = memOf(c);
+    const part = c.msgs.slice(from, to);
+    if (!part.length) { toast('这段没有消息'); return false; }
+    if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('请先在「设置 → API」保存接口配置'); return false; }
+    const label = memLabelFor(part);
+    const transcript = '时间范围：' + label + '\n' + part.map(x => `${x.me ? ME.name : c.name}：${x.text}`).join('\n');
+    toast('正在总结…');
+    try {
+        const raw = await window.MessagesAPI.complete(fillMemInstr(m.instr || DEFAULT_SUMMARY_INSTR, c), transcript);
+        const o = parseSummaryJson(raw) || {};
+        const pr = Math.max(1, Math.min(10, parseInt(o.priority, 10) || 5));
+        c.memories = c.memories || [];
+        c.memories.unshift({
+            id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            label,
+            text: String(o.summary || raw || '').trim().replace(/^\s*\[[^\]]*\]\s*/, ''),
+            points: Array.isArray(o.points) ? o.points.map(String).slice(0, 6) : [],
+            relation: String(o.relation || '').trim(),
+            keys: Array.isArray(o.keys) ? o.keys.map(String).slice(0, 8) : [],
+            priority: pr
+        });
+        c.memCursor = to;
+        persistContacts(); renderMemoryPage();
+        toast('已生成记忆');
+        return true;
+    } catch (err) { toast((err && err.message) || '总结失败'); return false; }
+}
+function maybeAutoSummary(c) {
+    const m = memOf(c);
+    if (!m.auto) return;
+    const cursor = c.memCursor || 0;
+    if (c.msgs.length - cursor >= (m.every || 40)) runSummary(c, cursor, c.msgs.length);
+}
+function curMemContact() { return CONTACTS.find(x => x.id === activeId) || null; }
+function openMemoryPage() {
+    const c = curMemContact(); if (!c) return;
+    const host = document.querySelector('.messages-app'); if (!host) return;
+    let page = document.getElementById('memPage');
+    if (!page) { page = document.createElement('div'); page.id = 'memPage'; host.appendChild(page); }
+    page.classList.add('open');
+    renderMemoryPage();
+}
+function closeMemoryPage() { const p = document.getElementById('memPage'); if (p) p.classList.remove('open'); }
+const MEM_ICO = {
+    restore: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 9 8 9"/></svg>',
+    save: '<svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4"/><path d="M8 20v-6h8v6"/></svg>',
+    plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+    refresh: '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.5-4.5L4 9"/><path d="M4 4v5h5"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 15"/><path d="M20 20v-5h-5"/></svg>',
+    trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
+    doc: '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/></svg>'
+};
+function renderMemoryPage() {
+    const page = document.getElementById('memPage'); const c = curMemContact();
+    if (!page || !c) return;
+    const m = memOf(c);
+    const presets = memPresets();
+    const presetOpts = '<option value="-1">默认指令</option>' + presets.map((p, i) => `<option value="${i}" ${m.presetIdx === i ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    const mems = (c.memories || []).slice().sort((a, b) => (b.priority || 0) - (a.priority || 0));
+    const memHtml = mems.length ? mems.map(x => `
+        <div class="mem-card mem-item">
+            <div class="mem-head"><span class="mem-prio">优先级 <input type="number" min="1" max="10" value="${x.priority}" onchange="memSetPriority('${x.id}', this.value)"></span><button class="mem-del" type="button" onclick="memDelete('${x.id}')">删除</button></div>
+            <div class="mem-text"><span class="mem-stamp">${esc(x.label)}</span> ${esc(x.text)}</div>
+            ${x.points && x.points.length ? `<div class="mem-points">${x.points.map(p => `<div>- ${esc(p)}</div>`).join('')}</div>` : ''}
+            ${x.relation ? `<div class="mem-rel"><span>关系与感情</span>${esc(x.relation)}</div>` : ''}
+            ${x.keys && x.keys.length ? `<div class="mem-keys">${x.keys.map(k => `<em>${esc(k)}</em>`).join('')}</div>` : ''}
+        </div>`).join('') : '<div class="mem-empty">还没有记忆。开启自动总结，或手动总结一段对话。</div>';
+    const last = c.msgs.length;
+    page.innerHTML = `
+        <header class="mem-top"><button class="mem-back" type="button" onclick="closeMemoryPage()">返回</button><span class="mem-title">记忆</span><span class="mem-spacer"></span></header>
+        <div class="mem-scroll">
+            <div class="mem-sec">设置</div>
+            <div class="mem-card">
+                <div class="mem-row"><span class="mem-lbl">上下文条数</span><input type="number" min="1" value="${m.ctx}" onchange="memSetNum('ctx', this.value)"></div>
+                <div class="mem-row"><span class="mem-lbl">自动总结</span><button class="mem-switch ${m.auto ? 'on' : ''}" type="button" onclick="memToggleAuto()" aria-label="自动总结"></button></div>
+                <div class="mem-row"><span class="mem-lbl">每到多少条总结一次</span><input type="number" min="1" value="${m.every}" onchange="memSetNum('every', this.value)"></div>
+                <div class="mem-row"><span class="mem-lbl">手动总结：第几条到第几条</span><span class="mem-range"><input type="number" min="1" id="memFrom" value="${Math.max(1, last - 39)}"><i>—</i><input type="number" min="1" id="memTo" value="${last}"></span></div>
+                <button class="mem-btn mem-primary" type="button" onclick="memSummarizeRange()">${MEM_ICO.doc}<span>手动总结这段</span></button>
+            </div>
+            <div class="mem-sec">总结指令</div>
+            <div class="mem-card">
+                <div class="mem-row"><span class="mem-lbl">预设</span><select class="mem-select" onchange="memSwitchPreset(this.value)">${presetOpts}</select></div>
+                <textarea class="mem-instr" id="memInstr" rows="9">${esc(m.instr)}</textarea>
+                <div class="mem-btns">
+                    <button class="mem-btn" type="button" onclick="memRestoreDefault()">${MEM_ICO.restore}<span>恢复默认</span></button>
+                    <button class="mem-btn" type="button" onclick="memSaveInstr()">${MEM_ICO.save}<span>保存修改</span></button>
+                    <button class="mem-btn" type="button" onclick="memSavePreset()">${MEM_ICO.plus}<span>存为预设</span></button>
+                    ${m.presetIdx >= 0 ? `<button class="mem-btn" type="button" onclick="memUpdatePreset()">${MEM_ICO.refresh}<span>更新预设</span></button><button class="mem-btn mem-danger" type="button" onclick="memDeletePreset()">${MEM_ICO.trash}<span>删除预设</span></button>` : ''}
+                </div>
+                <div class="mem-hint">{{char}} 代表角色名，{{user}} 代表你的名字。</div>
+            </div>
+            <div class="mem-sec">查看记忆（优先级高的排在提示词前面）</div>
+            ${memHtml}
+        </div>`;
+}
+function memSetNum(key, v) { const c = curMemContact(); if (!c) return; const m = memOf(c); m[key] = Math.max(1, parseInt(v, 10) || 1); persistContacts(); renderMemoryPage(); }
+function memToggleAuto() { const c = curMemContact(); if (!c) return; const m = memOf(c); m.auto = !m.auto; persistContacts(); renderMemoryPage(); }
+async function memSummarizeRange() {
+    const c = curMemContact(); if (!c) return;
+    const a = Math.max(1, parseInt(document.getElementById('memFrom').value, 10) || 1);
+    const b = Math.min(c.msgs.length, parseInt(document.getElementById('memTo').value, 10) || c.msgs.length);
+    if (b < a) { toast('结束条数不能小于开始条数'); return; }
+    window.MESSAGES_USER_NAME = ME.name;
+    await runSummary(c, a - 1, b);
+}
+function memSaveInstr() { const c = curMemContact(); if (!c) return; memOf(c).instr = document.getElementById('memInstr').value; persistContacts(); toast('已保存总结指令'); }
+function memRestoreDefault() { const c = curMemContact(); if (!c) return; const m = memOf(c); m.instr = DEFAULT_SUMMARY_INSTR; m.presetIdx = -1; persistContacts(); renderMemoryPage(); }
+function memSavePreset() {
+    const c = curMemContact(); if (!c) return; const m = memOf(c);
+    const list = memPresets();
+    list.push({ name: '预设 ' + (list.length + 1), text: document.getElementById('memInstr').value });
+    saveMemPresets(list);
+    m.presetIdx = list.length - 1; m.instr = list[m.presetIdx].text;
+    persistContacts(); renderMemoryPage(); toast('已存为预设');
+}
+function memUpdatePreset() {
+    const c = curMemContact(); if (!c) return; const m = memOf(c);
+    const list = memPresets(); if (m.presetIdx < 0 || !list[m.presetIdx]) return;
+    list[m.presetIdx].text = document.getElementById('memInstr').value; saveMemPresets(list);
+    m.instr = list[m.presetIdx].text; persistContacts(); renderMemoryPage(); toast('预设已更新');
+}
+function memSwitchPreset(v) {
+    const c = curMemContact(); if (!c) return; const m = memOf(c);
+    const i = parseInt(v, 10); const list = memPresets();
+    if (i < 0 || !list[i]) { m.presetIdx = -1; m.instr = DEFAULT_SUMMARY_INSTR; }
+    else { m.presetIdx = i; m.instr = list[i].text; }
+    persistContacts(); renderMemoryPage();
+}
+function memSetPriority(id, v) { const c = curMemContact(); if (!c) return; const x = (c.memories || []).find(y => y.id === id); if (!x) return; x.priority = Math.max(1, Math.min(10, parseInt(v, 10) || 1)); persistContacts(); renderMemoryPage(); }
+function memDeletePreset() {
+    const c = curMemContact(); if (!c) return; const m = memOf(c);
+    if (m.presetIdx < 0) { toast('当前是默认指令，不能删除'); return; }
+    const idx = m.presetIdx;
+    const list = memPresets(); list.splice(idx, 1); saveMemPresets(list);
+    CONTACTS.forEach(x => { if (x.mem) { if (x.mem.presetIdx === idx) x.mem.presetIdx = -1; else if (x.mem.presetIdx > idx) x.mem.presetIdx -= 1; } });
+    m.presetIdx = -1; m.instr = DEFAULT_SUMMARY_INSTR;
+    persistContacts(); renderMemoryPage(); toast('已删除预设');
+}
+function memDelete(id) { const c = curMemContact(); if (!c) return; c.memories = (c.memories || []).filter(y => y.id !== id); persistContacts(); renderMemoryPage(); }
 function renderThread(opts) {
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c) return;
@@ -656,7 +839,7 @@ function toggleRoomBatch() {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function deliverMsgs(c, parts) {
     if (chatOptsOf(c).batch) {
-        parts.forEach(t => c.msgs.push({me:false,text:t,t:nowTime()}));
+        parts.forEach(t => c.msgs.push({me:false,text:t,t:nowTime(), ts: Date.now()}));
         c.time = nowTime(); persistContacts();
         if (activeId === c.id) renderThread({noAnim:true});
         renderChats();
@@ -664,7 +847,7 @@ async function deliverMsgs(c, parts) {
     }
     for (let i = 0; i < parts.length; i++) {
         if (i > 0) await sleep(650);
-        c.msgs.push({me:false,text:parts[i],t:nowTime()});
+        c.msgs.push({me:false,text:parts[i],t:nowTime(), ts: Date.now()});
         c.time = nowTime(); persistContacts();
         if (activeId === c.id) renderThread();
         renderChats();
@@ -690,11 +873,13 @@ async function pullReply() {
     showTyping(c);
     try {
         const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。本次请发送 ${o.min} 到 ${o.max} 条消息。`;
+        window.MESSAGES_USER_NAME = ME.name;
         const replies = await window.MessagesAPI.replyFor(c, instruction, o.max);
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const parts = replies.map(p => cleanMsgPart(p, c.name)).filter(Boolean);
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
         await deliverMsgs(c, parts);
+        maybeAutoSummary(c);
     } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); toast(e.message || 'API 请求失败'); }
     finally { c._busy=false; if(cap) cap.classList.remove('pulling'); }
 }
@@ -710,7 +895,7 @@ async function sendMessage() {
     if (!text || !activeId) return;
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c || c._busy) return;
-    c.msgs.push({me:true,text,t:nowTime()}); c.time=nowTime();
+    c.msgs.push({me:true,text,t:nowTime(), ts: Date.now()}); c.time=nowTime();
     input.value=''; autoGrow(); updateSend(); persistContacts(); renderThread(); renderChats();
 }
 function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
@@ -1172,6 +1357,73 @@ function makeFilePicker() {
     return input;
 }
 /* ---------------- 拍立得照片上传（资料卡左侧相纸）：压缩后保存，保留原色 ---------------- */
+/* 导入 txt / docx 到人设（新建联系人） */
+function pickPersonaImport() {
+    const input = makeFilePicker();
+    input.type = 'file';
+    input.accept = '.txt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    input.onchange = () => {
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const isDocx = /\.docx$/i.test(file.name);
+        const done = text => {
+            const el = document.getElementById('pPersona');
+            if (!el) return;
+            const cur = el.value.trim();
+            el.value = cur ? cur + '\n\n' + text : text;
+            toast('已导入：' + file.name);
+        };
+        if (isDocx) {
+            const reader = new FileReader();
+            reader.onload = () => extractDocxText(reader.result).then(done).catch(err => toast(err.message || '读取 docx 失败'));
+            reader.readAsArrayBuffer(file);
+        } else {
+            const reader = new FileReader();
+            reader.onload = () => done(String(reader.result || '').trim());
+            reader.onerror = () => toast('读取文件失败');
+            reader.readAsText(file, 'utf-8');
+        }
+    };
+    input.click();
+}
+async function inflateRaw(bytes) {
+    if (typeof DecompressionStream === 'undefined') throw new Error('当前浏览器不支持读取 docx，请改用 txt');
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+function docxXmlToText(xml) {
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    return Array.from(doc.getElementsByTagNameNS('*', 'p'))
+        .map(p => Array.from(p.getElementsByTagNameNS('*', 't')).map(t => t.textContent).join(''))
+        .join('\n').trim();
+}
+/* 不依赖外部库：直接读 zip 目录，取出 word/document.xml */
+async function extractDocxText(buf) {
+    const u8 = new Uint8Array(buf); const dv = new DataView(buf);
+    let eocd = -1;
+    for (let i = u8.length - 22; i >= 0; i--) { if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; } }
+    if (eocd < 0) throw new Error('不是有效的 docx 文件');
+    const count = dv.getUint16(eocd + 10, true);
+    let p = dv.getUint32(eocd + 16, true);
+    for (let n = 0; n < count; n++) {
+        if (dv.getUint32(p, true) !== 0x02014b50) break;
+        const method = dv.getUint16(p + 10, true);
+        const csize = dv.getUint32(p + 20, true);
+        const nameLen = dv.getUint16(p + 28, true), extraLen = dv.getUint16(p + 30, true), commentLen = dv.getUint16(p + 32, true);
+        const lho = dv.getUint32(p + 42, true);
+        const name = new TextDecoder().decode(u8.slice(p + 46, p + 46 + nameLen));
+        if (name === 'word/document.xml') {
+            const lnameLen = dv.getUint16(lho + 26, true), lextra = dv.getUint16(lho + 28, true);
+            const start = lho + 30 + lnameLen + lextra;
+            const comp = u8.slice(start, start + csize);
+            const raw = method === 0 ? comp : method === 8 ? await inflateRaw(comp) : null;
+            if (!raw) throw new Error('暂不支持该 docx 的压缩格式');
+            return docxXmlToText(new TextDecoder().decode(raw));
+        }
+        p += 46 + nameLen + extraLen + commentLen;
+    }
+    throw new Error('docx 里没有找到正文');
+}
 function compressImageFile(file, maxSide, quality) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -1402,6 +1654,10 @@ function showDirectContactList() {
 }
 function openContactIdModal() { renderContactAddChoice(); }
 function closeContactIdModal() { closeSheet(); }
+function tapContactCard(id) {
+    const c = CONTACTS.find(x => x.id === id); if (!c) return;
+    if (c.fresh) openPersonaEditor(id); else openContactEditor(id);
+}
 function openPersonaEditor(id) {
     const c = CONTACTS.find(x => x.id === id);
     if (!c) return;
@@ -1601,11 +1857,12 @@ function fillPersona(c) {
     const isNewIdentity = mode === 'identity' && !editingPersonaId;
     const titles = { self: '我的人设', identity: isNewIdentity ? '新建身份' : '身份人设', edit: '人设与信息', create: '新建联系人' };
     g('personaTitle').textContent = titles[mode] || '人设与信息';
+    const importRow = g('pImportRow'); if (importRow) importRow.style.display = mode === 'create' ? '' : 'none';
     let heroAv;
     if (mode === 'self') heroAv = `<div class="persona-hero-av" onclick="pickPersonaAvatar()">${selfAvatarHtml('lg')}</div>`;
     else if (mode === 'identity') heroAv = `<div class="persona-hero-av" onclick="pickPersonaAvatar()">${identityAvatarHtml(c)}</div>`;
     else if (c) heroAv = avatar(c, 'lg');
-    else heroAv = `<div class="av g1"><span class="ini">N</span></div>`;
+    else heroAv = `<div class="av lg g1"><img src="${DEFAULT_CHAR_AVATAR}" alt="" onerror="this.remove()"><span class="ini">N</span></div>`;
     const heroName = c && c.name ? c.name : (isNewIdentity ? '新建身份' : '新建联系人');
     const heroSub = mode === 'self' ? '点击头像可更换 · 这是你的默认身份'
         : mode === 'identity' ? '点击头像可更换 · 登录时使用这个身份'
@@ -1693,13 +1950,13 @@ function savePersona() {
             time: nowTime(), msgs: []
         }, persona);
         if (personaNewFolder) c.folder = personaNewFolder;
-        CONTACTS.unshift(c);
+        c.fresh = true; CONTACTS.unshift(c);
         toast('联系人已创建 · ID：' + personaId);
     } else {
         const c = CONTACTS.find(x => x.id === editingPersonaId);
         if (!c) return;
         const oldId = c.id;
-        Object.assign(c, { name, status, ini: name[0].toUpperCase() }, persona);
+        Object.assign(c, { name, status, ini: name[0].toUpperCase(), fresh: false }, persona);
         c.id = personaId;
         migrateContactId(oldId, personaId);
         toast('人设已保存');
@@ -1760,6 +2017,7 @@ function persistChatIds() {
 }
 
 function persistContacts() {
+    try { if (typeof renderMoments === 'function') renderMoments(); } catch (_) {}
     CONTACTS.forEach(c => { c.threads = c.threads || {}; c.threads[ACTIVE_ID] = c.msgs; });
     try { localStorage.setItem('forever_messages_contacts_v1', JSON.stringify(CONTACTS, (k, v) => (k === 'msgs' ? undefined : v))); }
     catch (e) { toast('保存失败：存储空间可能不足'); console.error(e); }
@@ -1805,7 +2063,9 @@ function openSheet(innerHtml, bottom) {
     POP = { ok: null, cancel: null };
     const b = ensureSheet();
     b.classList.toggle('bottom', !!bottom);
-    b.querySelector('.identity-sheet').innerHTML = innerHtml;
+    const box = b.querySelector('.identity-sheet');
+    box.innerHTML = innerHtml;
+    box.classList.toggle('compact', !innerHtml.includes('Switch Account'));
     b.classList.add('show');
 }
 function openIdentitySheet() {
@@ -1985,11 +2245,17 @@ function rpRow(title, sub, action, danger) {
 }
 
 
+let ROOM_FOLD_OPEN = false;
+function toggleRoomFold() {
+    ROOM_FOLD_OPEN = !ROOM_FOLD_OPEN;
+    const f = document.getElementById('rfFold');
+    if (f) f.classList.toggle('collapsed', !ROOM_FOLD_OPEN);
+}
 function roomPersonaPane(c) {
     const kv = [['说话风格', c.speech], ['与你的关系', c.relation], ['个人签名', c.sig], ['背景', c.backstory]].filter(x => x[1]);
     return `
-        <div class="rp-quote">${esc(c.persona || '还没有设定人设，点击下方编辑。')}</div>
-        ${kv.length ? `<div class="rp-kv">${kv.map(x => `<div class="rp-kv-row"><span>${x[0]}</span><b>${esc(x[1])}</b></div>`).join('')}</div>` : ''}
+        <div class="rf-fold${ROOM_FOLD_OPEN ? '' : ' collapsed'}" id="rfFold"><button class="rf-head" type="button" onclick="toggleRoomFold()"><span class="rp-label rf-title">基本信息</span><svg class="rf-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button><div class="rf-body"><div class="rp-quote">${esc(c.persona || '还没有设定人设，点击下方编辑。')}</div>
+${kv.length ? `<div class="rp-kv">${kv.map(x => `<div class="rp-kv-row"><span>${x[0]}</span><b>${esc(x[1])}</b></div>`).join('')}</div>` : ''}</div></div>
         <div class="rp-label">编辑</div>
         ${rpRow('人设与信息', '性格、说话风格与背景', "roomAction('persona')")}
         ${rpRow('联系人资料', '姓名、状态、头像与封面', "roomAction('contact')")}`;
@@ -2149,6 +2415,7 @@ function roomChatPane(c) {
     const a = activeIdentity();
     const o = chatOptsOf(c);
     return `
+        ${rpRow('记忆区', '上下文、自动总结与记忆', 'openMemoryPage()')}
         <div class="rp-label">消息条数</div>
         <div class="rp-opt">
             <div class="rp-opt-row">
@@ -2179,10 +2446,11 @@ function roomChatPane(c) {
 function loadStoredMoments() { try { const v = JSON.parse(localStorage.getItem(MOMENT_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; } }
 function persistMoments() { try { localStorage.setItem(MOMENT_KEY, JSON.stringify(POSTS)); } catch (e) { toast('保存失败：存储空间可能不足'); } }
 function loadMomentBg() { try { return localStorage.getItem(MOMENT_BG_KEY) || ''; } catch (_) { return ''; } }
+function loadMomentAvatar() { try { return localStorage.getItem(MOMENT_AVATAR_KEY) || ''; } catch (_) { return ''; } }
 const DEFAULT_MOMENT_AVATAR = 'assets/朋友圈/朋友圈头像.jpg';
 function momentAuthor(by) {
     if (by && by !== 'self') { const c = IDENTITIES.find(x => x.id === by); if (c) return { name: c.name, avatar: c.avatar }; }
-    return { name: ME.name, avatar: ME.avatar || DEFAULT_MOMENT_AVATAR };
+    return { name: ME.name, avatar: MOMENT_AVATAR || DEFAULT_MOMENT_AVATAR };
 }
 function momentAvatarHtml(a, size) {
     const img = a.avatar ? `<img src="${a.avatar}" alt="" onerror="this.remove()">` : '';
@@ -2362,8 +2630,69 @@ function toggleMomentLike(id) {
 function revealMomentCover(el) {
     if (el) el.classList.add('tip-on');
 }
+/* 长按评论：删除（确认后） */
+function bindCommentLongPress() {
+    const root = document.querySelector('.messages-app'); if (!root || root.dataset.cmtBound) return;
+    root.dataset.cmtBound = '1';
+    let timer = null, sx = 0, sy = 0;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    root.addEventListener('pointerdown', e => {
+        const line = e.target.closest && e.target.closest('.mf-cmt-line[data-pid]');
+        if (!line) return;
+        sx = e.clientX; sy = e.clientY; cancel();
+        timer = setTimeout(() => { timer = null; deleteCommentAt(line.dataset.pid, Number(line.dataset.ci)); }, 500);
+    });
+    root.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel(); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => root.addEventListener(t, cancel));
+    root.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.mf-cmt-line[data-pid]')) e.preventDefault(); });
+}
+function deleteCommentAt(pid, ci) {
+    const p = POSTS.find(x => x.id === pid); if (!p || !p.comments || !p.comments[ci]) return;
+    askConfirm('删除这条评论？', '删除后无法恢复', '删除', () => {
+        p.comments.splice(ci, 1);
+        persistMoments(); renderMoments();
+    });
+}
+/* 朋友圈头像 / 背景：点击弹出玻璃框（恢复内置 / 本地上传） */
+let MOMENT_PICK_KIND = null;
+function openMomentPick(kind) {
+    const host = document.querySelector('.messages-app'); if (!host) return;
+    closeMomentPick();
+    MOMENT_PICK_KIND = kind;
+    const back = document.createElement('div'); back.id = 'momentPickBack';
+    back.addEventListener('pointerdown', closeMomentPick);
+    const box = document.createElement('div'); box.id = 'momentPick'; box.className = 'mp-pick';
+    box.innerHTML = `<div class="mp-pick-t">${kind === 'avatar' ? '朋友圈头像' : '朋友圈背景'}</div>`
+        + `<button class="mp-pick-b" type="button" onclick="momentRestore()">恢复内置</button>`
+        + `<button class="mp-pick-b primary" type="button" onclick="momentUpload()">本地上传</button>`;
+    host.appendChild(back); host.appendChild(box);
+}
+function closeMomentPick() { ['momentPickBack', 'momentPick'].forEach(id => { const el = document.getElementById(id); if (el) el.remove(); }); }
+function momentRestore() {
+    if (MOMENT_PICK_KIND === 'avatar') { MOMENT_AVATAR = ''; try { localStorage.removeItem(MOMENT_AVATAR_KEY); } catch (_) {} }
+    else { MOMENT_BG = ''; try { localStorage.removeItem(MOMENT_BG_KEY); } catch (_) {} }
+    closeMomentPick(); renderMoments(); toast('已恢复内置');
+}
+function momentUpload() {
+    const kind = MOMENT_PICK_KIND;
+    closeMomentPick();
+    const input = makeFilePicker();
+    input.type = 'file'; input.accept = 'image/*';
+    input.onchange = async () => {
+        const file = input.files && input.files[0]; if (!file) return;
+        try {
+            const url = await compressImage(file, kind === 'avatar' ? 512 : 1100);
+            if (kind === 'avatar') { MOMENT_AVATAR = url; try { localStorage.setItem(MOMENT_AVATAR_KEY, url); } catch (_) { toast('头像太大，已只在本次生效'); } }
+            else { MOMENT_BG = url; try { localStorage.setItem(MOMENT_BG_KEY, url); } catch (_) { toast('背景太大，已只在本次生效'); } }
+            renderMoments(); toast(kind === 'avatar' ? '头像已更新' : '背景已更新');
+        } catch (e) { toast('图片读取失败，请换一张试试'); }
+    };
+    input.click();
+}
 function toggleMomentCmt(id) {
-    MOMENT_CMT_OPEN[id] = !MOMENT_CMT_OPEN[id];
+    const pp = POSTS.find(x => x.id === id);
+    const curOpen = MOMENT_CMT_OPEN[id] !== undefined ? MOMENT_CMT_OPEN[id] : !!(pp && pp.comments && pp.comments.length);
+    MOMENT_CMT_OPEN[id] = !curOpen;
     renderMoments();
 }
 function sendMomentCommentInline(id) {
@@ -2516,10 +2845,11 @@ function renderMoments() {
         const cmts = p.comments || [];
         const imgs = p.imgs || [];
         const liked = likes.indexOf(ACTIVE_ID) >= 0;
-        const preview = cmts.slice(0, 2).map(c => `<div class="mf-cmt-line"><b>${esc(momentAuthor(c.by).name)}</b>${esc(c.text)}</div>`).join('');
+        const preview = cmts.slice(0, 2).map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}"><b class="mf-cmt-name">${esc(momentAuthor(c.by).name)}</b><span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('');
         const photos = imgs.length ? `<div class="mf-imgs n${Math.min(imgs.length, 3)}">${imgs.map(k => `<img class="mf-img" data-mkey="${k}" alt="">`).join('')}</div>` : '';
-        const cmtBlock = MOMENT_CMT_OPEN[p.id]
-            ? `<div class="mf-cmts mf-cmts-open">${cmts.map(c => `<div class="mf-cmt-line"><b>${esc(momentAuthor(c.by).name)}</b>${esc(c.text)}</div>`).join('') || '<div class="mf-cmt-none">还没有评论，来说第一句吧</div>'}<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="写评论…"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div></div>`
+        const cmtOpen = MOMENT_CMT_OPEN[p.id] !== undefined ? MOMENT_CMT_OPEN[p.id] : cmts.length > 0;
+        const cmtBlock = cmtOpen
+            ? `<div class="mf-cmts mf-cmts-open">${cmts.map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}"><b class="mf-cmt-name">${esc(momentAuthor(c.by).name)}</b><span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('') || '<div class="mf-cmt-none">还没有评论，来说第一句吧</div>'}<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="写评论…"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div></div>`
             : (cmts.length ? `<div class="mf-cmts" onclick="toggleMomentCmt('${p.id}')">${preview}${cmts.length > 2 ? `<span class="mf-cmt-more">查看全部 ${cmts.length} 条评论</span>` : ''}</div>` : '');
         return `<div class="mf-card">
             <div class="mf-card-head">${momentAvatarHtml(a, 'sm')}
@@ -2531,13 +2861,13 @@ function renderMoments() {
             <div class="mf-card-foot">
                 <button class="mf-act ${liked ? 'on' : ''}" type="button" onclick="toggleMomentLike('${p.id}')">${HEART}<span>${likes.length || ''}</span></button>
                 <button class="mf-act" type="button" onclick="toggleMomentCmt('${p.id}')">${CHAT_ICON}<span>${cmts.length || ''}</span></button>
-            </div>
+            <span class="mf-time-br">${fmtMoment(p.t)}</span></div>
             ${cmtBlock}
         </div>`;
     }).join('');
     frame.innerHTML = `
-        <div class="mf-cover" style="${bgStyle}" onclick="revealMomentCover(this)"><span class="mf-cover-tip" onclick="event.stopPropagation(); pickMomentCover()">点击更换背景</span></div>
-        <div class="mf-me"><div class="mf-avatar">${momentAvatarHtml(who, 'lg')}</div><div class="mf-name">${esc(who.name)}</div></div>
+        <div class="mf-cover" style="${bgStyle}" onclick="openMomentPick('cover')"></div>
+        <div class="mf-me"><div class="mf-avatar" onclick="openMomentPick('avatar')">${momentAvatarHtml(who, 'lg')}</div><div class="mf-name">${esc(who.name)}</div></div>
         <div class="mf-posts">${cards || '<div class="mf-empty">还没有朋友圈，点右上角的加号发一条吧</div>'}</div>`;
     hydrateMomentImages();
 }
@@ -2605,9 +2935,11 @@ applySelf();
 syncSettingsMode();
 loadProfileCard();
 loadSettingsName();
+preloadDefaultImages();
+bindCommentLongPress();
 applyTheme(THEME);
 initComposerGesture();
 
-const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover};
+const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload};
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 };

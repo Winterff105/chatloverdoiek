@@ -106,8 +106,17 @@
   /* 返回值：消息字符串数组，每一项对应一个气泡 */
   async function replyFor(contact, instruction, limit) {
     const c = config(); if (!isConfigured()) throw new Error('请先返回主界面，在「设置 → API」里保存接口地址、密钥和模型');
+    const memCount = (contact.mem && contact.mem.ctx) || 30;
+    const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
+    const mems = (contact.memories || []).slice().sort((a, b) => (b.priority || 0) - (a.priority || 0)).slice(0, 12);
+    const memBlock = mems.length ? ['【记忆（按优先级排序，越靠前越重要）】'].concat(mems.map(x =>
+        `${x.label || ''} ${fillU(x.text)}`
+        + (x.points && x.points.length ? '\n' + x.points.map(p => '- ' + fillU(p)).join('\n') : '')
+        + (x.relation ? '\n关系与感情：' + fillU(x.relation) : '')
+        + (x.keys && x.keys.length ? '\n关键词：' + x.keys.join('、') : ''))).join('\n') : '';
     const system = [
       c.systemPrompt,
+      memBlock,
       contact.name ? `你的名字：${contact.name}` : '',
       contact.persona ? `联系人设定：${contact.persona}` : '',
       contact.sig ? `签名：${contact.sig}` : '',
@@ -117,7 +126,7 @@
       instruction || ''
     ].filter(Boolean).join('\n');
     const messages = [{ role: 'system', content: system }];
-    for (const m of (contact.msgs || []).slice(-30)) messages.push({ role: m.me ? 'user' : 'assistant', content: String(m.text || '') });
+    for (const m of (contact.msgs || []).slice(-memCount)) messages.push({ role: m.me ? 'user' : 'assistant', content: String(m.text || '') });
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify({ model: c.model, messages, temperature: 0.8 }) }); }
     catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
@@ -130,5 +139,17 @@
     if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
     return parts;
   }
-  window.MessagesAPI = { config, isConfigured, replyFor, parseMessages };
+  /* 记忆总结：单次请求，返回模型原文 */
+  async function complete(systemText, userText) {
+    const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
+    let response;
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify({ model: c.model, messages: [{ role: 'system', content: systemText }, { role: 'user', content: userText }], temperature: 0.4 }) }); }
+    catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);
+    const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!content) throw new Error('API 返回内容为空');
+    return Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content);
+  }
+  window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete };
 })();
