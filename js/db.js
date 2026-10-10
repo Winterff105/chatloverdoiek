@@ -20,7 +20,6 @@ const DB = {
             try {
                 req = indexedDB.open(this.dbName, this.version);
             } catch (e) {
-                console.warn('[DB] indexedDB.open 失败，使用 localStorage');
                 resolve(null);
                 return;
             }
@@ -36,8 +35,7 @@ const DB = {
                 this._requestPersist();
                 resolve(db);
             };
-            req.onerror = () => { console.warn('[DB] IndexedDB 打开失败，使用 localStorage'); resolve(null); };
-            req.onblocked = () => console.warn('[DB] 数据库被其他页面占用，等待中');
+            req.onerror = () => resolve(null);
         });
         // 打开失败时允许下一次调用重试
         this._opening.then((db) => { if (!db) this._opening = null; });

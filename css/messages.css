@@ -1840,3 +1840,14 @@
 /* ---------- 资料卡拍立得：可上传照片 ---------- */
 .messages-app .polaroid .sq{ cursor: pointer; }
 .messages-app .polaroid .sq img{ display: block; width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------- 资料卡：宽度固定，不再随字体宽度变化（浏览器与手机一致） ---------- */
+.messages-app .story-row .kr-head{ flex: 0 0 61px; width: 61px; box-sizing: border-box; }
+.messages-app .story-row .story-card{ flex: 0 0 auto; width: 229px; max-width: calc(100% - 75px); }
+
+/* ---------- 聊天消息：只有新消息播放进场动画，重绘不再闪 ---------- */
+.messages-app .mrow{ animation: none; }
+.messages-app .mrow.mrow-new{ animation: pop 0.25s ease; }
+
+/* ---------- 设置页名字：固定为黑色、无阴影（覆盖全局 .profile-name 的样式） ---------- */
+.messages-app .settings-profile .profile-name{ display: block; color: #000; text-shadow: none; letter-spacing: normal; line-height: 1.2; font-weight: 700; }

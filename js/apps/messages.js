@@ -213,18 +213,21 @@ function fabAction() {
 /* ---------------- 消息列表 ---------------- */
 function renderChats() {
     const chatContacts = CHAT_IDS.map(id => CONTACTS.find(c => c.id === id)).filter(Boolean);
-    document.getElementById('storyRow').innerHTML = THEME === 'tabs'
+    const storyEl = document.getElementById('storyRow');
+    const storyHtml = THEME === 'tabs'
         ? KR_HEAD + profileCard()
         : chatContacts.map(c =>
             `<button class="story ${c.unread ? 'unread' : ''}" title="${esc(c.name)}" onclick="openChat('${c.id}')">${avatar(c, 'lg')}</button>`).join('');
+    if (storyEl.dataset.html !== storyHtml) { storyEl.innerHTML = storyHtml; storyEl.dataset.html = storyHtml; }
     const q = document.getElementById('searchInput').value.trim().toLowerCase();
     const list = chatContacts.filter(c => !q || c.name.toLowerCase().includes(q) || String(c.id).toLowerCase().includes(q) || c.msgs.some(m => m.text.toLowerCase().includes(q)));
     const unreadTotal = chatContacts.reduce((s, c) => s + c.unread, 0);
     document.querySelector('.messages-app').querySelectorAll('.chatsSub').forEach(el => el.textContent = unreadTotal ? `${unreadTotal} unread` : 'All caught up');
     document.getElementById('tabDot').style.display = unreadTotal ? 'block' : 'none';
     const box = document.getElementById('chatList');
-    if (!list.length) { box.innerHTML = '<div class="empty"><div style="font-size:28px;margin-bottom:12px">＋</div><strong>还没有聊天</strong><p style="margin-top:8px;line-height:1.7">先到「联系人」创建联系人并生成 ID，再点击右下角圆形按钮，粘贴 ID 添加聊天。</p></div>'; return; }
-    box.innerHTML = list.map(c => {
+    const setListHtml = h => { if (box.dataset.html !== h) { box.innerHTML = h; box.dataset.html = h; } };
+    if (!list.length) { setListHtml('<div class="empty"><div style="font-size:28px;margin-bottom:12px">＋</div><strong>还没有聊天</strong><p style="margin-top:8px;line-height:1.7">先到「联系人」创建联系人并生成 ID，再点击右下角圆形按钮，粘贴 ID 添加聊天。</p></div>'); return; }
+    setListHtml(list.map(c => {
         const m = last(c) || {me:false,text:'还没有消息',t:''};
         return `
         <div class="row ${c.unread ? 'unread' : ''}" onclick="openChat('${c.id}')">
@@ -237,7 +240,7 @@ function renderChats() {
                 </div>
             </div>
         </div>`;
-    }).join('');
+    }).join(''));
 }
 
 /* ---------------- 联系人 (信封角色卡) ---------------- */
@@ -541,6 +544,8 @@ function renderThread() {
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c) return;
     const box = document.getElementById('thread');
+    // 只有本次新增的消息播放进场动画；重绘已有消息时不闪
+    const shownCount = box.dataset.chat === c.id ? Number(box.dataset.count || 0) : c.msgs.length;
     let html = '<div class="day">Today</div>';
     c.msgs.forEach((m, i) => {
         const prev = c.msgs[i - 1], next = c.msgs[i + 1];
@@ -550,15 +555,17 @@ function renderThread() {
         const sp = m.me ? '' : (newGroup ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div>` : '<div class="sp"></div>');
         const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
         const grp = (pos === 'g-head') ? 'grp-head' : '';
-        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp}">${sp}<div class="bubble ${pos}">${esc(m.text)}</div>${meta}</div>`;
+        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''}">${sp}<div class="bubble ${pos}">${esc(m.text)}</div>${meta}</div>`;
     });
     box.innerHTML = html;
+    box.dataset.chat = c.id;
+    box.dataset.count = c.msgs.length;
     box.scrollTop = box.scrollHeight;
 }
 function showTyping(c) {
     const box = document.getElementById('thread');
     const el = document.createElement('div');
-    el.className = 'mrow typing'; el.id = 'typingRow';
+    el.className = 'mrow typing mrow-new'; el.id = 'typingRow';
     el.innerHTML = `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div><div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>`;
     box.appendChild(el); box.scrollTop = box.scrollHeight;
 }

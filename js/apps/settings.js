@@ -10,7 +10,6 @@ const safeDB = {
         }
         try {
             localStorage.setItem(`noir_os_${key}`, JSON.stringify(value));
-            console.log('🛡️ [safeDB SAVE] 使用 LocalStorage 成功保存:', key, value);
             return true;
         } catch (e) {
             console.error('❌ [safeDB SAVE ERROR]:', e);
@@ -25,7 +24,6 @@ const safeDB = {
         try {
             const item = localStorage.getItem(`noir_os_${key}`);
             const parsed = item ? JSON.parse(item) : defaultValue;
-            console.log('🛡️ [safeDB LOAD] 使用 LocalStorage 成功读取:', key, parsed);
             return parsed;
         } catch (e) {
             console.error('❌ [safeDB LOAD ERROR]:', e);
@@ -411,7 +409,6 @@ function getSettingsAppHTML() {
 }
 
 async function initSettingsApp() {
-    console.log('🚀 [SETTINGS INIT] 开始初始化设置应用...');
     settingsCurrentPanel = 'main';
     restoreActiveSettingsApi();
     renderSettingsPresetsList();
@@ -506,6 +503,10 @@ async function initSettingsApp() {
 }
 
 let settingsCurrentPanel = 'main';
+const DEFAULT_API_PRESETS = [
+    { id: 1, name: '默认主线路', url: 'https://api.openai.com/v1', key: 'sk-proj-mockkey987654321', model: 'gpt-4o' },
+    { id: 2, name: '备用中转站', url: 'https://api.deepseek.com/v1', key: 'sk-ds-abcdef123456', model: 'deepseek-v3' }
+];
 let settingsApiPresets = [];
 const SETTINGS_PRESETS_KEY = 'forever_settings_api_presets_v1';
 
@@ -513,14 +514,27 @@ function settingsEsc(s) {
     return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 }
 function loadSettingsApiPresets() {
+    const raw = localStorage.getItem(SETTINGS_PRESETS_KEY);
+    if (raw === null) { settingsApiPresets = DEFAULT_API_PRESETS.map(p => ({ ...p })); return; }
     try {
-        const list = JSON.parse(localStorage.getItem(SETTINGS_PRESETS_KEY) || '[]');
+        const list = JSON.parse(raw || '[]');
         if (Array.isArray(list)) {
             settingsApiPresets = list
                 .filter(p => p && p.name && p.url)
                 .map(p => ({ id: p.id || Date.now() + Math.random(), name: String(p.name), url: String(p.url), key: String(p.key || ''), model: String(p.model || '') }));
         }
     } catch (e) { console.warn('[Settings API] 预设读取失败', e); }
+}
+/* 没有已保存的当前配置时，把表单填成当前预设（与原来的默认表单一致） */
+function prefillSettingsForm(p) {
+    if (!p) return;
+    const name = document.getElementById('settingsPresetName');
+    const url = document.getElementById('settingsApiUrl');
+    const key = document.getElementById('settingsApiKey');
+    if (name) name.value = p.name;
+    if (url) url.value = p.url;
+    if (key) key.value = p.key;
+    ensureModelOption(document.getElementById('settingsModelDropdown'), p.model);
 }
 function saveSettingsApiPresets() {
     try { localStorage.setItem(SETTINGS_PRESETS_KEY, JSON.stringify(settingsApiPresets)); }
@@ -582,7 +596,7 @@ function restoreActiveSettingsApi() {
     loadSettingsApiPresets();
     try {
         const saved = JSON.parse(localStorage.getItem('forever_settings_active_api_v1') || 'null');
-        if (!saved || !saved.url || !saved.model) return;
+        if (!saved || !saved.url || !saved.model) { prefillSettingsForm(settingsApiPresets[settingsActivePresetIndex]); return; }
         let idx = settingsApiPresets.findIndex(p => p.name === saved.name);
         if (idx < 0) {
             settingsApiPresets.unshift({ id: Date.now(), name: saved.name || '当前 API', url: saved.url, key: saved.key || '', model: saved.model });
@@ -1005,6 +1019,7 @@ function syncFullscreenSwitch() {
     const sw = document.getElementById('settingsFullscreenSwitch');
     const on = isFullscreenNow();
     if (sw) sw.classList.toggle('active', on);
+    if (on) markFullscreenArmed();
     safeDB.save('settings_fullscreen', on);
 }
 
@@ -1014,19 +1029,41 @@ function toggleSettingsFullscreen() {
         const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen;
         if (req) {
             const p = req.call(docEl);
-            if (p && p.catch) p.catch(err => console.log('Fullscreen request failed:', err));
+            if (p && p.catch) p.catch(() => {});
         }
     } else {
         const exit = document.exitFullscreen || document.webkitExitFullscreen;
         if (exit) {
             const p = exit.call(document);
-            if (p && p.catch) p.catch(err => console.log('Exit fullscreen failed:', err));
+            if (p && p.catch) p.catch(() => {});
         }
     }
 }
 
 document.addEventListener('fullscreenchange', syncFullscreenSwitch);
 document.addEventListener('webkitfullscreenchange', syncFullscreenSwitch);
+
+// ---------- 全屏记忆：第一次进入全屏后记住；之后每次退出全屏，任意位置点击都会重新进入 ----------
+const FS_ARMED_KEY = 'forever_fullscreen_armed_v1';
+let fullscreenArmed = (() => { try { return localStorage.getItem(FS_ARMED_KEY) === '1'; } catch (_) { return false; } })();
+function markFullscreenArmed() {
+    if (fullscreenArmed) return;
+    fullscreenArmed = true;
+    try { localStorage.setItem(FS_ARMED_KEY, '1'); } catch (_) {}
+}
+function requestAppFullscreen() {
+    const docEl = document.documentElement;
+    const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen;
+    if (!req) return;
+    const p = req.call(docEl);
+    if (p && p.catch) p.catch(() => {});
+}
+// 捕获阶段：先于所有控件的点击处理执行。
+// 点击“退出全屏”的那一次发生时仍处于全屏，所以不会被立刻重新进入。
+document.addEventListener('click', () => {
+    if (!fullscreenArmed || isFullscreenNow()) return;
+    requestAppFullscreen();
+}, true);
 
 // ---------- 桌面壁纸（只影响桌面，用 DB 保存） ----------
 // ---------- 桌面壁纸：自己上传 > 内置选择 > 跟随系统 ----------
