@@ -575,6 +575,19 @@ const MAX_BUBBLES = 12;
 function splitMsgs(text) {
     return String(text || '').split(MSG_SEP).map(x => x.trim()).filter(Boolean).slice(0, MAX_BUBBLES);
 }
+/* 清理单条消息：去掉名字前缀、动作/旁白（整段括号或星号）、外层引号 */
+function cleanMsgPart(t, name) {
+    let s = String(t || '').trim();
+    if (name) {
+        const esc = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        s = s.replace(new RegExp('^' + esc + '\\s*[:：]\\s*'), '').trim();
+    }
+    if (/^\*\*[\s\S]+\*\*$/.test(s)) s = s.slice(2, -2).trim();   // **加粗** 只去掉星号
+    else if (/^\*[\s\S]*\*$/.test(s)) return '';                 // *挥手* 动作描述整段丢弃
+    if (/^[（(][\s\S]*[）)]$/.test(s)) return '';              // （笑）
+    s = s.replace(/^[“"「『]([\s\S]*)[”"」』]$/, '$1').trim();
+    return s;
+}
 let pullTimer = null;
 async function pullReply() {
     const c = CONTACTS.find(x => x.id === activeId);
@@ -592,10 +605,11 @@ async function pullReply() {
     const cap = document.querySelector('.messages-app').querySelector('.send-capsule'); if (cap) cap.classList.add('pulling');
     showTyping(c);
     try {
-        const reply = await window.MessagesAPI.replyFor(c, '请结合上下文自然地继续回复，不要重复已经说过的话。');
+        const replies = await window.MessagesAPI.replyFor(c, '请结合上下文继续回复，严格按系统要求只输出 JSON。');
         const row = document.getElementById('typingRow'); if (row) row.remove();
-        const parts = splitMsgs(reply);
-        (parts.length ? parts : [String(reply).trim()]).forEach(t => c.msgs.push({me:false,text:t,t:nowTime()}));
+        const parts = replies.map(p => cleanMsgPart(p, c.name)).filter(Boolean);
+        if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
+        parts.forEach(t => c.msgs.push({me:false,text:t,t:nowTime()}));
         c.time = nowTime(); persistContacts();
         if (activeId === c.id) renderThread(); renderChats();
     } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); toast(e.message || 'API 请求失败'); }
