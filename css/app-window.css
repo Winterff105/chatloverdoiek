@@ -101,3 +101,10 @@
     transform: scale(1) !important;
     opacity: 1 !important;
 }
+
+/* 进入应用：只保留渐显，略微放慢，不再有缩放或上浮 */
+.app-window{ transform: none !important; transition: opacity 0.42s ease, visibility 0.42s ease !important; }
+.app-window.active{ transform: none !important; }
+.app-window.settings-fade-mode{ transform: none !important; transition: opacity 0.42s ease !important; }
+.app-window.settings-fade-mode.active{ transform: none !important; }
+.home-screen.scaled{ transform: none; }

@@ -68,7 +68,7 @@ function loadStoredContacts() {
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
 }
 function normalizeContact(c) {
-    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '' };
+    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null };
 }
 
 
@@ -540,12 +540,12 @@ function closeChat() {
     activeId = null;
     renderChats();
 }
-function renderThread() {
+function renderThread(opts) {
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c) return;
     const box = document.getElementById('thread');
     // 只有本次新增的消息播放进场动画；重绘已有消息时不闪
-    const shownCount = box.dataset.chat === c.id ? Number(box.dataset.count || 0) : c.msgs.length;
+    const shownCount = (opts && opts.noAnim) || box.dataset.chat !== c.id ? c.msgs.length : Number(box.dataset.count || 0);
     let html = '<div class="day">Today</div>';
     c.msgs.forEach((m, i) => {
         const prev = c.msgs[i - 1], next = c.msgs[i + 1];
@@ -588,32 +588,118 @@ function cleanMsgPart(t, name) {
     s = s.replace(/^[“"「『]([\s\S]*)[”"」』]$/, '$1').trim();
     return s;
 }
+/* ---------------- 聊天软件设置：消息条数 & 一次性发出（保存在本机） ---------------- */
+const CHAT_OPTS_KEY = 'forever_messages_chat_opts_v1';
+function coClamp(x, lo, hi, d) { const n = parseInt(x, 10); return Number.isFinite(n) ? Math.max(lo, n) : d; }
+function loadChatOpts() {
+    try {
+        const v = JSON.parse(localStorage.getItem(CHAT_OPTS_KEY) || 'null');
+        if (v && typeof v === 'object') return { min: coClamp(v.min, 1, 10, 1), max: coClamp(v.max, 1, 10, 4), batch: !!v.batch };
+    } catch (_) {}
+    return { min: 1, max: 4, batch: false };
+}
+let CHAT_OPTS = loadChatOpts();
+function persistChatOpts() { try { localStorage.setItem(CHAT_OPTS_KEY, JSON.stringify(CHAT_OPTS)); } catch (_) {} }
+function openChatCountSheet() {
+    openSheet(`<div class="sheet-title sheet-title-plane">${PLANE_SVG}<span>消息条数</span></div>`
+        + `<div class="co-field"><span>最少</span><input id="coMin" type="number" min="1" max="10" value="${CHAT_OPTS.min}"></div>`
+        + `<div class="co-field"><span>最多</span><input id="coMax" type="number" min="1" max="10" value="${CHAT_OPTS.max}"></div>`
+        + `<div class="co-tip">联系人每次回复的条数会在这个范围内</div>`
+        + `<button class="identity-cancel" type="button" onclick="saveChatCount()">保存</button>`
+        + `<button class="identity-cancel" type="button" onclick="closeSheet()">取消</button>`);
+}
+function saveChatCount() {
+    const min = coClamp(document.getElementById('coMin').value, 1, 10, 1);
+    let max = coClamp(document.getElementById('coMax').value, 1, 10, 4);
+    if (max < min) max = min;
+    CHAT_OPTS.min = min; CHAT_OPTS.max = max; persistChatOpts();
+    closeSheet();
+    toast(`已设置为 ${min} 到 ${max} 条`);
+    openChatsSettings();
+}
+
+/* 每个联系人自己的选项，没设置时用默认值 */
+function chatOptsOf(c) {
+    const o = (c && c.chatOpts) || {};
+    return {
+        min: o.min !== undefined ? coClamp(o.min, 1, 10, 1) : CHAT_OPTS.min,
+        max: o.max !== undefined ? coClamp(o.max, 1, 10, 4) : CHAT_OPTS.max,
+        batch: o.batch !== undefined ? !!o.batch : CHAT_OPTS.batch
+    };
+}
+function setRoomOpt(key, value) {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
+    const o = chatOptsOf(c);
+    let min = o.min, max = o.max;
+    if (key === 'min') min = coClamp(value, 1, 10, min);
+    if (key === 'max') max = coClamp(value, 1, 10, max);
+    if (max < min) { if (key === 'min') max = min; else min = max; }
+    c.chatOpts = { min, max, batch: o.batch };
+    persistContacts(); renderRoomPane();
+}
+function stepRoomOpt(key, delta) {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
+    const o = chatOptsOf(c);
+    setRoomOpt(key, (key === 'min' ? o.min : o.max) + delta);
+}
+function toggleRoomBatch() {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
+    const o = chatOptsOf(c);
+    c.chatOpts = { min: o.min, max: o.max, batch: !o.batch };
+    persistContacts(); renderRoomPane();
+}
+
+/* 把联系人的一组消息发出来：一次性发出 = 一起出现、无动画；否则一条一条出现 */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function deliverMsgs(c, parts) {
+    if (chatOptsOf(c).batch) {
+        parts.forEach(t => c.msgs.push({me:false,text:t,t:nowTime()}));
+        c.time = nowTime(); persistContacts();
+        if (activeId === c.id) renderThread({noAnim:true});
+        renderChats();
+        return;
+    }
+    for (let i = 0; i < parts.length; i++) {
+        if (i > 0) await sleep(650);
+        c.msgs.push({me:false,text:parts[i],t:nowTime()});
+        c.time = nowTime(); persistContacts();
+        if (activeId === c.id) renderThread();
+        renderChats();
+    }
+}
+
 let pullTimer = null;
 async function pullReply() {
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c || c._busy) return;
+    const o = chatOptsOf(c);
     const configured = !!(window.MessagesAPI && window.MessagesAPI.isConfigured());
     if (!configured) {
-        // 没有接入 API：按顺序发送联系人的自动回复，每条一个气泡
+        // 没有接入 API：按顺序发送联系人的自动回复
         if (!c.replies || !c.replies.length) { toast('请先在「设置 → API」保存接口配置，或在联系人人设里填写自动回复'); return; }
-        c.replies.slice(0, MAX_BUBBLES).forEach(t => c.msgs.push({me:false,text:t,t:nowTime()}));
-        c.time = nowTime(); persistContacts();
-        if (activeId === c.id) renderThread(); renderChats();
+        c._busy = true;
+        try { await deliverMsgs(c, c.replies.slice(0, o.max)); }
+        finally { c._busy = false; }
         return;
     }
     c._busy = true;
     const cap = document.querySelector('.messages-app').querySelector('.send-capsule'); if (cap) cap.classList.add('pulling');
     showTyping(c);
     try {
-        const replies = await window.MessagesAPI.replyFor(c, '请结合上下文继续回复，严格按系统要求只输出 JSON。');
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。本次请发送 ${o.min} 到 ${o.max} 条消息。`;
+        const replies = await window.MessagesAPI.replyFor(c, instruction, o.max);
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const parts = replies.map(p => cleanMsgPart(p, c.name)).filter(Boolean);
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
-        parts.forEach(t => c.msgs.push({me:false,text:t,t:nowTime()}));
-        c.time = nowTime(); persistContacts();
-        if (activeId === c.id) renderThread(); renderChats();
+        await deliverMsgs(c, parts);
     } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); toast(e.message || 'API 请求失败'); }
     finally { c._busy=false; if(cap) cap.classList.remove('pulling'); }
+}
+
+/* 人设页第一区折叠 */
+function togglePersonaFold() {
+    const f = document.getElementById('pFold');
+    if (f) f.classList.toggle('collapsed');
 }
 async function sendMessage() {
     const input = document.getElementById('input');
@@ -1233,6 +1319,12 @@ let roomEl = null;
 /* ---------------- 聊天软件设置（设置 → Chats） ---------------- */
 
 function softAction(kind) {
+    if (kind === 'count') { openChatCountSheet(); return; }
+    if (kind === 'batch') {
+        CHAT_OPTS.batch = !CHAT_OPTS.batch; persistChatOpts();
+        toast(CHAT_OPTS.batch ? '已开启一次性发出' : '已关闭一次性发出');
+        openChatsSettings(); return;
+    }
     if (kind === 'bar') {
         const bar = document.getElementById('tabbar');
         bar.classList.toggle('glass');
@@ -2056,7 +2148,23 @@ function closeRoomView() {
 
 function roomChatPane(c) {
     const a = activeIdentity();
+    const o = chatOptsOf(c);
     return `
+        <div class="rp-label">消息条数</div>
+        <div class="rp-opt">
+            <div class="rp-opt-row">
+                <div><div class="rp-opt-t">最少</div><div class="rp-opt-s">每次回复至少几条</div></div>
+                <div class="rp-stepper"><button class="rp-step" type="button" onclick="stepRoomOpt('min', -1)">−</button><input class="rp-val" type="number" min="1" inputmode="numeric" value="${o.min}" onchange="setRoomOpt('min', this.value)" onkeydown="if(event.key==='Enter')this.blur()"><button class="rp-step" type="button" onclick="stepRoomOpt('min', 1)">+</button></div>
+            </div>
+            <div class="rp-opt-row">
+                <div><div class="rp-opt-t">最多</div><div class="rp-opt-s">每次回复最多几条</div></div>
+                <div class="rp-stepper"><button class="rp-step" type="button" onclick="stepRoomOpt('max', -1)">−</button><input class="rp-val" type="number" min="1" inputmode="numeric" value="${o.max}" onchange="setRoomOpt('max', this.value)" onkeydown="if(event.key==='Enter')this.blur()"><button class="rp-step" type="button" onclick="stepRoomOpt('max', 1)">+</button></div>
+            </div>
+            <div class="rp-opt-row">
+                <div><div class="rp-opt-t">一次性发出</div><div class="rp-opt-s">${o.batch ? '一次全部出现，没有动画' : '一条一条出现'}</div></div>
+                <button class="rp-switch ${o.batch ? 'on' : ''}" type="button" onclick="toggleRoomBatch()" aria-label="一次性发出"></button>
+            </div>
+        </div>
         <div class="rp-stats">
             <div class="rp-stat"><b>${c.msgs.length}</b><span>条消息</span></div>
             <div class="rp-stat"><b>${esc(a ? a.name : ME.name)}</b><span>当前身份</span></div>
@@ -2480,6 +2588,6 @@ loadSettingsName();
 applyTheme(THEME);
 initComposerGesture();
 
-const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto};
+const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch};
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 };

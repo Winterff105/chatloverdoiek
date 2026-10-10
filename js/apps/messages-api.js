@@ -54,13 +54,16 @@
 
 [HONESTY]
 
-- If the user sincerely asks whether you are an AI, do not deny it.`;
+- If the user sincerely asks whether you are an AI, do not deny it.
+
+[FAKE COMFORT]
+- 人类不会轻易说"我在这呢，说吧"。不要说这类假陪伴、假安慰的话，它们会让人觉得虚假、虚拟感很重。`;
 
   const FORMAT_PROMPT = [
     '【输出格式：优先级最高，高于以上所有角色要求】',
     '1. 只输出一个 JSON 对象，不要输出任何其他文字、解释、标题、Markdown 或代码块。',
     '2. 格式固定为：{"messages":["第一条消息","第二条消息"]}',
-    '3. 数组里的每个元素是一条独立的聊天消息，对应聊天里的一个气泡。通常 1 到 4 条，最多 8 条。',
+    '3. 数组里的每个元素是一条独立的聊天消息，对应聊天里的一个气泡。条数以本次指示中的范围为准。',
     '4. 每条消息只写角色要说出口的话。不要写角色名或"XX："这样的前缀，不要写时间，不要写括号或星号包裹的动作、神态、心理描写。',
     '5. 一条消息内部需要换行时，在 JSON 字符串里用 \\n 表示；不要把多条消息合并进同一个字符串。'
   ].join('\n');
@@ -88,7 +91,7 @@
   function tryJson(s) { try { return JSON.parse(s); } catch (_) { return null; } }
 
   /* 解析模型输出：优先 JSON 数组；解析失败时兜底按 ||| 拆分 */
-  function parseMessages(raw, name) {
+  function parseMessages(raw, name, limit) {
     let t = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     let obj = tryJson(t);
     if (obj == null) {
@@ -97,11 +100,11 @@
     }
     let list = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.messages) ? obj.messages : null);
     if (!list) list = t.split('|||');
-    return list.map(x => cleanOne(x, name)).filter(Boolean).slice(0, MAX_MESSAGES);
+    return list.map(x => cleanOne(x, name)).filter(Boolean).slice(0, limit || MAX_MESSAGES);
   }
 
   /* 返回值：消息字符串数组，每一项对应一个气泡 */
-  async function replyFor(contact, instruction) {
+  async function replyFor(contact, instruction, limit) {
     const c = config(); if (!isConfigured()) throw new Error('请先返回主界面，在「设置 → API」里保存接口地址、密钥和模型');
     const system = [
       c.systemPrompt,
@@ -123,7 +126,7 @@
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     const answer = Array.isArray(content) ? content.map(x => x.text || '').join('') : content;
     if (!answer || !String(answer).trim()) throw new Error('API 返回内容为空，请检查所选模型和接口兼容性');
-    const parts = parseMessages(answer, contact.name);
+    const parts = parseMessages(answer, contact.name, limit);
     if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
     return parts;
   }
