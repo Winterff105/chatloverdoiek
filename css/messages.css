@@ -1992,3 +1992,23 @@
     background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, #FFFFFF 42%);
     border-top: 0;
 }
+
+/* ===== 聊天室：顶栏上移 20px；顶栏与底栏叠在消息上方，消息从下方滚过去渐隐 ===== */
+.messages-app #chatView .chat-head{
+    position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+    padding: 69px 12px 14px;
+    border-bottom: 0;
+    background: linear-gradient(to bottom, #FFFFFF 0%, #FFFFFF 40%, rgba(255,255,255,0) 100%);
+}
+.messages-app #chatView .thread{ padding-top: 140px; padding-bottom: 124px; gap: 4px; }
+.messages-app #chatView .composer{
+    position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
+    background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, #FFFFFF 46%);
+    border-top: 0;
+}
+
+/* ===== 气泡：统一间距，字体缩小 ===== */
+.messages-app .thread{ gap: 4px; }
+.messages-app .mrow.gap{ margin-top: 0; }
+.messages-app .mrow.grp-head{ margin-bottom: 0; }
+.messages-app .bubble{ font-size: 13px; }

@@ -1573,9 +1573,7 @@ function pickPersonaAvatar() {
     input.onchange = () => {
         const file = input.files && input.files[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = e => {
-            const url = e.target.result;
+        compressImage(file, 512).then(url => {
             let slot;
             if (personaMode === 'self') {
                 ME.avatar = url; persistMe(); applySelf(); renderChats(); renderMoments();
@@ -1589,11 +1587,11 @@ function pickPersonaAvatar() {
                 if (slot) slot.innerHTML = identityAvatarHtml(c || { name: '' });
             }
             toast('头像已更新');
-        };
-        reader.readAsDataURL(file);
+        }).catch(() => toast('图片读取失败，请换一张试试'));
     };
     input.click();
 }
+
 function fillPersona(c) {
     const g = id => document.getElementById(id);
     const mode = personaMode;
@@ -2490,7 +2488,7 @@ function renderMoments() {
     const frame = document.getElementById('momentsFrame');
     if (!frame) return;
     const who = momentAuthor(ACTIVE_ID);
-    const bgStyle = MOMENT_BG ? `background-image:url("${MOMENT_BG}");` : '';
+    const bgStyle = MOMENT_BG ? `background-image:url('${MOMENT_BG}');` : '';
     const cards = POSTS.slice().sort((a, b) => b.t - a.t).map(p => {
         const a = momentAuthor(p.by);
         const likes = p.likes || [];
