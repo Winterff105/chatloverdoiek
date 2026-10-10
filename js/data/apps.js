@@ -6,7 +6,7 @@
    ========================================= */
 const APPS = {
     'chat': {
-        name: '信息',
+        name: 'chat',
         svg: `<svg viewBox="0 0 40 40">
             <path class="stroke-primary" d="M13.5 8.5h12a6 6 0 0 1 6 6v7a6 6 0 0 1-6 6H18l-4.5 3.5v-3.5a6 6 0 0 1-6-6v-7a6 6 0 0 1 6-6z"/>
             <line class="stroke-primary" x1="13.5" y1="15.5" x2="25.5" y2="15.5"/>

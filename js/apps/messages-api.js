@@ -6,7 +6,7 @@
     try { c = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (_) {}
     let endpoint = String(c.url || c.endpoint || '').trim();
     if (endpoint && !/\/chat\/completions\/?$/i.test(endpoint)) endpoint = endpoint.replace(/\/+$/, '') + '/chat/completions';
-    return { endpoint, model: String(c.model || '').trim(), apiKey: String(c.key || c.apiKey || '').trim(), systemPrompt: '你是一位自然、真诚、善于倾听的聊天伙伴。请用中文回复，结合联系人设定和聊天上下文，不要声称自己是真人。' };
+    return { endpoint, model: String(c.model || '').trim(), apiKey: String(c.key || c.apiKey || '').trim(), systemPrompt: '你是一位自然、真诚、善于倾听的聊天伙伴。请用中文回复，结合联系人设定和聊天上下文，不要声称自己是真人。如果想连续发送多条消息，请在两条消息之间使用 ||| 分隔（三个竖线），每一段都是一条独立的消息；不要用换行来分隔消息。' };
   }
   function isConfigured() { const c=config(); return !!(c.endpoint && c.model && c.apiKey); }
   async function replyFor(contact, instruction) {

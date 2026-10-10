@@ -1,6 +1,6 @@
 /* Robust app launcher: always opens the host window, even if a module has an initialization error. */
 function openApp(appId) {
-    const def = (typeof APPS !== 'undefined' && APPS[appId]) || { name: appId === 'chat' ? '信息' : appId, svg: '' };
+    const def = (typeof APPS !== 'undefined' && APPS[appId]) || { name: appId === 'chat' ? 'chat' : appId, svg: '' };
     const home = document.getElementById('homeScreen');
     const win = document.getElementById('appWindow');
     if (!home || !win) { console.error('[Forever] 找不到主屏幕或应用窗口容器'); return; }

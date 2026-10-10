@@ -68,7 +68,7 @@ function loadStoredContacts() {
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
 }
 function normalizeContact(c) {
-    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '' };
+    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '' };
 }
 
 
@@ -569,18 +569,34 @@ function showTyping(c) {
     el.innerHTML = `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div><div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>`;
     box.appendChild(el); box.scrollTop = box.scrollHeight;
 }
+const MSG_SEP = '|||';
+const MAX_BUBBLES = 12;
+/* 按 ||| 拆分成多条消息：纯文字分隔，消息内部仍可换行 */
+function splitMsgs(text) {
+    return String(text || '').split(MSG_SEP).map(x => x.trim()).filter(Boolean).slice(0, MAX_BUBBLES);
+}
 let pullTimer = null;
 async function pullReply() {
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c || c._busy) return;
-    if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('请先在主界面「设置 → API」保存接口配置'); return; }
+    const configured = !!(window.MessagesAPI && window.MessagesAPI.isConfigured());
+    if (!configured) {
+        // 没有接入 API：按顺序发送联系人的自动回复，每条一个气泡
+        if (!c.replies || !c.replies.length) { toast('请先在「设置 → API」保存接口配置，或在联系人人设里填写自动回复'); return; }
+        c.replies.slice(0, MAX_BUBBLES).forEach(t => c.msgs.push({me:false,text:t,t:nowTime()}));
+        c.time = nowTime(); persistContacts();
+        if (activeId === c.id) renderThread(); renderChats();
+        return;
+    }
     c._busy = true;
     const cap = document.querySelector('.messages-app').querySelector('.send-capsule'); if (cap) cap.classList.add('pulling');
     showTyping(c);
     try {
         const reply = await window.MessagesAPI.replyFor(c, '请结合上下文自然地继续回复，不要重复已经说过的话。');
         const row = document.getElementById('typingRow'); if (row) row.remove();
-        c.msgs.push({me:false,text:reply,t:nowTime()}); c.time=nowTime(); persistContacts();
+        const parts = splitMsgs(reply);
+        (parts.length ? parts : [String(reply).trim()]).forEach(t => c.msgs.push({me:false,text:t,t:nowTime()}));
+        c.time = nowTime(); persistContacts();
         if (activeId === c.id) renderThread(); renderChats();
     } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); toast(e.message || 'API 请求失败'); }
     finally { c._busy=false; if(cap) cap.classList.remove('pulling'); }
@@ -1500,7 +1516,7 @@ function fillPersona(c) {
         g('pSpeech').value = c.speech || '';
         g('pRelation').value = c.relation || '';
         g('pBackstory').value = c.backstory || '';
-        g('pReplies').value = (c.replies || []).join('\n');
+        g('pReplies').value = (c.replies || []).join(MSG_SEP);
     } else {
         g('pName').value = '';
         g('pStatus').value = '';
@@ -1513,7 +1529,7 @@ function savePersona() {
     const name = document.getElementById('pName').value.trim();
     if (!name) { toast('姓名不能为空'); return; }
     const status = document.getElementById('pStatus').value.trim() || '未知状态';
-    const lines = document.getElementById('pReplies').value.split('\n').map(x => x.trim()).filter(Boolean);
+    const lines = splitMsgs(document.getElementById('pReplies').value);
     const persona = {
         persona: document.getElementById('pPersona').value.trim(),
         sig: document.getElementById('pSig').value.trim(),
@@ -2290,10 +2306,10 @@ function renderMomentVisPanel() {
     const p = ensureVisPanel();
     const tabs = [['public', '所有'], ['some', '部分'], ['self', '仅自己']];
     const seg = tabs.map(t => `<button class="vs-seg ${MOMENT_VIS === t[0] ? 'on' : ''}" type="button" onclick="setMomentVis('${t[0]}')">${t[1]}</button>`).join('');
-    const hero = (ico, title, desc) => `<div class="vs-hero"><div class="vs-hero-ico">${icoSvg(ico)}</div><div class="vs-hero-title">${title}</div><div class="vs-hero-desc">${desc}</div></div>`;
+    const hero = ico => `<div class="vs-hero"><div class="vs-hero-ico">${icoSvg(ico)}</div></div>`;
     let body;
-    if (MOMENT_VIS === 'public') body = hero('globe', '所有联系人', '所有联系人都可以看到这条朋友圈');
-    else if (MOMENT_VIS === 'self') body = hero('lock2', '仅自己', '只有你自己可以看到这条朋友圈');
+    if (MOMENT_VIS === 'public') body = hero('globe');
+    else if (MOMENT_VIS === 'self') body = hero('lock2');
     else {
         const rows = CONTACTS.map(c => {
             const on = MOMENT_VIS_TO.indexOf(c.id) >= 0;

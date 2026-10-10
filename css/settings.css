@@ -1527,3 +1527,20 @@
     opacity: var(--custom-icon-opacity, 1);
     transition: opacity 0.25s ease;
 }
+
+/* 外观设置页：顶部两个按钮与“打开侧边栏”按钮（messages .arrow-btn）完全一致 */
+.noir-settings-root .nav-header.appearance-nav .top-glass-pill{
+    height: 36px; min-width: 44px; width: auto; padding: 0 13px; border-radius: 999px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    background: rgba(0,0,0,0.04);
+    backdrop-filter: url(#lens-refraction) blur(12px) saturate(180%);
+    -webkit-backdrop-filter: url(#lens-refraction) blur(12px) saturate(180%);
+    border: 0.5px solid rgba(0,0,0,0.12); border-top: 1px solid rgba(0,0,0,0.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.04), inset 0 1px 1px rgba(255,255,255,0.9);
+    transition: all 0.3s ease;
+}
+.noir-settings-root .nav-header.appearance-nav .top-glass-pill svg{
+    width: 15px; height: 15px; stroke: #000; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round;
+}
+.noir-settings-root .nav-header.appearance-nav .top-glass-pill span{ color: #000; }
+.noir-settings-root .nav-header.appearance-nav .top-glass-pill:active{ transform: scale(0.92); background: rgba(0,0,0,0.08); }
