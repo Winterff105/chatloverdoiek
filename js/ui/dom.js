@@ -111,8 +111,8 @@ function createProfileWidgetElement(item) {
     el.innerHTML = `
         <div class="profile-widget">
             <div class="profile-avatar-stage">
-                <img class="profile-wing wing-left" src="https://raw.githubusercontent.com/Winterff105/104225/main/wing-left.png" alt="Left Wing">
-                <img class="profile-wing wing-right" src="https://raw.githubusercontent.com/Winterff105/104225/main/wing-right.png" alt="Right Wing">
+                <img class="profile-wing wing-left" src="assets/wing-left.png" alt="Left Wing">
+                <img class="profile-wing wing-right" src="assets/wing-right.png" alt="Right Wing">
                 <div class="profile-avatar-wrap" title="点击上传自定义头像照片">
                     <img class="profile-avatar-img" src="${currentUploadedAvatar}" alt="Avatar">
                     <div class="avatar-frosted-edge"></div>

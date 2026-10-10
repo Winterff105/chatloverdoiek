@@ -10,7 +10,7 @@
     "theme_color": "#09090b",
     "icons": [
         {
-            "src": "https://raw.githubusercontent.com/Winterff105/104225/main/IMG_20261008_161846.jpg",
+            "src": "assets/IMG_20261008_161846.jpg",
             "sizes": "any",
             "type": "image/jpeg",
             "purpose": "any"

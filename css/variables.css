@@ -2,7 +2,7 @@
    1. 全局变量与配色 (严格遵守 #48373D 与 #FCFAFB)
    ========================================= */
 :root {
-    --wallpaper-bg: url('https://raw.githubusercontent.com/Winterff105/104225/main/bizhi.png') no-repeat center center / cover, #09090b;
+    --wallpaper-bg: url('../assets/Dark/bizhi.png') no-repeat center center / cover, #09090b;
     --glass-bg: rgba(255, 255, 255, 0.04);
     --glass-border: rgba(255, 255, 255, 0.15);
     --text-dark: #FFFFFF;
@@ -27,7 +27,7 @@
 
 /* 浅色壁纸自适应模式 (自动检测注入) */
 .phone-container.theme-light {
-    --wallpaper-bg: url('https://raw.githubusercontent.com/Winterff105/104225/main/bizhi.png') no-repeat center center / cover, #FCFAFB;
+    --wallpaper-bg: url('../assets/Light/bizhi.png') no-repeat center center / cover, #FCFAFB;
     --text-dark: #2C272E;
     --text-sub: #6E6872;
     --svg-stroke: #2C272E;
@@ -46,7 +46,7 @@
 
 /* 深色壁纸自适应模式 */
 .phone-container.theme-dark {
-    --wallpaper-bg: url('https://raw.githubusercontent.com/Winterff105/104225/main/bizhi.png') no-repeat center center / cover, #09090b;
+    --wallpaper-bg: url('../assets/Dark/bizhi.png') no-repeat center center / cover, #09090b;
     --text-dark: #FFFFFF;
     --text-sub: #A1A1AA;
     --svg-stroke: #E4E4E7;

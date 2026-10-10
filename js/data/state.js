@@ -4,8 +4,8 @@
 let totalPages = 2;
 let currentPageIndex = 0;
 
-let currentUploadedAvatar = "https://raw.githubusercontent.com/Winterff105/104225/main/avatar-female.png";
-let currentCoupleAvatar = "https://raw.githubusercontent.com/Winterff105/104225/main/avatar-male.png";
+let currentUploadedAvatar = "assets/Dark/avatar-female.png";
+let currentCoupleAvatar = "assets/Dark/avatar-male.png";
 
 let desktopItems = [
     // ===== 第一页 (page: 0) =====
