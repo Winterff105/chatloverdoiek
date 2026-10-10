@@ -989,7 +989,7 @@ function profileCard() {
     return `
     <div class="story-card">
         <div class="polaroid">
-            <div class="sq" style="background:#111"><span>${esc(initOf(PROFILE.name))}</span></div>
+            <div class="sq" style="background:#111" title="点击上传照片" onclick="pickProfilePhoto(event)">${PROFILE.photo ? `<img src="${PROFILE.photo}" alt="">` : `<span>${esc(initOf(PROFILE.name))}</span>`}</div>
             <div class="cap">${f('cap')}</div>
         </div>
         <div class="profile-card">
@@ -1045,6 +1045,110 @@ function finishProfileEdit(el) {
         saveProfileCard();
         renderChats();
     }, () => { el.textContent = PROFILE[key]; });
+}
+
+/* ---------------- 拍立得照片上传（资料卡左侧相纸）：压缩后保存，保留原色 ---------------- */
+function compressImageFile(file, maxSide, quality) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('读取文件失败'));
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+                const w = Math.max(1, Math.round(img.naturalWidth * scale));
+                const h = Math.max(1, Math.round(img.naturalHeight * scale));
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = () => reject(new Error('图片解码失败，请换一张照片'));
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+function pickProfilePhoto(e) {
+    if (e) e.stopPropagation();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+    input.onchange = () => {
+        const file = input.files && input.files[0];
+        input.remove();
+        if (!file) return;
+        compressImageFile(file, 640, 0.86).then(url => {
+            PROFILE.photo = url;
+            saveProfileCard();
+            renderChats();
+        }).catch(err => toast((err && err.message) || '照片保存失败'));
+    };
+    input.click();
+}
+
+/* ---------------- 设置页名字：点击可自定义，与身份无关，单独保存（不改动身份数据） ---------------- */
+const SETTINGS_NAME_KEY = 'messages_settings_name_v1';
+let SETTINGS_NAME = '';
+function loadSettingsName() {
+    if (!window.DB || typeof window.DB.load !== 'function') return;
+    Promise.resolve(window.DB.load(SETTINGS_NAME_KEY, '')).then(v => {
+        SETTINGS_NAME = typeof v === 'string' ? v : '';
+        applySelf();
+    }).catch(() => {});
+}
+function saveSettingsName(value) {
+    SETTINGS_NAME = value;
+    if (!window.DB || typeof window.DB.save !== 'function') { toast('保存失败：数据库不可用'); return; }
+    Promise.resolve(window.DB.save(SETTINGS_NAME_KEY, value))
+        .then(ok => toast(ok === false ? '保存失败，请检查存储空间' : '已保存'))
+        .catch(() => toast('保存失败，请检查存储空间'));
+}
+function settingsNameShown() {
+    if (SETTINGS_NAME) return SETTINGS_NAME;
+    const a = activeIdentity();
+    return a ? a.name : ME.name;
+}
+function bindSettingsNameEdit(el) {
+    el.onclick = () => startSettingsNameEdit(el);
+}
+function startSettingsNameEdit(el) {
+    if (el.classList.contains('editing')) return;
+    el.classList.add('editing');
+    el.contentEditable = 'true';
+    el.focus();
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+    el.onkeydown = e => {
+        if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
+        else if (e.key === 'Escape') { el.textContent = settingsNameShown(); el.blur(); }
+    };
+    el.onpaste = e => {
+        e.preventDefault();
+        const t = (e.clipboardData || window.clipboardData).getData('text') || '';
+        document.execCommand('insertText', false, t.replace(/\s+/g, ' '));
+    };
+    el.onblur = () => finishSettingsNameEdit(el);
+}
+function finishSettingsNameEdit(el) {
+    el.onblur = null; el.onkeydown = null; el.onpaste = null;
+    el.contentEditable = 'false';
+    el.classList.remove('editing');
+    const shown = settingsNameShown();
+    const next = el.textContent.replace(/\s+/g, ' ').trim().slice(0, 16);
+    if (next === shown) { el.textContent = shown; return; }
+    const isReset = next === '';
+    askConfirm('保存修改？', isReset ? '恢复为默认名字（跟随当前身份）' : `把「${shown}」改为「${next}」`, '保存', () => {
+        saveSettingsName(next);
+        applySelf();
+    }, () => { el.textContent = shown; });
 }
 
 /* ---------------- 弹窗：统一居中 + 设置弹窗同款飞机图标 ---------------- */
@@ -1485,7 +1589,9 @@ function applySelf() {
     root.querySelector('#identityPill .pill-avatar').innerHTML = ioInner(name, av);
     document.getElementById('identityPillName').textContent = name;
     root.querySelector('.settings-profile .big-avatar').innerHTML = ioInner(name, av);
-    root.querySelector('.settings-profile .profile-name').textContent = name;
+    const settingsNameEl = root.querySelector('.settings-profile .profile-name');
+    settingsNameEl.textContent = settingsNameShown();
+    bindSettingsNameEdit(settingsNameEl);
     root.querySelector('.settings-profile .profile-sub').textContent = 'ID · ' + id;
 }
 
@@ -2333,9 +2439,10 @@ renderContacts();
 applySelf();
 syncSettingsMode();
 loadProfileCard();
+loadSettingsName();
 applyTheme(THEME);
 initComposerGesture();
 
-const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto};
+const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto};
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 };

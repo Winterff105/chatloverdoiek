@@ -338,17 +338,17 @@ function getSettingsAppHTML() {
                         <div>
                             <div class="field-label mono-font">Preset Name · 预设名称</div>
                             <div style="height:5px;"></div>
-                            <input type="text" class="api-input-field" id="settingsPresetName" placeholder="例如：OpenAI 主力端点" value="默认主线路">
+                            <input type="text" class="api-input-field" id="settingsPresetName" placeholder="例如：OpenAI 主力端点">
                         </div>
                         <div>
                             <div class="field-label mono-font">Endpoint URL · 接口地址</div>
                             <div style="height:5px;"></div>
-                            <input type="text" class="api-input-field" id="settingsApiUrl" placeholder="https://api.openai.com/v1" value="https://api.openai.com/v1">
+                            <input type="text" class="api-input-field" id="settingsApiUrl" placeholder="https://api.openai.com/v1">
                         </div>
                         <div>
                             <div class="field-label mono-font">Secret Key · 密钥</div>
                             <div style="height:5px;"></div>
-                            <input type="password" class="api-input-field" id="settingsApiKey" placeholder="sk-..." value="sk-proj-mockkey987654321">
+                            <input type="password" class="api-input-field" id="settingsApiKey" placeholder="sk-...">
                         </div>
 
                         <div class="api-action-buttons">
@@ -365,10 +365,7 @@ function getSettingsAppHTML() {
                         <div class="model-select-wrapper" id="settingsModelSelectBox">
                             <div class="field-label mono-font">Select Model · 选模型</div>
                             <select class="model-dropdown" id="settingsModelDropdown">
-                                <option value="gpt-4o">GPT-4o — Ultra Fast</option>
-                                <option value="gpt-4-turbo">GPT-4 Turbo — Advanced</option>
-                                <option value="claude-3-5-sonnet">Claude 3.5 Sonnet — Haute</option>
-                                <option value="deepseek-v3">DeepSeek V3 — Lightning</option>
+                                <option value="" disabled selected>先点 Fetch 获取模型列表</option>
                             </select>
                         </div>
 
@@ -509,10 +506,67 @@ async function initSettingsApp() {
 }
 
 let settingsCurrentPanel = 'main';
-let settingsApiPresets = [
-    { id: 1, name: '默认主线路', url: 'https://api.openai.com/v1', key: 'sk-proj-mockkey987654321', model: 'gpt-4o' },
-    { id: 2, name: '备用中转站', url: 'https://api.deepseek.com/v1', key: 'sk-ds-abcdef123456', model: 'deepseek-v3' }
-];
+let settingsApiPresets = [];
+const SETTINGS_PRESETS_KEY = 'forever_settings_api_presets_v1';
+
+function settingsEsc(s) {
+    return String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+}
+function loadSettingsApiPresets() {
+    try {
+        const list = JSON.parse(localStorage.getItem(SETTINGS_PRESETS_KEY) || '[]');
+        if (Array.isArray(list)) {
+            settingsApiPresets = list
+                .filter(p => p && p.name && p.url)
+                .map(p => ({ id: p.id || Date.now() + Math.random(), name: String(p.name), url: String(p.url), key: String(p.key || ''), model: String(p.model || '') }));
+        }
+    } catch (e) { console.warn('[Settings API] 预设读取失败', e); }
+}
+function saveSettingsApiPresets() {
+    try { localStorage.setItem(SETTINGS_PRESETS_KEY, JSON.stringify(settingsApiPresets)); }
+    catch (e) { console.warn('[Settings API] 预设保存失败', e); }
+}
+/* 用真实返回的模型列表填充下拉框；保留当前已选的模型 */
+function fillModelSelect(select, ids, selected) {
+    if (!select) return;
+    const list = [...new Set([...(selected ? [selected] : []), ...ids])];
+    select.innerHTML = list.length
+        ? list.map(id => `<option value="${settingsEsc(id)}">${settingsEsc(id)}</option>`).join('')
+        : '<option value="" disabled selected>先点 Fetch 获取模型列表</option>';
+    if (selected) select.value = selected;
+}
+function ensureModelOption(select, model) {
+    if (!select || !model) return;
+    if (![...select.options].some(o => o.value === model)) {
+        const opt = document.createElement('option');
+        opt.value = model;
+        opt.textContent = model;
+        select.appendChild(opt);
+    }
+    select.value = model;
+}
+/* 真正请求 {接口地址}/models，返回模型 id 列表 */
+async function fetchModelsFromEndpoint(url, key) {
+    const base = String(url || '').trim().replace(/\/+$/, '').replace(/\/chat\/completions$/i, '');
+    const secret = String(key || '').trim();
+    if (!base) throw new Error('请先填写接口地址');
+    if (!secret) throw new Error('请先填写密钥');
+    let res;
+    try {
+        res = await fetch(base + '/models', { headers: { 'Authorization': 'Bearer ' + secret } });
+    } catch (_) {
+        throw new Error('连接失败：请检查接口地址和网络。若接口不允许浏览器跨域（CORS）访问，也会在这里失败');
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        const msg = data && data.error && (data.error.message || data.error);
+        throw new Error(typeof msg === 'string' && msg ? msg : `请求失败 (${res.status})`);
+    }
+    const list = Array.isArray(data.data) ? data.data : (Array.isArray(data.models) ? data.models : []);
+    const ids = [...new Set(list.map(m => (typeof m === 'string' ? m : (m && (m.id || m.name)))).filter(Boolean).map(String))].sort();
+    if (!ids.length) throw new Error('接口返回的模型列表为空');
+    return ids;
+}
 let settingsActivePresetIndex = 0;
 
 function publishActiveSettingsApi(preset) {
@@ -525,6 +579,7 @@ function publishActiveSettingsApi(preset) {
     } catch (e) { console.warn('[Settings API] 无法同步 API 配置到聊天模块', e); }
 }
 function restoreActiveSettingsApi() {
+    loadSettingsApiPresets();
     try {
         const saved = JSON.parse(localStorage.getItem('forever_settings_active_api_v1') || 'null');
         if (!saved || !saved.url || !saved.model) return;
@@ -543,7 +598,7 @@ function restoreActiveSettingsApi() {
         if (name) name.value = settingsApiPresets[idx].name;
         if (url) url.value = saved.url;
         if (key) key.value = saved.key || '';
-        if (model) model.value = saved.model;
+        ensureModelOption(model, saved.model);
     } catch (e) { console.warn('[Settings API] 配置恢复失败', e); }
 }
 
@@ -1441,14 +1496,36 @@ function handleDesktopWallpaperUpload(e) {
     e.target.value = '';
 }
 
-function fetchSettingsModels(e) {
+async function fetchSettingsModels(e) {
     const btn = e.currentTarget;
     const original = btn.innerHTML;
+    const url = document.getElementById('settingsApiUrl').value;
+    const key = document.getElementById('settingsApiKey').value;
+    const select = document.getElementById('settingsModelDropdown');
+    btn.disabled = true;
     btn.innerHTML = `<svg viewBox="0 0 24 24" style="animation: spin 0.9s linear infinite;"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg><span class="txt">Fetching...</span>`;
-    setTimeout(() => {
-        btn.innerHTML = original;
+    try {
+        const ids = await fetchModelsFromEndpoint(url, key);
+        fillModelSelect(select, ids, select.value);
         document.getElementById('settingsModelSelectBox').classList.add('show');
-    }, 900);
+    } catch (err) {
+        alert((err && err.message) || '获取模型列表失败');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = original;
+    }
+}
+
+async function fetchPresetModels(id) {
+    const url = document.getElementById(`edit-url-${id}`).value;
+    const key = document.getElementById(`edit-key-${id}`).value;
+    const select = document.getElementById(`edit-model-${id}`);
+    try {
+        const ids = await fetchModelsFromEndpoint(url, key);
+        fillModelSelect(select, ids, select.value);
+    } catch (err) {
+        alert((err && err.message) || '获取模型列表失败');
+    }
 }
 
 function saveSettingsPreset() {
@@ -1459,6 +1536,10 @@ function saveSettingsPreset() {
 
     if (!name || !url || !key) {
         alert('预设名称、URL 和 Key 都要填完整');
+        return;
+    }
+    if (!model) {
+        alert('请先点 Fetch 获取模型列表，并选择一个模型');
         return;
     }
 
@@ -1475,6 +1556,7 @@ function saveSettingsPreset() {
 
     settingsActivePresetIndex = settingsApiPresets.findIndex(p => p.name === name);
     publishActiveSettingsApi(settingsApiPresets[settingsActivePresetIndex]);
+    saveSettingsApiPresets();
     renderSettingsPresetsList();
     updateSettingsActivePresetBadge();
 }
@@ -1508,14 +1590,12 @@ function renderSettingsPresetsList() {
                     <div style="margin-top:2px;">
                         <div class="field-label mono-font" style="font-size:7.5px;">Model · 模型</div>
                         <select class="model-dropdown" id="edit-model-${p.id}" style="margin-top:3px; padding:6px 10px; font-size:11px;">
-                            <option value="gpt-4o" ${p.model==='gpt-4o'?'selected':''}>GPT-4o</option>
-                            <option value="gpt-4-turbo" ${p.model==='gpt-4-turbo'?'selected':''}>GPT-4 Turbo</option>
-                            <option value="deepseek-v3" ${p.model==='deepseek-v3'?'selected':''}>DeepSeek V3</option>
+                            ${p.model ? `<option value="${settingsEsc(p.model)}" selected>${settingsEsc(p.model)}</option>` : '<option value="" disabled selected>先点 Fetch 获取模型列表</option>'}
                         </select>
                     </div>
 
                     <div class="preset-edit-row-btns">
-                        <button class="preset-sub-btn mono-font" onclick="alert('已向此预设端点请求模型列表')">Fetch</button>
+                        <button class="preset-sub-btn mono-font" onclick="fetchPresetModels(${p.id})">Fetch</button>
                         <button class="preset-sub-btn primary mono-font" onclick="updateSettingsPresetData(${p.id})">Update</button>
                     </div>
                 </div>
@@ -1538,6 +1618,7 @@ function updateSettingsPresetData(id) {
     const url = document.getElementById(`edit-url-${id}`).value.trim();
     const key = document.getElementById(`edit-key-${id}`).value.trim();
     const model = document.getElementById(`edit-model-${id}`).value;
+    if (!model) { alert('请先点 Fetch 获取模型列表，并选择一个模型'); return; }
 
     const target = settingsApiPresets.find(p => p.id === id);
     if (target) {
@@ -1546,6 +1627,7 @@ function updateSettingsPresetData(id) {
         target.key = key;
         target.model = model;
         if (settingsApiPresets[settingsActivePresetIndex] === target) publishActiveSettingsApi(target);
+        saveSettingsApiPresets();
         alert(`预设 "${name}" 更新成功！`);
         renderSettingsPresetsList();
         updateSettingsActivePresetBadge();
@@ -1564,7 +1646,7 @@ function cycleSettingsPreset() {
     document.getElementById('settingsApiUrl').value = current.url;
     document.getElementById('settingsApiKey').value = current.key;
     const modelSelect = document.getElementById('settingsModelDropdown');
-    if (modelSelect) modelSelect.value = current.model;
+    ensureModelOption(modelSelect, current.model);
     publishActiveSettingsApi(current);
 
     updateSettingsActivePresetBadge();
