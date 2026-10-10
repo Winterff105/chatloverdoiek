@@ -35,6 +35,9 @@ const MOMENT_KEY = 'forever_messages_moments_v1';
 const MOMENT_BG_KEY = 'forever_messages_moments_bg_v1';
 let POSTS = loadStoredMoments();
 let MOMENT_BG = loadMomentBg();
+let MOMENT_CMT_OPEN = {};
+const DEFAULT_CHAT_AVATAR = 'assets/聊天默认头像/morentouxiang.jpg';
+const DEFAULT_POLAROID = 'assets/聊天默认头像/pailide.jpg';
 
 const APPS = [
     { name: 'Notes',    dark: false, icon: '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/>' },
@@ -140,7 +143,7 @@ function addChatByContactId() {
 const esc = s => String(s).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
 const last = c => c.msgs[c.msgs.length - 1];
 function avatar(c, size) {
-    const img = c.avatar ? `<img src="${c.avatar}" alt="" onerror="this.remove()">` : '';
+    const img = (c.avatar || DEFAULT_CHAT_AVATAR) ? `<img src="${c.avatar || DEFAULT_CHAT_AVATAR}" alt="" onerror="this.remove()">` : '';
     return `<div class="av ${size || 'lg'} ${c.g}">${img}<span class="ini">${c.ini}</span></div>`;
 }
 function nowTime() { const d = new Date(); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
@@ -1103,7 +1106,7 @@ function profileCard() {
     return `
     <div class="story-card">
         <div class="polaroid">
-            <div class="sq" style="background:#111" title="点击上传照片" onclick="pickProfilePhoto(event)">${PROFILE.photo ? `<img src="${PROFILE.photo}" alt="">` : `<span>${esc(initOf(PROFILE.name))}</span>`}</div>
+            <div class="sq" style="background:#111" title="点击上传照片" onclick="pickProfilePhoto(event)">${PROFILE.photo ? `<img src="${PROFILE.photo}" alt="">` : `<img src="${DEFAULT_POLAROID}" alt="" onerror="this.remove()">`}</div>
             <div class="cap">${f('cap')}</div>
         </div>
         <div class="profile-card">
@@ -1369,11 +1372,11 @@ function makeContactId() {
 }
 function initOf(name) { return (String(name || '').trim().charAt(0) || '?').toUpperCase(); }
 function ioInner(name, avatarUrl) {
-    const img = avatarUrl ? `<img src="${avatarUrl}" alt="" onerror="this.remove()">` : '';
+    const img = (avatarUrl || DEFAULT_CHAT_AVATAR) ? `<img src="${avatarUrl || DEFAULT_CHAT_AVATAR}" alt="" onerror="this.remove()">` : '';
     return `${img}<span>${esc(initOf(name))}</span>`;
 }
 function selfAvatarHtml(size) {
-    const img = ME.avatar ? `<img src="${ME.avatar}" alt="" onerror="this.remove()">` : '';
+    const img = (ME.avatar || DEFAULT_CHAT_AVATAR) ? `<img src="${ME.avatar || DEFAULT_CHAT_AVATAR}" alt="" onerror="this.remove()">` : '';
     return `<div class="av ${size || 'lg'} g1">${img}<span class="ini">${esc(initOf(ME.name))}</span></div>`;
 }
 function sheetRow(iconHtml, title, sub, action, active) {
@@ -1524,7 +1527,7 @@ function finishLogin(c) {
 
 function identityAvatarHtml(c) {
     const url = pendingPersonaAvatar || (c && c.avatar) || '';
-    const img = url ? `<img src="${url}" alt="" onerror="this.remove()">` : '';
+    const img = (url || DEFAULT_CHAT_AVATAR) ? `<img src="${url || DEFAULT_CHAT_AVATAR}" alt="" onerror="this.remove()">` : '';
     return `<div class="av lg g1">${img}<span class="ini">${esc(initOf(c && c.name ? c.name : '?'))}</span></div>`;
 }
 
@@ -2176,9 +2179,10 @@ function roomChatPane(c) {
 function loadStoredMoments() { try { const v = JSON.parse(localStorage.getItem(MOMENT_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; } }
 function persistMoments() { try { localStorage.setItem(MOMENT_KEY, JSON.stringify(POSTS)); } catch (e) { toast('保存失败：存储空间可能不足'); } }
 function loadMomentBg() { try { return localStorage.getItem(MOMENT_BG_KEY) || ''; } catch (_) { return ''; } }
+const DEFAULT_MOMENT_AVATAR = 'assets/朋友圈/朋友圈头像.jpg';
 function momentAuthor(by) {
     if (by && by !== 'self') { const c = IDENTITIES.find(x => x.id === by); if (c) return { name: c.name, avatar: c.avatar }; }
-    return { name: ME.name, avatar: ME.avatar };
+    return { name: ME.name, avatar: ME.avatar || DEFAULT_MOMENT_AVATAR };
 }
 function momentAvatarHtml(a, size) {
     const img = a.avatar ? `<img src="${a.avatar}" alt="" onerror="this.remove()">` : '';
@@ -2355,6 +2359,23 @@ function toggleMomentLike(id) {
     if (i >= 0) p.likes.splice(i, 1); else p.likes.push(ACTIVE_ID);
     persistMoments(); renderMoments();
 }
+function revealMomentCover(el) {
+    if (el) el.classList.add('tip-on');
+}
+function toggleMomentCmt(id) {
+    MOMENT_CMT_OPEN[id] = !MOMENT_CMT_OPEN[id];
+    renderMoments();
+}
+function sendMomentCommentInline(id) {
+    const p = POSTS.find(x => x.id === id); if (!p) return;
+    const input = document.getElementById('mfInl-' + id);
+    const text = input ? input.value.trim() : '';
+    if (!text) { toast('写点什么再发送吧'); return; }
+    p.comments = p.comments || [];
+    p.comments.push({ by: ACTIVE_ID, text, t: Date.now() });
+    MOMENT_CMT_OPEN[id] = true;
+    persistMoments(); renderMoments();
+}
 function openMomentComments(id) {
     const p = POSTS.find(x => x.id === id); if (!p) return;
     const list = (p.comments || []).map(c => {
@@ -2497,6 +2518,9 @@ function renderMoments() {
         const liked = likes.indexOf(ACTIVE_ID) >= 0;
         const preview = cmts.slice(0, 2).map(c => `<div class="mf-cmt-line"><b>${esc(momentAuthor(c.by).name)}</b>${esc(c.text)}</div>`).join('');
         const photos = imgs.length ? `<div class="mf-imgs n${Math.min(imgs.length, 3)}">${imgs.map(k => `<img class="mf-img" data-mkey="${k}" alt="">`).join('')}</div>` : '';
+        const cmtBlock = MOMENT_CMT_OPEN[p.id]
+            ? `<div class="mf-cmts mf-cmts-open">${cmts.map(c => `<div class="mf-cmt-line"><b>${esc(momentAuthor(c.by).name)}</b>${esc(c.text)}</div>`).join('') || '<div class="mf-cmt-none">还没有评论，来说第一句吧</div>'}<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="写评论…"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div></div>`
+            : (cmts.length ? `<div class="mf-cmts" onclick="toggleMomentCmt('${p.id}')">${preview}${cmts.length > 2 ? `<span class="mf-cmt-more">查看全部 ${cmts.length} 条评论</span>` : ''}</div>` : '');
         return `<div class="mf-card">
             <div class="mf-card-head">${momentAvatarHtml(a, 'sm')}
                 <div class="mf-card-who"><b>${esc(a.name)}</b><span>${fmtMoment(p.t)}${momentVisText(p) ? ' · ' + momentVisText(p) : ''}</span></div>
@@ -2506,13 +2530,13 @@ function renderMoments() {
             ${photos}
             <div class="mf-card-foot">
                 <button class="mf-act ${liked ? 'on' : ''}" type="button" onclick="toggleMomentLike('${p.id}')">${HEART}<span>${likes.length || ''}</span></button>
-                <button class="mf-act" type="button" onclick="openMomentComments('${p.id}')">${CHAT_ICON}<span>${cmts.length || ''}</span></button>
+                <button class="mf-act" type="button" onclick="toggleMomentCmt('${p.id}')">${CHAT_ICON}<span>${cmts.length || ''}</span></button>
             </div>
-            ${cmts.length ? `<div class="mf-cmts">${preview}${cmts.length > 2 ? `<button class="mf-cmt-more" type="button" onclick="openMomentComments('${p.id}')">查看全部 ${cmts.length} 条评论</button>` : ''}</div>` : ''}
+            ${cmtBlock}
         </div>`;
     }).join('');
     frame.innerHTML = `
-        <div class="mf-cover" style="${bgStyle}" onclick="pickMomentCover()"><span class="mf-cover-tip">点击更换背景</span></div>
+        <div class="mf-cover" style="${bgStyle}" onclick="revealMomentCover(this)"><span class="mf-cover-tip" onclick="event.stopPropagation(); pickMomentCover()">点击更换背景</span></div>
         <div class="mf-me"><div class="mf-avatar">${momentAvatarHtml(who, 'lg')}</div><div class="mf-name">${esc(who.name)}</div></div>
         <div class="mf-posts">${cards || '<div class="mf-empty">还没有朋友圈，点右上角的加号发一条吧</div>'}</div>`;
     hydrateMomentImages();
@@ -2584,6 +2608,6 @@ loadSettingsName();
 applyTheme(THEME);
 initComposerGesture();
 
-const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch};
+const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover};
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 };

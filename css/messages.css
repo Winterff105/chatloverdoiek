@@ -2012,3 +2012,34 @@
 .messages-app .mrow.gap{ margin-top: 0; }
 .messages-app .mrow.grp-head{ margin-bottom: 0; }
 .messages-app .bubble{ font-size: 13px; }
+
+/* ===== 朋友圈：边框顶部完整显示；背景图收紧并渐隐；头像白框无阴影 ===== */
+.messages-app .mf-frame{ margin-top: 30px; overflow: visible; }
+.messages-app .mf-cover{
+    margin-top: 0; height: 170px; border-radius: 25px 25px 0 0; overflow: hidden;
+    background-size: cover; background-position: center 35%;
+    -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+            mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+}
+.messages-app .mf-cover-tip{ top: 12px; bottom: auto; right: 12px; }
+.messages-app .mf-avatar{ border: 4px solid #FFFFFF; box-shadow: none; }
+
+/* ===== 朋友圈：评论区点击后卡片向下展开 ===== */
+.messages-app .mf-cmts{ margin-top: 10px; cursor: pointer; }
+.messages-app .mf-cmts-open{ cursor: default; animation: mfExpand .3s ease; }
+@keyframes mfExpand { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.messages-app .mf-cmt-none{ font-size: 12px; color: #8E8E93; padding: 4px 0; }
+.messages-app .mf-cmt-more{ display: inline-block; margin-top: 6px; font-size: 12px; color: #8E8E93; }
+.messages-app .mf-inline-bar{ display: flex; gap: 8px; margin-top: 12px; }
+.messages-app .mf-inline-input{ flex: 1; min-width: 0; height: 38px; border: 0; outline: none; border-radius: 19px; padding: 0 14px; background: #F2F2F5; color: #111; font-size: 13px; font-family: inherit; }
+.messages-app .mf-inline-send{ height: 38px; padding: 0 16px; border: 0; border-radius: 19px; background: #111; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+/* ===== 朋友圈：默认背景图；“点击更换背景”点了图片才出现 ===== */
+.messages-app .mf-cover{ background-image: url('../assets/朋友圈/朋友圈壁纸.jpg'); }
+.messages-app .mf-cover-tip{ opacity: 0; pointer-events: none; transition: opacity .25s ease; }
+.messages-app .mf-cover.tip-on .mf-cover-tip{ opacity: 1; pointer-events: auto; }
+
+/* ===== 评论区：无色调，输入框与发送键缩短缩小 ===== */
+.messages-app .mf-inline-bar{ margin-top: 8px; gap: 6px; }
+.messages-app .mf-inline-input{ height: 30px; font-size: 12px; border-radius: 15px; padding: 0 12px; background: #F0F0F0; }
+.messages-app .mf-inline-send{ height: 30px; padding: 0 12px; border-radius: 15px; font-size: 12px; }
