@@ -2567,3 +2567,7 @@
     background: radial-gradient(circle at 0% 100%, #F4EBEE 0%, rgba(244,235,238,0) 55%), #FFFFFF;
 }
 .messages-app .mm-item.del{ color: #B5A0A6; }
+
+/* 默认配色：淡淡的温柔感（选了气泡预设后仍以预设为准） */
+.messages-app .bubble{ background: #F5F3F6; color: #2E2A30; }
+.messages-app .mrow.me .bubble{ background: #EADFE7; color: #4B4150; }
