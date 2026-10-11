@@ -3866,14 +3866,14 @@
 
 #gpPanOverlay{
     /* 左右位置：数字变大 = 往右；变小 = 往左。单位 px（锅铲坐标） */
-    --bow-x: 75px;
+    --bow-x: 120px;
 
     /* 上下位置：数字变大 = 往下；变小 = 往上。负数 = 往锅铲上方 */
-    --bow-y: -1px;
+    --bow-y: -7px;
 
     /* 角度：正数 = 顺时针；负数 = 逆时针。
        90deg = 现在的角度；0deg = 图片原来的方向 */
-    --bow-rot: 82deg;
+    --bow-rot: 90deg;
 
     /* 翻转：1 = 图片原样；-1 = 左右镜像（左边的东西跑到右边） */
     --bow-flip: -1;
@@ -4006,3 +4006,11 @@
 /* 油瓶管理：弹窗半透明；标题往下移 */
 #gpPanOverlay .mgr-card{ background:linear-gradient(180deg, rgba(27,27,31,.55) 0%, rgba(15,15,18,.62) 100%); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
 #gpPanOverlay .mgr-head{ padding-top:12px; }
+
+/* 表达偏好：禁用词的文字缩小（选择器和原来的一样，放在最后才能覆盖） */
+#cdPromptSettings .cd-settings .cd-word-text { font-size:12px !important; }
+@media(max-width:380px){ #cdPromptSettings .cd-settings .cd-word-text { font-size:11px !important; } }
+#cdPromptSettings .cd-settings .cd-word-reason { font-size:9.5px !important; }
+/* 表达偏好：禁用词组名也缩小 */
+#cdPromptSettings .cd-settings .cd-word-group-name { font-size:12px !important; }
+#cdPromptSettings .cd-settings .cd-word-group-name small { font-size:9.5px !important; }
