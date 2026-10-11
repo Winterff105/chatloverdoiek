@@ -2568,6 +2568,8 @@
 }
 .messages-app .mm-item.del{ color: #B5A0A6; }
 
-/* 默认配色：淡淡的温柔感（选了气泡预设后仍以预设为准） */
-.messages-app .bubble{ background: #F5F3F6; color: #2E2A30; }
-.messages-app .mrow.me .bubble{ background: #EADFE7; color: #4B4150; }
+/* 默认配色：我方更淡的雾粉（字色保持不变）；对方恢复原来的颜色 */
+.messages-app .mrow.me .bubble{ background: #F1E9EF; color: #4B4150; }
+
+/* 我和对方之间的间距拉开；同一个人连续发言的间距保持不变 */
+.messages-app .mrow.gap{ margin-top: 10px; }
