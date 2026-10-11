@@ -1544,3 +1544,32 @@
 }
 .noir-settings-root .nav-header.appearance-nav .top-glass-pill span{ color: #000; }
 .noir-settings-root .nav-header.appearance-nav .top-glass-pill:active{ transform: scale(0.92); background: rgba(0,0,0,0.08); }
+
+/* ===== PWA 桌面图标选择（外观设置 Section 04） ===== */
+.pwa-toggle-row { cursor: pointer; }
+#pwaIconPanel:not(.collapsed) { max-height: 460px; }
+.pwa-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 10px; width: 100%;
+}
+.pwa-card { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+.pwa-thumb {
+    width: 100%; aspect-ratio: 1 / 1; border-radius: 16px; overflow: hidden;
+    border: 1.5px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.05);
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.2s ease;
+}
+.pwa-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pwa-card:active .pwa-thumb { transform: scale(0.95); }
+.pwa-card.active .pwa-thumb { border-color: #ffffff; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35); }
+.pwa-plus { font-size: 26px; font-weight: 300; color: rgba(255, 255, 255, 0.6); }
+.pwa-card-name { font-size: 10px; color: rgba(255, 255, 255, 0.6); }
+.pwa-hint { font-size: 9px; color: rgba(255, 255, 255, 0.45); text-align: center; line-height: 1.5; margin-top: 2px; }
+
+.noir-settings-root.theme-light .pwa-thumb { border-color: rgba(0, 0, 0, 0.18); background: rgba(0, 0, 0, 0.04); }
+.noir-settings-root.theme-light .pwa-card.active .pwa-thumb { border-color: #111111; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.12); }
+.noir-settings-root.theme-light .pwa-plus { color: rgba(0, 0, 0, 0.5); }
+.noir-settings-root.theme-light .pwa-card-name,
+.noir-settings-root.theme-light .pwa-hint { color: rgba(0, 0, 0, 0.55); }
+.noir-settings-root.theme-light .pwa-toggle-row .viewport-arrow { stroke: rgba(0, 0, 0, 0.55) !important; }
+.noir-settings-root .pwa-toggle-row .viewport-arrow { stroke: rgba(255, 255, 255, 0.6) !important; }

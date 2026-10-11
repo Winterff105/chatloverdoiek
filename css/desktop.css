@@ -160,7 +160,7 @@
 
 .dock-slot {
     height: 100%;
-    width: 56px !important;
+    width: var(--app-size) !important;
     display: flex;
     justify-content: center;
     align-items: center;

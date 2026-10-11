@@ -1,7 +1,7 @@
 {
-    "name": "Forever",
-    "short_name": "Forever",
-    "description": "Forever",
+    "name": "Whatever",
+    "short_name": "Whatever",
+    "description": "Whatever",
     "start_url": "./index.html",
     "scope": "./",
     "display": "standalone",

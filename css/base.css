@@ -43,3 +43,22 @@ body, html {
     z-index: -1;
     pointer-events: none;
 }
+
+/* ---- iOS 底部黑条修复 ----
+   独立模式（添加到主屏幕）下 100% 高度会少算底部安全区，导致底部露出黑色。
+   用 dvh / fill-available 让页面和容器撑满整屏，壁纸一直铺到 Home 指示条下方。 */
+html, body {
+    height: -webkit-fill-available;
+    height: 100dvh;
+}
+
+.phone-container {
+    height: -webkit-fill-available;
+    height: 100dvh;
+}
+
+/* 浅色壁纸时，露出的页面底色同步成浅色，不再出现黑条 */
+html:has(.phone-container.theme-light),
+body:has(.phone-container.theme-light) {
+    background-color: #FCFAFB;
+}

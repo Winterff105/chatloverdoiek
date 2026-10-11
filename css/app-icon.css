@@ -1,3 +1,9 @@
+/* 图标整体尺寸随屏幕宽度等比缩放：
+   以安卓 360px 宽（图标 56px）为基准，430px 宽的 iPhone 约 67px，两端比例一致 */
+:root {
+    --app-size: calc(min(100vw, 430px) * 56 / 360);
+}
+
 /* =========================================
    3D 悬浮图案 · 液态水晶透镜 App 图标系统
    ========================================= */
@@ -28,9 +34,9 @@
    visionOS 空间计算级 · 顶级微晶玻璃图标系统
    ========================================================= */
 .app-icon {
-    width: 56px;
-    height: 56px;
-    border-radius: 17px;
+    width: var(--app-size);
+    height: var(--app-size);
+    border-radius: calc(var(--app-size) * 17 / 56);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -81,8 +87,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 40px;
-    height: 40px;
+    width: calc(var(--app-size) * 40 / 56);
+    height: calc(var(--app-size) * 40 / 56);
     transition: transform 0.22s ease;
 }
 
@@ -193,18 +199,18 @@
 .force-custom .app-label { color: var(--custom-icon-color, #ffffff) !important; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85) !important; }
 /* Dock 栏图标 (强制锁定 1:1 正方形比例，彻底消除被压扁现象) */
 .dock .app-item {
-    height: 56px !important;
-    width: 56px !important;
-    min-width: 56px !important;
+    height: var(--app-size) !important;
+    width: var(--app-size) !important;
+    min-width: var(--app-size) !important;
     flex-shrink: 0 !important;
 }
 
 .dock .app-icon {
-    width: 56px !important;
-    height: 56px !important;
-    min-width: 56px !important;
-    min-height: 56px !important;
-    border-radius: 17px !important;
+    width: var(--app-size) !important;
+    height: var(--app-size) !important;
+    min-width: var(--app-size) !important;
+    min-height: var(--app-size) !important;
+    border-radius: calc(var(--app-size) * 17 / 56) !important;
     aspect-ratio: 1 / 1 !important;
 }
 
@@ -214,10 +220,10 @@
 
 .app-label {
     margin-top: 4px;
-    font-size: 10px;
+    font-size: calc(var(--app-size) / 5.6);
     font-weight: 500;
     text-align: center;
-    max-width: 64px;
+    max-width: calc(var(--app-size) * 64 / 56);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

@@ -1,5 +1,5 @@
-// Forever · Service Worker：让应用可以被“添加到主屏幕”，并在离线时用缓存打开
-const CACHE_NAME = 'forever-v1';
+// Whatever · Service Worker：让应用可以被“添加到主屏幕”，并在离线时用缓存打开
+const CACHE_NAME = 'Whatever-v1';
 
 self.addEventListener('install', () => {
     self.skipWaiting();

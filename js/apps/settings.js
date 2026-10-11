@@ -326,6 +326,30 @@ function getSettingsAppHTML() {
                         </div>
                     </div>
                 </div>
+                <div class="section-tag mono-font" style="margin-top: 8px;">Section 04 — Home Icon</div>
+                <div class="setting-card">
+                    <div class="setting-row pwa-toggle-row" onclick="togglePwaIconPanel()">
+                        <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 9v6M9 12h6"/></svg>
+                            </div>
+                            <div class="row-text-group">
+                                <span class="row-label">桌面图标（PWA）</span>
+                                <span class="row-note mono-font">Home Screen Icon</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <svg id="pwaIconArrow" class="viewport-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                    </div>
+                    <div class="viewport-panel collapsed" id="pwaIconPanel">
+                        <div class="viewport-panel-inner">
+                            <div class="pwa-grid" id="pwaIconGrid"></div>
+                            <div class="pwa-hint mono-font">选择后请删除桌面旧图标，重新添加到主屏幕才会生效哦</div>
+                            <input type="file" id="pwaIconUploadInput" accept="image/*" style="display:none;" onchange="handlePwaIconUpload(event)">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- 子面板：API -->
@@ -413,6 +437,7 @@ async function initSettingsApp() {
     restoreActiveSettingsApi();
     renderSettingsPresetsList();
     updateSettingsActivePresetBadge();
+    renderPwaIconGrid();
 
     if (typeof safeDB !== 'undefined') {
         const themeMode = await safeDB.load('settings_theme_mode', 'auto');
@@ -3024,4 +3049,166 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.noirCustomAppIcons = (await safeDB.load('app_custom_icons', {})) || {};
     observeCustomAppIcons();
     applyCustomAppIconsToDom();
+});
+
+
+/* =========================================
+   PWA 桌面图标：预设 + 自定义上传
+   ========================================= */
+// 预设列表。默认图标保持 index.html / manifest.json 原来的路径不变；
+// 图标二到四对应 assets/ 下的 图标2.jpg / 图标3.jpg / 图标4.jpg。
+const PWA_ICON_PRESETS = [
+    { id: 'default', name: '默认', src: 'assets/IMG_20261008_161846.jpg' },
+    { id: 'icon2',   name: '图标二', src: 'assets/图标2.jpg' },
+    { id: 'icon3',   name: '图标三', src: 'assets/图标3.jpg' },
+    { id: 'icon4',   name: '图标四', src: 'assets/图标4.jpg' }
+];
+const PWA_ICON_KEY = 'pwa_home_icon';           // { type: 'preset', id } 或 { type: 'custom' }
+const PWA_CUSTOM_KEY = 'pwa_home_icon_custom';  // 用户上传图标（512×512 PNG dataURL）
+let pwaIconOriginal = null;                     // index.html 原始 link 地址，用于恢复默认
+
+function captureOriginalPwaLinks() {
+    if (pwaIconOriginal) return;
+    pwaIconOriginal = {
+        icon: document.querySelector('link[rel="icon"]')?.getAttribute('href'),
+        apple: document.querySelector('link[rel="apple-touch-icon"]')?.getAttribute('href'),
+        manifest: document.querySelector('link[rel="manifest"]')?.getAttribute('href')
+    };
+}
+
+// 把任意图片居中裁成正方形并缩放到指定尺寸（避免非正方形图片被拉伸）
+function pwaMakeIcon(src, size) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const side = Math.min(img.naturalWidth, img.naturalHeight);
+            const sx = (img.naturalWidth - side) / 2;
+            const sy = (img.naturalHeight - side) / 2;
+            const c = document.createElement('canvas');
+            c.width = c.height = size;
+            c.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, size, size);
+            resolve(c.toDataURL('image/png'));
+        };
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+
+// 把图标写入页面的 link 和 manifest（iOS 添加时读 apple-touch-icon，安卓安装时读 manifest）
+async function applyPwaHomeIcon(src) {
+    captureOriginalPwaLinks();
+    const icon180 = await pwaMakeIcon(src, 180);
+    const icon512 = await pwaMakeIcon(src, 512);
+
+    document.querySelector('link[rel="apple-touch-icon"]').href = icon180;
+    document.querySelector('link[rel="icon"]').href = icon512;
+
+    const base = new URL('./', location.href).href;
+    const manifest = {
+        name: 'Whatever', short_name: 'Whatever', description: 'Whatever',
+        start_url: base + 'index.html', scope: base,
+        display: 'standalone', orientation: 'portrait',
+        background_color: '#09090b', theme_color: '#09090b',
+        icons: [{ src: icon512, sizes: '512x512', type: 'image/png', purpose: 'any' }]
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' }));
+    document.querySelector('link[rel="manifest"]').href = url;
+}
+
+// 恢复 index.html 原本的图标与 manifest
+function restorePwaDefaultIcon() {
+    captureOriginalPwaLinks();
+    if (pwaIconOriginal.apple) document.querySelector('link[rel="apple-touch-icon"]').href = pwaIconOriginal.apple;
+    if (pwaIconOriginal.icon) document.querySelector('link[rel="icon"]').href = pwaIconOriginal.icon;
+    if (pwaIconOriginal.manifest) document.querySelector('link[rel="manifest"]').href = pwaIconOriginal.manifest;
+}
+
+// 按已保存的选择应用图标（启动时也调用一次）
+async function applyCurrentPwaIcon() {
+    const cur = await safeDB.load(PWA_ICON_KEY, null);
+    if (cur && cur.type === 'custom') {
+        const data = await safeDB.load(PWA_CUSTOM_KEY, null);
+        if (data) return applyPwaHomeIcon(data);
+    } else if (cur && cur.type === 'preset' && cur.id !== 'default') {
+        const preset = PWA_ICON_PRESETS.find(p => p.id === cur.id);
+        if (preset) return applyPwaHomeIcon(preset.src);
+    }
+    restorePwaDefaultIcon();
+}
+
+// 渲染图标选择格子（默认 / 图标二到四 / 自定义 / 上传）
+async function renderPwaIconGrid() {
+    const grid = document.getElementById('pwaIconGrid');
+    if (!grid) return;
+    const cur = await safeDB.load(PWA_ICON_KEY, { type: 'preset', id: 'default' });
+    const custom = await safeDB.load(PWA_CUSTOM_KEY, null);
+
+    const card = (active, onclick, thumbHtml, name) => `
+        <div class="pwa-card ${active ? 'active' : ''}" onclick="${onclick}">
+            <div class="pwa-thumb">${thumbHtml}</div>
+            <span class="pwa-card-name mono-font">${name}</span>
+        </div>`;
+
+    let html = PWA_ICON_PRESETS.map(p => card(
+        cur && cur.type === 'preset' && cur.id === p.id,
+        `pickPwaHomeIcon('${p.id}')`,
+        `<img src="${p.src}" alt="${p.name}">`,
+        p.name
+    )).join('');
+
+    if (custom) {
+        html += card(cur && cur.type === 'custom', 'pickPwaCustomIcon()',
+            `<img src="${custom}" alt="自定义">`, '自定义');
+    }
+    html += card(false, "document.getElementById('pwaIconUploadInput').click()",
+        '<span class="pwa-plus">+</span>', '上传');
+
+    grid.innerHTML = html;
+}
+
+async function pickPwaHomeIcon(id) {
+    await safeDB.save(PWA_ICON_KEY, { type: 'preset', id });
+    await applyCurrentPwaIcon();
+    renderPwaIconGrid();
+    showCapsuleTip('已更换。请删除桌面旧图标，重新添加到主屏幕才会生效哦');
+}
+
+async function pickPwaCustomIcon() {
+    await safeDB.save(PWA_ICON_KEY, { type: 'custom' });
+    await applyCurrentPwaIcon();
+    renderPwaIconGrid();
+    showCapsuleTip('已更换。请删除桌面旧图标，重新添加到主屏幕才会生效哦');
+}
+
+// 上传自己的图标：读取 → 居中裁成 512 方图 → 保存并选中
+function handlePwaIconUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+        const square = await pwaMakeIcon(reader.result, 512);
+        await safeDB.save(PWA_CUSTOM_KEY, square);
+        await safeDB.save(PWA_ICON_KEY, { type: 'custom' });
+        await applyCurrentPwaIcon();
+        renderPwaIconGrid();
+        showCapsuleTip('已上传。请删除桌面旧图标，重新添加到主屏幕才会生效哦');
+    };
+    reader.readAsDataURL(file);
+}
+
+// 展开 / 收起（只切换显示，不重新渲染）
+function togglePwaIconPanel() {
+    const panel = document.getElementById('pwaIconPanel');
+    const arrow = document.getElementById('pwaIconArrow');
+    if (!panel) return;
+    panel.classList.toggle('collapsed');
+    const open = !panel.classList.contains('collapsed');
+    if (arrow) arrow.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
+}
+
+// 启动时恢复上次选择的桌面图标
+document.addEventListener('DOMContentLoaded', () => {
+    captureOriginalPwaLinks();
+    applyCurrentPwaIcon();
 });
