@@ -2238,3 +2238,332 @@
 .messages-app .mp-pick-t{ padding: 0; font-size: 11px; font-weight: 600; letter-spacing: .4px; color: rgba(255,255,255,0.85); }
 .messages-app .mp-pick-b{ height: 34px; border-radius: 8px; border: 0.5px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.06); color: #FFFFFF; font-size: 11px; font-weight: 600; letter-spacing: .3px; }
 .messages-app .mp-pick-b.primary{ background: rgba(255,255,255,0.92); color: #111111; border-color: transparent; }
+
+/* ===================== 朋友圈可见范围：票券风格（参考 重做的可见度页面.html） ===================== */
+.messages-app #mcVisPanel{
+    background: linear-gradient(rgba(255,255,255,0.72), rgba(255,255,255,0.72)), url('../assets/聊天室设置背景图/可见度选择背景.jpg') center / cover no-repeat;
+    padding: 54px 18px calc(22px + env(safe-area-inset-bottom, 0px));
+    font-family: "SF Mono", Menlo, monospace;
+}
+.messages-app .mv-top{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.messages-app .mv-back{ width: 36px; height: 36px; border: 0; border-radius: 50%; background: rgba(255,255,255,0.85); box-shadow: 0 2px 8px rgba(0,0,0,0.05); display: grid; place-items: center; cursor: pointer; transition: transform .15s; }
+.messages-app .mv-back:active{ transform: scale(.9); }
+.messages-app .mv-back svg{ width: 16px; height: 16px; fill: none; stroke: #111; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.messages-app .mv-title{ font-size: 13px; font-weight: 700; letter-spacing: 1.5px; color: #111; text-transform: uppercase; }
+.messages-app .mv-sp{ width: 36px; }
+
+.messages-app .mv-tickets{ display: flex; gap: 10px; padding: 12px 0 18px; }
+.messages-app .mv-ticket{ flex: 1; cursor: pointer; filter: drop-shadow(0 6px 12px rgba(0,0,0,0.06)); transition: transform .3s cubic-bezier(.22,1,.36,1), filter .3s ease; }
+.messages-app .mv-ticket:active{ transform: scale(.96); }
+.messages-app .mv-ticket.on{ filter: drop-shadow(0 12px 24px rgba(0,0,0,0.12)); transform: translateY(-6px); }
+.messages-app .mv-stamp{
+    width: 100%; aspect-ratio: 1 / 1.35; background: rgba(255,255,255,0.9); padding: 8px; display: flex; flex-direction: column;
+    -webkit-mask-image: radial-gradient(circle at 0% 50%, transparent 6px, black 6.5px), radial-gradient(circle at 100% 50%, transparent 6px, black 6.5px);
+            mask-image: radial-gradient(circle at 0% 50%, transparent 6px, black 6.5px), radial-gradient(circle at 100% 50%, transparent 6px, black 6.5px);
+    -webkit-mask-size: 51% 100%; mask-size: 51% 100%;
+    -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+    -webkit-mask-position: left, right; mask-position: left, right;
+}
+.messages-app .mv-stamp-in{ flex: 1; border: .5px solid rgba(0,0,0,0.12); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 8px 4px; position: relative; transition: border-color .3s ease; }
+.messages-app .mv-ticket.on .mv-stamp-in{ border-color: #111; border-width: 1px; }
+.messages-app .mv-hd{ width: 100%; display: flex; justify-content: space-between; font-size: 8px; font-weight: 600; color: #8E8E93; }
+.messages-app .mv-ico{ width: 32px; height: 32px; border-radius: 50%; background: #F4F4F6; display: grid; place-items: center; transition: background .3s; }
+.messages-app .mv-ticket.on .mv-ico{ background: #111; }
+.messages-app .mv-ico svg{ width: 16px; height: 16px; fill: none; stroke: #111; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transition: stroke .3s; }
+.messages-app .mv-ticket.on .mv-ico svg{ stroke: #FFFFFF; }
+.messages-app .mv-tx{ text-align: center; }
+.messages-app .mv-t{ font-size: 12px; font-weight: 700; color: #111; letter-spacing: .5px; }
+.messages-app .mv-s{ font-size: 8px; color: #8E8E93; text-transform: uppercase; letter-spacing: .5px; }
+.messages-app .mv-postmark{ position: absolute; top: 50%; left: 50%; width: 56px; height: 56px; border-radius: 50%; border: 1.5px solid #111; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 800; color: #111; letter-spacing: 1px; text-transform: uppercase; transform: translate(-50%, -50%) rotate(-25deg) scale(1.4); opacity: 0; pointer-events: none; transition: all .35s cubic-bezier(.22,1,.36,1); }
+.messages-app .mv-postmark::before{ content: ''; position: absolute; inset: 2px; border-radius: 50%; border: .5px solid #111; }
+.messages-app .mv-ticket.on .mv-postmark{ opacity: .85; transform: translate(-50%, -50%) rotate(-25deg) scale(1); }
+
+.messages-app .mv-manifest{ display: none; flex: 1; min-height: 0; flex-direction: column; background: rgba(255,255,255,0.6); border-radius: 26px 26px 0 0; padding: 0 16px; margin: 0 -18px; box-shadow: 0 -10px 30px rgba(0,0,0,0.04); }
+.messages-app .mv-manifest.show{ display: flex; animation: mvUp .45s cubic-bezier(.22,1,.36,1) both; }
+@keyframes mvUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.messages-app .mv-mhead{ display: flex; align-items: flex-end; justify-content: space-between; padding: 18px 4px 12px; border-bottom: 1px dashed rgba(0,0,0,0.12); }
+.messages-app .mv-mt{ font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #111; text-transform: uppercase; }
+.messages-app .mv-mc{ font-size: 10px; color: #8E8E93; margin-top: 2px; }
+.messages-app .mv-tools{ display: flex; gap: 12px; }
+.messages-app .mv-tool{ border: 0; background: none; font-family: inherit; font-size: 10px; font-weight: 600; color: #111; text-transform: uppercase; cursor: pointer; }
+.messages-app .mv-tool:active{ opacity: .5; }
+.messages-app .mv-scroll{ flex: 1; overflow-y: auto; padding-bottom: 12px; scrollbar-width: none; }
+.messages-app .mv-scroll::-webkit-scrollbar{ display: none; }
+.messages-app .mv-search{ display: flex; align-items: center; gap: 8px; padding: 12px 4px; border-bottom: 1px solid rgba(0,0,0,0.06); }
+.messages-app .mv-search svg{ width: 14px; height: 14px; fill: none; stroke: #8E8E93; stroke-width: 2; stroke-linecap: round; }
+.messages-app .mv-search input{ flex: 1; min-width: 0; border: 0; outline: none; background: none; font-size: 13px; color: #111; font-family: inherit; }
+.messages-app .mv-search input::placeholder{ color: #B4B4B8; }
+.messages-app .mv-row{ display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px dashed rgba(0,0,0,0.08); cursor: pointer; transition: opacity .2s; }
+.messages-app .mv-row:active{ opacity: .6; }
+.messages-app .mv-info{ flex: 1; min-width: 0; }
+.messages-app .mv-name{ font-size: 14px; font-weight: 600; color: #111; }
+.messages-app .mv-sub{ font-size: 10px; color: #8E8E93; margin-top: 2px; }
+.messages-app .mv-chk{ width: 20px; height: 20px; border: 1.5px solid #D5D5D9; border-radius: 4px; display: grid; place-items: center; font-size: 14px; font-weight: 800; color: #111; line-height: 1; transition: all .2s; flex: none; }
+.messages-app .mv-row.on .mv-chk{ border-color: #111; background: #111; color: #FFFFFF; }
+.messages-app .mv-empty{ padding: 30px 0; text-align: center; color: #8E8E93; font-size: 12px; }
+
+.messages-app .mv-foot{ padding-top: 14px; }
+.messages-app .mv-save{
+    width: 100%; height: 54px; border: 0; background: #111111; color: #FFFFFF; font-family: inherit;
+    font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+    -webkit-mask-image: radial-gradient(circle at 0px 27px, transparent 6px, black 6.5px), radial-gradient(circle at 100% 27px, transparent 6px, black 6.5px);
+            mask-image: radial-gradient(circle at 0px 27px, transparent 6px, black 6.5px), radial-gradient(circle at 100% 27px, transparent 6px, black 6.5px);
+    -webkit-mask-composite: source-in; mask-composite: intersect;
+    transition: transform .15s;
+}
+.messages-app .mv-save:active{ transform: scale(.98); }
+.messages-app .mv-save svg{ width: 16px; height: 16px; fill: none; stroke: #FFFFFF; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 票券更矮；完成键始终固定在面板底部 */
+.messages-app .mv-stamp{ aspect-ratio: auto; height: 118px; }
+.messages-app .mv-foot{ margin-top: auto; }
+
+/* 票券选中：渐显并闪两下（仅切换模式时播放） */
+.messages-app .mv-ticket.on{ transform: none; }
+.messages-app .mv-ticket.on.anim{ animation: mvFlash 1.6s ease both; }
+@keyframes mvFlash {
+    0%   { opacity: 0; }
+    18%  { opacity: 1; }
+    30%  { opacity: .2; }
+    44%  { opacity: 1; }
+    56%  { opacity: .2; }
+    72%  { opacity: 1; }
+    100% { opacity: 1; }
+}
+
+/* ===== 头像 / 照片：允许长按保存图片（只放开图片本身，文字仍不可选、不弹网页菜单） ===== */
+.messages-app .av img, .messages-app .mf-avatar img, .messages-app .polaroid img, .messages-app .sq img, .messages-app .story-card img{
+    -webkit-user-select: auto !important; user-select: auto !important;
+    -webkit-touch-callout: default !important; -webkit-user-drag: auto;
+    pointer-events: auto;
+}
+
+/* ===================== 长按消息菜单（天使元素虚线版） ===================== */
+.messages-app .mm-menu{
+    position: absolute; z-index: 120; display: flex; align-items: stretch;
+    height: 40px; padding: 0 4px; border-radius: 20px;
+    background: radial-gradient(circle at 0% 100%, #F8E3EA 0%, rgba(248,227,234,0) 55%), #FFFFFF;
+    border: 1px solid #D9D9DE;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.9);
+    opacity: 0; pointer-events: none; white-space: nowrap;
+    transform: translate(-50%, -100%);
+}
+.messages-app .mm-menu.show{ pointer-events: auto; animation: mmThreeOne 0.6s cubic-bezier(.22,1,.36,1) forwards; }
+/* 三+一：平滑上浮 + 渐显闪动两下 */
+@keyframes mmThreeOne {
+    0%   { opacity: 0; transform: translate(-50%, -80%) scale(.96); }
+    15%  { opacity: 1; transform: translate(-50%, -94%) scale(1); }
+    30%  { opacity: .2; }
+    45%  { opacity: 1; }
+    60%  { opacity: .2; }
+    75%  { opacity: 1; }
+    100% { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+}
+.messages-app .mm-item{
+    display: flex; align-items: center; gap: 5px; height: 100%; padding: 0 11px;
+    border: 0; background: none; font-family: inherit; font-size: 11px; font-weight: 600;
+    color: #6E6E76; cursor: pointer; border-radius: 16px; transition: transform .15s, background .2s;
+}
+.messages-app .mm-item:active{ transform: scale(.92); background: #E2E2E7; }
+.messages-app .mm-item svg{
+    width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.65;
+    stroke-linecap: round; stroke-linejoin: round; flex: none; overflow: visible;
+}
+.messages-app .mm-item.del{ color: #C98C96; }
+.messages-app .mm-item.multi{ color: #8E8E95; }
+.messages-app .mm-div{ align-self: center; width: 0; height: 22px; margin: 0 2px; border-left: 1.5px dashed #C8C8CE; }
+
+/* 多选顶部条 */
+.messages-app .mm-bar{
+    position: absolute; left: 14px; right: 14px; top: 58px; z-index: 119; display: none;
+    align-items: center; gap: 6px; padding: 8px 10px; border-radius: 18px;
+    background: #FFFFFF; border: 1px solid #D9D9DE; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.messages-app .mm-bar.show{ display: flex; }
+.messages-app .mm-bar-count{ flex: 1; font-size: 12px; font-weight: 600; color: #6E6E76; }
+.messages-app .mm-bar-btn{ height: 28px; padding: 0 12px; border: 0; border-radius: 14px; background: #F2F2F4; font-family: inherit; font-size: 11px; font-weight: 600; color: #111; cursor: pointer; }
+.messages-app .mm-bar-btn.del{ color: #C98C96; background: #FBF1F3; }
+.messages-app #thread.mm-multi .mrow{ cursor: pointer; opacity: .5; }
+.messages-app #thread.mm-multi .mrow.sel{ opacity: 1; }
+.messages-app #thread.mm-multi .mrow.sel .bubble{ box-shadow: 0 0 0 2px #111111; }
+
+/* 编辑消息框 */
+.messages-app .mm-edit-ta{ width: 100%; box-sizing: border-box; border: 0; border-radius: 14px; padding: 10px 12px; background: #F2F2F4; color: #111; font-size: 14px; line-height: 1.5; font-family: inherit; resize: none; outline: none; }
+
+/* 与 angel_menu.html 一致：菜单使用系统字体 */
+.messages-app .mm-menu, .messages-app .mm-item{ font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif; }
+
+/* 记忆页：按钮里的文字继承按钮颜色（修复手动总结按钮文字变成黑色看不见） */
+.messages-app #memPage button span{ color: inherit; }
+/* 长按菜单：文字明确显示 */
+.messages-app .mm-item{ color: #6E6E76; }
+.messages-app .mm-item.del{ color: #C98C96; }
+.messages-app .mm-item.multi{ color: #8E8E95; }
+.messages-app .mm-item span{ display: inline; color: inherit; font-size: 11px; font-weight: 600; white-space: nowrap; }
+
+/* 应用窗口的占位规则会隐藏没有 class 的 span（菜单文字、按钮文字、朋友圈时间都受影响）；消息应用内这些 span 必须显示 */
+.app-window .app-content .messages-app span:not([class]){ display: inline !important; }
+/* 记忆页按钮里的图标跟随按钮颜色（手动总结按钮的图标之前和黑底同色，看不见） */
+.messages-app #memPage button svg{ color: inherit; stroke: currentColor; }
+
+/* ===================== 长按：半透明图片遮罩 + 菜单从中间出现 ===================== */
+.messages-app .mm-overlay{
+    position: absolute; inset: 0; z-index: 118;
+    visibility: hidden; opacity: 0; transition: opacity .25s ease, visibility .25s;
+    background: transparent;
+}
+/* 薄薄一层：图片只留很淡的底纹，聊天消息和菜单透出来 */
+.messages-app .mm-overlay::before{
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: url('../assets/聊天室设置背景图/唤出菜单遮罩.jpg') center / cover no-repeat;
+    opacity: .16;
+}
+.messages-app .mm-overlay.show{ visibility: visible; opacity: 1; }
+.messages-app .mm-menu{
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    opacity: 0; pointer-events: none;
+}
+.messages-app .mm-menu.show{ pointer-events: auto; animation: mmCenterIn .6s cubic-bezier(.22,1,.36,1) forwards; }
+/* 三+一：从中间平滑放大出现 + 渐显闪动两下 */
+@keyframes mmCenterIn {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(.6); }
+    15%  { opacity: 1; transform: translate(-50%, -50%) scale(.95); }
+    30%  { opacity: .2; }
+    45%  { opacity: 1; }
+    60%  { opacity: .2; }
+    75%  { opacity: 1; }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ===================== 多选栏：输入框上方的玻璃胶囊 ===================== */
+.messages-app .mm-bar{
+    position: absolute; left: 50%; top: auto; right: auto; bottom: calc(100% + 10px);
+    transform: translateX(-50%); width: calc(100% - 36px); z-index: 5;
+    display: none; align-items: center; gap: 6px; padding: 6px 6px 6px 16px; border-radius: 999px;
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(18px) saturate(170%); -webkit-backdrop-filter: blur(18px) saturate(170%);
+    border: .5px solid rgba(255,255,255,0.9);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.10), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.messages-app .mm-bar.show{ display: flex; }
+.messages-app .mm-bar-count{ flex: 1; font-size: 12px; font-weight: 600; color: #3A3A3C; }
+.messages-app .mm-bar-btn{ height: 30px; padding: 0 13px; border: 0; border-radius: 999px; background: rgba(255,255,255,0.7); font-family: inherit; font-size: 11px; font-weight: 600; color: #111; cursor: pointer; }
+.messages-app .mm-bar-btn.del{ color: #C98C96; }
+
+/* 长按菜单打开的弹窗（编辑消息、删除确认）：白色底 */
+.messages-app .identity-sheet.mm-pop-sheet{ background: #FFFFFF !important; }
+
+/* 界面底部的大胶囊“完成”（人设编辑页、同步页）：改为可见度设置界面的票券样式 */
+.messages-app .persona-done, .messages-app .sync-done{
+    width: 100%; height: 54px; border: 0; border-radius: 0;
+    background: #111111; color: #FFFFFF; font-family: inherit;
+    font-size: 13px; font-weight: 700; letter-spacing: 2px; cursor: pointer;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+    -webkit-mask-image: radial-gradient(circle at 0px 27px, transparent 6px, black 6.5px), radial-gradient(circle at 100% 27px, transparent 6px, black 6.5px);
+            mask-image: radial-gradient(circle at 0px 27px, transparent 6px, black 6.5px), radial-gradient(circle at 100% 27px, transparent 6px, black 6.5px);
+    -webkit-mask-composite: source-in; mask-composite: intersect;
+}
+.messages-app .persona-done:active, .messages-app .sync-done:active{ opacity: .8; }
+
+/* 长按菜单弹窗（编辑消息）：标题和按钮颜色明确，避免白字落在白底上看不见 */
+.messages-app .identity-sheet.mm-pop-sheet .sheet-title{ color: #111111; font-size: 14px; font-weight: 700; padding: 4px 4px 10px; }
+.messages-app .identity-sheet.mm-pop-sheet .sheet-body{ display: flex; flex-direction: column; gap: 8px; }
+.messages-app .identity-sheet.mm-pop-sheet .identity-cancel{ width: 100%; height: 40px; border: 0; border-radius: 20px; background: #F2F2F4; color: #111111; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.messages-app .identity-sheet.mm-pop-sheet #mmEditOk{ background: #111111; color: #FFFFFF; }
+
+/* ===================== 长按菜单弹窗：邮票样式（仅菜单打开的弹窗） ===================== */
+#genericSheet .identity-sheet.mm-pop-sheet{
+    position: relative; background: #FFFFFF !important; border-radius: 0 !important;
+    padding: 20px 22px 22px;
+    -webkit-mask-image: radial-gradient(circle at 0 50%, transparent 9px, #000 9.5px), radial-gradient(circle at 100% 50%, transparent 9px, #000 9.5px);
+            mask-image: radial-gradient(circle at 0 50%, transparent 9px, #000 9.5px), radial-gradient(circle at 100% 50%, transparent 9px, #000 9.5px);
+    -webkit-mask-composite: source-in; mask-composite: intersect;
+}
+/* 标题：票据编号风格 + 邮戳圈 */
+#genericSheet .identity-sheet.mm-pop-sheet .sheet-title{
+    position: relative; padding: 0 0 12px; margin-bottom: 12px; border-bottom: 1px dashed #E4E4E7;
+    font-family: "SF Mono", Menlo, monospace; font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: #111111;
+}
+#genericSheet .identity-sheet.mm-pop-sheet .sheet-title::after{
+    content: ''; position: absolute; right: 0; top: -8px; width: 44px; height: 44px; border-radius: 50%;
+    border: 1.5px solid rgba(17,17,17,0.5); transform: rotate(-18deg); pointer-events: none;
+}
+#genericSheet .identity-sheet.mm-pop-sheet .sheet-body{ display: flex; flex-direction: column; gap: 12px; }
+#genericSheet .identity-sheet.mm-pop-sheet .pop-text{
+    font-family: "SF Mono", Menlo, monospace; font-size: 12px; line-height: 1.6; color: #6E6E76; padding: 0 0 6px;
+}
+#genericSheet .identity-sheet.mm-pop-sheet .pop-actions{ display: flex; gap: 10px; }
+#genericSheet .identity-sheet.mm-pop-sheet .mm-edit-ta{
+    width: 100%; box-sizing: border-box; height: auto; min-height: 110px; padding: 12px 14px;
+    border: 1px dashed #D5D5DB; border-radius: 0; background: #F7F7F8; color: #111111;
+    font-family: "SF Mono", Menlo, monospace; font-size: 13px; line-height: 1.6; resize: none; outline: none;
+}
+/* 次要按钮：虚线票框 */
+#genericSheet .identity-sheet.mm-pop-sheet .identity-cancel{
+    flex: 1; width: auto; height: 42px; border: 1px dashed #C9C9CF; border-radius: 0; background: #FFFFFF;
+    color: #111111; font-family: "SF Mono", Menlo, monospace; font-size: 11px; font-weight: 700;
+    letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer;
+}
+/* 主按钮：黑色票根，两侧半圆缺口 */
+#genericSheet .identity-sheet.mm-pop-sheet .cid-btn,
+#genericSheet .identity-sheet.mm-pop-sheet #mmEditOk{
+    flex: 1; width: auto; height: 46px; border: 0; border-radius: 0; background: #111111; color: #FFFFFF;
+    font-family: "SF Mono", Menlo, monospace; font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; cursor: pointer;
+    -webkit-mask-image: radial-gradient(circle at 0 50%, transparent 6px, #000 6.5px), radial-gradient(circle at 100% 50%, transparent 6px, #000 6.5px);
+            mask-image: radial-gradient(circle at 0 50%, transparent 6px, #000 6.5px), radial-gradient(circle at 100% 50%, transparent 6px, #000 6.5px);
+    -webkit-mask-composite: source-in; mask-composite: intersect;
+}
+
+/* 被长按的消息：高亮在遮罩上方 */
+.messages-app .mm-hl{
+    position: absolute; z-index: 2; margin: 0; pointer-events: none;
+    box-shadow: 0 10px 26px rgba(0,0,0,0.18);
+    animation: mmHlIn .25s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes mmHlIn { from { transform: scale(.96); } to { transform: scale(1.02); } }
+
+/* ===================== 聊天室：外观设置（点击展开） ===================== */
+.messages-app .cf-fold{ margin: 0 0 8px; }
+.messages-app .cf-head{ display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px 16px; border: 0; border-radius: 14px; background: rgba(255,255,255,0.06); color: #FFFFFF; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.messages-app .cf-chev{ width: 14px; height: 14px; fill: none; stroke: #FFFFFF; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .3s ease; flex: none; }
+.messages-app .cf-fold.open .cf-chev{ transform: rotate(180deg); }
+.messages-app .cf-body{ display: none; padding-top: 8px; }
+.messages-app .cf-fold.open .cf-body{ display: block; }
+/* 头像显示选项 */
+.messages-app .av-opts{ display: flex; flex-direction: column; gap: 10px; padding: 12px 16px; border-radius: 14px; background: rgba(255,255,255,0.06); color: #FFFFFF; font-size: 13px; }
+.messages-app .av-opts label{ display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.messages-app .av-opts input{ accent-color: #FFFFFF; }
+.messages-app .av-range{ display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.messages-app .av-range > span{ opacity: .6; }
+
+/* 高亮的消息：只做淡入，位置不偏移 */
+.messages-app .mm-hl{ transform: none !important; margin: 0; animation: mmHlFade .2s ease both; }
+@keyframes mmHlFade { from { opacity: .4; } to { opacity: 1; } }
+
+/* “CSS 样式”折叠头：与聊天室其它行（rp-row）同款 */
+.messages-app .cf-fold{ margin: 0; }
+.messages-app .cf-head{
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    width: 100%; margin: 0 0 8px; padding: 14px; border: 0; border-radius: 18px;
+    background: rgba(255,255,255,0.06); color: #FFFFFF; font-family: inherit;
+    font-size: 14px; font-weight: 600; text-align: left; cursor: pointer;
+}
+.messages-app .cf-head:active{ background: rgba(255,255,255,0.12); }
+.messages-app .cf-body{ padding-top: 0; }
+.messages-app .cf-fold.open .cf-body{ padding-top: 4px; }
+
+/* 气泡上下间距再收一点 */
+.messages-app .thread{ gap: 2px; }
+.messages-app #chatView .thread{ gap: 2px; }
+
+/* 消息菜单：两头渐变消失；粉色更灰淡 */
+.messages-app .mm-menu{
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, #000 16%, #000 84%, transparent 100%);
+            mask-image: linear-gradient(to right, transparent 0%, #000 16%, #000 84%, transparent 100%);
+    background: radial-gradient(circle at 0% 100%, #F4EBEE 0%, rgba(244,235,238,0) 55%), #FFFFFF;
+}
+.messages-app .mm-item.del{ color: #B5A0A6; }

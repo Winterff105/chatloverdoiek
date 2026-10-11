@@ -75,7 +75,7 @@ function loadStoredContacts() {
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
 }
 function normalizeContact(c) {
-    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0) };
+    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0), avOpts: (c.avOpts && typeof c.avOpts === 'object') ? c.avOpts : null };
 }
 
 
@@ -222,7 +222,7 @@ function renderChats() {
     const chatContacts = CHAT_IDS.map(id => CONTACTS.find(c => c.id === id)).filter(Boolean);
     const storyEl = document.getElementById('storyRow');
     const storyHtml = THEME === 'tabs'
-        ? KR_HEAD + profileCard()
+        ? krHead() + profileCard()
         : chatContacts.map(c =>
             `<button class="story ${c.unread ? 'unread' : ''}" title="${esc(c.name)}" onclick="openChat('${c.id}')">${avatar(c, 'lg')}</button>`).join('');
     if (storyEl.dataset.html !== storyHtml) { storyEl.innerHTML = storyHtml; storyEl.dataset.html = storyHtml; }
@@ -726,27 +726,219 @@ function memDeletePreset() {
     persistContacts(); renderMemoryPage(); toast('已删除预设');
 }
 function memDelete(id) { const c = curMemContact(); if (!c) return; c.memories = (c.memories || []).filter(y => y.id !== id); persistContacts(); renderMemoryPage(); }
+/* ---------------- 长按消息菜单：编辑 / 复制 / 删除 / 多选 ---------------- */
+function mmHost() { return document.querySelector('.messages-app'); }
+function mmMenuEl() {
+    let ov = document.getElementById('mmOverlay');
+    if (!ov) {
+        const host = mmHost(); if (!host) return null;
+        if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+        ov = document.createElement('div');
+        ov.id = 'mmOverlay'; ov.className = 'mm-overlay';
+        ov.addEventListener('pointerdown', e => { if (e.target === ov) hideMsgMenu(); });
+        host.appendChild(ov);
+    }
+    let el = document.getElementById('mmMenu');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'mmMenu'; el.className = 'mm-menu';
+        ov.appendChild(el);
+    }
+    return el;
+}
+function mmBuildMenu(el) {
+    const items = [
+        { k: 'edit', label: '编辑', icon: MM_ICONS.edit },
+        { k: 'copy', label: '复制', icon: MM_ICONS.copy },
+        { div: true },
+        { k: 'del', label: '删除', icon: MM_ICONS.del, cls: 'del' },
+        { k: 'multi', label: '多选', icon: MM_ICONS.multi, cls: 'multi' }
+    ];
+    el.innerHTML = items.map(it => it.div
+        ? '<span class="mm-div"></span>'
+        : `<button class="mm-item ${it.cls || ''}" type="button" data-k="${it.k}">${it.icon}<span>${it.label}</span></button>`
+    ).join('');
+    el.querySelectorAll('.mm-item').forEach(btn => btn.addEventListener('click', e => {
+        e.stopPropagation();
+        mmRun(btn.dataset.k);
+    }));
+}
+function showMsgMenu(row) {
+    if (navigator.vibrate) navigator.vibrate(40);
+    const el = mmMenuEl(); if (!el) return;
+    MM.idx = Number(row.dataset.i);
+    mmBuildMenu(el);
+    const ov = document.getElementById('mmOverlay');
+    ov.querySelectorAll('.mm-hl').forEach(n => n.remove());
+    const bubble = row.querySelector('.bubble');
+    if (bubble) {
+        // 被长按的消息：在遮罩上方复制一份，位置、颜色、字体、边框与原气泡一致
+        const hr = ov.getBoundingClientRect(), br = bubble.getBoundingClientRect();
+        const cs = getComputedStyle(bubble);
+        const hl = bubble.cloneNode(true);
+        hl.removeAttribute('id');
+        hl.classList.add('mm-hl');
+        ['backgroundColor', 'backgroundImage', 'color', 'borderTop', 'borderRight', 'borderBottom', 'borderLeft', 'borderRadius', 'boxShadow', 'padding', 'fontSize', 'fontWeight', 'fontFamily', 'letterSpacing', 'lineHeight', 'textAlign', 'whiteSpace', 'wordBreak'].forEach(k => { hl.style[k] = cs[k]; });
+        hl.style.boxSizing = 'border-box';
+        hl.style.left = (br.left - hr.left) + 'px';
+        hl.style.top = (br.top - hr.top) + 'px';
+        hl.style.width = br.width + 'px';
+        hl.style.height = br.height + 'px';
+        ov.insertBefore(hl, ov.firstChild);
+    }
+    ov.classList.add('show');
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+}
+function hideMsgMenu() {
+    const ov = document.getElementById('mmOverlay'); if (ov) { ov.classList.remove('show'); ov.querySelectorAll('.mm-hl').forEach(n => n.remove()); }
+    const el = document.getElementById('mmMenu'); if (el) el.classList.remove('show');
+}
+function mmRun(k) {
+    const i = MM.idx;
+    hideMsgMenu();
+    const c = curMemContact(); if (!c || i == null || !c.msgs[i]) return;
+    if (k === 'edit') return mmOpenEdit(c, i);
+    if (k === 'copy') return mmCopy([c.msgs[i].text]);
+    if (k === 'del') return mmDelete(c, [i]);
+    if (k === 'multi') return mmEnterMulti(i);
+}
+function mmOpenEdit(c, i) {
+    MM_SHEET_TAG = true;
+    openSheet(`<div class="sheet-title">编辑消息</div><div class="sheet-body">`
+        + `<textarea class="mm-edit-ta" id="mmEditTa" rows="4">${esc(c.msgs[i].text)}</textarea>`
+        + `<button class="identity-cancel" id="mmEditOk" type="button">保存</button>`
+        + `<button class="identity-cancel" id="mmEditNo" type="button">取消</button></div>`);
+    MM_SHEET_TAG = false;
+    document.getElementById('mmEditNo').onclick = () => closeSheet();
+    document.getElementById('mmEditOk').onclick = () => {
+        const v = document.getElementById('mmEditTa').value.trim();
+        if (!v) { toast('消息不能为空'); return; }
+        c.msgs[i].text = v;
+        persistContacts(); closeSheet(); renderThread(); renderChats();
+    };
+}
+function mmCopy(texts) {
+    const text = texts.join('\n');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => toast('已复制')).catch(() => toast('复制失败'));
+    } else toast('当前浏览器不支持复制');
+}
+function mmDelete(c, idxs) {
+    const list = idxs.slice().sort((a, b) => b - a);
+    MM_SHEET_TAG = true;
+    askConfirm('删除消息？', `将删除 ${list.length} 条消息，删除后无法恢复`, '删除', () => {
+        list.forEach(i => c.msgs.splice(i, 1));
+        persistContacts(); renderThread(); renderChats();
+        if (MM.mode === 'multi') mmExitMulti();
+    });
+    MM_SHEET_TAG = false;
+}
+function mmEnterMulti(i) {
+    MM.mode = 'multi';
+    MM.sel = new Set([i]);
+    const box = document.getElementById('thread');
+    if (box) box.classList.add('mm-multi');
+    mmBarEl().classList.add('show');
+    mmRefreshSel(); mmBarUpdate();
+}
+function mmExitMulti() {
+    MM.mode = 'menu'; MM.sel = new Set();
+    const box = document.getElementById('thread');
+    if (box) box.classList.remove('mm-multi');
+    const bar = document.getElementById('mmBar'); if (bar) bar.classList.remove('show');
+    mmRefreshSel();
+}
+function mmRefreshSel() {
+    document.querySelectorAll('#thread .mrow').forEach(r => r.classList.toggle('sel', MM.sel.has(Number(r.dataset.i))));
+}
+function mmBarEl() {
+    let b = document.getElementById('mmBar');
+    if (b) return b;
+    const comp = document.querySelector('.messages-app .composer') || mmHost();
+    b = document.createElement('div');
+    b.id = 'mmBar'; b.className = 'mm-bar';
+    b.innerHTML = `<span class="mm-bar-count" id="mmCount">已选 0</span>`
+        + `<button class="mm-bar-btn" id="mmBarCopy" type="button">复制</button>`
+        + `<button class="mm-bar-btn del" id="mmBarDel" type="button">删除</button>`
+        + `<button class="mm-bar-btn" id="mmBarCancel" type="button">取消</button>`;
+    comp.appendChild(b);
+    b.querySelector('#mmBarCancel').onclick = mmExitMulti;
+    b.querySelector('#mmBarCopy').onclick = () => {
+        const c = curMemContact(); if (!c) return;
+        const idxs = [...MM.sel].sort((a, b) => a - b);
+        if (!idxs.length) { toast('先选择消息'); return; }
+        mmCopy(idxs.map(i => c.msgs[i] ? c.msgs[i].text : '').filter(Boolean));
+    };
+    b.querySelector('#mmBarDel').onclick = () => {
+        const c = curMemContact(); if (!c) return;
+        const idxs = [...MM.sel];
+        if (!idxs.length) { toast('先选择消息'); return; }
+        mmDelete(c, idxs);
+    };
+    return b;
+}
+function mmBarUpdate() {
+    const n = document.getElementById('mmCount');
+    if (n) n.textContent = '已选 ' + MM.sel.size;
+}
+function bindMsgMenu() {
+    const box = document.getElementById('thread');
+    if (!box || MM.bound) return;
+    MM.bound = true;
+    const cancel = () => { clearTimeout(MM.timer); MM.timer = null; };
+    box.addEventListener('pointerdown', e => {
+        hideMsgMenu();
+        if (MM.mode === 'multi') return;
+        const row = e.target.closest && e.target.closest('.mrow');
+        if (!row || row.classList.contains('typing')) return;
+        MM.sx = e.clientX; MM.sy = e.clientY;
+        cancel();
+        MM.timer = setTimeout(() => { MM.timer = null; showMsgMenu(row); }, 400);
+    });
+    box.addEventListener('pointermove', e => {
+        if (MM.timer && Math.hypot(e.clientX - MM.sx, e.clientY - MM.sy) > 8) cancel();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => box.addEventListener(t, cancel));
+    box.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.mrow')) e.preventDefault(); });
+    box.addEventListener('click', e => {
+        if (MM.mode !== 'multi') return;
+        const row = e.target.closest && e.target.closest('.mrow');
+        if (!row) return;
+        const i = Number(row.dataset.i);
+        if (MM.sel.has(i)) MM.sel.delete(i); else MM.sel.add(i);
+        mmRefreshSel(); mmBarUpdate();
+    });
+    document.addEventListener('pointerdown', e => {
+        if (!e.target.closest('.mm-menu') && !e.target.closest('.mrow')) hideMsgMenu();
+    });
+}
 function renderThread(opts) {
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c) return;
     const box = document.getElementById('thread');
     // 只有本次新增的消息播放进场动画；重绘已有消息时不闪
     const shownCount = (opts && opts.noAnim) || box.dataset.chat !== c.id ? c.msgs.length : Number(box.dataset.count || 0);
+    const avo = avOptsOf(c);
     let html = '<div class="day">Today</div>';
     c.msgs.forEach((m, i) => {
         const prev = c.msgs[i - 1], next = c.msgs[i + 1];
         const newGroup = !prev || prev.me !== m.me;
         const lastInGroup = !next || next.me !== m.me;
         const meta = lastInGroup ? `<span class="mt">${esc(m.t)}</span>` : '';
-        const sp = m.me ? '' : (newGroup ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div>` : '<div class="sp"></div>');
+        const showAv = avo.scope === 'all' || newGroup;
+        const sp = m.me ? '' : (avo.them && showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div>` : '<div class="sp"></div>');
+        const spR = (m.me && avo.me) ? (showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${selfAvatarHtml('sm')}</span></div>` : '<div style="width:32px;flex-shrink:0"></div>') : '';
         const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
         const grp = (pos === 'g-head') ? 'grp-head' : '';
-        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''}">${sp}<div class="bubble ${pos}">${esc(m.text)}</div>${meta}</div>`;
+        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}">${esc(m.text)}</div>${meta}</div>`;
     });
     box.innerHTML = html;
     box.dataset.chat = c.id;
     box.dataset.count = c.msgs.length;
     box.scrollTop = box.scrollHeight;
+    if (MM.mode === 'multi') mmRefreshSel();
 }
 function showTyping(c) {
     const box = document.getElementById('thread');
@@ -953,7 +1145,10 @@ const THEMES = [
     { id: 'tabs',    name: '2 · 标签页', sub: '无边框，顶部固定一张资料卡' }
 ];
 let THEME = 'tabs';
-const KR_HEAD = '<div class="kr-head"><div class="kr-title">나의 프로필</div><div class="kr-sub">오늘도 좋은 하루 보내세요</div></div>';
+function krHead() {
+    const f = key => `<span class="pc-edit" data-f="${key}" onclick="startProfileEdit(this)">${esc(PROFILE[key])}</span>`;
+    return `<div class="kr-head"><div class="kr-title">${f('krTitle')}</div><div class="kr-sub">${f('krSub')}</div></div>`;
+}
 
 
 
@@ -1283,7 +1478,7 @@ const PLANE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 16v-
 
 /* ---------------- 聊天页资料卡：纯展示，独立数据，和身份/联系人无关 ---------------- */
 const PROFILE_DB_KEY = 'messages_profile_card_v1';
-const PROFILE_DEFAULT = { label: '프로필', name: '구름천사', id: '1004', cap: '1004', status: '오늘도 날개를 펴는 중', sig: '작은 구름 위에서 안부를 전해요' };
+const PROFILE_DEFAULT = { label: '프로필', name: '구름천사', id: '1004', cap: '1004', status: '오늘도 날개를 펴는 중', sig: '작은 구름 위에서 안부를 전해요', krTitle: '나의 프로필', krSub: '오늘도 좋은 하루 보내세요' };
 let PROFILE = Object.assign({}, PROFILE_DEFAULT);
 
 function profileCard() {
@@ -1320,8 +1515,10 @@ function startProfileEdit(el) {
     el.classList.add('editing');
     el.contentEditable = 'true';
     el.focus();
+    // 光标放到末尾，不全选
     const range = document.createRange();
     range.selectNodeContents(el);
+    range.collapse(false);
     const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
     el.onkeydown = e => {
         if (e.key === 'Enter') { e.preventDefault(); el.blur(); }
@@ -2066,6 +2263,7 @@ function openSheet(innerHtml, bottom) {
     const box = b.querySelector('.identity-sheet');
     box.innerHTML = innerHtml;
     box.classList.toggle('compact', !innerHtml.includes('Switch Account'));
+    box.classList.toggle('mm-pop-sheet', !!MM_SHEET_TAG);
     b.classList.add('show');
 }
 function openIdentitySheet() {
@@ -2261,6 +2459,34 @@ ${kv.length ? `<div class="rp-kv">${kv.map(x => `<div class="rp-kv-row"><span>${
         ${rpRow('联系人资料', '姓名、状态、头像与封面', "roomAction('contact')")}`;
 }
 function roomBeautyPane(c) {
+    return roomBeautyPaneInner(c) + avOptsHtml(c);
+}
+function cfoldHtml(id, title, inner) {
+    const open = !!CFOLD_OPEN[id];
+    return `<div class="cf-fold ${open ? 'open' : ''}"><button class="cf-head" type="button" onclick="toggleCFold('${id}')"><span>${title}</span><svg class="cf-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button><div class="cf-body">${inner}</div></div>`;
+}
+function toggleCFold(id) { CFOLD_OPEN[id] = !CFOLD_OPEN[id]; renderRoomPane(); }
+function avOptsOf(c) {
+    const o = (c && c.avOpts) || {};
+    return { me: o.me !== false, them: o.them !== false, scope: o.scope === 'all' ? 'all' : 'group' };
+}
+function setAvOpt(key, val) {
+    const c = curMemContact(); if (!c) return;
+    const o = avOptsOf(c);
+    o[key] = key === 'scope' ? (val === 'all' ? 'all' : 'group') : !!val;
+    c.avOpts = o;
+    persistContacts(); renderThread(); renderRoomPane();
+}
+function avOptsHtml(c) {
+    const o = avOptsOf(c);
+    return `<div class="rp-label">头像显示</div>
+        <div class="rp-opt">
+            <div class="rp-opt-row"><div><div class="rp-opt-t">显示我的头像</div><div class="rp-opt-s">我发的消息旁边显示头像</div></div><button class="rp-switch ${o.me ? 'on' : ''}" type="button" onclick="setAvOpt('me', ${!o.me})" aria-label="显示我的头像"></button></div>
+            <div class="rp-opt-row"><div><div class="rp-opt-t">显示对方头像</div><div class="rp-opt-s">对方的消息旁边显示头像</div></div><button class="rp-switch ${o.them ? 'on' : ''}" type="button" onclick="setAvOpt('them', ${!o.them})" aria-label="显示对方头像"></button></div>
+            <div class="rp-opt-row"><div><div class="rp-opt-t">每条消息都显示</div><div class="rp-opt-s">${o.scope === 'all' ? '当前：每条消息都显示头像' : '当前：每组第一条显示头像'}</div></div><button class="rp-switch ${o.scope === 'all' ? 'on' : ''}" type="button" onclick="setAvOpt('scope', '${o.scope === 'all' ? 'group' : 'all'}')" aria-label="每条消息都显示"></button></div>
+        </div>`;
+}
+function roomBeautyPaneInner(c) {
     const hasBg = !!(c.beauty && c.beauty.bg);
     return `
         <div class="rp-label">预览</div>
@@ -2268,13 +2494,14 @@ function roomBeautyPane(c) {
         <div class="rp-label">聊天背景</div>
         ${rpRow(hasBg ? '更换背景图片' : '选择背景图片', '会自动压缩，适合手机', 'pickRoomBg()')}
         ${hasBg ? rpRow('恢复默认背景', '去掉这个聊天的背景图', 'clearRoomBg()', true) : ''}
-        <div class="rp-label">CSS 样式</div>
+        ${cfoldHtml('css', 'CSS 样式', `
         <div class="css-box">
             <div class="css-hint">写在这里的样式只作用于这个聊天，例如 <code>.bubble{border-radius:4px}</code></div>
             <textarea id="roomCssInput" class="css-input" spellcheck="false" autocapitalize="off" placeholder="例如 .mrow.me .bubble{background:#111;color:#fff}" oninput="previewRoomCss(this.value)"></textarea>
             <div class="css-tpl">${Object.keys(CSS_TEMPLATES).map(k => `<button class="css-tpl-btn" type="button" onclick="fillRoomCss('${k}')">${CSS_TEMPLATE_LABELS[k]}</button>`).join('')}</div>
         </div>
-        <div class="css-actions"><button class="css-clear" type="button" onclick="clearRoomCss()">清空</button><button class="css-save" type="button" onclick="saveRoomCss()">保存样式</button></div>`;
+        <div class="css-actions"><button class="css-clear" type="button" onclick="clearRoomCss()">清空</button><button class="css-save" type="button" onclick="saveRoomCss()">保存样式</button></div>`)}
+        `;
 }
 function fillRoomCss(key) {
     const ta = document.getElementById('roomCssInput');
@@ -2759,7 +2986,7 @@ function closeMomentVisPanel() {
     const b = document.getElementById('mcVis');
     if (b) b.innerHTML = visIcon();
 }
-function setMomentVis(k) { MOMENT_VIS = k; renderMomentVisPanel(); }
+function setMomentVis(k) { MOMENT_VIS = k; MV_ANIM = true; renderMomentVisPanel(); }
 function toggleMomentVisTo(id) {
     const i = MOMENT_VIS_TO.indexOf(id);
     if (i >= 0) MOMENT_VIS_TO.splice(i, 1); else MOMENT_VIS_TO.push(id);
@@ -2770,26 +2997,106 @@ function toggleMomentVisTo(id) {
 
 
 
+let MOMENT_VIS_Q = '';
+let MV_ANIM = false;
+/* 长按消息菜单：天使图标 */
+const MM_ICONS = {
+    edit: `<svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4.2 17.8 3 21l3.3-1.1L18.9 7.3a2.15 2.15 0 0 0-3-3L4.2 17.8Z"/>
+      <path d="m14.8 5.4 3.8 3.8"/>
+      <path d="M7.2 15.1 9 16.9"/>
+      <path d="M5.1 8.2c-1.2-1.1-1.1-2.8.1-3.7 1.2-.9 2.8-.5 3.4.8.5-1.3 2.2-1.7 3.4-.8"/>
+      <path d="M8.3 5.3c.1 1.1-.3 1.8-1.1 2.5"/>
+    </svg>`,
+    copy: `<svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="8.2" y="8.2" width="11.2" height="12" rx="2.2"/>
+      <path d="M15.2 8.1V5.7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9.1a2 2 0 0 0 2 2h2.1"/>
+      <path d="M12 12.1h3.6M13.8 10.3v3.6"/>
+      <path d="M16.7 3.2c.9.1 1.7.8 1.9 1.7"/>
+    </svg>`,
+    del: `<svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4.5 7.2h15"/>
+      <path d="M9 7.2V5.1c0-.9.7-1.6 1.6-1.6h2.8c.9 0 1.6.7 1.6 1.6v2.1"/>
+      <path d="m6.4 7.5.8 11.4c.1 1.1.8 1.8 1.9 1.8h5.8c1.1 0 1.8-.7 1.9-1.8l.8-11.4"/>
+      <path d="M10 10.5v6.3M14 10.5v6.3"/>
+      <path d="M3.8 3.6c1.2-.7 2.5-.6 3.4.4"/>
+      <path d="M4.1 2.5v2.1h2.1"/>
+    </svg>`,
+    multi: `<svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m3.3 7.1 1.8 1.8 3.2-3.4"/>
+      <path d="M11.3 6.7h9.1"/>
+      <path d="m3.3 13.1 1.8 1.8 3.2-3.4"/>
+      <path d="M11.3 12.7h9.1"/>
+      <path d="m3.3 19.1 1.8 1.8 3.2-3.4"/>
+      <path d="M11.3 18.7h9.1"/>
+      <path d="M15.8 2.8c1.1.1 2 .7 2.4 1.7"/>
+    </svg>`
+};
+let MM_SHEET_TAG = false;
+let CFOLD_OPEN = {};
+const MM = { timer: null, sx: 0, sy: 0, mode: 'menu', sel: new Set(), idx: null, bound: false };
+const MV_ICO = {
+    globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>',
+    users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0"/><circle cx="17" cy="9" r="2.6"/><path d="M16.4 13.5a5 5 0 0 1 4.8 5.2"/></svg>',
+    lock: '<svg viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>',
+    back: '<svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>',
+    search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" x2="16.6" y1="21" y2="16.6"/></svg>',
+    check: '<svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg>'
+};
+function mvListHtml() {
+    const q = MOMENT_VIS_Q.trim().toLowerCase();
+    const list = CONTACTS.filter(c => !q || String(c.name).toLowerCase().includes(q) || String(c.id).toLowerCase().includes(q));
+    if (!list.length) return '<div class="mv-empty">No records found.</div>';
+    return list.map(c => {
+        const on = MOMENT_VIS_TO.indexOf(c.id) >= 0;
+        return `<div class="mv-row ${on ? 'on' : ''}" onclick="toggleMomentVisTo('${c.id}')">${avatar(c, 'sm')}<div class="mv-info"><div class="mv-name">${esc(c.name)}</div><div class="mv-sub">${esc(c.id)}</div></div><div class="mv-chk">${on ? '×' : ''}</div></div>`;
+    }).join('');
+}
 function renderMomentVisPanel() {
     const p = ensureVisPanel();
-    const tabs = [['public', '所有'], ['some', '部分'], ['self', '仅自己']];
-    const seg = tabs.map(t => `<button class="vs-seg ${MOMENT_VIS === t[0] ? 'on' : ''}" type="button" onclick="setMomentVis('${t[0]}')">${t[1]}</button>`).join('');
-    const hero = ico => `<div class="vs-hero"><div class="vs-hero-ico">${icoSvg(ico)}</div></div>`;
-    let body;
-    if (MOMENT_VIS === 'public') body = hero('globe');
-    else if (MOMENT_VIS === 'self') body = hero('lock2');
-    else {
-        const rows = CONTACTS.map(c => {
-            const on = MOMENT_VIS_TO.indexOf(c.id) >= 0;
-            return `<button class="vs-person ${on ? 'on' : ''}" type="button" onclick="toggleMomentVisTo('${c.id}')">${avatar(c, 'sm')}<span class="vs-name">${esc(c.name)}</span><span class="vs-check">${on ? icoSvg('check') : ''}</span></button>`;
-        }).join('');
-        body = `<div class="vs-count">已选 ${MOMENT_VIS_TO.length} 位联系人</div><div class="vs-people">${rows || '<div class="vs-empty">还没有联系人</div>'}</div>`;
-    }
+    const tickets = [
+        { k: 'public', zh: '公开', en: 'Public', no: 'NO.1', tag: 'PUB', ico: MV_ICO.globe, pm: 'Valid' },
+        { k: 'some', zh: '部分', en: 'Limited', no: 'NO.2', tag: 'LTD', ico: MV_ICO.users, pm: 'Select' },
+        { k: 'self', zh: '私密', en: 'Private', no: 'NO.3', tag: 'PRV', ico: MV_ICO.lock, pm: 'Sealed' }
+    ];
+    const animNow = MV_ANIM; MV_ANIM = false;
+    const ticketHtml = tickets.map(t => `
+        <div class="mv-ticket ${MOMENT_VIS === t.k ? 'on' : ''} ${animNow && MOMENT_VIS === t.k ? 'anim' : ''}" onclick="setMomentVis('${t.k}')">
+            <div class="mv-stamp"><div class="mv-stamp-in">
+                <div class="mv-hd"><span>${t.no}</span><span>${t.tag}</span></div>
+                <div class="mv-ico">${t.ico}</div>
+                <div class="mv-tx"><div class="mv-t">${t.zh}</div><div class="mv-s">${t.en}</div></div>
+                <div class="mv-postmark">${t.pm}</div>
+            </div></div>
+        </div>`).join('');
     p.innerHTML = `
-        <div class="vs-head"><button class="vs-back" type="button" onclick="closeMomentVisPanel()" aria-label="返回">${icoSvg('back')}</button><span class="vs-title">谁可以看</span><span class="vs-sp"></span></div>
-        <div class="vs-seg-wrap">${seg}</div>
-        <div class="vs-body">${body}</div>
-        <button class="vs-done" type="button" onclick="closeMomentVisPanel()">完成</button>`;
+        <div class="mv-top"><button class="mv-back" type="button" onclick="closeMomentVisPanel()" aria-label="返回">${MV_ICO.back}</button><div class="mv-title">Visibility</div><div class="mv-sp"></div></div>
+        <div class="mv-tickets">${ticketHtml}</div>
+        <div class="mv-manifest ${MOMENT_VIS === 'some' ? 'show' : ''}">
+            <div class="mv-mhead">
+                <div><div class="mv-mt">Manifest</div><div class="mv-mc">Selected: <span>${String(MOMENT_VIS_TO.length).padStart(2, '0')}</span></div></div>
+                <div class="mv-tools"><button class="mv-tool" type="button" onclick="selectAllMomentVis()">All</button><button class="mv-tool" type="button" onclick="clearMomentVis()">Clear</button></div>
+            </div>
+            <div class="mv-scroll">
+                <div class="mv-search">${MV_ICO.search}<input id="mvSearch" placeholder="Search ID or Name..." value="${esc(MOMENT_VIS_Q)}" oninput="filterMomentVis(this.value)"></div>
+                <div id="mvList">${mvListHtml()}</div>
+            </div>
+        </div>
+        <div class="mv-foot"><button class="mv-save" type="button" onclick="closeMomentVisPanel()">${MV_ICO.check}<span>Confirm</span></button></div>`;
+}
+function filterMomentVis(q) {
+    MOMENT_VIS_Q = String(q || '');
+    const box = document.getElementById('mvList');
+    if (box) box.innerHTML = mvListHtml();
+}
+function selectAllMomentVis() {
+    MOMENT_VIS_TO.length = 0;
+    CONTACTS.forEach(c => MOMENT_VIS_TO.push(c.id));
+    renderMomentVisPanel();
+}
+function clearMomentVis() {
+    MOMENT_VIS_TO.length = 0;
+    renderMomentVisPanel();
 }
 
 /* ---------------- 朋友圈：真正的照片上传 ---------------- */
@@ -2937,9 +3244,10 @@ loadProfileCard();
 loadSettingsName();
 preloadDefaultImages();
 bindCommentLongPress();
+bindMsgMenu();
 applyTheme(THEME);
 initComposerGesture();
 
-const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload};
+const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold};
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 };
