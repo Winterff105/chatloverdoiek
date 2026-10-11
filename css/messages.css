@@ -2573,3 +2573,8 @@
 
 /* 我和对方之间的间距拉开；同一个人连续发言的间距保持不变 */
 .messages-app .mrow.gap{ margin-top: 10px; }
+
+/* 气泡纵向缩短（左右不变） */
+.messages-app .bubble{ padding-top: 6px; padding-bottom: 6px; line-height: 1.3; }
+/* 对方气泡颜色再淡一点（字色不变） */
+.messages-app .mrow:not(.me) .bubble{ background: #F7F7F8; }
