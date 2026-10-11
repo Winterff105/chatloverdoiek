@@ -1226,7 +1226,7 @@ const GP_MARKUP = `
       <div class="head">
         <div class="kicker">Anti Greasy</div>
         <div class="title">防油腻</div>
-        <div class="rule">不用<b>过度亲昵的称呼</b>，<br>比如「小丫头」「小没良心的」<br>「小野猫」。</div>
+        <div class="rule">不用<b>过度油腻称呼</b>，<br>比如「小丫头」「小没良心的」<br>「小野猫」。</div>
       </div>
       <div class="caps" id="gp-caps"></div>
       <div class="switch-row"><span>启用</span><button class="switch" id="gp-sw" role="switch" aria-checked="true" aria-label="启用防油腻"></button></div>
@@ -1469,7 +1469,7 @@ function buildGreasyPan(root, opts) {
     const pop = document.createElement('div');
     pop.className = 'mgr-pop';
     pop.innerHTML = `<div class="mgr-pop-bubble"><span class="mgr-pop-num">第 ${idx} 条</span><button class="mgr-pop-text" type="button" title="${escapeHtml(e.text)}">${escapeHtml(e.text)}</button></div><button class="mgr-pop-del" type="button">删除</button>`;
-    document.body.appendChild(pop);
+    root.appendChild(pop);
     // 浮层出现在油瓶的右边（右边放不下才放到左边），箭头指向油瓶
     const r = bottleEl.getBoundingClientRect();
     const bubble = pop.querySelector('.mgr-pop-bubble');

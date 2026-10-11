@@ -3817,7 +3817,7 @@
 .gp-done:active{ transform: scale(.96); }
 
 /* ===== 防油腻：平底锅（样式全部限定在 #gpPanOverlay 里面） ===== */
-#gpPanOverlay{ position:fixed; inset:0; z-index:2147483100; display:flex; align-items:center; justify-content:center;
+#gpPanOverlay{ position:fixed; inset:0; z-index:2147483100; display:flex; align-items:center; justify-content:center; overflow:hidden;
   background:rgba(0,0,0,.36); opacity:0; visibility:hidden; transition:opacity .3s ease, visibility .3s;
   font-family:-apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif; }
 #gpPanOverlay.show{ opacity:1; visibility:visible; }
@@ -3838,16 +3838,78 @@
 #gpPanOverlay .bottle:hover{ transform:translateY(-2px); }
 #gpPanOverlay .bottle:active{ transform:scale(.94); }
 #gpPanOverlay .spatula{ cursor:pointer; touch-action:manipulation; }
+/* =====================================================================
+   锅铲蝴蝶结 · 调整在这里（在本文件里搜索 "--bow-x" 就能找到）
+
+   1. 下面的数字改哪个，就改哪一行：
+      --bow-x     左右位置：变大往右，变小往左（px）
+      --bow-y     上下位置：变大往下，变小往上；负数 = 往锅铲上方（px）
+      --bow-rot   角度：正数顺时针，负数逆时针（deg）
+      --bow-flip  翻转：1 = 原样，-1 = 左右镜像
+      --bow-s     缩放：1 = 原大小，1.2 = 放大 20%
+
+   2. 不在这里改的（要去 messages.js 改）：
+      - 图片路径：messages.js 里 <image class="bow-img" href="…"> 的 href，
+        现在是 assets/杂七杂八/锅铲蝴蝶结.png
+      - 图片大小：同一行的 x、y、width、height（大小改成 N，就把 width、height 改成 N，
+        x、y 改成 -N/2）
+      - 前后（谁盖住谁）：把 <g class="bow-wrap"> 挪到锅铲柄 <rect fill="#2a2a2e"/>
+        的前面 = 蝴蝶结在柄下面；现在在柄的后面 = 盖在柄上面
+   ===================================================================== */
+/* =====================================================================
+   锅铲蝴蝶结 · 修改说明（就在这里改）
+
+   蝴蝶结是读取图片 assets/杂七杂八/锅铲蝴蝶结.png 显示的。
+   下面的数字决定它在锅铲上的位置、角度、翻转和大小。
+   改完保存，刷新页面，打开平底锅就能看到效果。
+   ===================================================================== */
+
 #gpPanOverlay{
-    --bow-x:120px;
-    --bow-y:-7px;
-    --bow-rot:90deg;
-    --bow-flip:-1;
-    --bow-s:1;
-  }
+    /* 左右位置：数字变大 = 往右；变小 = 往左。单位 px（锅铲坐标） */
+    --bow-x: 75px;
+
+    /* 上下位置：数字变大 = 往下；变小 = 往上。负数 = 往锅铲上方 */
+    --bow-y: -1px;
+
+    /* 角度：正数 = 顺时针；负数 = 逆时针。
+       90deg = 现在的角度；0deg = 图片原来的方向 */
+    --bow-rot: 82deg;
+
+    /* 翻转：1 = 图片原样；-1 = 左右镜像（左边的东西跑到右边） */
+    --bow-flip: -1;
+
+    /* 缩放：1 = 原大小；1.2 = 放大 20%；0.8 = 缩小 20%
+       只缩放蝴蝶结，位置计算方式不变 */
+    --bow-s: 1;
+}
+
+/* 变换顺序：先缩放翻转 → 再旋转 → 最后平移到位置。不要改顺序，否则位置会错。
+   一般只需要改上面的数字，这一段不用动。 */
 #gpPanOverlay .bow-wrap{
-    transform:translate(var(--bow-x), var(--bow-y)) rotate(var(--bow-rot)) scale(var(--bow-flip), 1) scale(var(--bow-s));
-  }
+    transform: translate(var(--bow-x), var(--bow-y))
+               rotate(var(--bow-rot))
+               scale(var(--bow-flip), 1)
+               scale(var(--bow-s));
+}
+
+/* ---------------------------------------------------------------------
+   下面两项 CSS 改不了，要去 js/apps/messages.js 里改：
+
+   1. 换图 / 改图片大小
+      在 messages.js 里搜索 class="bow-img"，那一行有：
+        href="assets/杂七杂八/锅铲蝴蝶结.png"   ← 图片路径，换图改这里
+        x="-30" y="-30" width="60" height="60"  ← 大小
+      要改大小 N：width、height 改成 N，x、y 改成 -N/2
+      例：改成 80 → x="-40" y="-40" width="80" height="80"
+
+   2. 前后（谁盖住谁）
+      在 messages.js 里搜索 class="bow-wrap"（蝴蝶结）和
+      fill="#2a2a2e"（锅铲柄）：
+      - 把蝴蝶结那一整段（<g class="bow-wrap">…</g>）挪到柄那一行的前面
+        → 蝴蝶结在柄下面，被柄盖住
+      - 挪到柄那一行的后面（现在就是这样）
+        → 蝴蝶结盖在柄上面
+   --------------------------------------------------------------------- */
 #gpPanOverlay .spatula-in{ transform-box:fill-box; transform-origin:14% 50%; }
 #gpPanOverlay .spatula-in.hit{ animation:gp-spHit .36s cubic-bezier(.22,1,.36,1); }
 
@@ -3892,7 +3954,7 @@
   @keyframes gp-twinkle{ 0%,100%{opacity:0} 50%{opacity:1} }
 #gpPanOverlay .mgr-overlay{ position:fixed; inset:0; z-index:55; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4); opacity:0; visibility:hidden; transition:opacity .25s ease, visibility .25s; }
 #gpPanOverlay .mgr-overlay.show{ opacity:1; visibility:visible; }
-#gpPanOverlay .mgr-card{ position:relative; width:min(340px, 90vw); max-height:74vh; display:flex; flex-direction:column; gap:10px; padding:18px 16px 16px; border-radius:24px;
+#gpPanOverlay .mgr-card{ transform:scale(.9); transform-origin:center; position:relative; width:min(340px, 90vw); max-height:74vh; display:flex; flex-direction:column; gap:10px; padding:18px 16px 16px; border-radius:24px;
     background:linear-gradient(180deg,#1b1b1f 0%,#0f0f12 100%); box-shadow:0 14px 40px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08); color:#f4f4f4; overflow:hidden; }
 #gpPanOverlay .mgr-card::before{ content:''; position:absolute; inset:0; pointer-events:none; background:repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 1px, transparent 1px 22px); }
 #gpPanOverlay .mgr-spot{ position:absolute; left:50%; top:-40px; width:260px; height:200px; transform:translateX(-50%); pointer-events:none; background:radial-gradient(ellipse at center, rgba(255,255,255,.12), rgba(255,255,255,0) 65%); }
@@ -3940,3 +4002,7 @@
 #gpPanOverlay .edit-actions button{ height:34px; padding:0 16px; border-radius:999px; border:0.5px solid rgba(0,0,0,.12); background:#fff; color:#111; font-size:13px; cursor:pointer; font-family:inherit; }
 #gpPanOverlay .edit-actions .save{ background:#111; color:#fff; border-color:#111; }
 #gpPanOverlay .edit-actions .del{ color:#c0392b; }
+
+/* 油瓶管理：弹窗半透明；标题往下移 */
+#gpPanOverlay .mgr-card{ background:linear-gradient(180deg, rgba(27,27,31,.55) 0%, rgba(15,15,18,.62) 100%); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+#gpPanOverlay .mgr-head{ padding-top:12px; }
