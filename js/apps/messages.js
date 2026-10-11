@@ -1274,6 +1274,21 @@ const GP_MARKUP = `
 
 `;
 
+// 平底锅音效：assets/音效/ 下的两段 wav，按需播放几秒钟
+const GP_SFX = {
+  clatter: 'assets/音效/锅铲叮当声.wav',       // 锅铲按下
+  sizzle:  'assets/音效/烧油滋滋声.wav',       // 开始炒菜 / 菜做好
+  oil:     'assets/音效/撒油声.wav'            // 删除条目撒油
+};
+function gpPlaySfx(src, seconds) {
+  try {
+    const a = new Audio(src);
+    a.volume = 0.3;                             // 音量减半
+    const p = a.play(); if (p && p.catch) p.catch(() => {});
+    setTimeout(() => { a.pause(); a.currentTime = 0; }, seconds * 1000);
+  } catch (_) {}
+}
+
 function buildGreasyPan(root, opts) {
   const gp$ = id => root.querySelector('#gp-' + id);
 
@@ -1363,7 +1378,10 @@ function buildGreasyPan(root, opts) {
 
   // ---- 加条目（锅铲）：一开始锅是空的，要自己点 ----
   const panBody = gp$('panBody');
-  function shakePan() { panBody.classList.remove('shake'); void panBody.offsetWidth; panBody.classList.add('shake'); }
+  function shakePan() {
+    panBody.classList.remove('shake'); void panBody.offsetWidth; panBody.classList.add('shake');
+    gpPlaySfx(GP_SFX.sizzle, 3);                 // 炒菜：滋滋声 3 秒
+  }
 
   function nextText() {
     if (presetIdx < PRESETS.length) return PRESETS[presetIdx++];
@@ -1397,6 +1415,7 @@ function buildGreasyPan(root, opts) {
     e.preventDefault();
     spSweep.classList.remove('sweep'); spSweep.getBoundingClientRect();
     spSweep.classList.add('sweep');
+    gpPlaySfx(GP_SFX.clatter, 1.5);              // 锅铲：叮当 1.5 秒
     addEntry();
   });
   spSweep.addEventListener('animationend', () => spSweep.classList.remove('sweep'));
@@ -1406,6 +1425,7 @@ function buildGreasyPan(root, opts) {
   // ---- 删除条目：菜上面撒一层薄薄的黄油，白色颗粒闪动 ----
   const SVGNS = 'http://www.w3.org/2000/svg';
   function oilSplash() {
+    gpPlaySfx(GP_SFX.oil, 1.6);                  // 撒油：噼啪 1.6 秒
     const body = gp$('panBody');
     const old = gp$('oilFx'); if (old) old.remove();
     const fx = document.createElementNS(SVGNS, 'g'); fx.id = 'gp-oilFx';
