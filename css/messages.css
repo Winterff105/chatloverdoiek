@@ -524,7 +524,7 @@
 .messages-app .strip-arrow:active{ transform: scale(.92); }
 .messages-app .strip-arrow svg{ width: 20px; height: 20px; stroke: #fff; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .messages-app .strip-accounts{
-    position: absolute; left: 0; right: 0; bottom: 28px; max-height: calc(100% - 96px); display: flex; flex-direction: column; align-items: center; gap: 14px;
+    position: absolute; left: 0; right: 0; bottom: 82px; max-height: calc(100% - 150px); display: flex; flex-direction: column; align-items: center; gap: 14px;
     overflow-y: auto; scrollbar-width: none;
 }
 .messages-app .strip-accounts::-webkit-scrollbar{ display: none; }
@@ -4015,4 +4015,47 @@
 @media(max-width:380px){
   #cdPromptSettings .cd-settings .cd-word-text,
   #cdPromptSettings .cd-word-label .cd-word-text{ font-size:14px !important; }
+}
+
+/* ===== 如果思念也有声音（下拉框）：选中按钮变淡；小竖条边缘变淡；选中后小竖条往左展开成圆形 ===== */
+
+/* 选中的按钮：变淡 */
+.messages-app .chat-drop .cd-chip.on{
+  background: rgba(205,205,208,.22) !important;
+  border-color: rgba(120,120,126,.14) !important;
+  color: #6E6E76 !important;
+  box-shadow: none !important;
+}
+
+/* 右边的小竖条：边缘变淡；过渡动画 */
+.messages-app .chat-drop .cd-option-settings{
+  border-color: rgba(120,120,126,.22) !important;
+  background: rgba(255,255,255,.5) !important;
+  box-shadow: none !important;
+  transition: width .3s cubic-bezier(.22,1,.36,1), min-width .3s cubic-bezier(.22,1,.36,1),
+              flex-basis .3s cubic-bezier(.22,1,.36,1), border-radius .3s ease, background .25s ease !important;
+}
+
+/* 选中以后：小竖条往左展开，变成圆形（右边固定，向左长） */
+.messages-app .chat-drop .cd-chip.on + .cd-option-settings{
+  width: 23px !important;
+  min-width: 23px !important;
+  flex-basis: 23px !important;
+  border-radius: 50% !important;
+  background: rgba(233,233,233,.6) !important;
+  border-color: rgba(120,120,126,.22) !important;
+}
+
+/* ===== 资料卡拍立得照片：内沿细虚线装饰（仅作用于聊天列表拍立得） ===== */
+.messages-app .polaroid .sq{
+    position: relative;
+    isolation: isolate;
+}
+.messages-app .polaroid .sq::after{
+    content: "";
+    position: absolute;
+    inset: 4px;
+    border: 1px dashed rgba(70, 70, 70, 0.72);
+    pointer-events: none;
+    z-index: 2;
 }

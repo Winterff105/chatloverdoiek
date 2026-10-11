@@ -24,6 +24,7 @@
     <link rel="stylesheet" href="css/app-window.css">
     <link rel="stylesheet" href="css/settings.css">
     <link rel="stylesheet" href="css/messages.css">
+    <link rel="stylesheet" href="css/photo-loader.css">
     <script>
         // 注册 Service Worker（添加到桌面需要它；需要通过 https 或 localhost 访问）
         if ('serviceWorker' in navigator) {
@@ -34,6 +35,12 @@
     </script>
 </head>
 <body>
+    <!-- 开场加载：背景 ovo.png + 灰框文字 + 进度条；照片列表写在下面（可选） -->
+    <script>
+        // 要等待加载的照片，例如 ['assets/照片/1.jpg', 'assets/照片/2.jpg']
+        window.PHOTO_LIST = [];
+    </script>
+    <script src="js/photo-loader.js"></script>
 
     <div class="phone-container" id="phoneContainer">
 

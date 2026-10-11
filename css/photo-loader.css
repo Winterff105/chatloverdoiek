@@ -1,0 +1,127 @@
+/* =====================================================================
+   本体开头 · 加载界面样式（ovo 背景 + 灰框文字 + 进度条）
+
+   怎么调位置：所有位置都是「占整张图的百分比」，
+   图是 2016 × 4094，灰框大约在：左 22.7% ～ 右 77.6%，上 60% ～ 下 94.5%。
+   改下面的数字，保存后刷新就能看到效果。
+   ===================================================================== */
+
+/* 字体：otf 文件夹里的 edited_font.ttf
+   注意：这个路径是相对于 css 文件的，所以写成 ../otf/…
+   如果你的字体文件放在别处，改这一行的路径就行。 */
+@font-face{
+  font-family: 'EditedFont';
+  src: url('../otf/edited_font.ttf') format('truetype');
+  font-display: block;
+}
+
+.pl-overlay{
+  position: fixed; inset: 0; z-index: 2147483000;
+  background: #ffffff;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .7s ease, visibility .7s ease;
+}
+.pl-overlay.pl-hide{ opacity: 0; visibility: hidden; pointer-events: none; }
+
+/* 舞台：和图片同样的比例（2016 : 4094），铺满屏幕但不变形 */
+.pl-stage{
+  position: relative;
+  width: min(100vw, calc(100vh * 2016 / 4094));
+  aspect-ratio: 2016 / 4094;
+  container-type: inline-size;       /* 让文字大小可以用 cqw（按舞台宽度缩放） */
+  overflow: hidden;
+  --text-left: 24%;                  /* 灰框里文字的左边位置 */
+  --text-width: 52%;                 /* 灰框里文字区域的宽度（灰框大约 55%） */
+  --text-color: #3d3d44;             /* 普通字：深灰 */
+  --text-dark: #111116;              /* 「」里的字：更深 */
+}
+
+/* 背景图：ovo.png，整张铺满舞台 */
+.pl-bg{
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  opacity: 0; animation: plFade 1s ease .05s forwards;
+}
+
+/* ---------------------------------------------------------------
+   进度条：灰框的左上角，往上往左一点
+   --bar-left  ：左右（数字变大往右）
+   --bar-top   ：上下（数字变小往上）
+   --bar-width ：长度
+   --------------------------------------------------------------- */
+.pl-progress{
+  position: absolute;
+  left: 18%;                         /* ← 进度条左边位置 */
+  top: 57%;                          /* ← 进度条上下位置 */
+  width: 18%;                        /* ← 进度条长度 */
+  height: 0.3cqw; min-height: 2px;   /* ← 粗细 */
+  background: rgba(60,60,68,.14);
+  border-radius: 999px; overflow: hidden;
+  opacity: 0; animation: plFade .8s ease .4s forwards;
+}
+.pl-fill{
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #8a8a92 0%, #2a2a30 100%);
+  transition: width .35s ease;       /* 跟着真实加载速度走 */
+}
+
+/* ---------------------------------------------------------------
+   文字：标题、作者、举报、警告
+   每一行都有自己的「上下位置」（--xxx-top），改它就能挪这一行
+   --------------------------------------------------------------- */
+.pl-text{
+  position: absolute; left: var(--text-left); width: var(--text-width);
+  text-align: center; color: var(--text-color);
+  font-family: 'EditedFont', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  opacity: 0; animation: plFade .9s ease forwards;
+}
+
+/* 标题 WHATEVERCHAT：大一点 */
+.pl-title{
+  top: 63%;                          /* ← 标题上下位置 */
+  font-size: 5.4cqw;                 /* ← 标题大小 */
+  font-weight: 700; letter-spacing: .12em;
+  white-space: nowrap;
+  color: #2a2a31;
+  animation-delay: .25s;
+}
+
+/* 作者那一行 */
+.pl-author{
+  top: 69.5%;                        /* ← 上下位置（两行） */
+  font-size: 3.6cqw; line-height: 1.4; white-space: nowrap;
+}
+
+/* 举报那一行（倒卖或二传 的链接） */
+.pl-report{
+  top: 75.5%;                        /* ← 上下位置（两行） */
+  font-size: 3.6cqw; line-height: 1.4; white-space: nowrap;
+}
+
+/* 请举报给我 */
+.pl-report2{
+  top: 81.2%;                        /* ← 上下位置 */
+  font-size: 3.6cqw; line-height: 1.4; white-space: nowrap;
+}
+
+/* 「」里的字：更深 */
+.pl-hl{ color: var(--text-dark); font-weight: 700; }
+
+/* 警告：底部淡粉色渐变，从下往上淡出 */
+.pl-warn{
+  top: 84.2%;                        /* ← 警告上下位置（三行） */
+  font-size: 3.6cqw; line-height: 1.4; white-space: nowrap;
+  /* 字本身的渐变：底部淡粉色，往上渐变成深灰 */
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  background: linear-gradient(to top,
+              #f28fb0 0%,
+              #f7b3c7 30%,
+              #8a7880 68%,
+              #3d3d44 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* 整屏淡出（加载完成后） */
+@keyframes plFade{ from{ opacity: 0; } to{ opacity: 1; } }

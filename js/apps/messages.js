@@ -503,7 +503,9 @@ function saveContact() {
             unread: 0,
             time: nowTime(),
             msgs: [],
-            replies: []
+            replies: [],
+            promptOpts: ['greasy'],
+            greasyEntries: []
         };
         newContact.fresh = true; CONTACTS.unshift(newContact);
         toast('联系人已创建 · ID：' + id);
@@ -3021,7 +3023,9 @@ function savePersona() {
             ini: name[0].toUpperCase(),
             g: 'g' + (Math.floor(Math.random() * 4) + 1),
             cover: null, avatar: null, online: false, unread: 0,
-            time: nowTime(), msgs: []
+            time: nowTime(), msgs: [],
+            promptOpts: ['greasy'],
+            greasyEntries: []
         }, persona);
         if (personaNewFolder) c.folder = personaNewFolder;
         c.fresh = true; CONTACTS.unshift(c);
