@@ -2585,3 +2585,7 @@
 .messages-app .thread{ gap: 4px; }
 .messages-app #chatView .thread{ gap: 4px; }
 .messages-app .mrow.gap{ margin-top: 12px; }
+
+/* 气泡整体缩小一点；我和对方之间的间距加长；同一个人连续说话的间距不变 */
+.messages-app .bubble{ padding: 7px 12px; font-size: 14px; }
+.messages-app .mrow.gap{ margin-top: 18px; }
