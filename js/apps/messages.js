@@ -70,12 +70,22 @@ let editingPersonaId = null;
 function loadStoredContacts() {
     try {
         const raw = localStorage.getItem('forever_messages_contacts_v1');
-        const list = raw ? JSON.parse(raw) : [];
+        let list = raw ? JSON.parse(raw) : [];
+        // 一次性迁移：防油腻默认开启，已存在的联系人也补上（只改 promptOpts，其他字段原样保留）
+        if (Array.isArray(list) && !localStorage.getItem('forever_messages_greasy_default_v1')) {
+            list.forEach(c => {
+                if (!c || typeof c !== 'object') return;
+                const opts = Array.isArray(c.promptOpts) ? c.promptOpts : [];
+                if (!opts.includes('greasy')) c.promptOpts = opts.concat('greasy');
+            });
+            localStorage.setItem('forever_messages_contacts_v1', JSON.stringify(list));
+            localStorage.setItem('forever_messages_greasy_default_v1', '1');
+        }
         return Array.isArray(list) ? list.map(normalizeContact) : [];
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
 }
 function normalizeContact(c) {
-    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0), avOpts: (c.avOpts && typeof c.avOpts === 'object') ? c.avOpts : null, promptOpts: Array.isArray(c.promptOpts) ? c.promptOpts : [] };
+    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0), avOpts: (c.avOpts && typeof c.avOpts === 'object') ? c.avOpts : null, promptOpts: Array.isArray(c.promptOpts) ? c.promptOpts : ['greasy'], greasyEntries: Array.isArray(c.greasyEntries) ? c.greasyEntries : [] };
 }
 
 
@@ -966,6 +976,12 @@ function toggleChatPrompt(k) {
 }
 const CHAT_PROMPT_SETTINGS_KEY = 'forever_chat_prompt_settings_v1';
 const CHAT_BAN_DEFAULTS = ['低吼一声', '揉进骨血', '揉进骨头'];
+// 解析一行输入：「词条」或「词条|原因」
+function parseWordLine(line) {
+    const i = line.indexOf('|');
+    if (i < 0) return { word: line.trim(), reason: '' };
+    return { word: line.slice(0, i).trim(), reason: line.slice(i + 1).trim() };
+}
 function readChatPromptSettings() {
     try {
         const saved = JSON.parse(localStorage.getItem(CHAT_PROMPT_SETTINGS_KEY) || '{}');
@@ -975,7 +991,8 @@ function readChatPromptSettings() {
         words.forEach(w => { if (!levels[w]) levels[w] = oldPriority.includes(w) ? 'high' : 'low'; });
         const disabledWords = Array.isArray(saved.disabledWords) ? saved.disabledWords : [];
         const customWords = Array.isArray(saved.customWords) ? saved.customWords : [];
-        return { enabled: saved.enabled !== false, words, priorityLevels: levels, disabledWords, customWords };
+        const customReasons = saved.customReasons && typeof saved.customReasons === 'object' ? saved.customReasons : {};
+        return { enabled: saved.enabled !== false, words, priorityLevels: levels, disabledWords, customWords, customReasons };
     } catch (_) {
         return { enabled: true, words: CHAT_BAN_DEFAULTS.slice(), priorityLevels: Object.fromEntries(CHAT_BAN_DEFAULTS.map(w=>[w,'high'])) };
     }
@@ -986,14 +1003,14 @@ function cdPriorityControl(word, level) {
     const label = {high:'高',medium:'中',low:'低'}[current];
     return `<div class="cd-priority-pills" role="group" aria-label="${escapeHtml(word)}提示词位置"><button type="button" class="cd-prio-pill is-${current}" data-prio="${current}" aria-label="优先级${label}，点击切换" aria-pressed="true">${label}</button></div>`;
 }
-function cdWordRowHtml(w, i, enabled, level) {
+function cdWordRowHtml(w, i, enabled, level, reason = '') {
     return `<div class="cd-word-row" data-word-row="${i}">
       <label class="cd-word-check"><input type="checkbox" data-word="${i}" ${enabled?'checked':''} aria-label="启用词条 ${escapeHtml(w)}"><svg viewBox="0 0 36 22" aria-hidden="true"><text x="18" y="16" text-anchor="middle" font-size="15" font-family="system-ui, sans-serif" font-weight="650">^ω^</text></svg></label>
-      <span class="cd-word-text">${escapeHtml(w)}</span>${cdPriorityControl(w,level)}
+      <span class="cd-word-label" title="${escapeHtml(reason ? w + ' | ' + reason : w)}"><span class="cd-word-text">${escapeHtml(w)}</span>${reason ? `<span class="cd-word-reason">| ${escapeHtml(reason)}</span>` : ''}</span>${cdPriorityControl(w,level)}
       <div class="cd-word-actions"><button type="button" class="cd-word-edit" aria-label="编辑词条" title="编辑"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.8-.8 4 4-.8L19 8.2 15.8 5 4 16.8Z"/><path d="m13.9 6.9 3.2 3.2"/></svg></button><button type="button" class="cd-word-delete" aria-label="删除词条" title="删除"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M9 7V4.5h6V7m-8 0 .8 13h8.4L17 7M10 10.5v6m4-6v6"/></svg></button></div>
     </div>`;
 }
-function cdWordListHtml(words, disabledWords, priorityLevels, customWords = []) {
+function cdWordListHtml(words, disabledWords, priorityLevels, customWords = [], customReasons = {}) {
     // 先去重：相同词条只保留一个，避免重复显示。
     const uniqueWords = [...new Set(words.map(word => String(word || '').trim()).filter(Boolean))];
     const customSet = new Set(customWords);
@@ -1037,7 +1054,7 @@ function cdWordListHtml(words, disabledWords, priorityLevels, customWords = []) 
     });
 
     return buckets.map(({key, items, custom}) => {
-        const rows = items.map(({word,index}) => cdWordRowHtml(word,index,!disabledWords.includes(word),priorityLevels[word]||'medium')).join('');
+        const rows = items.map(({word,index}) => cdWordRowHtml(word,index,!disabledWords.includes(word),priorityLevels[word]||'medium',(customReasons||{})[word]||'')).join('');
         if (items.length < 2) return rows;
         const title = key;
         return `<details class="cd-word-group ${custom ? 'cd-custom-related-group' : ''}"><summary><span class="cd-word-group-name">${escapeHtml(title)}<small>相同词语</small></span><span class="cd-word-group-count">${items.length} 个词条</span><svg class="cd-word-group-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5"/></svg></summary><div class="cd-word-group-items">${rows}</div></details>`;
@@ -1058,7 +1075,7 @@ function rebuildCdWordGroups(modal) {
         levels[word] = prio && ['high','medium','low'].includes(prio.dataset.prio) ? prio.dataset.prio : 'medium';
     });
     const openKeys = new Set([...list.querySelectorAll('.cd-word-group[open] .cd-word-group-name')].map(el => el.childNodes[0] ? el.childNodes[0].textContent.trim() : el.textContent.trim()));
-    list.innerHTML = cdWordListHtml(words, disabled, levels, [...(modal._cdCustomWords || [])]);
+    list.innerHTML = cdWordListHtml(words, disabled, levels, [...(modal._cdCustomWords || [])], modal._cdCustomReasons || {});
     list.querySelectorAll('.cd-word-group').forEach(group => {
         const name = group.querySelector('.cd-word-group-name');
         const key = name && name.childNodes[0] ? name.childNodes[0].textContent.trim() : '';
@@ -1066,7 +1083,497 @@ function rebuildCdWordGroups(modal) {
     });
 }
 
+// 编辑禁用词：自己的弹窗（词条 + 原因），不用系统 prompt
+function openCdWordEdit(modal, row) {
+    const label = row.querySelector('.cd-word-text');
+    const oldWord = label.textContent.trim();
+    const oldReason = (modal._cdCustomReasons && modal._cdCustomReasons[oldWord]) || '';
+    const prev = document.getElementById('cdWordEdit'); if (prev) prev.remove();
+    const box = document.createElement('div');
+    box.id = 'cdWordEdit'; box.className = 'cd-edit-overlay';
+    box.innerHTML = `<div class="cd-edit-card" role="dialog" aria-modal="true" aria-label="编辑禁用词">
+        <div class="cd-edit-title">编辑禁用词</div>
+        <label class="cd-edit-label">词条<input class="cd-edit-input" id="cdEditWord" maxlength="40" value="${escapeHtml(oldWord)}"></label>
+        <label class="cd-edit-label">原因（可不写）<input class="cd-edit-input" id="cdEditReason" maxlength="80" placeholder="例如：太戏剧化，不像真人说话" value="${escapeHtml(oldReason)}"></label>
+        <div class="cd-edit-actions"><button type="button" class="cd-edit-cancel">取消</button><button type="button" class="cd-edit-save">保存</button></div>
+    </div>`;
+    document.body.appendChild(box);
+    requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add('is-visible')));
+    const close = () => { box.classList.remove('is-visible'); setTimeout(() => box.remove(), 200); };
+    box.querySelector('.cd-edit-cancel').onclick = close;
+    box.addEventListener('click', e => { if (e.target === box) close(); });
+    box.querySelector('.cd-edit-save').onclick = () => {
+        const word = box.querySelector('#cdEditWord').value.trim();
+        const reason = box.querySelector('#cdEditReason').value.trim();
+        if (!word) { toast('词条不能为空'); return; }
+        const dup = [...modal.querySelectorAll('.cd-word-text')].some(el => el !== label && el.textContent.trim() === word);
+        if (dup) { toast('这个词条已经存在'); return; }
+        label.textContent = word;
+        if (modal._cdCustomWords && modal._cdCustomWords.has(oldWord)) { modal._cdCustomWords.delete(oldWord); modal._cdCustomWords.add(word); }
+        if (!modal._cdCustomReasons) modal._cdCustomReasons = {};
+        delete modal._cdCustomReasons[oldWord];
+        if (reason) modal._cdCustomReasons[word] = reason;
+        rebuildCdWordGroups(modal);
+        close();
+    };
+}
+/* ===== 防油腻：平底锅弹窗（开关 = 本联系人的防油腻状态） ===== */
+/* ===== 防油腻：平底锅（界面和脚本都在这里，样式在 messages.css 的 #gpPanOverlay 里） ===== */
+const GP_MARKUP = `
+
+
+  <div class="wrap" id="gp-wrap" role="dialog" aria-modal="true" aria-label="防油腻">
+    <div class="pan">
+      <svg viewBox="0 0 480 320" aria-hidden="true">
+        <defs>
+          <linearGradient id="gp-rimG" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#4a4a4d"/><stop offset="18%" stop-color="#1b1b1d"/>
+            <stop offset="50%" stop-color="#050506"/><stop offset="82%" stop-color="#1e1e21"/>
+            <stop offset="100%" stop-color="#3b3b3f"/>
+          </linearGradient>
+          <radialGradient id="gp-faceG" cx="42%" cy="38%" r="70%">
+            <stop offset="0%" stop-color="#2a2a2d"/><stop offset="60%" stop-color="#121214"/>
+            <stop offset="100%" stop-color="#070708"/>
+          </radialGradient>
+          <linearGradient id="gp-handleG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#3a3a3e"/><stop offset="45%" stop-color="#0c0c0e"/>
+            <stop offset="100%" stop-color="#1f1f23"/>
+          </linearGradient>
+          <linearGradient id="gp-glassG" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#2b2f33"/><stop offset="35%" stop-color="#5b6168"/>
+            <stop offset="60%" stop-color="#3a3f45"/><stop offset="100%" stop-color="#1c2024"/>
+          </linearGradient>
+          <linearGradient id="gp-oilG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#e9c46a"/><stop offset="100%" stop-color="#b9862c"/>
+          </linearGradient>
+          <linearGradient id="gp-sauceG" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#fff" stop-opacity=".22"/><stop offset="45%" stop-color="#fff" stop-opacity="0"/>
+            <stop offset="100%" stop-color="#3a1d0c" stop-opacity=".18"/>
+          </linearGradient>
+          <clipPath id="gp-faceClip"><circle cx="170" cy="160" r="124"/></clipPath>
+          <filter id="gp-shadow" x="-30%" y="-30%" width="160%" height="170%">
+            <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000" flood-opacity=".3"/>
+          </filter>
+          
+<radialGradient id="gp-gCab" cx="40%" cy="35%" r="70%"><stop offset="0%" stop-color="#e4f7c2"/><stop offset="55%" stop-color="#8cc66b"/><stop offset="100%" stop-color="#4b8a3a"/></radialGradient>
+<radialGradient id="gp-gMeat" cx="40%" cy="35%" r="75%"><stop offset="0%" stop-color="#f7aa98"/><stop offset="60%" stop-color="#c85a50"/><stop offset="100%" stop-color="#8a2e2a"/></radialGradient>
+<radialGradient id="gp-gCarrot" cx="45%" cy="40%" r="65%"><stop offset="0%" stop-color="#ffc27a"/><stop offset="70%" stop-color="#f08a2e"/><stop offset="100%" stop-color="#b65a1c"/></radialGradient>
+<radialGradient id="gp-gMush" cx="45%" cy="40%" r="65%"><stop offset="0%" stop-color="#9a7049"/><stop offset="70%" stop-color="#5e4026"/><stop offset="100%" stop-color="#3b2716"/></radialGradient>
+<radialGradient id="gp-gEgg" cx="50%" cy="45%" r="60%"><stop offset="0%" stop-color="#ffffff"/><stop offset="80%" stop-color="#f3efe6"/><stop offset="100%" stop-color="#d6cfc0"/></radialGradient>
+<radialGradient id="gp-gYolk" cx="40%" cy="35%" r="65%"><stop offset="0%" stop-color="#fff2a6"/><stop offset="60%" stop-color="#ffc83a"/><stop offset="100%" stop-color="#e08c12"/></radialGradient>
+<filter id="gp-pieceShadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#000" flood-opacity=".45"/></filter>
+
+        </defs>
+
+        <!-- 把手 -->
+        <g filter="url(#gp-shadow)">
+          <rect x="292" y="146" width="150" height="28" rx="14" fill="url(#gp-handleG)"/>
+          <circle cx="428" cy="160" r="6" fill="#050506" stroke="rgba(255,255,255,.12)"/>
+          <circle cx="318" cy="160" r="3" fill="#2d2d31"/><circle cx="344" cy="160" r="3" fill="#2d2d31"/>
+        </g>
+
+        <!-- 锅身 -->
+        <g class="pan-body" id="gp-panBody">
+          <g filter="url(#gp-shadow)">
+            <circle cx="170" cy="160" r="150" fill="url(#gp-rimG)"/>
+            <circle cx="170" cy="160" r="138" fill="#0a0a0b"/>
+            <circle cx="170" cy="160" r="126" fill="url(#gp-faceG)"/>
+          </g>
+          <g fill="none" stroke="rgba(255,255,255,.035)" stroke-width="1">
+            <circle cx="170" cy="160" r="112"/><circle cx="170" cy="160" r="98"/>
+            <circle cx="170" cy="160" r="84"/><circle cx="170" cy="160" r="70"/>
+          </g>
+          <path d="M 52 110 A 128 128 0 0 1 150 33" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="3" stroke-linecap="round"/>
+
+          <!-- 菜：铺满锅面（clip 到锅面圆内） -->
+          <g>
+            <g id="gp-food"></g>
+            <circle cx="170" cy="160" r="126" fill="url(#gp-sauceG)" id="gp-sheen" opacity="0"/>
+          </g>
+        </g>
+
+        <!-- 锅铲：往右移、加大一点；按下时在锅面上扫一遍 -->
+        <g class="spatula" id="gp-spatula" transform="translate(200,334) rotate(-22)">
+          <rect x="-30" y="-36" width="200" height="72" fill="transparent"/>
+          <g class="spatula-sweep" id="gp-spatulaSweep">
+            <g transform="scale(1.12)">
+              <g class="spatula-in" id="gp-spatulaIn">
+                <rect x="14" y="-4" width="106" height="8" rx="4" fill="#2a2a2e"/>
+                <!-- 蝴蝶结（图片）。位置、翻转、角度都在上面 CSS 的 .bow-wrap 里改 -->
+                <g class="bow-wrap">
+                  <image class="bow-img" href="assets/杂七杂八/锅铲蝴蝶结.png" x="-30" y="-30" width="60" height="60" preserveAspectRatio="xMidYMid meet"/>
+                </g>
+                <rect x="-19" y="-16" width="38" height="32" rx="7" fill="url(#gp-rimG)"/>
+                <rect x="-13" y="-10" width="26" height="20" rx="4" fill="#15151a"/>
+                <g fill="#0a0a0c"><rect x="-10" y="-6" width="3" height="12" rx="1.5"/><rect x="-3" y="-6" width="3" height="12" rx="1.5"/><rect x="4" y="-6" width="3" height="12" rx="1.5"/></g>
+              </g>
+            </g>
+          </g>
+        </g>
+
+        <!-- 油壶：每个条目一只，位置固定 -->
+        <g id="gp-bottles" filter="url(#gp-shadow)"></g>
+        <text id="gp-moreBadge" x="470" y="164" font-size="12" fill="rgba(255,255,255,.75)" text-anchor="end"></text>
+        <g class="rack-arrow" id="gp-rackArrow" transform="translate(376,340)">
+          <rect x="-22" y="-14" width="56" height="30" rx="8" fill="transparent"/>
+          <path d="M-8,-4 L6,8 L20,-4" fill="none" stroke="#f4f4f4" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="30" y="4" text-anchor="start" font-size="11" fill="rgba(255,255,255,.8)" id="gp-rackCount">0</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="face">
+      <div class="head">
+        <div class="kicker">Anti Greasy</div>
+        <div class="title">防油腻</div>
+        <div class="rule">不用<b>过度亲昵的称呼</b>，<br>比如「小丫头」「小没良心的」<br>「小野猫」。</div>
+      </div>
+      <div class="caps" id="gp-caps"></div>
+      <div class="switch-row"><span>启用</span><button class="switch" id="gp-sw" role="switch" aria-checked="true" aria-label="启用防油腻"></button></div>
+      <button class="done-btn" id="gp-doneBtn" type="button">完成</button>
+    </div>
+    </div>
+  
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="gp-shelfG" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity=".42"/><stop offset="45%" stop-color="#ffffff" stop-opacity=".12"/><stop offset="100%" stop-color="#000000" stop-opacity=".5"/>
+    </linearGradient>
+    <linearGradient id="gp-dividerG" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f4f4f4" stop-opacity="0"/><stop offset="50%" stop-color="#f4f4f4" stop-opacity=".9"/><stop offset="100%" stop-color="#f4f4f4" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>
+<div class="mgr-overlay" id="gp-mgrOverlay">
+  <div class="mgr-card" role="dialog" aria-modal="true" aria-label="油瓶管理">
+    <div class="mgr-spot"></div>
+    <svg class="mgr-corner tl" viewBox="0 0 22 22" aria-hidden="true"><path d="M1,9 L1,1 L9,1" fill="none" stroke="#f4f4f4" stroke-width="1.4" stroke-linecap="round"/><circle cx="3" cy="3" r="1.2" fill="#f4f4f4"/></svg>
+    <svg class="mgr-corner tr" viewBox="0 0 22 22" aria-hidden="true"><path d="M1,9 L1,1 L9,1" fill="none" stroke="#f4f4f4" stroke-width="1.4" stroke-linecap="round"/><circle cx="3" cy="3" r="1.2" fill="#f4f4f4"/></svg>
+    <svg class="mgr-corner bl" viewBox="0 0 22 22" aria-hidden="true"><path d="M1,9 L1,1 L9,1" fill="none" stroke="#f4f4f4" stroke-width="1.4" stroke-linecap="round"/><circle cx="3" cy="3" r="1.2" fill="#f4f4f4"/></svg>
+    <svg class="mgr-corner br" viewBox="0 0 22 22" aria-hidden="true"><path d="M1,9 L1,1 L9,1" fill="none" stroke="#f4f4f4" stroke-width="1.4" stroke-linecap="round"/><circle cx="3" cy="3" r="1.2" fill="#f4f4f4"/></svg>
+    <div class="mgr-head"><span class="mgr-title" aria-label="油瓶管理"><span class="ch" style="font-size:27px;transform:rotate(-7deg) translateY(-3px);color:#0b0b0d">油</span><span class="ch" style="font-size:20px;transform:rotate(6deg) translateY(4px);color:#4a4a52">瓶</span><span class="ch" style="font-size:29px;transform:rotate(-3deg) translateY(-1px);color:#131316">管</span><span class="ch" style="font-size:21px;transform:rotate(8deg) translateY(3px);color:#5a5a62">理</span><svg class="ul" viewBox="0 0 120 10" preserveAspectRatio="none" aria-hidden="true"><path d="M2,6 Q18,2 34,5.5 T66,4.5 T98,6 T118,4" fill="none" stroke="#1a1a1e" stroke-width="2.6" stroke-linecap="round"/><path d="M10,8.5 Q40,6.5 70,8 T112,7.5" fill="none" stroke="#1a1a1e" stroke-width="1.1" stroke-linecap="round" opacity=".6"/></svg></span><span class="mgr-count" id="gp-mgrCount"></span></div>
+    <svg class="mgr-divider" viewBox="0 0 300 12" preserveAspectRatio="none" aria-hidden="true"><line x1="0" y1="6" x2="300" y2="6" stroke="url(#gp-dividerG)" stroke-width="1"/><path d="M150,1 L155,6 L150,11 L145,6 Z" fill="#f4f4f4" opacity=".9"/></svg>
+    <div class="mgr-list" id="gp-mgrList"></div>
+    <button class="mgr-close" id="gp-mgrClose" type="button">完成</button>
+  </div>
+</div>
+
+<div class="edit-overlay" id="gp-editOverlay">
+  <div class="edit-card" role="dialog" aria-modal="true" aria-label="编辑条目">
+    <div class="edit-title">编辑条目</div>
+    <label class="edit-label">内容<input class="edit-input" id="gp-editInput" maxlength="40"></label>
+    <div class="edit-actions">
+      <button class="del" id="gp-editDel" type="button">删除</button>
+      <button id="gp-editCancel" type="button">取消</button>
+      <button class="save" id="gp-editSave" type="button">保存</button>
+    </div>
+  </div>
+</div>
+
+`;
+
+function buildGreasyPan(root, opts) {
+  const gp$ = id => root.querySelector('#gp-' + id);
+
+  // 防油腻里的那几句话：一开始用这几句，之后的条目是新条目（可以再改）
+  const PRESETS = ['语气自然不油腻', '不用过度亲昵的称呼', '不要暧昧措辞', '请把user视为独立的人类', '不要刻意矮化，幼化user', '避免小丫头、小没良心的、小野猫'];
+  const CAP_ROUND = 6;    // 第 1 轮：六个胶囊
+  const DISH_ROUND = 6;   // 第 2 轮：每个条目加一步食材，六步铺满锅
+  const BOTTLE_MAX = 9;
+
+  // 食材（细节版）
+  const PIECE_SVG = {"cabbage": "<path d=\"M-48,-10 C-52,-40 -26,-54 0,-50 C24,-54 50,-38 50,-8 C54,18 38,46 10,50 C-16,54 -46,42 -48,14 C-49,4 -48,-2 -48,-10 Z\" fill=\"url(#gp-gCab)\" stroke=\"#5f9a4a\" stroke-width=\"1.5\"/>\n<path d=\"M-40,2 C-22,-8 -4,-4 12,-12 C24,-16 38,-10 44,-2\" fill=\"none\" stroke=\"#f1f9e0\" stroke-width=\"5\" stroke-linecap=\"round\" opacity=\".85\"/>\n<path d=\"M-22,-34 C-16,-14 -20,8 -12,34\" fill=\"none\" stroke=\"#c8e8a2\" stroke-width=\"1.6\" opacity=\".75\"/>\n<path d=\"M12,-40 C16,-18 10,6 18,40\" fill=\"none\" stroke=\"#c8e8a2\" stroke-width=\"1.6\" opacity=\".75\"/>\n<path d=\"M-26,22 C-10,26 6,24 28,30\" fill=\"none\" stroke=\"#a6d37f\" stroke-width=\"1.2\" opacity=\".6\"/>\n<path d=\"M-44,-18 C-40,-30 -30,-36 -20,-38\" fill=\"none\" stroke=\"#e4f5cc\" stroke-width=\"2\" opacity=\".5\"/>", "meat": "<path d=\"M-44,-18 C-42,-44 -6,-48 18,-42 C42,-36 48,-8 44,14 C40,40 10,46 -12,42 C-36,40 -46,14 -44,-18 Z\" fill=\"url(#gp-gMeat)\" stroke=\"#7d2a26\" stroke-width=\"1.5\"/>\n<path d=\"M-30,-6 C-18,-14 -6,-4 6,-12 C18,-20 30,-10 40,-2\" fill=\"none\" stroke=\"#fff3ea\" stroke-width=\"3\" stroke-linecap=\"round\" opacity=\".85\"/>\n<path d=\"M-28,16 C-12,10 4,20 18,12 C28,8 36,14 42,20\" fill=\"none\" stroke=\"#fbe2d6\" stroke-width=\"2.2\" stroke-linecap=\"round\" opacity=\".75\"/>\n<path d=\"M-6,-34 C2,-22 -2,-10 6,2\" fill=\"none\" stroke=\"#fbe2d6\" stroke-width=\"1.5\" opacity=\".5\"/>\n<ellipse cx=\"-14\" cy=\"-26\" rx=\"10\" ry=\"4\" fill=\"#fff\" opacity=\".2\"/>", "carrot": "<circle r=\"42\" fill=\"url(#gp-gCarrot)\" stroke=\"#b5561a\" stroke-width=\"1.5\"/>\n<circle r=\"30\" fill=\"none\" stroke=\"#ffd29a\" stroke-width=\"2\" opacity=\".5\"/>\n<circle r=\"18\" fill=\"none\" stroke=\"#ffb36b\" stroke-width=\"2\" opacity=\".5\"/>\n<circle r=\"7\" fill=\"#fff0d0\" opacity=\".7\"/>\n<ellipse cx=\"-14\" cy=\"-18\" rx=\"9\" ry=\"3.5\" fill=\"#fff\" opacity=\".2\"/>", "mushroom": "<path d=\"M-10,10 C-12,24 -10,38 -6,44 C-3,48 3,48 6,44 C10,38 12,24 10,10 Z\" fill=\"#efe3cc\" stroke=\"#c4aa80\" stroke-width=\"1.2\"/>\n<path d=\"M-42,-6 C-46,-36 -22,-48 0,-46 C24,-46 46,-34 44,-4 C44,8 38,14 26,14 C12,16 -12,16 -26,14 C-38,12 -42,4 -42,-6 Z\" fill=\"url(#gp-gMush)\" stroke=\"#3b2716\" stroke-width=\"1.4\"/>\n<path d=\"M-26,14 C-14,22 14,22 26,14\" fill=\"none\" stroke=\"#cdb08a\" stroke-width=\"2\"/>\n<g stroke=\"#d2b78e\" stroke-width=\"1\" opacity=\".6\"><path d=\"M-20,14 L-17.0,23\" /><path d=\"M-14,14 L-11.9,23\" /><path d=\"M-8,14 L-6.8,23\" /><path d=\"M-2,14 L-1.7,23\" /><path d=\"M4,14 L3.4,23\" /><path d=\"M10,14 L8.5,23\" /><path d=\"M16,14 L13.6,23\" /><path d=\"M22,14 L18.7,23\" /></g>\n<path d=\"M-26,-22 C-18,-34 0,-38 14,-34\" fill=\"none\" stroke=\"#e8d6b8\" stroke-width=\"3\" stroke-linecap=\"round\" opacity=\".35\"/>\n<path d=\"M-22,-4 C-14,-12 -4,-10 4,-18\" fill=\"none\" stroke=\"#2a1a0c\" stroke-width=\"1\" opacity=\".3\"/>", "egg": "<path d=\"M-46,4 C-48,-30 -20,-46 6,-42 C34,-38 50,-18 46,10 C42,40 14,46 -10,40 C-34,36 -45,26 -46,4 Z\" fill=\"url(#gp-gEgg)\" stroke=\"#d8cfbf\" stroke-width=\"1\"/>\n<circle cx=\"4\" cy=\"-2\" r=\"20\" fill=\"url(#gp-gYolk)\"/>\n<ellipse cx=\"-2\" cy=\"-8\" rx=\"7\" ry=\"4\" fill=\"#fff\" opacity=\".55\"/>", "onion": "<circle r=\"44\" fill=\"#f4efe4\" stroke=\"#cfc4ae\" stroke-width=\"1.5\"/><circle r=\"34\" fill=\"none\" stroke=\"#e7dccb\" stroke-width=\"2\"/><circle r=\"22\" fill=\"none\" stroke=\"#d6c9ae\" stroke-width=\"2\"/><circle r=\"10\" fill=\"none\" stroke=\"#c9b898\" stroke-width=\"1.5\"/><ellipse cx=\"-14\" cy=\"-18\" rx=\"10\" ry=\"4\" fill=\"#fff\" opacity=\".5\"/>"};
+  const STEP_TYPES = ["cabbage", "meat", "carrot", "mushroom", "egg", "onion"];
+  const STEP_POS = {"cabbage": [{"x": 112, "y": 132, "r": -18, "s": 1.45}, {"x": 226, "y": 126, "r": 22, "s": 1.4}, {"x": 170, "y": 192, "r": 6, "s": 1.35}, {"x": 176, "y": 104, "r": -8, "s": 1.3}], "meat": [{"x": 150, "y": 140, "r": 20, "s": 0.8}, {"x": 200, "y": 150, "r": -30, "s": 0.77}, {"x": 125, "y": 175, "r": 44, "s": 0.8}, {"x": 215, "y": 185, "r": 12, "s": 0.77}, {"x": 176, "y": 222, "r": -8, "s": 0.72}], "carrot": [{"x": 105, "y": 160, "r": 0, "s": 0.56}, {"x": 180, "y": 118, "r": 0, "s": 0.56}, {"x": 245, "y": 160, "r": 0, "s": 0.6}, {"x": 140, "y": 235, "r": 0, "s": 0.56}, {"x": 205, "y": 215, "r": 0, "s": 0.52}], "mushroom": [{"x": 105, "y": 128, "r": -18, "s": 0.84}, {"x": 230, "y": 200, "r": 24, "s": 0.8}], "egg": [{"x": 170, "y": 162, "r": 0, "s": 1.25}], "onion": [{"x": 170, "y": 98, "r": 60, "s": 1.04}]};
+  const STEP_ORDER = ["cabbage", "meat", "carrot", "mushroom", "egg", "onion"];
+
+  let uid = 0;
+  let entries = [];       // {id, text}，每个条目一只油壶，永远保留
+  let mode = 'cap';       // 'cap' 胶囊轮 / 'dish' 食材轮
+  let capIds = [];
+  let dishCount = 0;      // 食材轮加了几样
+  let served = false;     // 这一轮菜做好了，留在锅里，下一个条目来才清掉
+  let editingId = null;
+  let presetIdx = 0;      // 下一个用哪句预设
+
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function byId(id) { return entries.find(e => e.id === id); }
+
+  // ---- 油壶 ----
+  function bottleSlot(k) { const col = k % 3, row = Math.floor(k / 3); return { x: 362 + col * 38, y: 280 - row * 54 }; }
+  function bottleSVG(e, k, num, fade) {
+    const { x, y } = bottleSlot(k);
+    return `<g class="bottle${fade ? ' fade-top' : ''}" data-id="${e.id}" transform="translate(${x},${y})"><title>${escapeHtml(e.text)}</title>
+      <rect x="0" y="8" width="28" height="38" rx="9" fill="url(#gp-glassG)" stroke="rgba(255,255,255,.18)" stroke-width="1"/>
+      <rect x="4" y="22" width="20" height="20" rx="6" fill="url(#gp-oilG)" opacity=".9"/>
+      <text x="14" y="36" text-anchor="middle" font-size="11" font-weight="700" fill="#3a2a10">${num}</text>
+      <rect x="9" y="2" width="10" height="8" rx="2.5" fill="#3a3f45"/>
+      <rect x="7" y="0" width="14" height="4" rx="2" fill="#15181b"/>
+      <rect x="4" y="12" width="4" height="16" rx="2" fill="rgba(255,255,255,.22)"/>
+    </g>`;
+  }
+  function renderBottles() {
+    // 位置固定，第 1 只一直在第 1 个位置；满了（九只）以后，最上面一排渐变消失
+    const shown = entries.slice(0, BOTTLE_MAX);
+    const full = shown.length >= BOTTLE_MAX;
+    gp$('bottles').innerHTML = shown.map((e, k) =>
+      bottleSVG(e, k, entries.indexOf(e) + 1, full && k >= 6)).join('');
+    const more = entries.length - shown.length;
+    gp$('moreBadge').textContent = more > 0 ? `+${more}` : '';
+    gp$('rackCount').textContent = entries.length;
+  }
+
+  // ---- 胶囊 ----
+  function renderCaps() {
+    const box = gp$('caps');
+    if (mode !== 'cap' || !capIds.length) { box.innerHTML = ''; box.classList.remove('has'); return; }
+    box.classList.add('has');
+    box.innerHTML = capIds.map(id => {
+      const e = byId(id);
+      return `<button class="cap" data-id="${e.id}" title="${escapeHtml(e.text)}">${escapeHtml(e.text)}</button>`;
+    }).join('');
+  }
+
+  // ---- 食材：一步一样，一步可以是几块，铺满锅并溢出锅沿 ----
+  function renderFood(newIndex) {
+    const g = gp$('food');
+    const showing = mode === 'dish' ? dishCount : (served ? DISH_ROUND : 0);
+    let html = '';
+    for (let i = 0; i < showing; i++) {
+      const type = STEP_TYPES[i];
+      const drop = (i === newIndex) ? 'drop-in' : '';
+      for (const p of STEP_POS[type]) {
+        html += `<g transform="translate(${p.x},${p.y}) rotate(${p.r}) scale(${p.s})" filter="url(#gp-pieceShadow)"><g class="${drop}">${PIECE_SVG[type]}</g></g>`;
+      }
+    }
+    g.innerHTML = html;
+    const fxOld = gp$('oilFx'); if (fxOld) fxOld.remove();
+    gp$('sheen').setAttribute('opacity', showing ? '1' : '0');
+    gp$('wrap').classList.toggle('food', showing > 0);
+  }
+
+  function refresh(newIndex) { renderCaps(); renderFood(newIndex); renderBottles(); postState(); }
+
+  function postState() {
+    if (!opts.onChange) return;
+    opts.onChange({ entries: entries.map(e => ({ id: e.id, text: e.text })), enabled: sw.getAttribute('aria-checked') === 'true' });
+  }
+
+  // ---- 加条目（锅铲）：一开始锅是空的，要自己点 ----
+  const panBody = gp$('panBody');
+  function shakePan() { panBody.classList.remove('shake'); void panBody.offsetWidth; panBody.classList.add('shake'); }
+
+  function nextText() {
+    if (presetIdx < PRESETS.length) return PRESETS[presetIdx++];
+    return '新条目 ' + (entries.length + 1);
+  }
+
+  function addEntry() {
+    if (served) { served = false; dishCount = 0; }     // 上一轮的菜被端走
+    const e = { id: ++uid, text: nextText() };
+    entries.push(e);
+
+    let newIndex = -1;
+    if (mode === 'cap') {
+      if (capIds.length < CAP_ROUND) {
+        capIds.push(e.id);
+      } else {                                           // 六个满了，这个进来 → 胶囊刷新，进入食材轮
+        capIds = [];
+        mode = 'dish'; dishCount = 1; newIndex = 0;
+        shakePan();
+      }
+    } else {
+      newIndex = dishCount;
+      dishCount++;                                       // 一个条目 = 一样食材
+      if (dishCount === DISH_ROUND) { mode = 'cap'; served = true; shakePan(); }
+    }
+    refresh(newIndex);
+  }
+  const spInner = gp$('spatulaIn');
+  const spSweep = gp$('spatulaSweep');
+  gp$('spatula').addEventListener('pointerdown', e => {
+    e.preventDefault();
+    spSweep.classList.remove('sweep'); spSweep.getBoundingClientRect();
+    spSweep.classList.add('sweep');
+    addEntry();
+  });
+  spSweep.addEventListener('animationend', () => spSweep.classList.remove('sweep'));
+  spInner.addEventListener('animationend', () => spInner.classList.remove('hit'));
+
+
+  // ---- 删除条目：菜上面撒一层薄薄的黄油，白色颗粒闪动 ----
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function oilSplash() {
+    const body = gp$('panBody');
+    const old = gp$('oilFx'); if (old) old.remove();
+    const fx = document.createElementNS(SVGNS, 'g'); fx.id = 'gp-oilFx';
+    const film = document.createElementNS(SVGNS, 'circle');
+    film.setAttribute('cx', 170); film.setAttribute('cy', 160); film.setAttribute('r', 126);
+    film.setAttribute('fill', 'rgba(255,206,64,.24)'); film.setAttribute('class', 'oil-film');
+    fx.appendChild(film);
+    for (let i = 0; i < 16; i++) {
+      const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * 110;
+      const dot = document.createElementNS(SVGNS, 'circle');
+      dot.setAttribute('cx', (170 + Math.cos(a) * d).toFixed(1));
+      dot.setAttribute('cy', (160 + Math.sin(a) * d).toFixed(1));
+      dot.setAttribute('r', (1.2 + Math.random() * 1.6).toFixed(1));
+      dot.setAttribute('fill', '#ffffff');
+      dot.setAttribute('class', 'spark');
+      dot.style.animationDelay = (Math.random() * 1.2).toFixed(2) + 's';
+      fx.appendChild(dot);
+    }
+    body.appendChild(fx);
+  }
+
+  // ---- 油瓶管理：点箭头打开，列出所有条目，可以改或删 ----
+  const mgrOverlay = gp$('mgrOverlay');
+  function bottleIcon(num) {
+    return `<svg viewBox="0 0 40 56" aria-hidden="true">
+      <ellipse cx="20" cy="54" rx="15" ry="2.2" fill="rgba(0,0,0,.55)"/>
+      <rect x="6" y="14" width="28" height="38" rx="9" fill="url(#gp-glassG)" stroke="rgba(255,255,255,.22)" stroke-width="1"/>
+      <rect x="10" y="28" width="20" height="20" rx="6" fill="url(#gp-oilG)" opacity=".9"/>
+      <text x="20" y="42" text-anchor="middle" font-size="11" font-weight="700" fill="#3a2a10">${num}</text>
+      <rect x="15" y="6" width="10" height="8" rx="2.5" fill="#3a3f45"/>
+      <rect x="13" y="3" width="14" height="4" rx="2" fill="#15181b"/>
+      <rect x="9" y="19" width="4" height="16" rx="2" fill="rgba(255,255,255,.3)"/>
+      <path d="M26,18 Q30,30 26,44" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="1.5"/>
+    </svg>`;
+  }
+  const SHELF_SVG = '<svg viewBox="0 0 300 14" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="4" width="300" height="7" rx="2" fill="url(#gp-shelfG)"/><rect x="0" y="11" width="300" height="3" fill="rgba(0,0,0,.6)"/><line x1="8" y1="5.5" x2="292" y2="5.5" stroke="rgba(255,255,255,.55)" stroke-width="1"/></svg>';
+  function renderMgr() {
+    closeMgrPop();
+    gp$('mgrCount').textContent = '共 ' + entries.length + ' 条';
+    if (!entries.length) {
+      gp$('mgrList').innerHTML = '<div style="grid-column:1/-1;text-align:center;color:rgba(255,255,255,.6);font-size:13px;padding:24px 0;">还没有条目</div>';
+      return;
+    }
+    let html = '';
+    entries.forEach((e, i) => {
+      html += `<button class="mgr-bottle" data-id="${e.id}" type="button" aria-label="第 ${i + 1} 条">${bottleIcon(i + 1)}</button>`;
+      if ((i + 1) % 4 === 0 || i === entries.length - 1) html += `<div class="mgr-shelf">${SHELF_SVG}</div>`;
+    });
+    gp$('mgrList').innerHTML = html;
+  }
+  // 点油壶：条目浮在最上面（不挤开其它油壶）
+  let mgrPop = null;
+  function closeMgrPop() {
+    if (mgrPop) { mgrPop.remove(); mgrPop = null; }
+    root.querySelectorAll('#gp-mgrList .mgr-bottle.active').forEach(b => b.classList.remove('active'));
+  }
+  function openMgrPop(bottleEl, id) {
+    closeMgrPop();
+    const e = byId(id); if (!e) return;
+    const idx = entries.indexOf(e) + 1;
+    const pop = document.createElement('div');
+    pop.className = 'mgr-pop';
+    pop.innerHTML = `<div class="mgr-pop-bubble"><span class="mgr-pop-num">第 ${idx} 条</span><button class="mgr-pop-text" type="button" title="${escapeHtml(e.text)}">${escapeHtml(e.text)}</button></div><button class="mgr-pop-del" type="button">删除</button>`;
+    document.body.appendChild(pop);
+    // 浮层出现在油瓶的右边（右边放不下才放到左边），箭头指向油瓶
+    const r = bottleEl.getBoundingClientRect();
+    const bubble = pop.querySelector('.mgr-pop-bubble');
+    // 浮层始终放在油瓶右边：宽度按右边剩余的空间来限制，超出的文字用省略号
+    const rightSpace = window.innerWidth - r.right - 20;
+    let side = 'pos-right';
+    bubble.style.maxWidth = Math.max(160, Math.min(240, rightSpace)) + 'px';
+    const pw = bubble.offsetWidth, ph = bubble.offsetHeight;
+    let left = r.right + 12;
+    if (rightSpace < 160) { side = 'pos-left'; left = r.left - pw - 12; }
+    let top = r.top + r.height / 2 - ph / 2;
+    top = Math.max(8, Math.min(window.innerHeight - ph - 60, top));
+    pop.style.left = Math.max(8, left) + 'px';
+    pop.style.top = top + 'px';
+    pop.classList.add(side);
+    pop.querySelector('.mgr-pop-text').addEventListener('click', () => { closeMgrPop(); openEdit(id); });
+    pop.querySelector('.mgr-pop-del').addEventListener('click', () => {
+      entries = entries.filter(x => x.id !== id);
+      capIds = capIds.filter(x => x !== id);
+      closeMgrPop(); refresh(-1); renderMgr(); oilSplash();
+    });
+    mgrPop = pop;
+    bottleEl.classList.add('active');
+  }
+  gp$('rackArrow').addEventListener('click', () => { renderMgr(); mgrOverlay.classList.add('show'); });
+  gp$('mgrClose').addEventListener('click', () => { closeMgrPop(); mgrOverlay.classList.remove('show'); });
+  mgrOverlay.addEventListener('click', ev => { if (ev.target === mgrOverlay) { closeMgrPop(); mgrOverlay.classList.remove('show'); } });
+  gp$('mgrList').addEventListener('click', ev => {
+    const bottle = ev.target.closest('.mgr-bottle[data-id]');
+    if (bottle) openMgrPop(bottle, Number(bottle.dataset.id));
+  });
+  root.addEventListener('pointerdown', ev => {
+    if (mgrPop && !ev.target.closest('.mgr-pop') && !ev.target.closest('.mgr-bottle')) closeMgrPop();
+  });
+
+  // ---- 编辑：胶囊和油瓶都能点开 ----
+  const editOverlay = gp$('editOverlay');
+  const editInput = gp$('editInput');
+  function openEdit(id) {
+    const e = byId(id); if (!e) return;
+    editingId = id; editInput.value = e.text;
+    editOverlay.classList.add('show');
+  }
+  function closeEdit() { editOverlay.classList.remove('show'); editingId = null; }
+  gp$('editCancel').addEventListener('click', closeEdit);
+  editOverlay.addEventListener('click', ev => { if (ev.target === editOverlay) closeEdit(); });
+  gp$('editSave').addEventListener('click', () => {
+    const e = byId(editingId); const text = editInput.value.trim();
+    if (e && text) e.text = text;
+    closeEdit(); refresh(-1); renderMgr();
+  });
+  gp$('editDel').addEventListener('click', () => {
+    entries = entries.filter(x => x.id !== editingId);
+    capIds = capIds.filter(id => id !== editingId);
+    closeEdit(); refresh(-1); renderMgr();
+    oilSplash();
+  });
+  gp$('caps').addEventListener('click', ev => {
+    const b = ev.target.closest('[data-id]'); if (b) openEdit(Number(b.dataset.id));
+  });
+  gp$('bottles').addEventListener('click', ev => {
+    const g = ev.target.closest('[data-id]'); if (g) openEdit(Number(g.dataset.id));
+  });
+
+  // ---- 弹窗开关 ----
+  const sw = gp$('sw');
+  gp$('doneBtn').addEventListener('click', () => opts.onClose());
+  sw.addEventListener('click', () => { sw.setAttribute('aria-checked', String(sw.getAttribute('aria-checked') !== 'true')); postState(); });
+
+  // ---- 打开时：载入这个联系人的条目和开关 ----
+  entries = (opts.entries || []).map(e => ({ id: Number(e.id), text: String(e.text || '') }));
+  uid = entries.reduce((m, e) => Math.max(m, e.id), 0);
+  presetIdx = Math.min(entries.length, PRESETS.length);
+  sw.setAttribute('aria-checked', String(!!opts.enabled));
+  refresh(-1);   // 一开始锅是空的，要自己点锅铲
+
+}
+
+function openGreasyPanPopup() {
+    const c = curMemContact(); if (!c) return;
+    const prev = document.getElementById('gpPanOverlay'); if (prev) prev.remove();
+    const root = document.createElement('div');
+    root.id = 'gpPanOverlay';
+    root.innerHTML = GP_MARKUP;
+    document.body.appendChild(root);
+    buildGreasyPan(root, {
+        entries: Array.isArray(c.greasyEntries) ? c.greasyEntries : [],
+        enabled: (c.promptOpts || []).includes('greasy'),
+        onChange(state) {
+            c.greasyEntries = state.entries.map(e => ({ id: Number(e.id), text: String(e.text || '') }));
+            const opts = Array.isArray(c.promptOpts) ? c.promptOpts.filter(k => k !== 'greasy') : [];
+            c.promptOpts = state.enabled ? opts.concat('greasy') : opts;
+            persistContacts();
+        },
+        onClose() {
+            root.classList.remove('show'); renderChatDrop();
+            setTimeout(() => root.remove(), 300);
+        }
+    });
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add('show')));
+}
+
 function openChatPromptSettings(k) {
+    if (k === 'greasy') { openGreasyPanPopup(); return; }
     if (k !== 'ai') { alert('这个选项暂时没有独立设置项。'); return; }
     const old = document.getElementById('cdPromptSettings'); if (old) old.remove();
     const v = readChatPromptSettings();
@@ -1074,12 +1581,13 @@ function openChatPromptSettings(k) {
     modal.innerHTML = `<section class="cd-settings" role="dialog" aria-modal="true" aria-label="防八股设置">
       <div class="cd-settings-main"><header><div><span class="cd-settings-kicker">CHAT STYLE / 01</span><strong>表达偏好</strong><small>词条优先级决定它们在提示词中的排列位置。</small></div><button class="cd-settings-close" type="button" aria-label="关闭">×</button></header>
       <label class="cd-master"><input id="cdBanEnabled" type="checkbox" ${v.enabled?'checked':''}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10.2 3.8 3.7L16 5.8"/></svg><span><b>启用表达偏好</b><small>保留人设特点，优先选择自然、具体的表达</small></span></label>
-      <div class="cd-settings-section"><div class="cd-settings-label">表达词条 <span>勾选启用 · 高 / 中 / 低控制提示词位置</span></div><div class="cd-word-list">${cdWordListHtml(v.words,v.disabledWords,v.priorityLevels,v.customWords)}</div></div>
-      <div class="cd-settings-section cd-add-section"><button class="cd-add-custom-trigger" type="button" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>添加自定义词条</span></button><textarea id="cdWordAdd" class="cd-word-add" placeholder="输入表达词条，每行一个" aria-label="自定义词条，每行一个"></textarea></div>
+      <div class="cd-settings-section"><div class="cd-settings-label">表达词条 <span>勾选启用 · 高 / 中 / 低控制提示词位置</span></div><div class="cd-word-list">${cdWordListHtml(v.words,v.disabledWords,v.priorityLevels,v.customWords,v.customReasons)}</div></div>
+      <div class="cd-settings-section cd-add-section"><button class="cd-add-custom-trigger" type="button" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>添加自定义词条</span></button><textarea id="cdWordAdd" class="cd-word-add" placeholder="输入表达词条，每行一个；可写成 词条|原因" aria-label="自定义词条，每行一个"></textarea></div>
       <div class="cd-settings-hint"><span class="cd-hint-mark">✳</span><p>优先采用贴合角色性格、情境与说话习惯的具体表达。角色可以保留自己的复杂、强势或阴郁，不强迫角色变得善良或温柔。</p></div>
       </div><footer><button class="cd-settings-reset" type="button">恢复默认</button><button class="cd-settings-save" type="button" aria-label="保存设置" title="保存设置"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.6"/><path d="M12 2.4v2.2M12 19.4v2.2M2.4 12h2.2M19.4 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6"/></svg></button></footer>
     </section>`;
     modal._cdCustomWords = new Set(v.customWords || []);
+    modal._cdCustomReasons = Object.assign({}, v.customReasons || {});
     document.body.appendChild(modal);
     requestAnimationFrame(()=>requestAnimationFrame(()=>modal.classList.add('is-visible')));
     const close=()=>{modal.classList.remove('is-visible');modal.classList.add('is-leaving');setTimeout(()=>modal.remove(),220);};
@@ -1115,9 +1623,9 @@ function openChatPromptSettings(k) {
         levels[word]=prio&&['high','medium','low'].includes(prio.dataset.prio)?prio.dataset.prio:'medium';
       });
       let added=0;
-      extra.forEach(word=>{if(!words.includes(word)){words.push(word);levels[word]='medium';modal._cdCustomWords.add(word);added++;}});
+      extra.map(parseWordLine).forEach(({word,reason})=>{if(!word)return;if(!words.includes(word)){words.push(word);levels[word]='medium';modal._cdCustomWords.add(word);if(reason)modal._cdCustomReasons[word]=reason;added++;}});
       if(!added){toast('这些词条已经存在');return;}
-      list.innerHTML=cdWordListHtml(words,disabled,levels,[...modal._cdCustomWords]);
+      list.innerHTML=cdWordListHtml(words,disabled,levels,[...modal._cdCustomWords],modal._cdCustomReasons);
       addInput.value='';
       addSection.classList.remove('is-editing');
       addTrigger.setAttribute('aria-expanded','false');
@@ -1143,23 +1651,12 @@ function openChatPromptSettings(k) {
         prio.textContent={high:'高',medium:'中',low:'低'}[level];
         prio.setAttribute('aria-label','优先级'+prio.textContent+'，点击切换'); return;
       }
-      if(e.target.closest('.cd-word-edit')){
-        const label=row.querySelector('.cd-word-text');
-        const next=prompt('编辑禁用词',label.textContent);
-        if(next===null)return;
-        const value=next.trim(); if(!value){toast('词条不能为空');return;}
-        const duplicate=[...modal.querySelectorAll('.cd-word-text')].some(el=>el!==label&&el.textContent.trim()===value);
-        if(duplicate){toast('这个词条已经存在');return;}
-        const oldWord=label.textContent.trim();
-        label.textContent=value;
-        if(modal._cdCustomWords && modal._cdCustomWords.has(oldWord)){modal._cdCustomWords.delete(oldWord);modal._cdCustomWords.add(value);}
-        rebuildCdWordGroups(modal);
-        return;
-      }
+      if(e.target.closest('.cd-word-edit')){ openCdWordEdit(modal,row); return; }
       if(e.target.closest('.cd-word-delete')){
         const deletedWord=(row.querySelector('.cd-word-text')?.textContent||'').trim();
         row.remove();
         if(modal._cdCustomWords) modal._cdCustomWords.delete(deletedWord);
+        if(modal._cdCustomReasons) delete modal._cdCustomReasons[deletedWord];
         rebuildCdWordGroups(modal);
         return;
       }
@@ -1168,6 +1665,7 @@ function openChatPromptSettings(k) {
     modal.querySelector('.cd-settings-reset').onclick=()=>{
       modal.querySelector('#cdBanEnabled').checked=true;
       modal._cdCustomWords = new Set();
+      modal._cdCustomReasons = {};
       modal.querySelector('.cd-word-list').innerHTML=cdWordListHtml(defaultWords,[],Object.fromEntries(defaultWords.map(w=>[w,'high'])),[]);
       modal.querySelector('#cdWordAdd').value='';
       modal.querySelector('.cd-add-section').classList.remove('is-editing');
@@ -1183,8 +1681,9 @@ function openChatPromptSettings(k) {
         const active=row.querySelector('.cd-prio-pill');priorityLevels[word]=active?active.dataset.prio:'medium';
       });
       const extra=modal.querySelector('#cdWordAdd').value.split(/\n/).map(x=>x.trim()).filter(Boolean);
-      extra.forEach(w=>{if(!words.includes(w)){words.push(w);priorityLevels[w]='medium';}});
-      saveChatPromptSettings({enabled:modal.querySelector('#cdBanEnabled').checked,words,priorityLevels,disabledWords,customWords:[...modal._cdCustomWords].filter(w=>words.includes(w)),priority:Object.keys(priorityLevels).filter(w=>priorityLevels[w]==='high')});
+      extra.map(parseWordLine).forEach(({word:w,reason})=>{if(!w)return;if(!words.includes(w)){words.push(w);priorityLevels[w]='medium';}if(reason)modal._cdCustomReasons[w]=reason;});
+      const customReasons=Object.fromEntries(Object.entries(modal._cdCustomReasons||{}).filter(([w,r])=>words.includes(w)&&r));
+      saveChatPromptSettings({enabled:modal.querySelector('#cdBanEnabled').checked,words,priorityLevels,disabledWords,customWords:[...modal._cdCustomWords].filter(w=>words.includes(w)),customReasons,priority:Object.keys(priorityLevels).filter(w=>priorityLevels[w]==='high')});
       close();
     };
 }
@@ -1262,7 +1761,7 @@ function bindChatDropOutside() {
     document.addEventListener('pointerdown', e => {
         const p = document.getElementById('chatDrop');
         if (!p || !p.classList.contains('show')) return;
-        if (e.target.closest && (e.target.closest('#chatDrop') || e.target.closest('.chat-head'))) return;
+        if (e.target.closest && (e.target.closest('#chatDrop') || e.target.closest('.chat-head') || e.target.closest('#cdPromptSettings') || e.target.closest('#cdWordEdit') || e.target.closest('#gpPanOverlay') || e.target.closest('#gpPanOverlay'))) return;
         p.classList.remove('show');
     });
 }

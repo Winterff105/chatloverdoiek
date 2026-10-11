@@ -2953,11 +2953,11 @@
 .messages-app .chat-drop{
   padding:12px 12px 10px !important;
   border-radius:24px !important;
-  background:rgba(247,247,247,.97) !important;
+  background:rgba(247,247,247,.35) !important;
   border:1px solid rgba(80,80,80,.16) !important;
   box-shadow:0 8px 24px rgba(0,0,0,.045) !important;
-  -webkit-backdrop-filter:blur(14px) saturate(80%) !important;
-  backdrop-filter:blur(14px) saturate(80%) !important;
+  -webkit-backdrop-filter:blur(2px) !important;
+  backdrop-filter:blur(2px) !important;
 }
 /* 只有装饰标题使用 tansong.ttf；按钮、计数、时间明确回到项目普通字体 */
 .messages-app .chat-drop .cd-title,
@@ -3779,3 +3779,164 @@
 /* ===== 默认我方气泡颜色：FBF8FA ===== */
 .messages-app #chatView:not([data-bubble]) .mrow.me .bubble,
 .messages-app #chatView .mrow.me .bubble { background:#FBF8FA !important; background-color:#FBF8FA !important; color:#4B4150 !important; }
+
+/* ===== 禁用词：列表里的原因 + 编辑弹窗 ===== */
+
+.cd-edit-overlay{ position: fixed; inset: 0; z-index: 2147483100; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.28); opacity: 0; transition: opacity .2s ease; }
+.cd-edit-overlay.is-visible{ opacity: 1; }
+.cd-edit-card{ width: min(300px, 84vw); padding: 18px 18px 14px; border-radius: 22px; background: rgba(250,250,250,.97); box-shadow: 0 12px 36px rgba(0,0,0,.18); display: flex; flex-direction: column; gap: 12px; font-family: inherit; }
+.cd-edit-title{ font-size: 15px; font-weight: 600; color: #111; text-align: center; }
+.cd-edit-label{ display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: #6E6E76; text-align: center; }
+.cd-edit-input{ height: 36px; border-radius: 12px; border: 0.5px solid rgba(0,0,0,.14); padding: 0 12px; font-size: 14px; color: #111; background: #fff; outline: none; font-family: inherit; text-align: center; width: 100%; box-sizing: border-box; }
+.cd-edit-actions{ display: flex; justify-content: center; gap: 10px; margin-top: 4px; }
+.cd-edit-actions button{ height: 34px; padding: 0 16px; border-radius: 999px; border: 0.5px solid rgba(0,0,0,.12); background: #fff; color: #111; font-size: 13px; cursor: pointer; font-family: inherit; }
+.cd-edit-actions .cd-edit-save{ background: #111; color: #fff; border-color: #111; }
+
+/* 禁用词：词条保持完整，右侧「| 原因」限定宽度，超出部分末尾省略号 */
+#cdPromptSettings .cd-word-label{ display: flex; align-items: center; flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; }
+#cdPromptSettings .cd-word-label .cd-word-text{ flex: 0 0 auto; max-width: 6em; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; overflow-wrap: normal; }
+#cdPromptSettings .cd-word-label .cd-word-reason{ flex: 0 1 auto; min-width: 0; max-width: 88px; flex-shrink: 1; display: block; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: #6E6E76; }
+
+/* ===== 防油腻：平底锅弹窗 ===== */
+.gp-overlay{ position: fixed; inset: 0; z-index: 2147483100; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.36); opacity: 0; visibility: hidden; transition: opacity .25s ease, visibility .25s; }
+.gp-overlay.show{ opacity: 1; visibility: visible; }
+.gp-pan{ position: relative; width: min(460px, 94vw); }
+
+.gp-pan svg{ display: block; width: 100%; height: auto; overflow: visible; }
+.gp-face{ position: absolute; left: 37%; top: 50%; width: 50%; transform: translate(-50%,-50%); text-align: center; color: #f4f4f4; user-select: none; font-family: inherit; }
+.gp-kicker{ font-size: 10px; letter-spacing: .32em; text-transform: uppercase; color: rgba(255,255,255,.62); }
+.gp-title{ margin-top: 6px; font-family: "Songti SC","STSong","Noto Serif SC",serif; font-size: 26px; font-weight: 600; letter-spacing: .08em; color: #f4f4f4; }
+.gp-rule{ margin: 12px auto 0; max-width: 150px; font-size: 11.5px; line-height: 1.7; color: rgba(255,255,255,.62); }
+.gp-rule b{ color: #f4f4f4; font-weight: 600; }
+.gp-switch-row{ margin-top: 14px; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; color: #f4f4f4; }
+.gp-switch{ position: relative; width: 44px; height: 26px; border-radius: 999px; cursor: pointer; background: rgba(255,255,255,.18); border: 0; padding: 0; transition: background .2s ease; }
+.gp-switch::after{ content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .25s cubic-bezier(.22,1,.36,1); box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+.gp-switch[aria-checked="true"]{ background: #f4f4f4; }
+.gp-switch[aria-checked="true"]::after{ transform: translateX(18px); background: #111; }
+.gp-done{ margin-top: 14px; height: 34px; padding: 0 22px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.08); color: #f4f4f4; font-size: 13px; cursor: pointer; font-family: inherit; }
+.gp-done:active{ transform: scale(.96); }
+
+/* ===== 防油腻：平底锅（样式全部限定在 #gpPanOverlay 里面） ===== */
+#gpPanOverlay{ position:fixed; inset:0; z-index:2147483100; display:flex; align-items:center; justify-content:center;
+  background:rgba(0,0,0,.36); opacity:0; visibility:hidden; transition:opacity .3s ease, visibility .3s;
+  font-family:-apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif; }
+#gpPanOverlay.show{ opacity:1; visibility:visible; }
+#gpPanOverlay{ --ink:#f4f4f4; --sub:rgba(255,255,255,.62); }
+#gpPanOverlay *{ box-sizing:border-box; margin:0; padding:0; }
+#gpPanOverlay .open-btn{ height:40px; padding:0 18px; border-radius:999px; border:0; background:#111; color:#fff; font-size:14px; cursor:pointer; }
+#gpPanOverlay .wrap{ position:relative; width:min(480px, 94vw); }
+#gpPanOverlay .pan{ position:relative; }
+#gpPanOverlay .pan > svg{ display:block; width:100%; height:auto; overflow:visible; }
+#gpPanOverlay .pan-body{ transform-box:fill-box; transform-origin:center; }
+#gpPanOverlay .pan-body.shake{ animation:gp-shake .55s ease-in-out; }
+
+  @keyframes gp-shake{ 0%{transform:rotate(0)} 15%{transform:rotate(-2.2deg) translateY(-3px)} 35%{transform:rotate(2deg) translateY(-1px)} 55%{transform:rotate(-1.4deg)} 75%{transform:rotate(.8deg)} 100%{transform:rotate(0)} }
+#gpPanOverlay .drop-in{ transform-box:fill-box; transform-origin:center; animation:gp-drop .42s cubic-bezier(.22,1,.36,1) both; }
+
+  @keyframes gp-drop{ from{ opacity:0; transform:scale(1.35) translateY(-10px); } to{ opacity:1; transform:none; } }
+#gpPanOverlay .bottle{ cursor:pointer; transition:transform .15s ease; }
+#gpPanOverlay .bottle:hover{ transform:translateY(-2px); }
+#gpPanOverlay .bottle:active{ transform:scale(.94); }
+#gpPanOverlay .spatula{ cursor:pointer; touch-action:manipulation; }
+#gpPanOverlay{
+    --bow-x:120px;
+    --bow-y:-7px;
+    --bow-rot:90deg;
+    --bow-flip:-1;
+    --bow-s:1;
+  }
+#gpPanOverlay .bow-wrap{
+    transform:translate(var(--bow-x), var(--bow-y)) rotate(var(--bow-rot)) scale(var(--bow-flip), 1) scale(var(--bow-s));
+  }
+#gpPanOverlay .spatula-in{ transform-box:fill-box; transform-origin:14% 50%; }
+#gpPanOverlay .spatula-in.hit{ animation:gp-spHit .36s cubic-bezier(.22,1,.36,1); }
+
+  @keyframes gp-spHit{ 0%{transform:none} 30%{transform:rotate(-16deg) scale(.94)} 60%{transform:rotate(5deg)} 100%{transform:none} }
+#gpPanOverlay .spatula-sweep.sweep{ animation:gp-spSweep .42s cubic-bezier(.3,0,.3,1); }
+
+  @keyframes gp-spSweep{ 0%{transform:translate(0,0)} 45%{transform:translate(-22px,-100px)} 100%{transform:translate(0,0)} }
+#gpPanOverlay .bottle.fade-top{ animation:gp-fadeTop 1.4s ease forwards; }
+
+  @keyframes gp-fadeTop{ 0%{opacity:1} 100%{opacity:.1} }
+#gpPanOverlay .rack-arrow{ cursor:pointer; }
+#gpPanOverlay .rack-arrow:hover{ opacity:.85; }
+#gpPanOverlay .face{ position:absolute; left:37%; top:0; width:54%; height:100%; transform:translateX(-50%); pointer-events:none;
+         display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:#f4f4f4; user-select:none; }
+#gpPanOverlay .face > *{ pointer-events:auto; }
+#gpPanOverlay .kicker{ font-size:10px; letter-spacing:.32em; text-transform:uppercase; color:rgba(255,255,255,.62); }
+#gpPanOverlay .title{ margin-top:6px; font-family:"Songti SC","STSong","Noto Serif SC",serif; font-size:26px; font-weight:600; letter-spacing:.08em; color:#f4f4f4; }
+#gpPanOverlay .rule{ margin:12px auto 0; max-width:150px; font-size:11.5px; line-height:1.7; color:rgba(255,255,255,.62); }
+#gpPanOverlay .rule b{ color:#f4f4f4; font-weight:600; }
+#gpPanOverlay .caps{ display:none; width:100%; margin-top:12px; grid-template-columns:repeat(3, 1fr); gap:5px 4px; }
+#gpPanOverlay .caps.has{ display:grid; }
+#gpPanOverlay .cap{ height:22px; padding:0 4px; border-radius:999px; border:1px solid rgba(255,255,255,.2);
+        background:rgba(255,255,255,.12); color:#f4f4f4; font-size:10px; line-height:20px; cursor:pointer; font-family:inherit;
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; -webkit-backdrop-filter:blur(2px); backdrop-filter:blur(2px);
+        animation:gp-capIn .3s cubic-bezier(.22,1,.36,1) both; }
+#gpPanOverlay .cap:active{ transform:scale(.96); }
+
+  @keyframes gp-capIn{ from{ opacity:0; transform:translateY(4px) scale(.96); } to{ opacity:1; transform:none; } }
+#gpPanOverlay .switch-row{ margin-top:14px; display:flex; align-items:center; justify-content:center; gap:10px; font-size:13px; color:#f4f4f4; text-shadow:0 1px 3px rgba(0,0,0,.45); }
+#gpPanOverlay .switch{ position:relative; width:44px; height:26px; border-radius:999px; cursor:pointer; background:rgba(255,255,255,.18); border:0; padding:0; transition:background .2s ease; }
+#gpPanOverlay .switch::after{ content:""; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; transition:transform .25s cubic-bezier(.22,1,.36,1); box-shadow:0 1px 3px rgba(0,0,0,.4); }
+#gpPanOverlay .switch[aria-checked="true"]{ background:#f4f4f4; }
+#gpPanOverlay .switch[aria-checked="true"]::after{ transform:translateX(18px); background:#111; }
+#gpPanOverlay .done-btn{ margin-top:14px; height:34px; padding:0 22px; border-radius:999px; border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.08); color:#f4f4f4; font-size:13px; cursor:pointer; font-family:inherit; }
+#gpPanOverlay .done-btn:active{ transform:scale(.96); }
+#gpPanOverlay .wrap.food .title, #gpPanOverlay .wrap.food .rule, #gpPanOverlay .wrap.food .kicker, #gpPanOverlay .wrap.food .switch-row{ text-shadow:0 1px 4px rgba(0,0,0,.85); }
+#gpPanOverlay .oil-film{ opacity:0; animation:gp-oilIn 2.4s ease forwards; }
+
+  @keyframes gp-oilIn{ 0%{opacity:0} 25%{opacity:1} 100%{opacity:1} }
+#gpPanOverlay .spark{ opacity:0; animation:gp-twinkle 1.6s ease-in-out infinite; }
+
+  @keyframes gp-twinkle{ 0%,100%{opacity:0} 50%{opacity:1} }
+#gpPanOverlay .mgr-overlay{ position:fixed; inset:0; z-index:55; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.4); opacity:0; visibility:hidden; transition:opacity .25s ease, visibility .25s; }
+#gpPanOverlay .mgr-overlay.show{ opacity:1; visibility:visible; }
+#gpPanOverlay .mgr-card{ position:relative; width:min(340px, 90vw); max-height:74vh; display:flex; flex-direction:column; gap:10px; padding:18px 16px 16px; border-radius:24px;
+    background:linear-gradient(180deg,#1b1b1f 0%,#0f0f12 100%); box-shadow:0 14px 40px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.08); color:#f4f4f4; overflow:hidden; }
+#gpPanOverlay .mgr-card::before{ content:''; position:absolute; inset:0; pointer-events:none; background:repeating-linear-gradient(90deg, rgba(255,255,255,.018) 0 1px, transparent 1px 22px); }
+#gpPanOverlay .mgr-spot{ position:absolute; left:50%; top:-40px; width:260px; height:200px; transform:translateX(-50%); pointer-events:none; background:radial-gradient(ellipse at center, rgba(255,255,255,.12), rgba(255,255,255,0) 65%); }
+#gpPanOverlay .mgr-corner{ position:absolute; width:22px; height:22px; pointer-events:none; }
+#gpPanOverlay .mgr-corner.tl{ left:8px; top:8px; }
+#gpPanOverlay .mgr-corner.tr{ right:8px; top:8px; transform:scaleX(-1); }
+#gpPanOverlay .mgr-corner.bl{ left:8px; bottom:8px; transform:scaleY(-1); }
+#gpPanOverlay .mgr-corner.br{ right:8px; bottom:8px; transform:scale(-1,-1); }
+#gpPanOverlay .mgr-divider{ width:100%; height:12px; display:block; }
+#gpPanOverlay .mgr-shelf{ grid-column:1 / -1; height:14px; margin:-2px -4px 0; }
+#gpPanOverlay .mgr-shelf svg{ width:100%; height:100%; display:block; }
+#gpPanOverlay .mgr-base{ position:absolute; left:50%; bottom:-2px; transform:translateX(-50%); width:70%; height:8px; pointer-events:none; }
+#gpPanOverlay .mgr-head{ display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center; }
+#gpPanOverlay .mgr-title{ position:relative; display:flex; align-items:center; justify-content:center; gap:2px; width:200px; height:56px; padding-bottom:4px; box-sizing:border-box; font-family:"Songti SC","STSong","Noto Serif SC",serif; font-weight:800; color:#1a1a1e;
+    background:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 56'%3E%3Cdefs%3E%3Cmask id='p'%3E%3Crect width='200' height='56' fill='white'/%3E%3Ccircle cx='4' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='4' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='12' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='12' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='20' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='20' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='28' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='28' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='36' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='36' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='44' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='44' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='52' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='52' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='60' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='60' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='68' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='68' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='76' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='76' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='84' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='84' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='92' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='92' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='100' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='100' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='108' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='108' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='116' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='116' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='124' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='124' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='132' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='132' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='140' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='140' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='148' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='148' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='156' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='156' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='164' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='164' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='172' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='172' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='180' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='180' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='188' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='188' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='196' cy='0' r='3.2' fill='black'/%3E%3Ccircle cx='196' cy='56' r='3.2' fill='black'/%3E%3Ccircle cx='0' cy='4' r='3.2' fill='black'/%3E%3Ccircle cx='200' cy='4' r='3.2' fill='black'/%3E%3Ccircle cx='0' cy='12' r='3.2' fill='black'/%3E%3Ccircle cx='200' cy='12' r='3.2' fill='black'/%3E%3Ccircle cx='0' cy='20' r='3.2' fill='black'/%3E%3Ccircle cx='200' cy='20' r='3.2' fill='black'/%3E%3Ccircle cx='0' cy='28' r='3.2' fill='black'/%3E%3Ccircle cx='200' cy='28' r='3.2' fill='black'/%3E%3Ccircle cx='0' cy='36' r='3.2' fill='black'/%3E%3Ccircle cx='200' cy='36' r='3.2' fill='black'/%3E%3Ccircle cx='0' cy='44' r='3.2' fill='black'/%3E%3Ccircle cx='200' cy='44' r='3.2' fill='black'/%3E%3Ccircle cx='0' cy='52' r='3.2' fill='black'/%3E%3Ccircle cx='200' cy='52' r='3.2' fill='black'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='200' height='56' fill='%23ffffff' mask='url%28%23p%29'/%3E%3C/svg%3E") center / 100% 100% no-repeat; filter:drop-shadow(0 6px 14px rgba(255,255,255,.22)); }
+#gpPanOverlay .mgr-title .ch{ display:inline-block; line-height:1; }
+#gpPanOverlay .mgr-title .ul{ position:absolute; left:22px; right:22px; bottom:9px; width:calc(100% - 44px); height:10px; overflow:visible; }
+#gpPanOverlay .mgr-count{ font-size:12px; color:rgba(255,255,255,.6); }
+#gpPanOverlay .mgr-list{ position:relative; overflow-y:auto; display:grid; grid-template-columns:repeat(4, 1fr); gap:6px 6px; padding:8px 4px 2px; justify-items:center; }
+#gpPanOverlay .mgr-bottle{ position:relative; width:100%; max-width:70px; aspect-ratio:40/56; padding:4px 4px 6px; border:0; border-radius:14px; background:none; cursor:pointer; transition:transform .15s ease, background .2s ease; }
+#gpPanOverlay .mgr-bottle:active{ transform:scale(.94); }
+#gpPanOverlay .mgr-bottle.active{ background:rgba(255,255,255,.1); }
+#gpPanOverlay .mgr-bottle svg{ width:100%; height:100%; display:block; overflow:visible; }
+#gpPanOverlay .mgr-pop{ position:fixed; z-index:70; animation:gp-popFlash 1.9s ease both; }
+
+  @keyframes gp-popFlash{ 0%{opacity:0} 18%{opacity:1} 32%{opacity:.2} 46%{opacity:1} 60%{opacity:.2} 74%{opacity:1} 100%{opacity:1} }
+#gpPanOverlay .mgr-pop-bubble{ position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; width:240px; height:64px; padding:8px 18px; box-sizing:border-box; color:#1a1a1e;
+    background:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 64'%3E%3Cdefs%3E%3Cmask id='p'%3E%3Crect width='240' height='64' fill='white'/%3E%3Ccircle cx='4' cy='0' r='3' fill='black'/%3E%3Ccircle cx='4' cy='64' r='3' fill='black'/%3E%3Ccircle cx='12' cy='0' r='3' fill='black'/%3E%3Ccircle cx='12' cy='64' r='3' fill='black'/%3E%3Ccircle cx='20' cy='0' r='3' fill='black'/%3E%3Ccircle cx='20' cy='64' r='3' fill='black'/%3E%3Ccircle cx='28' cy='0' r='3' fill='black'/%3E%3Ccircle cx='28' cy='64' r='3' fill='black'/%3E%3Ccircle cx='36' cy='0' r='3' fill='black'/%3E%3Ccircle cx='36' cy='64' r='3' fill='black'/%3E%3Ccircle cx='44' cy='0' r='3' fill='black'/%3E%3Ccircle cx='44' cy='64' r='3' fill='black'/%3E%3Ccircle cx='52' cy='0' r='3' fill='black'/%3E%3Ccircle cx='52' cy='64' r='3' fill='black'/%3E%3Ccircle cx='60' cy='0' r='3' fill='black'/%3E%3Ccircle cx='60' cy='64' r='3' fill='black'/%3E%3Ccircle cx='68' cy='0' r='3' fill='black'/%3E%3Ccircle cx='68' cy='64' r='3' fill='black'/%3E%3Ccircle cx='76' cy='0' r='3' fill='black'/%3E%3Ccircle cx='76' cy='64' r='3' fill='black'/%3E%3Ccircle cx='84' cy='0' r='3' fill='black'/%3E%3Ccircle cx='84' cy='64' r='3' fill='black'/%3E%3Ccircle cx='92' cy='0' r='3' fill='black'/%3E%3Ccircle cx='92' cy='64' r='3' fill='black'/%3E%3Ccircle cx='100' cy='0' r='3' fill='black'/%3E%3Ccircle cx='100' cy='64' r='3' fill='black'/%3E%3Ccircle cx='108' cy='0' r='3' fill='black'/%3E%3Ccircle cx='108' cy='64' r='3' fill='black'/%3E%3Ccircle cx='116' cy='0' r='3' fill='black'/%3E%3Ccircle cx='116' cy='64' r='3' fill='black'/%3E%3Ccircle cx='124' cy='0' r='3' fill='black'/%3E%3Ccircle cx='124' cy='64' r='3' fill='black'/%3E%3Ccircle cx='132' cy='0' r='3' fill='black'/%3E%3Ccircle cx='132' cy='64' r='3' fill='black'/%3E%3Ccircle cx='140' cy='0' r='3' fill='black'/%3E%3Ccircle cx='140' cy='64' r='3' fill='black'/%3E%3Ccircle cx='148' cy='0' r='3' fill='black'/%3E%3Ccircle cx='148' cy='64' r='3' fill='black'/%3E%3Ccircle cx='156' cy='0' r='3' fill='black'/%3E%3Ccircle cx='156' cy='64' r='3' fill='black'/%3E%3Ccircle cx='164' cy='0' r='3' fill='black'/%3E%3Ccircle cx='164' cy='64' r='3' fill='black'/%3E%3Ccircle cx='172' cy='0' r='3' fill='black'/%3E%3Ccircle cx='172' cy='64' r='3' fill='black'/%3E%3Ccircle cx='180' cy='0' r='3' fill='black'/%3E%3Ccircle cx='180' cy='64' r='3' fill='black'/%3E%3Ccircle cx='188' cy='0' r='3' fill='black'/%3E%3Ccircle cx='188' cy='64' r='3' fill='black'/%3E%3Ccircle cx='196' cy='0' r='3' fill='black'/%3E%3Ccircle cx='196' cy='64' r='3' fill='black'/%3E%3Ccircle cx='204' cy='0' r='3' fill='black'/%3E%3Ccircle cx='204' cy='64' r='3' fill='black'/%3E%3Ccircle cx='212' cy='0' r='3' fill='black'/%3E%3Ccircle cx='212' cy='64' r='3' fill='black'/%3E%3Ccircle cx='220' cy='0' r='3' fill='black'/%3E%3Ccircle cx='220' cy='64' r='3' fill='black'/%3E%3Ccircle cx='228' cy='0' r='3' fill='black'/%3E%3Ccircle cx='228' cy='64' r='3' fill='black'/%3E%3Ccircle cx='236' cy='0' r='3' fill='black'/%3E%3Ccircle cx='236' cy='64' r='3' fill='black'/%3E%3Ccircle cx='0' cy='4' r='3' fill='black'/%3E%3Ccircle cx='240' cy='4' r='3' fill='black'/%3E%3Ccircle cx='0' cy='12' r='3' fill='black'/%3E%3Ccircle cx='240' cy='12' r='3' fill='black'/%3E%3Ccircle cx='0' cy='20' r='3' fill='black'/%3E%3Ccircle cx='240' cy='20' r='3' fill='black'/%3E%3Ccircle cx='0' cy='28' r='3' fill='black'/%3E%3Ccircle cx='240' cy='28' r='3' fill='black'/%3E%3Ccircle cx='0' cy='36' r='3' fill='black'/%3E%3Ccircle cx='240' cy='36' r='3' fill='black'/%3E%3Ccircle cx='0' cy='44' r='3' fill='black'/%3E%3Ccircle cx='240' cy='44' r='3' fill='black'/%3E%3Ccircle cx='0' cy='52' r='3' fill='black'/%3E%3Ccircle cx='240' cy='52' r='3' fill='black'/%3E%3Ccircle cx='0' cy='60' r='3' fill='black'/%3E%3Ccircle cx='240' cy='60' r='3' fill='black'/%3E%3C/mask%3E%3C/defs%3E%3Crect width='240' height='64' fill='%23ffffff' mask='url%28%23p%29'/%3E%3C/svg%3E") center / 100% 100% no-repeat; border:0; box-shadow:none; filter:drop-shadow(0 8px 16px rgba(0,0,0,.5)); }
+#gpPanOverlay .mgr-pop-num{ font-size:10px; color:#6e6e76; white-space:nowrap; letter-spacing:.06em; }
+#gpPanOverlay .mgr-pop-text{ max-width:100%; background:none; border:0; color:#1a1a1e; font-size:13px; line-height:1.4; text-align:center; word-break:break-all; cursor:pointer; font-family:inherit; padding:0; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+#gpPanOverlay .mgr-pop-bubble::before{ content:''; position:absolute; top:50%; margin-top:-7px; border:7px solid transparent; }
+#gpPanOverlay .mgr-pop.pos-right .mgr-pop-bubble::before{ left:-14px; border-right-color:#ffffff; }
+#gpPanOverlay .mgr-pop.pos-left .mgr-pop-bubble::before{ right:-14px; border-left-color:#ffffff; }
+#gpPanOverlay .mgr-pop-del{ position:absolute; top:calc(100% + 12px); left:50%; transform:translateX(-50%); height:30px; padding:0 16px; border-radius:999px; border:1px solid rgba(255,255,255,.2); background:#2a2a2f; color:#ff8a8a; font-size:12px; cursor:pointer; font-family:inherit; white-space:nowrap; box-shadow:0 8px 20px rgba(0,0,0,.55); }
+#gpPanOverlay .mgr-close{ flex:0 0 auto; height:42px; border-radius:999px; border:0; background:#f4f4f4; color:#111; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }
+#gpPanOverlay .edit-overlay{ position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center;
+                 background:rgba(0,0,0,.28); opacity:0; visibility:hidden; transition:opacity .2s ease, visibility .2s; }
+#gpPanOverlay .edit-overlay.show{ opacity:1; visibility:visible; }
+#gpPanOverlay .edit-card{ width:min(300px, 84vw); padding:18px 18px 14px; border-radius:22px; background:rgba(250,250,250,.97);
+              box-shadow:0 12px 36px rgba(0,0,0,.18); display:flex; flex-direction:column; gap:12px; text-align:center; }
+#gpPanOverlay .edit-title{ font-size:15px; font-weight:600; color:#111; }
+#gpPanOverlay .edit-label{ display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; color:#6e6e76; }
+#gpPanOverlay .edit-input{ width:100%; height:36px; border-radius:12px; border:0.5px solid rgba(0,0,0,.14); padding:0 12px; font-size:14px; color:#111; background:#fff; outline:none; text-align:center; }
+#gpPanOverlay .edit-actions{ display:flex; justify-content:center; gap:10px; margin-top:4px; }
+#gpPanOverlay .edit-actions button{ height:34px; padding:0 16px; border-radius:999px; border:0.5px solid rgba(0,0,0,.12); background:#fff; color:#111; font-size:13px; cursor:pointer; font-family:inherit; }
+#gpPanOverlay .edit-actions .save{ background:#111; color:#fff; border-color:#111; }
+#gpPanOverlay .edit-actions .del{ color:#c0392b; }

@@ -345,7 +345,7 @@ function getSettingsAppHTML() {
                     <div class="viewport-panel collapsed" id="pwaIconPanel">
                         <div class="viewport-panel-inner">
                             <div class="pwa-grid" id="pwaIconGrid"></div>
-                            <div class="pwa-hint mono-font">选择后请删除桌面旧图标，重新添加到主屏幕才会生效哦</div>
+                            <div class="pwa-hint mono-font">选择后请删除桌面旧图标，重新添加到主屏幕才会生效</div>
                             <input type="file" id="pwaIconUploadInput" accept="image/*" style="display:none;" onchange="handlePwaIconUpload(event)">
                         </div>
                     </div>
@@ -3063,8 +3063,10 @@ const PWA_ICON_PRESETS = [
     { id: 'icon3',   name: '图标三', src: 'assets/图标3.jpg' },
     { id: 'icon4',   name: '图标四', src: 'assets/图标4.jpg' }
 ];
-const PWA_ICON_KEY = 'pwa_home_icon';           // { type: 'preset', id } 或 { type: 'custom' }
-const PWA_CUSTOM_KEY = 'pwa_home_icon_custom';  // 用户上传图标（512×512 PNG dataURL）
+const PWA_ICON_KEY = 'pwa_home_icon';           // { type: 'preset', id } 或 { type: 'custom', id }
+const PWA_CUSTOM_LIST_KEY = 'pwa_home_icon_customs';   // [{ id, data }]，data 为 512×512 PNG dataURL
+const PWA_CUSTOM_LEGACY_KEY = 'pwa_home_icon_custom';  // 旧版单个自定义图标（仅用于迁移）
+const PWA_CUSTOM_MAX = 8;
 let pwaIconOriginal = null;                     // index.html 原始 link 地址，用于恢复默认
 
 function captureOriginalPwaLinks() {
@@ -3123,12 +3125,27 @@ function restorePwaDefaultIcon() {
     if (pwaIconOriginal.manifest) document.querySelector('link[rel="manifest"]').href = pwaIconOriginal.manifest;
 }
 
+// 读取自定义图标列表（旧版单图标自动迁移成列表）
+async function loadPwaCustoms() {
+    let list = await safeDB.load(PWA_CUSTOM_LIST_KEY, null);
+    if (!Array.isArray(list)) {
+        list = [];
+        const legacy = await safeDB.load(PWA_CUSTOM_LEGACY_KEY, null);
+        if (legacy) {
+            list.push({ id: 'legacy', data: legacy });
+            await safeDB.save(PWA_CUSTOM_LIST_KEY, list);
+        }
+    }
+    return list;
+}
+
 // 按已保存的选择应用图标（启动时也调用一次）
 async function applyCurrentPwaIcon() {
     const cur = await safeDB.load(PWA_ICON_KEY, null);
     if (cur && cur.type === 'custom') {
-        const data = await safeDB.load(PWA_CUSTOM_KEY, null);
-        if (data) return applyPwaHomeIcon(data);
+        const list = await loadPwaCustoms();
+        const item = list.find(x => x.id === cur.id) || list[0];
+        if (item) return applyPwaHomeIcon(item.data);
     } else if (cur && cur.type === 'preset' && cur.id !== 'default') {
         const preset = PWA_ICON_PRESETS.find(p => p.id === cur.id);
         if (preset) return applyPwaHomeIcon(preset.src);
@@ -3136,16 +3153,19 @@ async function applyCurrentPwaIcon() {
     restorePwaDefaultIcon();
 }
 
-// 渲染图标选择格子（默认 / 图标二到四 / 自定义 / 上传）
+// 渲染格子：默认 / 图标二到四（内置，不可删）+ 自定义（可删）+ 上传
 async function renderPwaIconGrid() {
     const grid = document.getElementById('pwaIconGrid');
     if (!grid) return;
     const cur = await safeDB.load(PWA_ICON_KEY, { type: 'preset', id: 'default' });
-    const custom = await safeDB.load(PWA_CUSTOM_KEY, null);
+    const customs = await loadPwaCustoms();
 
-    const card = (active, onclick, thumbHtml, name) => `
+    const card = (active, onclick, thumbHtml, name, delHtml = '') => `
         <div class="pwa-card ${active ? 'active' : ''}" onclick="${onclick}">
-            <div class="pwa-thumb">${thumbHtml}</div>
+            <div class="pwa-thumb-wrap">
+                <div class="pwa-thumb">${thumbHtml}</div>
+                ${delHtml}
+            </div>
             <span class="pwa-card-name mono-font">${name}</span>
         </div>`;
 
@@ -3156,43 +3176,72 @@ async function renderPwaIconGrid() {
         p.name
     )).join('');
 
-    if (custom) {
-        html += card(cur && cur.type === 'custom', 'pickPwaCustomIcon()',
-            `<img src="${custom}" alt="自定义">`, '自定义');
-    }
+    html += customs.map((c, i) => card(
+        cur && cur.type === 'custom' && (cur.id === c.id || (!cur.id && i === 0)),
+        `pickPwaCustomIcon('${c.id}')`,
+        `<img src="${c.data}" alt="自定义${i + 1}">`,
+        `自定义${i + 1}`,
+        `<div class="pwa-del" title="删除" onclick="deletePwaCustomIcon('${c.id}', event)">×</div>`
+    )).join('');
+
     html += card(false, "document.getElementById('pwaIconUploadInput').click()",
         '<span class="pwa-plus">+</span>', '上传');
 
     grid.innerHTML = html;
 }
 
+async function refreshPwaIconAfterChange(msg) {
+    await applyCurrentPwaIcon();
+    renderPwaIconGrid();
+    showCapsuleTip(msg);
+}
+
 async function pickPwaHomeIcon(id) {
     await safeDB.save(PWA_ICON_KEY, { type: 'preset', id });
-    await applyCurrentPwaIcon();
-    renderPwaIconGrid();
-    showCapsuleTip('已更换。请删除桌面旧图标，重新添加到主屏幕才会生效哦');
+    await refreshPwaIconAfterChange('已更换。请删除桌面旧图标，重新添加到主屏幕才会生效');
 }
 
-async function pickPwaCustomIcon() {
-    await safeDB.save(PWA_ICON_KEY, { type: 'custom' });
-    await applyCurrentPwaIcon();
-    renderPwaIconGrid();
-    showCapsuleTip('已更换。请删除桌面旧图标，重新添加到主屏幕才会生效哦');
+async function pickPwaCustomIcon(id) {
+    await safeDB.save(PWA_ICON_KEY, { type: 'custom', id });
+    await refreshPwaIconAfterChange('已更换。请删除桌面旧图标，重新添加到主屏幕才会生效');
 }
 
-// 上传自己的图标：读取 → 居中裁成 512 方图 → 保存并选中
+// 删除自定义图标（只允许删自定义；默认和内置图标没有删除入口）
+async function deletePwaCustomIcon(id, e) {
+    if (e) e.stopPropagation();
+    if (!confirm('删除这个自定义图标？')) return;
+
+    const oldList = await loadPwaCustoms();
+    const cur = await safeDB.load(PWA_ICON_KEY, null);
+    const resolvedId = cur && cur.type === 'custom' ? (cur.id || (oldList[0] && oldList[0].id)) : null;
+
+    await safeDB.save(PWA_CUSTOM_LIST_KEY, oldList.filter(x => x.id !== id));
+
+    // 正在使用的图标被删了，回到默认
+    if (resolvedId === id) {
+        await safeDB.save(PWA_ICON_KEY, { type: 'preset', id: 'default' });
+    }
+    await refreshPwaIconAfterChange('已删除该自定义图标');
+}
+
+// 上传自己的图标：读取 → 居中裁成 512 方图 → 加入列表并选中
 function handlePwaIconUpload(e) {
     const file = e.target.files && e.target.files[0];
     e.target.value = '';
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async () => {
+        const list = await loadPwaCustoms();
+        if (list.length >= PWA_CUSTOM_MAX) {
+            showCapsuleTip(`自定义图标最多 ${PWA_CUSTOM_MAX} 个，请先删除一个`);
+            return;
+        }
         const square = await pwaMakeIcon(reader.result, 512);
-        await safeDB.save(PWA_CUSTOM_KEY, square);
-        await safeDB.save(PWA_ICON_KEY, { type: 'custom' });
-        await applyCurrentPwaIcon();
-        renderPwaIconGrid();
-        showCapsuleTip('已上传。请删除桌面旧图标，重新添加到主屏幕才会生效哦');
+        const id = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        list.push({ id, data: square });
+        await safeDB.save(PWA_CUSTOM_LIST_KEY, list);
+        await safeDB.save(PWA_ICON_KEY, { type: 'custom', id });
+        await refreshPwaIconAfterChange('已上传。请删除桌面旧图标，重新添加到主屏幕才会生效');
     };
     reader.readAsDataURL(file);
 }

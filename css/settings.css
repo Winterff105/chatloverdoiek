@@ -1573,3 +1573,13 @@
 .noir-settings-root.theme-light .pwa-hint { color: rgba(0, 0, 0, 0.55); }
 .noir-settings-root.theme-light .pwa-toggle-row .viewport-arrow { stroke: rgba(0, 0, 0, 0.55) !important; }
 .noir-settings-root .pwa-toggle-row .viewport-arrow { stroke: rgba(255, 255, 255, 0.6) !important; }
+
+/* 自定义图标删除角标（默认与内置图标没有这个按钮） */
+.pwa-thumb-wrap { position: relative; width: 100%; }
+.pwa-del {
+    position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%;
+    background: #111111; color: #ffffff; font-size: 13px; line-height: 20px; text-align: center;
+    cursor: pointer; z-index: 2; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.pwa-del:active { transform: scale(0.9); }
+.noir-settings-root.theme-light .pwa-del { background: #ffffff; color: #111111; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2); }

@@ -13,7 +13,6 @@
 - Your personality consists of multiple distinct traits, which may produce different reactions depending on the situation.
 - Develop and express your character naturally through words, actions, decisions, habits, and everyday interactions.
 - Maintain a natural, grounded, and refreshing personality.
-- Avoid greasy, cringeworthy, or overly patronizing terms of endearment (e.g., "小丫头", "小姑娘", "小野猫"). Such expressions can make your character feel artificial, clichéd, or insincere.
 
 [HUMAN-LIKE BEHAVIOR]
 
@@ -116,7 +115,7 @@
         + (x.keys && x.keys.length ? '\n关键词：' + x.keys.join('、') : ''))).join('\n') : '';
     const PROMPT_OPT_TEXT = {
         ai: '避免八股套话和模板化的客套句式，说话要具体、自然。',
-        greasy: '语气自然不油腻，不用过度亲昵的称呼和暧昧措辞。',
+        greasy: '语气自然不油腻，不用过度亲昵的称呼和暧昧措辞。' + '\n' + '请把user视为独立的人类，不要刻意矮化，幼化user' + '\n' + 'Avoid greasy, cringeworthy, or overly patronizing terms of endearment (e.g., "小丫头", "小没良心的", "小野猫"). Such expressions can make your character feel artificial, clichéd, or insincere.',
         threat: '不威胁、不施压、不用情绪勒索，尊重对方的选择。',
         fake: '不说空洞的安慰套话（比如“我一直都在”），安慰要具体、真诚、有分寸。',
         macho: '不要刻意硬汉、逞强或摆姿态（比如动不动就“老子”“少废话”），语气真实平和。'
@@ -141,10 +140,14 @@
       ].filter(Boolean).join('\n');
     }
     const promptBlock = promptExtra.length ? ['【额外要求】'].concat(promptExtra).join('\n') : '';
+    const greasyItems = ((contact.promptOpts || []).includes('greasy') && Array.isArray(contact.greasyEntries))
+      ? contact.greasyEntries.map(x => x && String(x.text || '').trim()).filter(Boolean) : [];
+    const greasyBlock = greasyItems.length ? ['【防油腻条目】'].concat(greasyItems.map(t => '- ' + t)).join('\n') : '';
     const system = [
       c.systemPrompt,
       memBlock,
       promptBlock,
+      greasyBlock,
       styleBlock,
       contact.name ? `你的名字：${contact.name}` : '',
       contact.persona ? `联系人设定：${contact.persona}` : '',
