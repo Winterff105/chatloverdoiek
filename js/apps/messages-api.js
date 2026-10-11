@@ -114,9 +114,38 @@
         + (x.points && x.points.length ? '\n' + x.points.map(p => '- ' + fillU(p)).join('\n') : '')
         + (x.relation ? '\n关系与感情：' + fillU(x.relation) : '')
         + (x.keys && x.keys.length ? '\n关键词：' + x.keys.join('、') : ''))).join('\n') : '';
+    const PROMPT_OPT_TEXT = {
+        ai: '避免八股套话和模板化的客套句式，说话要具体、自然。',
+        greasy: '语气自然不油腻，不用过度亲昵的称呼和暧昧措辞。',
+        threat: '不威胁、不施压、不用情绪勒索，尊重对方的选择。',
+        fake: '不说空洞的安慰套话（比如“我一直都在”），安慰要具体、真诚、有分寸。',
+        macho: '不要刻意硬汉、逞强或摆姿态（比如动不动就“老子”“少废话”），语气真实平和。'
+    };
+    const promptExtra = (contact.promptOpts || []).map(k => PROMPT_OPT_TEXT[k]).filter(Boolean);
+    let styleSettings = null;
+    try { styleSettings = JSON.parse(localStorage.getItem('forever_chat_prompt_settings_v1') || 'null'); } catch (_) {}
+    let styleBlock = '';
+    if (styleSettings && styleSettings.enabled !== false) {
+      const words = Array.isArray(styleSettings.words) ? styleSettings.words.map(String).filter(Boolean) : [];
+      const levels = styleSettings.priorityLevels && typeof styleSettings.priorityLevels === 'object' ? styleSettings.priorityLevels : {};
+      const legacyHigh = Array.isArray(styleSettings.priority) ? styleSettings.priority.map(String).filter(Boolean) : [];
+      const activeWords = words.filter(w => levels[w] || legacyHigh.includes(w));
+      const group = level => activeWords.filter(w => (levels[w] || (legacyHigh.includes(w) ? 'high' : 'medium')) === level);
+      if (activeWords.length) styleBlock = [
+        '【表达偏好｜按优先级排列】',
+        group('high').length ? '高优先级（放在规则最前，尽量优先遵循）：' + group('high').join('、') + '。' : '',
+        group('medium').length ? '中优先级（通常避免，必要时根据语境自然处理）：' + group('medium').join('、') + '。' : '',
+        group('low').length ? '低优先级（仅作为风格提醒，优先保持语境自然）：' + group('low').join('、') + '。' : '',
+        '优先采用贴合角色性格、当前情境与说话习惯的具体表达；把注意力放在要表达的意思和自然替代表达上，不围绕词条展开联想，也不复述或解释规则。',
+        '角色可以保留自己的复杂、强势、阴郁或有缺点的一面，不强迫角色变得善良、温柔或永远正确。'
+      ].filter(Boolean).join('\n');
+    }
+    const promptBlock = promptExtra.length ? ['【额外要求】'].concat(promptExtra).join('\n') : '';
     const system = [
       c.systemPrompt,
       memBlock,
+      promptBlock,
+      styleBlock,
       contact.name ? `你的名字：${contact.name}` : '',
       contact.persona ? `联系人设定：${contact.persona}` : '',
       contact.sig ? `签名：${contact.sig}` : '',

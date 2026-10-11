@@ -2569,7 +2569,7 @@
 .messages-app .mm-item.del{ color: #B5A0A6; }
 
 /* 默认配色：我方更淡的雾粉（字色保持不变）；对方恢复原来的颜色 */
-.messages-app .mrow.me .bubble{ background: #F1E9EF; color: #4B4150; }
+.messages-app .mrow.me .bubble{ background: #FBF8FA; color: #4B4150; }
 
 /* 我和对方之间的间距拉开；同一个人连续发言的间距保持不变 */
 .messages-app .mrow.gap{ margin-top: 10px; }
@@ -2589,3 +2589,1193 @@
 /* 气泡整体缩小一点；我和对方之间的间距加长；同一个人连续说话的间距不变 */
 .messages-app .bubble{ padding: 7px 12px; font-size: 14px; }
 .messages-app .mrow.gap{ margin-top: 18px; }
+
+/* ===================== 聊天室顶栏下滑面板（与顶栏胶囊同款质感） ===================== */
+.messages-app .chat-drop{
+    position: absolute; left: 12px; right: 12px; top: 130px; z-index: 6;
+    padding: 16px 16px 14px; border-radius: 26px;
+    background: rgba(0,0,0,0.04);
+    backdrop-filter: url(#lens-refraction) blur(12px) saturate(180%);
+    -webkit-backdrop-filter: url(#lens-refraction) blur(12px) saturate(180%);
+    border: 0.5px solid rgba(0,0,0,0.12); border-top: 1px solid rgba(0,0,0,0.2);
+    box-shadow: none;
+    opacity: 0; visibility: hidden; transform: translateY(-14px);
+    transition: opacity .3s ease, transform .35s cubic-bezier(.22,1,.36,1), visibility .3s;
+}
+.messages-app .chat-drop.show{ opacity: 1; visibility: visible; transform: none; }
+.messages-app .cd-chips{ display: flex; flex-wrap: wrap; gap: 8px; }
+.messages-app .cd-chip{
+    height: 32px; padding: 0 14px; border-radius: 999px; border: 0.5px solid rgba(0,0,0,0.12);
+    background: rgba(255,255,255,0.7); color: #111; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: background .2s, color .2s;
+}
+.messages-app .cd-chip.on{ background: #111111; color: #FFFFFF; border-color: #111111; }
+.messages-app .cd-foot{ display: flex; align-items: flex-end; justify-content: space-between; margin-top: 14px; }
+.messages-app .cd-count{ font-size: 12px; color: #6E6E76; padding-bottom: 6px; }
+.messages-app .cd-time{ font-size: 44px; font-weight: 300; line-height: 1; letter-spacing: -1px; color: #111111; font-variant-numeric: tabular-nums; }
+
+/* ===== 顶栏下滑面板（重做：从顶栏边缘向下滑出，布局整理） ===== */
+.messages-app .chat-drop{
+    position: absolute; left: 14px; right: 14px; top: 120px; z-index: 4;
+    padding: 16px 16px 14px; border-radius: 26px; overflow: hidden;
+    background: rgba(0,0,0,0.04);
+    backdrop-filter: url(#lens-refraction) blur(12px) saturate(180%);
+    -webkit-backdrop-filter: url(#lens-refraction) blur(12px) saturate(180%);
+    border: 0.5px solid rgba(0,0,0,0.12); border-top: 1px solid rgba(0,0,0,0.2);
+    box-shadow: none;
+    clip-path: inset(0 0 100% 0 round 26px);
+    transform: translateY(-36px);
+    opacity: 0; visibility: hidden;
+    transition: clip-path .45s cubic-bezier(.22,1,.36,1), transform .45s cubic-bezier(.22,1,.36,1), opacity .25s ease, visibility .45s;
+}
+.messages-app .chat-drop.show{ clip-path: inset(0 0 0 0 round 26px); transform: none; opacity: 1; visibility: visible; }
+
+/* 四个提示词：2×2 等宽格子 */
+.messages-app .cd-chips{ display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.messages-app .cd-chip{
+    width: 100%; height: 38px; border-radius: 19px; border: 0.5px solid rgba(0,0,0,0.10);
+    background: rgba(255,255,255,0.72); color: #222; font-family: inherit; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: background .2s, color .2s, transform .15s;
+}
+.messages-app .cd-chip:active{ transform: scale(.97); }
+.messages-app .cd-chip.on{ background: #111111; color: #FFFFFF; border-color: #111111; }
+
+/* 底部：左侧条数，右侧大时间 */
+.messages-app .cd-foot{
+    display: flex; align-items: flex-end; justify-content: space-between;
+    margin-top: 16px; padding-top: 14px; border-top: 1px dashed rgba(0,0,0,0.12);
+}
+.messages-app .cd-count{ font-size: 12px; font-weight: 600; letter-spacing: .5px; color: #6E6E76; padding-bottom: 4px; }
+.messages-app .cd-time{ font-size: 40px; font-weight: 300; line-height: 1; letter-spacing: -1px; color: #111111; font-variant-numeric: tabular-nums; }
+
+/* 手指拖动时关闭过渡，让面板跟手 */
+.messages-app .chat-drop.dragging{ transition: none; }
+
+/* 顶栏可以手指滑动拉出面板：阻止浏览器把垂直滑动当成页面滚动 */
+.messages-app #chatView .chat-head{ touch-action: none; }
+
+/* ===================== 面板最上方：名字装饰（最高层，每个字独立歪、大小不一） ===================== */
+.messages-app .cd-title{
+    position: relative; z-index: 50; display: flex; flex-wrap: wrap; align-items: center; justify-content: center;
+    min-height: 56px; margin-bottom: 12px; padding: 4px 0;
+    font-family: "STKaiti", "KaiTi", "Songti SC", "Noto Serif SC", serif; color: #111111; line-height: 1.1;
+}
+.messages-app .cd-ch{ display: inline-block; font-weight: 600; transition: transform .3s ease; }
+
+/* ===================== 防超雄 / 名字装饰浅色玻璃 / 星星撒落 ===================== */
+/* 五个提示词：最后一个占满整行 */
+.messages-app .cd-chip:nth-child(odd):last-child{ grid-column: 1 / -1; }
+/* 文字装饰：浅色玻璃质感，加一点柔和的投影让字在浅色面板上清楚 */
+.messages-app .cd-ch{ text-shadow: 0 1px 3px rgba(190,120,150,0.32), 0 0 1px rgba(255,255,255,0.8); }
+
+/* 星星层：铺满面板，不挡点击 */
+.messages-app .cd-stars{ position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.messages-app .cd-star{
+    position: absolute; left: var(--x); top: var(--y); width: var(--s); height: var(--s); display: block;
+    color: #F0C7D8; opacity: var(--op);
+    animation: cdStarFall var(--dur) cubic-bezier(.3,.7,.4,1) var(--delay) both;
+}
+.messages-app .cd-star svg{ width: 100%; height: 100%; display: block; }
+/* 从面板上方撒下来，落到自己的位置上 */
+@keyframes cdStarFall {
+    0%   { transform: translateY(-70px) rotate(0deg); opacity: 0; }
+    20%  { opacity: var(--op); }
+    100% { transform: translateY(0) rotate(var(--rot)); opacity: var(--op); }
+}
+/* 落定之后：固定在面板上，不再重复动画 */
+.messages-app .cd-stars.landed .cd-star{ animation: none; transform: rotate(var(--rot)); opacity: var(--op); }
+
+
+/* ===== 面板纵向收紧：保留文字字号与星星尺寸不变 ===== */
+.messages-app .chat-drop{
+    padding-top: 8px !important;
+    padding-bottom: 8px !important;
+}
+.messages-app .cd-title{
+    min-height: 44px !important;
+    margin-bottom: 6px !important;
+    padding-top: 2px !important;
+    padding-bottom: 2px !important;
+}
+.messages-app .cd-chips{ gap: 6px !important; }
+.messages-app .cd-chip{
+    height: 28px !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+.messages-app .cd-foot{
+    margin-top: 8px !important;
+}
+.messages-app .cd-count{ padding-bottom: 3px !important; }
+
+
+/* ===== 精修：标题字体与细描边、面板横向收窄、默认气泡色 ===== */
+.messages-app .chat-drop{
+    left: 24px !important;
+    right: 24px !important;
+}
+.messages-app .cd-title{
+    font-family: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif !important;
+    font-size: 15px !important;
+    letter-spacing: .2px !important;
+}
+.messages-app .cd-ch{
+    font-family: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif !important;
+    font-size: .86em !important;
+    -webkit-text-stroke: .22px #55515A;
+    paint-order: stroke fill;
+    text-shadow: 0 1px 2px rgba(190,120,150,.22), 0 0 .5px rgba(255,255,255,.7) !important;
+}
+.messages-app .mrow.me .bubble{ background: #FBF8FA !important; }
+
+
+/* ===== 细化面板：楷书标题、放大字饰与星星、重新整理按钮布局 ===== */
+.messages-app .cd-title{
+    min-height: 58px !important;
+    margin-bottom: 10px !important;
+    padding: 4px 2px 7px !important;
+    font-family: "KaiTi", "STKaiti", "Kaiti SC", "楷体", serif !important;
+    align-items: center !important;
+    column-gap: 1px !important;
+}
+.messages-app .cd-ch{
+    font-family: "KaiTi", "STKaiti", "Kaiti SC", "楷体", serif !important;
+    font-weight: 700 !important;
+    -webkit-text-stroke: .28px #55515A !important;
+    text-shadow: 0 1px 2px rgba(190,120,150,.26), 0 0 .5px rgba(255,255,255,.75) !important;
+}
+.messages-app .cd-chips{
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    align-items: stretch !important;
+}
+.messages-app .cd-chip{
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 34px !important;
+    padding: 0 8px !important;
+    border: 1px solid rgba(90,75,85,.14) !important;
+    border-radius: 12px !important;
+    background: rgba(255,255,255,.68) !important;
+    color: #39343A !important;
+    font-family: "KaiTi", "STKaiti", "Kaiti SC", "楷体", serif !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    letter-spacing: .3px !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 2px 5px rgba(65,45,55,.045) !important;
+    transition: background .2s, border-color .2s, color .2s, transform .15s, box-shadow .2s !important;
+}
+.messages-app .cd-chip:nth-child(5):last-child{ grid-column: 1 / -1 !important; }
+.messages-app .cd-chip.on{
+    background: #FBF8FA !important;
+    color: #332832 !important;
+    border-color: rgba(100,72,91,.30) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 3px 8px rgba(90,60,80,.09) !important;
+}
+.messages-app .cd-chip:active{ transform: scale(.975) !important; }
+.messages-app .cd-foot{ margin-top: 10px !important; padding-top: 10px !important; }
+.messages-app .cd-stars{ z-index: 2 !important; }
+
+/* ===== v3：选择状态改为清爽平面风，按钮恢复最初的胶囊形状，字饰进一步放大 ===== */
+.messages-app .cd-chip{
+    height: 32px !important;
+    border-radius: 999px !important;
+    padding: 0 14px !important;
+    border: .5px solid rgba(70,65,70,.18) !important;
+    background: rgba(255,255,255,.72) !important;
+    color: #39343A !important;
+    box-shadow: none !important;
+    transform: none;
+}
+.messages-app .cd-chip.on{
+    background: #FBF8FA !important;
+    color: #332832 !important;
+    border-color: rgba(75,65,75,.42) !important;
+    box-shadow: none !important;
+}
+.messages-app .cd-chip:active{ transform: scale(.985) !important; }
+.messages-app .cd-ch{
+    -webkit-text-stroke: .34px #55515A !important;
+    text-shadow: 0 1px 2px rgba(190,120,150,.30), 0 0 .6px rgba(255,255,255,.7) !important;
+}
+.messages-app .cd-title{
+    min-height: 64px !important;
+    margin-bottom: 10px !important;
+    padding: 5px 2px 8px !important;
+}
+
+
+/* ===== v4：真正放大楷书字饰，星星只落在标题区域 ===== */
+.messages-app .cd-title{
+    font-family: "KaiTi", "STKaiti", "Kaiti SC", "楷体", serif !important;
+    min-height: 78px !important;
+    height: 78px !important;
+    margin-bottom: 8px !important;
+    padding: 7px 2px 5px !important;
+    align-items: center !important;
+    overflow: visible !important;
+}
+.messages-app .cd-ch{
+    font-family: "KaiTi", "STKaiti", "Kaiti SC", "楷体", serif !important;
+    font-weight: 700 !important;
+    -webkit-text-stroke: .38px #55515A !important;
+    paint-order: stroke fill !important;
+    text-shadow: 0 1px 2px rgba(190,120,150,.28), 0 0 .6px rgba(255,255,255,.72) !important;
+}
+.messages-app .cd-stars{
+    inset: 0 0 auto 0 !important;
+    width: 100% !important;
+    height: 78px !important;
+    overflow: hidden !important;
+    z-index: 2 !important;
+}
+
+
+/* ===== v5：按参考图修正——楷书大字、星星只围绕标题且不落到按钮 ===== */
+.messages-app .cd-title{
+    position: relative !important;
+    z-index: 3 !important;
+    min-height: 108px !important;
+    height: 108px !important;
+    margin: 0 0 8px !important;
+    padding: 8px 2px 10px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-wrap: nowrap !important;
+    gap: 0 !important;
+    overflow: visible !important;
+    font-family: "KaiTi", "STKaiti", "Kaiti SC", "楷体", "Noto Serif CJK SC", serif !important;
+}
+.messages-app .cd-title .cd-ch{
+    font-family: "KaiTi", "STKaiti", "Kaiti SC", "楷体", "Noto Serif CJK SC", serif !important;
+    font-size: clamp(30px, 4.5vw, 56px) !important;
+    font-weight: 700 !important;
+    line-height: 1 !important;
+    -webkit-text-stroke: .45px #62545C !important;
+    paint-order: stroke fill !important;
+    text-shadow: 0 1px 1px rgba(190,120,150,.18) !important;
+}
+/* 星星层从标题区上沿开始，限制在标题高度内；不覆盖按钮区域 */
+.messages-app .chat-drop .cd-stars{
+    top: 12px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    width: 100% !important;
+    height: 118px !important;
+    inset: 12px 0 auto 0 !important;
+    overflow: hidden !important;
+    z-index: 2 !important;
+    pointer-events: none !important;
+}
+.messages-app .cd-chips{
+    position: relative !important;
+    z-index: 4 !important;
+}
+.messages-app .cd-chip{
+    font-family: "KaiTi", "STKaiti", "Kaiti SC", "楷体", serif !important;
+    box-shadow: none !important;
+}
+
+
+/* ===== v6：使用项目 otf/tansong.ttf 字体，并降低菜单内粉色的透明度、明度与饱和度 ===== */
+@font-face {
+    font-family: "TanSongCustom";
+    src: url("../otf/tansong.ttf") format("truetype");
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+}
+.messages-app .chat-drop,
+.messages-app .chat-drop .cd-title,
+.messages-app .chat-drop .cd-title .cd-ch,
+.messages-app .chat-drop .cd-chip,
+.messages-app .chat-drop .cd-count,
+.messages-app .chat-drop .cd-time {
+    font-family: "TanSongCustom", "KaiTi", "STKaiti", "Kaiti SC", serif !important;
+}
+/* 将面板内粉色统一压低饱和度和亮度，避免过艳、过亮 */
+.messages-app .chat-drop .cd-chip.on {
+    background: rgba(220, 211, 218, .52) !important;
+    border-color: rgba(95, 83, 91, .25) !important;
+    color: #39343A !important;
+}
+.messages-app .chat-drop .cd-star {
+    color: rgba(190, 164, 177, .48) !important;
+    opacity: calc(var(--op, 1) * .58) !important;
+}
+.messages-app .chat-drop .cd-ch {
+    text-shadow: 0 1px 1px rgba(150, 126, 139, .12) !important;
+}
+
+
+/* ===== v7：仅装饰标题使用 tansong.ttf；按钮恢复原字体，菜单粉色统一黑白灰 ===== */
+.messages-app .chat-drop .cd-title,
+.messages-app .chat-drop .cd-title .cd-ch {
+    font-family: "TanSongCustom", "KaiTi", "STKaiti", "Kaiti SC", serif !important;
+}
+.messages-app .chat-drop .cd-chip,
+.messages-app .chat-drop .cd-count,
+.messages-app .chat-drop .cd-time {
+    font-family: inherit !important;
+}
+.messages-app .chat-drop .cd-chip.on {
+    background: rgba(205, 205, 208, .52) !important;
+    border-color: rgba(75, 75, 80, .28) !important;
+    color: #39393D !important;
+}
+.messages-app .chat-drop .cd-star {
+    color: rgba(115, 115, 122, .40) !important;
+    opacity: calc(var(--op, 1) * .62) !important;
+}
+.messages-app .chat-drop .cd-ch {
+    -webkit-text-stroke: .45px #625F64 !important;
+    text-shadow: 0 1px 1px rgba(90, 90, 96, .13) !important;
+}
+.messages-app .chat-drop .cd-chip {
+    background: rgba(255,255,255,.72) !important;
+    color: #39393D !important;
+    border-color: rgba(90,90,95,.18) !important;
+}
+
+
+/* ===== 集成新版黑白灰提示词面板：保持项目原尺寸 ===== */
+@font-face{
+  font-family:"TanSongCustom";
+  src:url("../otf/tansong.ttf") format("truetype");
+  font-style:normal;
+  font-weight:100 900;
+  font-display:swap;
+}
+/* 面板本身沿用项目原有的 top、左右边距与内边距，只替换视觉样式 */
+.messages-app .chat-drop{
+  padding:12px 12px 10px !important;
+  border-radius:24px !important;
+  background:rgba(247,247,247,.97) !important;
+  border:1px solid rgba(80,80,80,.16) !important;
+  box-shadow:0 8px 24px rgba(0,0,0,.045) !important;
+  -webkit-backdrop-filter:blur(14px) saturate(80%) !important;
+  backdrop-filter:blur(14px) saturate(80%) !important;
+}
+/* 只有装饰标题使用 tansong.ttf；按钮、计数、时间明确回到项目普通字体 */
+.messages-app .chat-drop .cd-title,
+.messages-app .chat-drop .cd-title .cd-ch{
+  font-family:"TanSongCustom",serif !important;
+}
+.messages-app .chat-drop .cd-title{
+  min-height:70px !important;
+  height:70px !important;
+  margin:0 0 6px !important;
+  padding:3px 0 5px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  gap:0 !important;
+  white-space:nowrap !important;
+  overflow:visible !important;
+  position:relative !important;
+  z-index:3 !important;
+}
+.messages-app .chat-drop .cd-title .cd-ch{
+  font-size:clamp(25px,7vw,37px) !important;
+  font-weight:400 !important;
+  line-height:1 !important;
+  -webkit-text-stroke:.3px #555 !important;
+  paint-order:stroke fill !important;
+  text-shadow:0 1px 0 rgba(255,255,255,.75) !important;
+}
+.messages-app .chat-drop .cd-chip,
+.messages-app .chat-drop .cd-count,
+.messages-app .chat-drop .cd-time{
+  font-family:inherit !important;
+}
+.messages-app .chat-drop .cd-chips{
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:7px !important;
+  position:relative !important;
+  z-index:4 !important;
+}
+.messages-app .chat-drop .cd-chip{
+  width:100% !important;
+  min-width:0 !important;
+  height:34px !important;
+  padding:0 8px !important;
+  border-radius:999px !important;
+  border:1px solid #dedede !important;
+  background:rgba(255,255,255,.9) !important;
+  color:#454545 !important;
+  font-size:12px !important;
+  font-weight:500 !important;
+  box-shadow:none !important;
+  letter-spacing:0 !important;
+}
+.messages-app .chat-drop .cd-chip.on{
+  background:#e9e9e9 !important;
+  color:#252525 !important;
+  border-color:#bcbcbc !important;
+  box-shadow:inset 0 0 0 1px #f8f8f8 !important;
+}
+.messages-app .chat-drop .cd-chip:nth-child(5):last-child{grid-column:1/-1 !important;}
+.messages-app .chat-drop .cd-foot{
+  margin-top:9px !important;
+  padding-top:8px !important;
+  border-top:1px dashed #d4d4d4 !important;
+  position:relative !important;
+  z-index:4 !important;
+}
+.messages-app .chat-drop .cd-count{font-size:11px !important;color:#858585 !important;}
+.messages-app .chat-drop .cd-time{font-size:36px !important;color:#202020 !important;}
+/* 星星只在标题装饰区活动，不覆盖按钮 */
+.messages-app .chat-drop .cd-stars{
+  top:0 !important;left:0 !important;right:0 !important;bottom:auto !important;
+  width:100% !important;height:76px !important;inset:0 0 auto 0 !important;
+  overflow:hidden !important;pointer-events:none !important;z-index:2 !important;
+}
+.messages-app .chat-drop .cd-star{color:rgba(145,145,150,.48) !important;}
+@media(max-width:360px){
+ .messages-app .chat-drop{padding:10px 10px 9px !important;}
+ .messages-app .chat-drop .cd-title{height:64px !important;min-height:64px !important;}
+ .messages-app .chat-drop .cd-title .cd-ch{font-size:clamp(22px,6.7vw,31px) !important;}
+ .messages-app .chat-drop .cd-chip{height:32px !important;font-size:11.5px !important;}
+ .messages-app .chat-drop .cd-time{font-size:32px !important;}
+}
+
+/* ===== 黑白灰统一修正：清除旧版残留粉色 ===== */
+.messages-app .mm-menu{
+  background: radial-gradient(circle at 0% 100%, #eeeeee 0%, rgba(238,238,238,0) 55%), #ffffff !important;
+}
+.messages-app .mm-item.del,
+.messages-app .mm-bar-btn.del{ color: #777777 !important; }
+.messages-app .mm-bar-btn.del{ background: #f2f2f2 !important; }
+.messages-app .mrow.me .bubble{ background: #FBF8FA !important; color: #4B4150 !important; }
+.messages-app .cd-title .cd-ch{
+  text-shadow: 0 1px 2px rgba(0,0,0,.14), 0 0 .5px rgba(255,255,255,.75) !important;
+}
+.messages-app .cd-star{ color: #a8a8a8 !important; }
+
+
+/* ===== 最终配色覆盖：装饰与菜单统一黑白灰，默认我方气泡指定色 ===== */
+.messages-app .mm-menu{
+  background: radial-gradient(circle at 0% 100%, #eeeeee 0%, rgba(238,238,238,0) 55%), #ffffff !important;
+}
+.messages-app .mm-item.del,
+.messages-app .mm-bar-btn.del{ color: #777777 !important; }
+.messages-app .mm-bar-btn.del{ background: #f2f2f2 !important; }
+.messages-app .cd-ch{ text-shadow: 0 1px 2px rgba(0,0,0,.14), 0 0 .5px rgba(255,255,255,.75) !important; }
+.messages-app .cd-star{ color: #a8a8a8 !important; }
+.messages-app .mrow.me .bubble{ background: #FBF8FA !important; color: #4B4150 !important; }
+
+/* 修正：面板标题彻底取消粉色效果；默认我方消息气泡固定为指定颜色 */
+.messages-app .chat-drop .cd-title,
+.messages-app .chat-drop .cd-title .cd-ch {
+  color: #333333 !important;
+  background: none !important;
+  background-image: none !important;
+  -webkit-text-fill-color: #333333 !important;
+  -webkit-text-stroke: .35px #666666 !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+.messages-app .chat-drop .cd-chip.on {
+  background: #E5E5E5 !important;
+  border-color: #BDBDBD !important;
+  color: #333333 !important;
+  box-shadow: none !important;
+}
+.messages-app .chat-drop .cd-star {
+  color: #BDBDBD !important;
+}
+/* 默认气泡颜色；使用高优先级覆盖旧预设及页面内样式 */
+.messages-app #chatView:not([data-bubble]) .mrow.me .bubble,
+.messages-app #thread .mrow.me .bubble,
+.messages-app .mrow.me .bubble {
+  background-color: #FBF8FA !important;
+  background-image: none !important;
+  color: #4B4150 !important;
+}
+
+/* 本次追加：时间与装饰字降低存在感，选项右侧 SVG 调整入口 */
+.messages-app .chat-drop .cd-time{color:#777 !important;opacity:.62 !important;}
+.messages-app .chat-drop .cd-count{opacity:.62 !important;}
+.messages-app .chat-drop .cd-title .cd-ch{opacity:.68 !important;}
+.messages-app .chat-drop .cd-option{display:flex;align-items:center;gap:7px;min-width:0;}
+.messages-app .chat-drop .cd-option .cd-chip{flex:1;min-width:0;width:100%;}
+.messages-app .chat-drop .cd-edit{width:8px;height:27px;min-width:8px;flex:0 0 8px;border:1px solid #888;border-radius:999px;background:rgba(255,255,255,.72);color:transparent;display:grid;place-items:center;padding:0;cursor:pointer;box-shadow:none;overflow:hidden;}
+.messages-app .chat-drop .cd-edit svg{display:none;width:0;height:0;}
+.messages-app .chat-drop .cd-edit:active{background:#e9e9e9;}
+.cd-settings-overlay,.cd-settings-backdrop{position:fixed;inset:0;z-index:2147483000;background:rgba(20,20,20,.28);display:flex;align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);}
+.cd-settings{box-sizing:border-box;width:min(440px,100%);max-height:min(82vh,720px);overflow:auto;border:1px solid #e1e1e1;border-radius:24px;background:#fbfbfb;color:#292929;padding:20px 18px 18px;box-shadow:0 16px 44px rgba(0,0,0,.16);font-family:inherit;}
+.cd-settings header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;font-size:16px;line-height:1.45;margin-bottom:12px;}.cd-settings header>div{min-width:0;display:flex;flex-direction:column;gap:5px;}.cd-settings header strong{font-weight:650;letter-spacing:.02em;}.cd-settings header small{font-size:12px;line-height:1.6;font-weight:400;color:#888;}
+.cd-settings-close{flex:0 0 30px;border:0;background:#eee;border-radius:50%;width:30px;height:30px;font-size:21px;line-height:1;color:#444;display:grid;place-items:center;}
+.cd-settings-desc,.cd-settings-note{font-size:12px;line-height:1.7;color:#777;margin:0 0 14px;}
+.cd-settings-label{display:block;font-size:13px;font-weight:600;color:#555;margin:16px 0 9px;}
+.cd-settings textarea{display:block;box-sizing:border-box;width:100%;min-height:78px;resize:vertical;border:1px solid #ddd;border-radius:15px;background:#fff;color:#333;padding:12px 13px;font:14px/1.65 inherit;outline:none;margin-top:12px;}.cd-settings textarea:focus{border-color:#999;box-shadow:0 0 0 3px rgba(0,0,0,.035);}.cd-master{display:flex;align-items:center;gap:9px;font-size:14px;padding:10px 12px;border-radius:13px;background:#f0f0f0;}.cd-master input,.cd-word-row input{appearance:none;-webkit-appearance:none;width:18px;height:18px;flex:0 0 18px;border:1.5px solid #bdbdbd;border-radius:5px;background:#fff;margin:0;position:relative;}.cd-master input:checked,.cd-word-row input:checked{background:#333;border-color:#333;}.cd-master input:checked:after,.cd-word-row input:checked:after{content:"✓";position:absolute;inset:-1px;color:white;font-size:14px;font-weight:700;line-height:18px;text-align:center;}.cd-word-list{display:flex;flex-wrap:wrap;gap:8px;}.cd-word-row{display:inline-flex;align-items:center;gap:7px;max-width:100%;min-width:0;border:1px solid #dedede;border-radius:999px;padding:8px 10px;background:#fff;font-size:13px;line-height:1.35;color:#444;}.cd-word-row span{overflow-wrap:anywhere;}.cd-word-row em{font-style:normal;color:#888;font-size:11px;white-space:nowrap;padding-left:2px;}
+.cd-priority{display:flex;align-items:flex-start;gap:9px;font-size:13px;line-height:1.55;padding:9px 0;border-bottom:1px solid #eee;}
+.cd-priority input{accent-color:#666;margin-top:3px;}
+.cd-settings footer{display:flex;justify-content:flex-end;gap:9px;margin-top:18px;flex-wrap:wrap;}
+.cd-settings footer button{min-height:42px;border-radius:999px;padding:10px 18px;border:1px solid #d7d7d7;background:#fff;color:#444;font:inherit;font-size:14px;}
+.cd-settings footer .cd-settings-save{background:#333;color:#fff;border-color:#333;}
+
+
+/* ===== 最终微调：细小设置条、弹窗双闪渐显、精致词条控制 ===== */
+.messages-app .chat-drop .cd-option-settings{
+  width:6px !important;height:23px !important;min-width:6px !important;flex:0 0 6px !important;
+  padding:0 !important;margin:0 1px !important;border:1px solid #858585 !important;border-radius:999px !important;
+  background:rgba(255,255,255,.68) !important;box-shadow:none !important;overflow:hidden !important;
+  display:block !important;cursor:pointer !important;position:relative !important;z-index:8 !important;
+  -webkit-tap-highlight-color:transparent;
+}
+.messages-app .chat-drop .cd-option-settings svg{display:none !important;width:0 !important;height:0 !important;}
+.messages-app .chat-drop .cd-option-settings:active{background:#dcdcdc !important;}
+.messages-app .chat-drop .cd-title .cd-ch{
+  background:linear-gradient(to top,#555 0%,#777 30%,#aaa 62%,#d0d0d0 100%);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  color:transparent !important;text-shadow:0 1px 1px rgba(255,255,255,.55) !important;
+  opacity:calc(.54 + (var(--char-index, 0) % 4) * .11) !important;
+}
+.cd-settings-overlay{
+  opacity:0;visibility:hidden;transition:opacity .22s ease,visibility .22s ease;
+}
+.cd-settings-overlay.is-visible{opacity:1;visibility:visible;animation:cdOverlayFlicker .48s ease-out both;}
+.cd-settings-overlay.is-leaving{opacity:0;visibility:visible;}
+.cd-settings-overlay .cd-settings{opacity:0;transform:translateY(18px) scale(.965);}
+.cd-settings-overlay.is-visible .cd-settings{animation:cdPanelFlicker .58s cubic-bezier(.2,.8,.2,1) both;}
+@keyframes cdOverlayFlicker{0%{opacity:0}18%{opacity:.92}32%{opacity:.42}48%{opacity:1}63%{opacity:.68}78%{opacity:1}100%{opacity:1}}
+@keyframes cdPanelFlicker{0%{opacity:0;transform:translateY(18px) scale(.965)}18%{opacity:1;transform:translateY(0) scale(1)}32%{opacity:.35}47%{opacity:1}61%{opacity:.58}77%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1)}}
+.cd-settings-overlay{background:rgba(18,18,20,.32) !important;padding:20px !important;}
+.cd-settings-overlay .cd-settings{
+  width:min(420px,100%) !important;max-height:min(80vh,680px) !important;overflow:auto !important;
+  padding:22px 20px 18px !important;border:1px solid rgba(255,255,255,.95) !important;
+  border-radius:27px !important;background:linear-gradient(145deg,#fff 0%,#f7f7f7 100%) !important;
+  box-shadow:0 24px 70px rgba(0,0,0,.18),inset 0 1px 0 #fff !important;color:#292929 !important;
+}
+.cd-settings header{align-items:center !important;padding-bottom:15px !important;border-bottom:1px solid #e9e9e9 !important;margin-bottom:15px !important;}
+.cd-settings .cd-settings-kicker{font-size:9px;letter-spacing:2px;color:#999;font-weight:700;}
+.cd-settings header strong{font-size:21px !important;letter-spacing:.04em !important;color:#242424 !important;}
+.cd-settings header small{font-size:12px !important;color:#888 !important;}
+.cd-settings .cd-settings-close{width:32px !important;height:32px !important;flex-basis:32px !important;background:#ededed !important;color:#444 !important;border:1px solid #e4e4e4 !important;}
+.cd-settings .cd-master{padding:12px 13px !important;border:1px solid #e5e5e5 !important;border-radius:16px !important;background:#f5f5f5 !important;}
+.cd-settings .cd-master span{display:flex;flex-direction:column;gap:3px;}
+.cd-settings .cd-master b{font-size:13px;font-weight:650;color:#333;}
+.cd-settings .cd-master small{font-size:11px;color:#929292;}
+.cd-settings .cd-settings-section{margin-top:17px;}
+.cd-settings .cd-settings-label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px !important;font-size:13px !important;font-weight:650 !important;color:#444 !important;}
+.cd-settings .cd-settings-label span{font-size:10px;font-weight:400;color:#999;}
+.cd-settings .cd-word-list{display:flex;flex-direction:column;gap:7px !important;}
+.cd-settings .cd-word-row{display:flex !important;width:100%;box-sizing:border-box;align-items:center;gap:10px !important;padding:10px 12px !important;border:1px solid #e7e7e7 !important;border-radius:13px !important;background:#fff !important;font-size:13px !important;}
+.cd-settings .cd-word-row em{margin-left:auto;color:#888 !important;font-size:10px !important;}
+.cd-settings .cd-word-row input,.cd-settings .cd-master input{accent-color:#444 !important;}
+.cd-settings .cd-word-add{min-height:88px !important;border-radius:15px !important;border:1px solid #e2e2e2 !important;background:#fff !important;padding:12px 13px !important;font:13px/1.65 inherit !important;resize:vertical !important;}
+.cd-settings .cd-settings-hint{display:flex;gap:9px;padding:11px 12px;margin-top:14px;border-radius:14px;background:#f0f0f0;color:#777;}
+.cd-settings .cd-hint-mark{font-size:15px;color:#555;}
+.cd-settings .cd-settings-hint p{margin:0;font-size:11px;line-height:1.7;}
+.cd-settings footer{display:flex;gap:9px;margin-top:18px !important;}
+.cd-settings footer button{min-height:42px !important;border-radius:999px !important;padding:10px 16px !important;font-size:13px !important;}
+.cd-settings footer .cd-settings-reset{background:#fff !important;color:#555 !important;border-color:#ddd !important;}
+.cd-settings footer .cd-settings-save{background:#292929 !important;color:#fff !important;border-color:#292929 !important;}
+.cd-settings footer .cd-settings-save span{margin-left:7px;color:#bbb;}
+@media(prefers-reduced-motion:reduce){.cd-settings-overlay.is-visible,.cd-settings-overlay.is-visible .cd-settings{animation:none !important;}}
+
+/* ===== 本轮微调：设置竖条更深、标题渐变更明显、弹窗压缩与圆形优先级 ===== */
+.messages-app .chat-drop .cd-option-settings{
+  border-color:#626262 !important;
+  background:rgba(245,245,245,.9) !important;
+  box-shadow:inset 0 0 0 .4px rgba(30,30,30,.22) !important;
+}
+.messages-app .chat-drop .cd-option-settings:active{background:#d1d1d1 !important;}
+/* 标题字形必须使用项目装饰字体，并为每个字设置从下至上的灰阶渐变 */
+.messages-app .chat-drop .cd-title{font-family:"TanSongCustom","STKaiti","KaiTi",serif !important;}
+.messages-app .chat-drop .cd-title .cd-ch{
+  font-family:"TanSongCustom","STKaiti","KaiTi",serif !important;
+  background:linear-gradient(0deg,#3e3e3e 0%,#666 25%,#969696 53%,#c8c8c8 78%,#e2e2e2 100%) !important;
+  -webkit-background-clip:text !important;background-clip:text !important;
+  -webkit-text-fill-color:transparent !important;color:transparent !important;
+  -webkit-text-stroke:.15px rgba(70,70,70,.22) !important;
+  text-shadow:0 1px 0 rgba(255,255,255,.6) !important;
+}
+.messages-app .chat-drop .cd-title .cd-ch:nth-child(3n+1){opacity:.76 !important;}
+.messages-app .chat-drop .cd-title .cd-ch:nth-child(3n+2){opacity:.94 !important;}
+.messages-app .chat-drop .cd-title .cd-ch:nth-child(3n){opacity:.58 !important;}
+/* 弹窗纵向压缩：更紧凑的卡片布局 */
+#cdPromptSettings.cd-settings-overlay{padding:12px !important;}
+#cdPromptSettings .cd-settings{
+  width:min(410px,100%) !important;max-height:min(72vh,610px) !important;
+  overflow-y:auto !important;padding:16px 16px 13px !important;border-radius:23px !important;
+}
+#cdPromptSettings .cd-settings header{padding-bottom:10px !important;margin-bottom:10px !important;}
+#cdPromptSettings .cd-settings header strong{font-size:19px !important;}
+#cdPromptSettings .cd-settings header small{font-size:11px !important;line-height:1.4 !important;}
+#cdPromptSettings .cd-master{padding:9px 10px !important;border-radius:13px !important;gap:8px !important;}
+#cdPromptSettings .cd-settings-section{margin-top:12px !important;}
+#cdPromptSettings .cd-settings-label{margin-bottom:7px !important;font-size:12px !important;}
+#cdPromptSettings .cd-settings-label span{font-size:9px !important;}
+#cdPromptSettings .cd-word-list{gap:6px !important;}
+#cdPromptSettings .cd-word-row{
+  display:flex !important;flex-wrap:nowrap !important;gap:8px !important;
+  min-height:38px !important;padding:6px 8px !important;border-radius:999px !important;
+  background:#fff !important;border:1px solid #e4e4e4 !important;
+}
+#cdPromptSettings .cd-word-check{position:relative;display:grid;place-items:center;flex:0 0 21px;width:21px;height:21px;cursor:pointer;}
+#cdPromptSettings .cd-word-check input{position:absolute;inset:0;width:21px;height:21px;margin:0;opacity:0;cursor:pointer;}
+#cdPromptSettings .cd-word-check svg{width:21px;height:21px;border:1.4px solid #c9c9c9;border-radius:7px;background:#fff;fill:none;stroke:transparent;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;transition:background .18s,border-color .18s,transform .18s;}
+#cdPromptSettings .cd-word-check input:checked+svg{background:#333;border-color:#333;stroke:#fff;transform:scale(1.02);}
+#cdPromptSettings .cd-word-check input:focus-visible+svg{outline:2px solid #aaa;outline-offset:2px;}
+#cdPromptSettings .cd-word-text{flex:1;min-width:0;font-size:12px !important;color:#333 !important;overflow-wrap:anywhere;}
+#cdPromptSettings .cd-priority-pills{display:flex;align-items:center;gap:4px;flex:0 0 auto;}
+#cdPromptSettings .cd-prio-pill{display:grid;place-items:center;width:25px;height:25px;min-width:25px;padding:0;border:1px solid #dedede;border-radius:50%;background:#fff;color:#8a8a8a;font-size:10px;line-height:1;cursor:pointer;transition:background .15s,color .15s,border-color .15s,transform .15s;}
+#cdPromptSettings .cd-prio-pill.is-active{background:#333;color:#fff;border-color:#333;box-shadow:0 1px 3px rgba(0,0,0,.12);}
+#cdPromptSettings .cd-prio-pill:active{transform:scale(.92);}
+#cdPromptSettings .cd-word-add{min-height:58px !important;height:58px !important;resize:none !important;margin-top:0 !important;padding:9px 11px !important;border-radius:13px !important;font-size:12px !important;}
+#cdPromptSettings .cd-settings-hint{padding:8px 10px !important;margin-top:10px !important;border-radius:12px !important;}
+#cdPromptSettings .cd-settings-hint p{font-size:10px !important;line-height:1.5 !important;}
+#cdPromptSettings .cd-settings footer{margin-top:12px !important;}
+#cdPromptSettings .cd-settings footer button{min-height:36px !important;padding:8px 14px !important;font-size:12px !important;}
+@media(max-height:700px){#cdPromptSettings .cd-settings{max-height:68vh !important;padding-top:13px !important;padding-bottom:10px !important;}#cdPromptSettings .cd-settings-hint{display:none !important;}}
+
+
+/* ===== 禁用词/表达偏好面板：SVG 对勾 + 固定可见操作栏 ===== */
+#cdPromptSettings .cd-master,
+#cdPromptSettings .cd-word-check{position:relative;}
+#cdPromptSettings .cd-master input{
+  position:absolute !important;left:10px;top:50%;transform:translateY(-50%);
+  width:21px !important;height:21px !important;margin:0 !important;
+  opacity:0 !important;z-index:2;cursor:pointer;
+}
+#cdPromptSettings .cd-master{padding-left:40px !important;}
+#cdPromptSettings .cd-master>svg{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  display:block !important;width:21px !important;height:21px !important;
+  border:1.4px solid #c9c9c9;border-radius:7px;background:#fff;
+  fill:none;stroke:transparent;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;
+  pointer-events:none;transition:background .18s,border-color .18s;
+}
+#cdPromptSettings .cd-master input:checked+svg{background:#333;border-color:#333;stroke:#fff;}
+#cdPromptSettings .cd-master input:focus-visible+svg{outline:2px solid #aaa;outline-offset:2px;}
+#cdPromptSettings .cd-settings{
+  display:flex !important;flex-direction:column !important;
+  overflow:hidden !important;min-height:0 !important;
+  max-height:min(78dvh,680px) !important;
+}
+#cdPromptSettings .cd-settings header,
+#cdPromptSettings .cd-settings .cd-master,
+#cdPromptSettings .cd-settings footer{flex-shrink:0;}
+#cdPromptSettings .cd-settings .cd-settings-section,
+#cdPromptSettings .cd-settings .cd-settings-hint{flex-shrink:0;}
+#cdPromptSettings .cd-settings .cd-word-list{
+  max-height:min(30dvh,250px);overflow-y:auto;overscroll-behavior:contain;
+  padding:1px 3px 5px 1px;scrollbar-width:thin;
+}
+#cdPromptSettings .cd-settings .cd-add-section{flex-shrink:0;}
+#cdPromptSettings .cd-settings footer{
+  position:relative !important;bottom:auto !important;z-index:5;
+  display:flex !important;gap:9px !important;justify-content:stretch !important;
+  margin:10px -16px -13px !important;padding:10px 16px max(10px, env(safe-area-inset-bottom)) !important;
+  background:rgba(250,250,250,.98) !important;
+  border-top:1px solid #e7e7e7 !important;
+  box-shadow:0 -8px 18px rgba(0,0,0,.035);
+}
+#cdPromptSettings .cd-settings footer button{flex:1;min-width:0;}
+#cdPromptSettings .cd-settings footer .cd-settings-reset{white-space:nowrap;}
+@media(max-height:700px){
+  #cdPromptSettings .cd-settings{max-height:84dvh !important;}
+  #cdPromptSettings .cd-settings-hint{display:none !important;}
+  #cdPromptSettings .cd-settings .cd-word-list{max-height:27dvh;}
+}
+
+#cdPromptSettings .cd-settings-main{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-bottom:8px;}
+#cdPromptSettings .cd-settings footer{flex:0 0 auto;}
+
+
+/* ===== 细化：词条仅显示 SVG 对勾，弹窗改为缓慢渐显 ===== */
+#cdPromptSettings .cd-word-check{
+  flex:0 0 22px !important;width:22px !important;height:22px !important;
+  display:grid !important;place-items:center !important;
+}
+#cdPromptSettings .cd-word-check input{
+  position:absolute !important;inset:0 !important;width:100% !important;height:100% !important;
+  margin:0 !important;opacity:0 !important;cursor:pointer !important;z-index:2 !important;
+}
+#cdPromptSettings .cd-word-check svg{
+  display:block !important;width:20px !important;height:20px !important;
+  border:0 !important;border-radius:0 !important;background:transparent !important;
+  fill:none !important;stroke:transparent !important;stroke-width:2.6 !important;
+  stroke-linecap:round !important;stroke-linejoin:round !important;
+  transform:none !important;transition:stroke .22s ease,opacity .22s ease !important;
+  pointer-events:none !important;
+}
+#cdPromptSettings .cd-word-check input:checked+svg{
+  background:transparent !important;border:0 !important;stroke:#292929 !important;
+}
+#cdPromptSettings .cd-word-check input:focus-visible+svg{
+  outline:2px solid #aaa !important;outline-offset:3px !important;border-radius:3px !important;
+}
+/* 覆盖旧的闪烁关键帧，改成稳定、柔和的慢速渐显 */
+#cdPromptSettings.cd-settings-overlay{
+  animation:none !important;transition:opacity .42s ease,visibility .42s ease !important;
+}
+#cdPromptSettings.cd-settings-overlay.is-visible{
+  animation:cdSettingsFadeIn .62s ease-out both !important;
+}
+#cdPromptSettings.cd-settings-overlay .cd-settings{
+  animation:none !important;opacity:0;transform:translateY(10px) scale(.99);
+  transition:opacity .62s ease,transform .62s cubic-bezier(.2,.75,.25,1) !important;
+}
+#cdPromptSettings.cd-settings-overlay.is-visible .cd-settings{
+  opacity:1;transform:translateY(0) scale(1);
+  animation:none !important;
+}
+#cdPromptSettings.cd-settings-overlay.is-leaving{
+  opacity:0 !important;transition:opacity .32s ease !important;
+}
+@keyframes cdSettingsFadeIn{from{opacity:0}to{opacity:1}}
+@media(prefers-reduced-motion:reduce){
+  #cdPromptSettings.cd-settings-overlay,
+  #cdPromptSettings.cd-settings-overlay .cd-settings{animation:none !important;transition:none !important;}
+}
+
+
+/* ===== 禁用词面板：^ω^ SVG 标记、单胶囊优先级、编辑/删除 ===== */
+#cdPromptSettings .cd-word-row{gap:8px !important;}
+#cdPromptSettings .cd-word-check{flex:0 0 32px !important;width:32px !important;height:22px !important;}
+#cdPromptSettings .cd-word-check svg{width:32px !important;height:22px !important;overflow:visible;opacity:0;transform:scale(.88);transition:opacity .2s ease,transform .2s ease !important;}
+#cdPromptSettings .cd-word-check svg text{fill:#343434;stroke:none;}
+#cdPromptSettings .cd-word-check input:checked+svg{opacity:1;transform:scale(1);stroke:transparent !important;}
+#cdPromptSettings .cd-word-check input:not(:checked)+svg{opacity:0;}
+#cdPromptSettings .cd-priority-pills{flex:0 0 auto !important;display:flex !important;align-items:center;}
+#cdPromptSettings .cd-prio-pill{width:42px !important;min-width:42px !important;height:25px !important;padding:0 10px !important;border:0 !important;border-radius:999px !important;box-shadow:none !important;font-size:11px !important;font-weight:600 !important;transition:background .22s ease,color .22s ease,transform .15s ease !important;}
+#cdPromptSettings .cd-prio-pill.is-high{background:#303030 !important;color:#fff !important;}
+#cdPromptSettings .cd-prio-pill.is-medium{background:#d8d8d8 !important;color:#444 !important;}
+#cdPromptSettings .cd-prio-pill.is-low{background:#f0f0f0 !important;color:#888 !important;}
+#cdPromptSettings .cd-prio-pill:active{transform:scale(.94);}
+#cdPromptSettings .cd-word-actions{display:flex;align-items:center;gap:3px;flex:0 0 auto;}
+#cdPromptSettings .cd-word-actions button{display:grid;place-items:center;width:25px;height:25px;padding:0;border:0;border-radius:50%;background:transparent;color:#999;cursor:pointer;transition:background .18s,color .18s,transform .15s;}
+#cdPromptSettings .cd-word-actions button:active{transform:scale(.9);background:#eee;}
+#cdPromptSettings .cd-word-actions svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round;}
+#cdPromptSettings .cd-word-edit:focus-visible,#cdPromptSettings .cd-word-delete:focus-visible{outline:1px solid #aaa;outline-offset:1px;}
+#cdPromptSettings .cd-word-delete{color:#aaa !important;}
+@media(max-width:380px){#cdPromptSettings .cd-word-row{gap:5px !important;padding:8px 8px !important;}#cdPromptSettings .cd-word-text{font-size:11px !important;}#cdPromptSettings .cd-prio-pill{width:36px !important;min-width:36px !important;}#cdPromptSettings .cd-word-actions button{width:22px;height:22px;}}
+
+/* 标题居中：标题与副标题在弹窗头部正中，关闭按钮仍固定在右侧 */
+#cdPromptSettings .cd-settings header{
+  position:relative !important;
+  display:flex !important;
+  justify-content:center !important;
+  align-items:center !important;
+  text-align:center !important;
+  min-height:54px !important;
+  padding-left:28px !important;
+  padding-right:28px !important;
+}
+#cdPromptSettings .cd-settings header>div{
+  width:100% !important;
+  min-width:0 !important;
+  align-items:center !important;
+  text-align:center !important;
+}
+#cdPromptSettings .cd-settings header .cd-settings-close{
+  position:absolute !important;
+  right:0 !important;
+  top:50% !important;
+  transform:translateY(-50%) !important;
+}
+
+/* 修正文字可读性：弹窗内所有文字统一纯黑；禁用词胶囊更大 */
+#cdPromptSettings .cd-settings,
+#cdPromptSettings .cd-settings * {
+  color: #000000 !important;
+}
+#cdPromptSettings .cd-settings .cd-word-text {
+  color: #000000 !important;
+  font-size: 16px !important;
+  line-height: 1.5 !important;
+  font-weight: 600 !important;
+}
+#cdPromptSettings .cd-settings .cd-word-row {
+  min-height: 56px !important;
+  padding: 13px 13px !important;
+  gap: 11px !important;
+}
+#cdPromptSettings .cd-settings .cd-prio-pill,
+#cdPromptSettings .cd-settings .cd-word-actions button {
+  color: #000000 !important;
+}
+#cdPromptSettings .cd-settings input::placeholder,
+#cdPromptSettings .cd-settings textarea::placeholder {
+  color: #000000 !important;
+  opacity: .72 !important;
+}
+#cdPromptSettings .cd-word-list { display:flex; flex-direction:column; gap:10px; }
+#cdPromptSettings .cd-word-group {
+  overflow:hidden;
+  border:1px solid rgba(0,0,0,.12);
+  border-radius:17px;
+  background:rgba(255,255,255,.74);
+}
+#cdPromptSettings .cd-word-group > summary {
+  min-height:54px;
+  padding:12px 14px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  list-style:none;
+  cursor:pointer;
+  color:#000 !important;
+  background:rgba(245,245,245,.72);
+  -webkit-tap-highlight-color:transparent;
+}
+#cdPromptSettings .cd-word-group > summary::-webkit-details-marker { display:none; }
+#cdPromptSettings .cd-word-group-name {
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  font-size:16px;
+  font-weight:700;
+  color:#000 !important;
+}
+#cdPromptSettings .cd-word-group-name small {
+  font-size:12px;
+  font-weight:500;
+  color:#000 !important;
+  opacity:.68;
+}
+#cdPromptSettings .cd-word-group-count {
+  margin-left:auto;
+  white-space:nowrap;
+  font-size:13px;
+  color:#000 !important;
+  opacity:.78;
+}
+#cdPromptSettings .cd-word-group-chevron {
+  width:18px;height:18px;flex:0 0 18px;
+  fill:none;stroke:#000;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;
+  transition:transform .24s ease;
+}
+#cdPromptSettings .cd-word-group[open] .cd-word-group-chevron { transform:rotate(180deg); }
+#cdPromptSettings .cd-word-group-items {
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:9px;
+  border-top:1px solid rgba(0,0,0,.09);
+}
+#cdPromptSettings .cd-word-group-items .cd-word-row { background:rgba(248,248,248,.92) !important; }
+@media(max-width:380px){
+  #cdPromptSettings .cd-settings .cd-word-text { font-size:15px !important; }
+  #cdPromptSettings .cd-settings .cd-word-row { min-height:53px !important; padding:11px 10px !important; }
+}
+
+
+/* 修复分组展开：组内容与词条行占满可用宽度，窄屏使用稳定网格避免挤压错位 */
+#cdPromptSettings .cd-word-list{align-items:stretch !important;}
+#cdPromptSettings .cd-word-group{display:block !important;width:100% !important;min-width:0 !important;box-sizing:border-box !important;flex:0 0 auto !important;}
+#cdPromptSettings .cd-word-group > summary{width:100% !important;box-sizing:border-box !important;user-select:none;}
+#cdPromptSettings .cd-word-group-items{width:100% !important;box-sizing:border-box !important;align-items:stretch !important;}
+#cdPromptSettings .cd-word-group-items .cd-word-row{
+  display:grid !important;grid-template-columns:32px minmax(0,1fr) 42px auto !important;
+  align-items:center !important;width:100% !important;min-width:0 !important;box-sizing:border-box !important;
+}
+#cdPromptSettings .cd-word-group-items .cd-word-text{min-width:0 !important;overflow-wrap:anywhere !important;word-break:break-word !important;}
+#cdPromptSettings .cd-word-group-items .cd-word-check{width:32px !important;min-width:32px !important;}
+#cdPromptSettings .cd-word-group-items .cd-priority-pills{min-width:0 !important;}
+#cdPromptSettings .cd-word-group-items .cd-word-actions{min-width:0 !important;gap:1px !important;}
+@media(max-width:380px){
+  #cdPromptSettings .cd-word-group-items .cd-word-row{grid-template-columns:28px minmax(0,1fr) 36px auto !important;gap:5px !important;padding:10px 7px !important;}
+  #cdPromptSettings .cd-word-group-items .cd-prio-pill{width:36px !important;min-width:36px !important;}
+}
+/* 深色底上的字必须为白色，浅色底仍用纯黑 */
+#cdPromptSettings .cd-word-check input:checked + svg{background:#303030 !important;border-color:#303030 !important;}
+#cdPromptSettings .cd-word-check input:checked + svg text{fill:#fff !important;color:#fff !important;}
+#cdPromptSettings .cd-prio-pill.is-high{background:#303030 !important;color:#fff !important;-webkit-text-fill-color:#fff !important;}
+#cdPromptSettings .cd-settings footer .cd-settings-save,
+#cdPromptSettings .cd-settings footer .cd-settings-save span{color:#fff !important;-webkit-text-fill-color:#fff !important;}
+
+/* 相关词条改为独立圆角胶囊；明确控制 details 展开内容，避免展开后被旧样式隐藏 */
+#cdPromptSettings .cd-word-group-name small{
+  display:inline-flex !important;align-items:center;justify-content:center;
+  padding:4px 9px !important;margin-left:1px !important;
+  border:1px solid rgba(0,0,0,.10) !important;border-radius:999px !important;
+  background:#fff !important;color:#333 !important;opacity:1 !important;
+  line-height:1.2 !important;white-space:nowrap !important;
+}
+#cdPromptSettings .cd-word-group[open] > .cd-word-group-items{
+  display:flex !important;visibility:visible !important;opacity:1 !important;
+  height:auto !important;max-height:none !important;overflow:visible !important;
+  position:relative !important;clip:auto !important;
+}
+#cdPromptSettings .cd-word-group:not([open]) > .cd-word-group-items{display:none !important;}
+#cdPromptSettings .cd-word-group[open]{height:auto !important;min-height:0 !important;overflow:visible !important;}
+#cdPromptSettings .cd-word-group[open] > summary{display:flex !important;visibility:visible !important;}
+
+/* ===== 最终修复：展开分组时不裁掉其他禁用词/收起标题 ===== */
+#cdPromptSettings .cd-settings .cd-word-list{
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  max-height:none !important;
+  height:auto !important;
+  overflow:visible !important;
+  contain:none !important;
+}
+#cdPromptSettings .cd-settings-main,
+#cdPromptSettings .cd-settings-section{
+  min-height:0 !important;
+  overflow:visible !important;
+}
+#cdPromptSettings .cd-settings-main{
+  overflow-y:auto !important;
+  overscroll-behavior:contain !important;
+}
+#cdPromptSettings .cd-word-group{
+  position:relative !important;
+  flex-shrink:0 !important;
+  isolation:isolate;
+  overflow:visible !important;
+  border-radius:16px !important;
+  background:#fff !important;
+}
+#cdPromptSettings .cd-word-group > summary{
+  position:relative !important;
+  z-index:1 !important;
+  display:flex !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  min-height:50px !important;
+  border-radius:15px !important;
+  background:#f5f5f5 !important;
+  color:#111 !important;
+}
+#cdPromptSettings .cd-word-group[open] > summary{border-radius:15px 15px 0 0 !important;}
+#cdPromptSettings .cd-word-group > summary .cd-word-group-name,
+#cdPromptSettings .cd-word-group > summary .cd-word-group-count{display:flex !important;visibility:visible !important;opacity:1 !important;color:#111 !important;}
+#cdPromptSettings .cd-word-group > summary .cd-word-group-name small{display:inline-flex !important;visibility:visible !important;opacity:1 !important;}
+#cdPromptSettings .cd-word-group-items{position:relative !important;z-index:0 !important;}
+
+
+/* ===== 色调微调：纯白弹窗、整体灰度变浅、^ω^ 浅灰底 ===== */
+#cdPromptSettings .cd-settings{
+  background:#fff !important;
+  color:#222 !important;
+  border-color:#f2f2f2 !important;
+  box-shadow:0 18px 60px rgba(0,0,0,.12) !important;
+}
+#cdPromptSettings .cd-settings header,
+#cdPromptSettings .cd-settings-main,
+#cdPromptSettings .cd-settings-section{background:#fff !important;}
+#cdPromptSettings .cd-master,
+#cdPromptSettings .cd-word-group > summary{background:#fafafa !important;border-color:#ededed !important;}
+#cdPromptSettings .cd-word-row,
+#cdPromptSettings .cd-word-group-items .cd-word-row{background:#fff !important;border-color:#eeeeee !important;}
+#cdPromptSettings .cd-settings-label,
+#cdPromptSettings .cd-settings-label span,
+#cdPromptSettings .cd-word-group-name small,
+#cdPromptSettings .cd-word-group-count,
+#cdPromptSettings .cd-settings-hint,
+#cdPromptSettings .cd-settings-hint p{color:#999 !important;}
+#cdPromptSettings .cd-prio-pill,
+#cdPromptSettings .cd-word-actions button{background:#fafafa !important;border-color:#ededed !important;color:#999 !important;}
+#cdPromptSettings .cd-prio-pill.is-active,
+#cdPromptSettings .cd-prio-pill.is-high{background:#e9e9e9 !important;border-color:#e2e2e2 !important;color:#555 !important;-webkit-text-fill-color:#555 !important;}
+#cdPromptSettings .cd-prio-pill.is-medium{background:#f1f1f1 !important;border-color:#eaeaea !important;color:#777 !important;-webkit-text-fill-color:#777 !important;}
+#cdPromptSettings .cd-prio-pill.is-low{background:#fafafa !important;border-color:#f0f0f0 !important;color:#aaa !important;-webkit-text-fill-color:#aaa !important;}
+/* ^ω^ 选中与未选中都使用浅灰底，不再出现深灰黑块 */
+#cdPromptSettings .cd-word-check input + svg{background:#f0f0f0 !important;border-color:#e3e3e3 !important;stroke:transparent !important;}
+#cdPromptSettings .cd-word-check input + svg text{fill:#777 !important;}
+#cdPromptSettings .cd-word-check input:checked + svg{background:#ededed !important;border-color:#dedede !important;stroke:transparent !important;}
+#cdPromptSettings .cd-word-check input:checked + svg text{fill:#666 !important;color:#666 !important;}
+#cdPromptSettings .cd-word-check input:focus-visible + svg{outline-color:#ddd !important;}
+
+
+/* ===== 底部操作栏：加长恢复默认 + 右侧圆形太阳保存键 ===== */
+#cdPromptSettings .cd-settings footer{
+  display:flex !important;align-items:center !important;gap:10px !important;
+  justify-content:stretch !important;background:#fff !important;
+  border-top:1px solid #f0f0f0 !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-reset{
+  flex:1 1 auto !important;width:auto !important;min-width:0 !important;
+  height:44px !important;min-height:44px !important;padding:0 22px !important;
+  display:flex !important;align-items:center !important;justify-content:center !important;
+  border-radius:999px !important;background:#f7f7f7 !important;
+  border:1px solid #ededed !important;color:#777 !important;
+  font-size:13px !important;font-weight:500 !important;white-space:nowrap !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-save{
+  flex:0 0 44px !important;width:44px !important;min-width:44px !important;
+  height:44px !important;min-height:44px !important;padding:0 !important;margin:0 !important;
+  display:grid !important;place-items:center !important;
+  border-radius:50% !important;background:#f0f0f0 !important;
+  border:1px solid #e7e7e7 !important;color:#666 !important;
+  box-shadow:none !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-save svg{
+  display:block !important;width:20px !important;height:20px !important;
+  fill:none !important;stroke:currentColor !important;stroke-width:1.55 !important;
+  stroke-linecap:round !important;stroke-linejoin:round !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-save:active,
+#cdPromptSettings .cd-settings footer .cd-settings-reset:active{transform:scale(.97);}
+@media(max-width:360px){
+  #cdPromptSettings .cd-settings footer .cd-settings-reset{padding:0 16px !important;}
+  #cdPromptSettings .cd-settings footer .cd-settings-save{flex-basis:42px !important;width:42px !important;min-width:42px !important;height:42px !important;min-height:42px !important;}
+}
+
+/* ===== 底部按钮微调：恢复默认胶囊延伸到黑色圆形保存键下方 ===== */
+#cdPromptSettings .cd-settings footer{
+  gap:0 !important;
+  justify-content:stretch !important;
+  position:relative !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-reset{
+  flex:1 1 auto !important;
+  width:100% !important;
+  padding-right:58px !important;
+  margin-right:0 !important;
+  border-radius:999px !important;
+  position:relative !important;
+  z-index:1 !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-save{
+  flex:0 0 44px !important;
+  width:44px !important;min-width:44px !important;
+  height:44px !important;min-height:44px !important;
+  margin-left:-44px !important;
+  position:relative !important;z-index:2 !important;
+  background:#111 !important;
+  border:1px solid #111 !important;
+  color:#fff !important;
+  box-shadow:0 1px 3px rgba(0,0,0,.12) !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-save svg{
+  stroke:#fff !important;
+}
+
+
+/* ===== 自定义词条：居中按钮，点击后展开输入框 ===== */
+#cdPromptSettings .cd-settings footer .cd-settings-reset{
+  border:0 !important;
+  margin-right:0 !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-save{
+  margin-left:-49px !important;
+}
+#cdPromptSettings .cd-add-section{
+  display:flex !important;flex-direction:column !important;align-items:stretch !important;
+}
+#cdPromptSettings .cd-add-section .cd-add-custom-trigger{
+  align-self:center !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;
+  gap:7px !important;min-height:36px !important;padding:0 17px !important;margin:4px auto 0 !important;
+  border:1px solid #ededed !important;border-radius:999px !important;background:#fff !important;color:#777 !important;
+  font:inherit !important;font-size:12px !important;line-height:1 !important;cursor:pointer !important;
+  box-shadow:0 1px 3px rgba(0,0,0,.025) !important;transition:background .18s,border-color .18s,transform .18s !important;
+}
+#cdPromptSettings .cd-add-section .cd-add-custom-trigger svg{
+  width:14px !important;height:14px !important;fill:none !important;stroke:currentColor !important;stroke-width:1.7 !important;stroke-linecap:round !important;
+}
+#cdPromptSettings .cd-add-section .cd-add-custom-trigger:active{transform:scale(.97) !important;background:#f8f8f8 !important;}
+#cdPromptSettings .cd-add-section .cd-word-add{display:none !important;}
+#cdPromptSettings .cd-add-section.is-editing .cd-word-add{display:block !important;margin-top:9px !important;}
+
+/* ===== 自定义词条交互：不抢焦点，输入后显示黑色“完成”按钮 ===== */
+#cdPromptSettings .cd-add-section .cd-add-custom-trigger.has-value{
+  background:#111 !important;
+  border-color:#111 !important;
+  color:#fff !important;
+  box-shadow:0 2px 7px rgba(0,0,0,.12) !important;
+}
+#cdPromptSettings .cd-add-section .cd-add-custom-trigger.has-value svg{
+  stroke:#fff !important;
+}
+
+
+/* ===== 自定义词条修正：完成按钮加宽左移，文字确保可见 ===== */
+#cdPromptSettings .cd-add-section .cd-add-custom-trigger.has-value{
+  min-width:132px !important;
+  min-height:39px !important;
+  padding:0 26px !important;
+  margin-left:calc(50% - 80px) !important;
+  margin-right:auto !important;
+  justify-content:center !important;
+  background:#111 !important;
+  color:#fff !important;
+  -webkit-text-fill-color:#fff !important;
+  border-color:#111 !important;
+  transform:none !important;
+}
+#cdPromptSettings .cd-add-section .cd-add-custom-trigger.has-value span{
+  display:inline-block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  color:#fff !important;
+  -webkit-text-fill-color:#fff !important;
+  font-size:13px !important;
+  font-weight:600 !important;
+  white-space:nowrap !important;
+}
+#cdPromptSettings .cd-add-section .cd-add-custom-trigger.has-value svg{
+  display:block !important;
+  flex:0 0 14px !important;
+  stroke:#fff !important;
+}
+#cdPromptSettings .cd-word-group.cd-custom-related-group > summary{
+  background:#fafafa !important;
+}
+
+/* ===== 纠正按钮目标：自定义词条按钮恢复居中原尺寸；只调整弹窗右下角保存键 ===== */
+#cdPromptSettings .cd-add-section .cd-add-custom-trigger.has-value{
+  min-width:0 !important;
+  min-height:36px !important;
+  padding:0 17px !important;
+  margin:4px auto 0 !important;
+  align-self:center !important;
+  border-radius:999px !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-reset{
+  padding-right:76px !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-save{
+  flex:0 0 58px !important;
+  width:58px !important;
+  min-width:58px !important;
+  height:44px !important;
+  min-height:44px !important;
+  margin-left:-58px !important;
+  border-radius:999px !important;
+  position:relative !important;
+  z-index:2 !important;
+  background:#111 !important;
+  border:1px solid #111 !important;
+  color:#fff !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-save svg{
+  width:20px !important;height:20px !important;stroke:#fff !important;
+}
+@media(max-width:360px){
+  #cdPromptSettings .cd-settings footer .cd-settings-reset{padding-right:70px !important;}
+  #cdPromptSettings .cd-settings footer .cd-settings-save{flex-basis:52px !important;width:52px !important;min-width:52px !important;margin-left:-52px !important;}
+}
+
+/* ===== 本轮修正：右下角保存按钮加长并向左延伸；恢复默认使用顶栏装饰字体 ===== */
+#cdPromptSettings .cd-settings footer .cd-settings-reset{
+  font-family:"TanSongCustom","KaiTi","STKaiti","Kaiti SC",serif !important;
+  font-weight:500 !important;
+  letter-spacing:.02em !important;
+  padding-right:94px !important;
+}
+#cdPromptSettings .cd-settings footer .cd-settings-save{
+  flex:0 0 76px !important;
+  width:76px !important;
+  min-width:76px !important;
+  margin-left:-76px !important;
+}
+@media(max-width:360px){
+  #cdPromptSettings .cd-settings footer .cd-settings-reset{padding-right:84px !important;}
+  #cdPromptSettings .cd-settings footer .cd-settings-save{flex-basis:66px !important;width:66px !important;min-width:66px !important;margin-left:-66px !important;}
+}
+
+
+/* ===== 默认我方气泡颜色：FBF8FA ===== */
+.messages-app #chatView:not([data-bubble]) .mrow.me .bubble,
+.messages-app #chatView .mrow.me .bubble { background:#FBF8FA !important; background-color:#FBF8FA !important; color:#4B4150 !important; }

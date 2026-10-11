@@ -75,7 +75,7 @@ function loadStoredContacts() {
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
 }
 function normalizeContact(c) {
-    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0), avOpts: (c.avOpts && typeof c.avOpts === 'object') ? c.avOpts : null };
+    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0), avOpts: (c.avOpts && typeof c.avOpts === 'object') ? c.avOpts : null, promptOpts: Array.isArray(c.promptOpts) ? c.promptOpts : [] };
 }
 
 
@@ -913,6 +913,364 @@ function bindMsgMenu() {
     document.addEventListener('pointerdown', e => {
         if (!e.target.closest('.mm-menu') && !e.target.closest('.mrow')) hideMsgMenu();
     });
+}
+/* ---------------- 聊天室顶栏下滑面板：内置提示词 + 条数 + 大时间 ---------------- */
+const CHAT_PROMPT_OPTS = [
+    { k: 'ai', label: '防八股' },
+    { k: 'greasy', label: '防油腻' },
+    { k: 'threat', label: '防威胁' },
+    { k: 'fake', label: '防假性安慰' },
+    { k: 'macho', label: '防超雄' }
+];
+function chatDropEl() {
+    let p = document.getElementById('chatDrop');
+    if (p) return p;
+    const view = document.getElementById('chatView'); if (!view) return null;
+    p = document.createElement('div');
+    p.id = 'chatDrop'; p.className = 'chat-drop';
+    view.appendChild(p);
+    return p;
+}
+const CD_TITLE = '如果思念也有声音';
+const CD_TITLE_STYLE = [[-7, 58], [5, 66], [-3, 54], [8, 62], [-5, 58], [4, 68], [-9, 54], [6, 62]]; // [角度, 字号]
+const CD_TITLE_TONE = ['#F3D1DF', '#FBEAF0', '#EAB8CC', '#F5DCE6', '#F0C9DA', '#FFF0F5', '#F2D3E0', '#F7E1E9']; // 浅色玻璃，深浅不一
+function cdTitleHtml() {
+    return `<div class="cd-title">${Array.from(CD_TITLE).map((ch, i) => {
+        const st = CD_TITLE_STYLE[i % CD_TITLE_STYLE.length];
+        return `<span class="cd-ch" style="--char-index:${i};transform: rotate(${st[0]}deg) translateY(${i % 2 ? 3 : -3}px); font-size: ${st[1]}px">${ch}</span>`;
+    }).join('')}</div>`;
+}
+function renderChatDrop() {
+    const p = chatDropEl(); const c = curMemContact(); if (!p || !c) return;
+    const on = c.promptOpts || [];
+    p.innerHTML = cdTitleHtml() + `<div class="cd-chips">${CHAT_PROMPT_OPTS.map(o => `<div class="cd-option"><button class="cd-chip ${on.indexOf(o.k) >= 0 ? 'on' : ''}" type="button" onclick="toggleChatPrompt('${o.k}')">${o.label}</button><button class="cd-option-settings" type="button" aria-label="调整${o.label}" onclick="openChatPromptSettings('${o.k}')" title="调整提示词"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z"/><path d="m19.4 13.5 1.1.85-1.1 1.9-1.35-.45a7.9 7.9 0 0 1-1.45.84l-.24 1.43h-2.2l-.24-1.43a7.9 7.9 0 0 1-1.45-.84l-1.35.45-1.1-1.9 1.1-.85a7.1 7.1 0 0 1 0-1.68l-1.1-.85 1.1-1.9 1.35.45a7.9 7.9 0 0 1 1.45-.84l.24-1.43h2.2l.24 1.43a7.9 7.9 0 0 1 1.45.84l1.35-.45 1.1 1.9-1.1.85a7.1 7.1 0 0 1 0 1.68Z" transform="translate(-1 -1) scale(1.05)"/></svg></button></div>`).join('')}</div>`
+        + `<div class="cd-foot"><span class="cd-count">共 ${c.msgs.length} 条</span><span class="cd-time">${nowTime()}</span></div>`;
+    if (CD_STARS_NODE) p.appendChild(CD_STARS_NODE);
+}
+let DROP_DRAG_MOVED = false;
+function toggleChatDrop() {
+    if (DROP_DRAG_MOVED) { DROP_DRAG_MOVED = false; return; }
+    const p = chatDropEl(); if (!p) return;
+    if (p.classList.contains('show')) { p.classList.remove('show'); return; }
+    renderChatDrop();
+    p.classList.add('show');
+    cdSpawnStars();
+}
+function toggleChatPrompt(k) {
+    const c = curMemContact(); if (!c) return;
+    const arr = Array.isArray(c.promptOpts) ? c.promptOpts.slice() : [];
+    const i = arr.indexOf(k);
+    if (i >= 0) arr.splice(i, 1); else arr.push(k);
+    c.promptOpts = arr;
+    persistContacts(); renderChatDrop();
+}
+const CHAT_PROMPT_SETTINGS_KEY = 'forever_chat_prompt_settings_v1';
+const CHAT_BAN_DEFAULTS = ['低吼一声', '揉进骨血', '揉进骨头'];
+function readChatPromptSettings() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(CHAT_PROMPT_SETTINGS_KEY) || '{}');
+        const words = Array.isArray(saved.words) ? saved.words : CHAT_BAN_DEFAULTS.slice();
+        const oldPriority = Array.isArray(saved.priority) ? saved.priority : CHAT_BAN_DEFAULTS.slice();
+        const levels = saved.priorityLevels && typeof saved.priorityLevels === 'object' ? saved.priorityLevels : {};
+        words.forEach(w => { if (!levels[w]) levels[w] = oldPriority.includes(w) ? 'high' : 'low'; });
+        const disabledWords = Array.isArray(saved.disabledWords) ? saved.disabledWords : [];
+        const customWords = Array.isArray(saved.customWords) ? saved.customWords : [];
+        return { enabled: saved.enabled !== false, words, priorityLevels: levels, disabledWords, customWords };
+    } catch (_) {
+        return { enabled: true, words: CHAT_BAN_DEFAULTS.slice(), priorityLevels: Object.fromEntries(CHAT_BAN_DEFAULTS.map(w=>[w,'high'])) };
+    }
+}
+function saveChatPromptSettings(v) { try { localStorage.setItem(CHAT_PROMPT_SETTINGS_KEY, JSON.stringify(v)); } catch (_) {} }
+function cdPriorityControl(word, level) {
+    const current = ['high','medium','low'].includes(level) ? level : 'medium';
+    const label = {high:'高',medium:'中',low:'低'}[current];
+    return `<div class="cd-priority-pills" role="group" aria-label="${escapeHtml(word)}提示词位置"><button type="button" class="cd-prio-pill is-${current}" data-prio="${current}" aria-label="优先级${label}，点击切换" aria-pressed="true">${label}</button></div>`;
+}
+function cdWordRowHtml(w, i, enabled, level) {
+    return `<div class="cd-word-row" data-word-row="${i}">
+      <label class="cd-word-check"><input type="checkbox" data-word="${i}" ${enabled?'checked':''} aria-label="启用词条 ${escapeHtml(w)}"><svg viewBox="0 0 36 22" aria-hidden="true"><text x="18" y="16" text-anchor="middle" font-size="15" font-family="system-ui, sans-serif" font-weight="650">^ω^</text></svg></label>
+      <span class="cd-word-text">${escapeHtml(w)}</span>${cdPriorityControl(w,level)}
+      <div class="cd-word-actions"><button type="button" class="cd-word-edit" aria-label="编辑词条" title="编辑"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.8-.8 4 4-.8L19 8.2 15.8 5 4 16.8Z"/><path d="m13.9 6.9 3.2 3.2"/></svg></button><button type="button" class="cd-word-delete" aria-label="删除词条" title="删除"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M9 7V4.5h6V7m-8 0 .8 13h8.4L17 7M10 10.5v6m4-6v6"/></svg></button></div>
+    </div>`;
+}
+function cdWordListHtml(words, disabledWords, priorityLevels, customWords = []) {
+    // 先去重：相同词条只保留一个，避免重复显示。
+    const uniqueWords = [...new Set(words.map(word => String(word || '').trim()).filter(Boolean))];
+    const customSet = new Set(customWords);
+    const entries = uniqueWords.map((word, index) => ({ word, index }));
+
+    // 按“实际共享的词/连续字串”分组，而不是机械地按前两个字分组。
+    // 例如「揉进骨血」「揉进骨头」会收进「揉进骨」折叠组。
+    const candidates = new Map();
+    for (let i = 0; i < entries.length; i++) {
+        const a = entries[i].word;
+        for (let j = i + 1; j < entries.length; j++) {
+            const b = entries[j].word;
+            let best = '';
+            for (let n = Math.min(a.length, b.length); n >= 2; n--) {
+                let found = false;
+                for (let k = 0; k <= a.length - n; k++) {
+                    const part = a.slice(k, k + n);
+                    if (b.includes(part)) { best = part; found = true; break; }
+                }
+                if (found) break;
+            }
+            if (best) {
+                if (!candidates.has(best)) candidates.set(best, new Set());
+                candidates.get(best).add(a); candidates.get(best).add(b);
+            }
+        }
+    }
+    const groups = [...candidates.entries()]
+        .filter(([, set]) => set.size >= 2)
+        .sort((a, b) => b[1].size - a[1].size || b[0].length - a[0].length);
+    const buckets = [];
+    const assigned = new Set();
+    for (const [key, set] of groups) {
+        const items = entries.filter(entry => set.has(entry.word) && !assigned.has(entry.word));
+        if (items.length < 2) continue;
+        items.forEach(entry => assigned.add(entry.word));
+        buckets.push({ key, items, custom: items.every(entry => customSet.has(entry.word)) });
+    }
+    entries.filter(entry => !assigned.has(entry.word)).forEach(entry => {
+        buckets.push({ key: entry.word, items: [entry], custom: customSet.has(entry.word) });
+    });
+
+    return buckets.map(({key, items, custom}) => {
+        const rows = items.map(({word,index}) => cdWordRowHtml(word,index,!disabledWords.includes(word),priorityLevels[word]||'medium')).join('');
+        if (items.length < 2) return rows;
+        const title = key;
+        return `<details class="cd-word-group ${custom ? 'cd-custom-related-group' : ''}"><summary><span class="cd-word-group-name">${escapeHtml(title)}<small>相同词语</small></span><span class="cd-word-group-count">${items.length} 个词条</span><svg class="cd-word-group-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5"/></svg></summary><div class="cd-word-group-items">${rows}</div></details>`;
+    }).join('');
+}
+function rebuildCdWordGroups(modal) {
+    const list = modal.querySelector('.cd-word-list');
+    if (!list) return;
+    const words = [], disabled = [], levels = {};
+    list.querySelectorAll('.cd-word-row').forEach(row => {
+        const label = row.querySelector('.cd-word-text');
+        const check = row.querySelector('[data-word]');
+        const prio = row.querySelector('.cd-prio-pill');
+        const word = (label ? label.textContent : '').trim();
+        if (!word) return;
+        words.push(word);
+        if (check && !check.checked) disabled.push(word);
+        levels[word] = prio && ['high','medium','low'].includes(prio.dataset.prio) ? prio.dataset.prio : 'medium';
+    });
+    const openKeys = new Set([...list.querySelectorAll('.cd-word-group[open] .cd-word-group-name')].map(el => el.childNodes[0] ? el.childNodes[0].textContent.trim() : el.textContent.trim()));
+    list.innerHTML = cdWordListHtml(words, disabled, levels, [...(modal._cdCustomWords || [])]);
+    list.querySelectorAll('.cd-word-group').forEach(group => {
+        const name = group.querySelector('.cd-word-group-name');
+        const key = name && name.childNodes[0] ? name.childNodes[0].textContent.trim() : '';
+        if (openKeys.has(key)) group.open = true;
+    });
+}
+
+function openChatPromptSettings(k) {
+    if (k !== 'ai') { alert('这个选项暂时没有独立设置项。'); return; }
+    const old = document.getElementById('cdPromptSettings'); if (old) old.remove();
+    const v = readChatPromptSettings();
+    const modal = document.createElement('div'); modal.id = 'cdPromptSettings'; modal.className = 'cd-settings-overlay';
+    modal.innerHTML = `<section class="cd-settings" role="dialog" aria-modal="true" aria-label="防八股设置">
+      <div class="cd-settings-main"><header><div><span class="cd-settings-kicker">CHAT STYLE / 01</span><strong>表达偏好</strong><small>词条优先级决定它们在提示词中的排列位置。</small></div><button class="cd-settings-close" type="button" aria-label="关闭">×</button></header>
+      <label class="cd-master"><input id="cdBanEnabled" type="checkbox" ${v.enabled?'checked':''}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10.2 3.8 3.7L16 5.8"/></svg><span><b>启用表达偏好</b><small>保留人设特点，优先选择自然、具体的表达</small></span></label>
+      <div class="cd-settings-section"><div class="cd-settings-label">表达词条 <span>勾选启用 · 高 / 中 / 低控制提示词位置</span></div><div class="cd-word-list">${cdWordListHtml(v.words,v.disabledWords,v.priorityLevels,v.customWords)}</div></div>
+      <div class="cd-settings-section cd-add-section"><button class="cd-add-custom-trigger" type="button" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>添加自定义词条</span></button><textarea id="cdWordAdd" class="cd-word-add" placeholder="输入表达词条，每行一个" aria-label="自定义词条，每行一个"></textarea></div>
+      <div class="cd-settings-hint"><span class="cd-hint-mark">✳</span><p>优先采用贴合角色性格、情境与说话习惯的具体表达。角色可以保留自己的复杂、强势或阴郁，不强迫角色变得善良或温柔。</p></div>
+      </div><footer><button class="cd-settings-reset" type="button">恢复默认</button><button class="cd-settings-save" type="button" aria-label="保存设置" title="保存设置"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.6"/><path d="M12 2.4v2.2M12 19.4v2.2M2.4 12h2.2M19.4 12h2.2M5.2 5.2l1.6 1.6M17.2 17.2l1.6 1.6M18.8 5.2l-1.6 1.6M6.8 17.2l-1.6 1.6"/></svg></button></footer>
+    </section>`;
+    modal._cdCustomWords = new Set(v.customWords || []);
+    document.body.appendChild(modal);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>modal.classList.add('is-visible')));
+    const close=()=>{modal.classList.remove('is-visible');modal.classList.add('is-leaving');setTimeout(()=>modal.remove(),220);};
+    modal.querySelector('.cd-settings-close').onclick=close;
+    const addSection=modal.querySelector('.cd-add-section');
+    const addTrigger=modal.querySelector('.cd-add-custom-trigger');
+    const addInput=modal.querySelector('#cdWordAdd');
+    const addLabel=addTrigger.querySelector('span');
+    addTrigger.onclick=()=>{
+      if(!addSection.classList.contains('is-editing')){
+        addSection.classList.add('is-editing');
+        addTrigger.setAttribute('aria-expanded','true');
+        addTrigger.classList.remove('has-value');
+        addLabel.textContent='添加自定义词条';
+        return; // 展开输入框但不主动调起系统键盘
+      }
+      const extra=addInput.value.split(/\n/).map(x=>x.trim()).filter(Boolean);
+      if(!extra.length){
+        addSection.classList.remove('is-editing');
+        addTrigger.setAttribute('aria-expanded','false');
+        addTrigger.classList.remove('has-value');
+        addLabel.textContent='添加自定义词条';
+        return;
+      }
+      const list=modal.querySelector('.cd-word-list');
+      const words=[], disabled=[], levels={};
+      list.querySelectorAll('.cd-word-row').forEach(row=>{
+        const label=row.querySelector('.cd-word-text');
+        const check=row.querySelector('[data-word]');
+        const prio=row.querySelector('.cd-prio-pill');
+        const word=(label?.textContent||'').trim(); if(!word)return;
+        words.push(word); if(check&&!check.checked)disabled.push(word);
+        levels[word]=prio&&['high','medium','low'].includes(prio.dataset.prio)?prio.dataset.prio:'medium';
+      });
+      let added=0;
+      extra.forEach(word=>{if(!words.includes(word)){words.push(word);levels[word]='medium';modal._cdCustomWords.add(word);added++;}});
+      if(!added){toast('这些词条已经存在');return;}
+      list.innerHTML=cdWordListHtml(words,disabled,levels,[...modal._cdCustomWords]);
+      addInput.value='';
+      addSection.classList.remove('is-editing');
+      addTrigger.setAttribute('aria-expanded','false');
+      addTrigger.classList.remove('has-value');
+      addLabel.textContent='添加自定义词条';
+      toast('自定义词条已添加');
+      // 不关闭设置弹窗，顶栏菜单保持打开，可继续编辑后统一保存
+    };
+    addInput.addEventListener('input',()=>{
+      const hasValue=!!addInput.value.trim();
+      addTrigger.classList.toggle('has-value',hasValue);
+      addLabel.textContent=hasValue?'完成':'添加自定义词条';
+      addTrigger.setAttribute('aria-label',hasValue?'完成添加自定义词条':'添加自定义词条');
+    });
+    modal.addEventListener('click',e=>{if(e.target===modal)close();});
+    modal.querySelector('.cd-word-list').addEventListener('click',e=>{
+      const row=e.target.closest('.cd-word-row'); if(!row)return;
+      const prio=e.target.closest('.cd-prio-pill');
+      if(prio){
+        const cycle={high:'medium',medium:'low',low:'high'};
+        const level=cycle[prio.dataset.prio]||'high';
+        prio.dataset.prio=level; prio.className='cd-prio-pill is-'+level;
+        prio.textContent={high:'高',medium:'中',low:'低'}[level];
+        prio.setAttribute('aria-label','优先级'+prio.textContent+'，点击切换'); return;
+      }
+      if(e.target.closest('.cd-word-edit')){
+        const label=row.querySelector('.cd-word-text');
+        const next=prompt('编辑禁用词',label.textContent);
+        if(next===null)return;
+        const value=next.trim(); if(!value){toast('词条不能为空');return;}
+        const duplicate=[...modal.querySelectorAll('.cd-word-text')].some(el=>el!==label&&el.textContent.trim()===value);
+        if(duplicate){toast('这个词条已经存在');return;}
+        const oldWord=label.textContent.trim();
+        label.textContent=value;
+        if(modal._cdCustomWords && modal._cdCustomWords.has(oldWord)){modal._cdCustomWords.delete(oldWord);modal._cdCustomWords.add(value);}
+        rebuildCdWordGroups(modal);
+        return;
+      }
+      if(e.target.closest('.cd-word-delete')){
+        const deletedWord=(row.querySelector('.cd-word-text')?.textContent||'').trim();
+        row.remove();
+        if(modal._cdCustomWords) modal._cdCustomWords.delete(deletedWord);
+        rebuildCdWordGroups(modal);
+        return;
+      }
+    });
+    const defaultWords=CHAT_BAN_DEFAULTS.slice();
+    modal.querySelector('.cd-settings-reset').onclick=()=>{
+      modal.querySelector('#cdBanEnabled').checked=true;
+      modal._cdCustomWords = new Set();
+      modal.querySelector('.cd-word-list').innerHTML=cdWordListHtml(defaultWords,[],Object.fromEntries(defaultWords.map(w=>[w,'high'])),[]);
+      modal.querySelector('#cdWordAdd').value='';
+      modal.querySelector('.cd-add-section').classList.remove('is-editing');
+      modal.querySelector('.cd-add-custom-trigger').setAttribute('aria-expanded','false');
+    };
+    modal.querySelector('.cd-settings-save').onclick=()=>{
+      const words=[]; const priorityLevels={}; const disabledWords=[];
+      modal.querySelectorAll('.cd-word-row').forEach(row=>{
+        const word=row.querySelector('.cd-word-text').textContent.trim(); if(!word)return;
+        words.push(word);
+        const checked=row.querySelector('[data-word]').checked;
+        if(!checked)disabledWords.push(word);
+        const active=row.querySelector('.cd-prio-pill');priorityLevels[word]=active?active.dataset.prio:'medium';
+      });
+      const extra=modal.querySelector('#cdWordAdd').value.split(/\n/).map(x=>x.trim()).filter(Boolean);
+      extra.forEach(w=>{if(!words.includes(w)){words.push(w);priorityLevels[w]='medium';}});
+      saveChatPromptSettings({enabled:modal.querySelector('#cdBanEnabled').checked,words,priorityLevels,disabledWords,customWords:[...modal._cdCustomWords].filter(w=>words.includes(w)),priority:Object.keys(priorityLevels).filter(w=>priorityLevels[w]==='high')});
+      close();
+    };
+}
+window.openChatPromptSettings = openChatPromptSettings;
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* 手指在顶栏上滑动：面板跟手拉出 / 收回，松手后吸附到打开或关闭 */
+function bindChatDropSwipe() {
+    const head = document.querySelector('.messages-app #chatView .chat-head');
+    if (!head || head.dataset.swipeBound) return;
+    head.dataset.swipeBound = '1';
+    let sy = 0, base = false, moved = false, pct = 0, dragging = false;
+    head.addEventListener('pointerdown', e => {
+        DROP_DRAG_MOVED = false;
+        if (e.target.closest && e.target.closest('button')) return;
+        const p = chatDropEl(); if (!p) return;
+        sy = e.clientY; moved = false; dragging = true;
+        base = p.classList.contains('show');
+        if (!base) renderChatDrop();
+        p.classList.add('dragging');
+        if (head.setPointerCapture) { try { head.setPointerCapture(e.pointerId); } catch (_) {} }
+    });
+    head.addEventListener('pointermove', e => {
+        if (!dragging) return;
+        const p = chatDropEl(); if (!p) return;
+        const dy = e.clientY - sy;
+        if (Math.abs(dy) > 6) moved = true;
+        if (!moved) return;
+        const h = p.offsetHeight || 260;
+        pct = base ? 100 + Math.min(0, dy) / h * 100 : Math.max(0, dy) / h * 100;
+        pct = Math.max(0, Math.min(100, pct));
+        p.style.visibility = 'visible';
+        p.style.clipPath = `inset(0 0 ${100 - pct}% 0 round 26px)`;
+        p.style.transform = `translateY(${(pct / 100 - 1) * 36}px)`;
+        p.style.opacity = String(Math.max(.3, pct / 100));
+    });
+    const end = () => {
+        if (!dragging) return;
+        dragging = false;
+        const p = chatDropEl(); if (!p) return;
+        p.classList.remove('dragging');
+        p.style.clipPath = ''; p.style.transform = ''; p.style.opacity = ''; p.style.visibility = '';
+        if (!moved) return;
+        DROP_DRAG_MOVED = true;
+        const open = pct > 45;
+        if (open) { const was = p.classList.contains('show'); if (!was) renderChatDrop(); p.classList.add('show'); if (!was) cdSpawnStars(); }
+        else p.classList.remove('show');
+    };
+    head.addEventListener('pointerup', end);
+    head.addEventListener('pointercancel', end);
+}
+let CD_OUTSIDE_BOUND = false;
+let CD_STARS_NODE = null;
+const CD_STAR_SVG = '<svg viewBox="0 0 24 24"><path d="M12 2 L14.2 9.8 L22 12 L14.2 14.2 L12 22 L9.8 14.2 L2 12 L9.8 9.8Z" fill="currentColor"/></svg>';
+function cdSpawnStars() {
+    const p = chatDropEl(); if (!p) return;
+    if (CD_STARS_NODE) CD_STARS_NODE.remove();
+    const box = document.createElement('div');
+    box.className = 'cd-stars';
+    let html = '';
+    for (let i = 0; i < 18; i++) {
+        const x = 3 + Math.random() * 94, y = 2 + Math.random() * 78;
+        const size = 12 + Math.random() * 12, rot = Math.round(Math.random() * 60 - 30);
+        const op = (0.5 + Math.random() * 0.4).toFixed(2), dur = (0.7 + Math.random() * 0.5).toFixed(2), delay = (Math.random() * 0.5).toFixed(2);
+        html += `<span class="cd-star" style="--x:${x.toFixed(1)}%;--y:${y.toFixed(1)}%;--s:${size.toFixed(1)}px;--rot:${rot}deg;--op:${op};--dur:${dur}s;--delay:${delay}s">${CD_STAR_SVG}</span>`;
+    }
+    box.innerHTML = html;
+    p.appendChild(box);
+    CD_STARS_NODE = box;
+    setTimeout(() => box.classList.add('landed'), 1900);
+}
+function bindChatDropOutside() {
+    if (CD_OUTSIDE_BOUND) return;
+    CD_OUTSIDE_BOUND = true;
+    document.addEventListener('pointerdown', e => {
+        const p = document.getElementById('chatDrop');
+        if (!p || !p.classList.contains('show')) return;
+        if (e.target.closest && (e.target.closest('#chatDrop') || e.target.closest('.chat-head'))) return;
+        p.classList.remove('show');
+    });
+}
+function bindChatDrop() {
+    const cap = document.querySelector('.messages-app #chatView .head-capsule');
+    if (!cap || cap.dataset.dropBound) return;
+    cap.dataset.dropBound = '1';
+    cap.addEventListener('click', toggleChatDrop);
 }
 function renderThread(opts) {
     const c = CONTACTS.find(x => x.id === activeId);
@@ -2310,7 +2668,7 @@ function setSunSpin(on) {
 const ROOM_STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.00 0.80 L16.09 6.38 L22.65 8.54 L18.61 14.15 L18.58 21.06 L12.00 18.95 L5.42 21.06 L5.39 14.15 L1.35 8.54 L7.91 6.38 Z" fill="#fff" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></svg>';
 const ROOM_TABS = ['聊天设置', '人设设置', '聊天美化'];
 const BUBBLE_PRESETS = {
-    default: { label: '默认', bg: '#efeff2', fg: '#111111' },
+    default: { label: '默认', bg: '#FBF8FA', fg: '#4B4150' },
     ink:     { label: '墨黑', bg: '#111111', fg: '#ffffff' },
     mist:    { label: '雾灰', bg: '#dcdce2', fg: '#111111' },
     paper:   { label: '奶白', bg: '#fff5e6', fg: '#3a2e22' }
@@ -3245,9 +3603,12 @@ loadSettingsName();
 preloadDefaultImages();
 bindCommentLongPress();
 bindMsgMenu();
+bindChatDrop();
+bindChatDropSwipe();
+bindChatDropOutside();
 applyTheme(THEME);
 initComposerGesture();
 
-const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold};
+const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 };
