@@ -4059,3 +4059,130 @@
     pointer-events: none;
     z-index: 2;
 }
+
+/* ===== 资料卡拍立得：内沿虚线变细 ===== */
+.messages-app .polaroid .sq::after{
+    border-width: 0.5px !important;
+    border-color: rgba(70, 70, 70, 0.6) !important;
+}
+
+/* ===== 底栏上拉菜单：项目多于四个时可以横向滑动（不被截断） ===== */
+.messages-app .quick-menu{
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: 25%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+}
+.messages-app .quick-menu::-webkit-scrollbar{ display: none; }
+
+/* ===== 记忆区：四段分区按钮（样式同设置里的暗亮模式按钮，白底版） ===== */
+.messages-app #memPage .mem-seg{
+    display: flex; width: 100%; box-sizing: border-box; background: rgba(0,0,0,0.05);
+    border-radius: 999px; padding: 2.5px; gap: 2px; border: 0.5px solid rgba(0,0,0,0.1);
+    margin: 6px 0 10px;
+}
+.messages-app #memPage .mem-seg-pill{
+    flex: 1; text-align: center; padding: 6px 0; font-size: 12px; font-weight: 600; border: 0; background: transparent;
+    color: rgba(0,0,0,0.6); border-radius: 999px; cursor: pointer; transition: all 0.25s;
+}
+.messages-app #memPage .mem-seg-pill.active{
+    background: #000000; color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* ===== 记忆条目：级别 / 分区 / 编辑 ===== */
+.messages-app #memPage .mem-tags{ display: flex; gap: 6px; flex-wrap: wrap; }
+.messages-app #memPage .mem-actions{ display: flex; gap: 12px; align-items: center; }
+.messages-app #memPage .mem-edit{ color: #111; }
+.messages-app #memPage .mem-edit-ta{
+    width: 100%; box-sizing: border-box; border: 0; border-radius: 14px; padding: 10px 12px; margin: 4px 0 2px;
+    background: #F7F7F8; font-size: 13.5px; line-height: 1.6; color: #111; resize: vertical; font-family: inherit;
+}
+.messages-app #memPage .mem-form{ border: 1px dashed #C8C8CE; box-shadow: none; }
+.messages-app #memPage .mem-btn.mem-primary-sm{
+    height: 30px; padding: 0 14px; margin: 0; border: 0; border-radius: 15px; background: #111; color: #fff; font-size: 12px; cursor: pointer;
+}
+
+/* ===== 主记忆：高 / 中 / 低 可展开分组 ===== */
+.messages-app #memPage .mem-group{ margin: 6px 0 10px; }
+.messages-app #memPage .mem-group > summary{
+    list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 6px; font-size: 13px; font-weight: 700; color: #111; user-select: none;
+}
+.messages-app #memPage .mem-group > summary::-webkit-details-marker{ display: none; }
+.messages-app #memPage .mem-group > summary small{ font-size: 11px; font-weight: 500; color: #8E8E93; }
+.messages-app #memPage .mem-group > summary::after{
+    content: ''; width: 7px; height: 7px; border-right: 1.5px solid #8E8E93; border-bottom: 1.5px solid #8E8E93;
+    transform: rotate(45deg); margin-left: 10px; transition: transform .2s ease;
+}
+.messages-app #memPage .mem-group:not([open]) > summary::after{ transform: rotate(-45deg); }
+
+/* ===== 记忆区黑色按钮：字体与 Got it 提示框按钮统一，文字居中 ===== */
+.messages-app #memPage .mem-btn.mem-primary,
+.messages-app #memPage .mem-btn.mem-primary-sm{
+    font-family: "SF Mono", "Menlo", "Monaco", "Courier New", monospace;
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+    text-align: center; justify-content: center; align-items: center;
+}
+.messages-app #memPage .mem-btn.mem-primary{ display: flex; }
+.messages-app #memPage .mem-btn.mem-primary-sm{ display: inline-flex; min-width: 72px; }
+
+/* 黑色按钮里的小图标固定在左侧，文字始终居中 */
+.messages-app #memPage .mem-btn.mem-primary{ position: relative; }
+.messages-app #memPage .mem-btn.mem-primary svg{ position: absolute; left: 16px; top: 50%; transform: translateY(-50%); margin: 0; }
+
+/* ===== 记忆区（本轮调整）===== */
+/* 1. 打开记忆页不再往上动：只淡入，去掉 translateY */
+.messages-app #memPage{ transform: none !important; transition: opacity .3s ease, visibility .3s ease !important; }
+.messages-app #memPage.open{ transform: none !important; }
+
+/* 2. 选记忆（分段）的底色：纯白 */
+.messages-app #memPage .mem-seg{ background: #FFFFFF !important; border-color: rgba(0,0,0,0.08) !important; }
+
+/* 3. 记忆区按钮：半透明 */
+.messages-app #memPage .mem-primary,
+.messages-app #memPage .mem-primary-sm,
+.messages-app #memPage .mem-seg-pill.active{ background: rgba(17,17,17,0.72) !important; }
+.messages-app #memPage .mem-btn:not(.mem-primary):not(.mem-primary-sm):not(.mem-danger){ background: rgba(242,242,244,0.55) !important; }
+.messages-app #memPage .mem-btn.mem-danger{ background: rgba(251,235,234,0.55) !important; }
+
+/* 4. 每个分区标题放中间 */
+.messages-app #memPage .mem-sec{ text-align: center !important; }
+.messages-app #memPage .mem-group > summary{ justify-content: center !important; gap: 10px; }
+.messages-app #memPage .mem-group > summary::after{ position: absolute; right: 16px; }
+.messages-app #memPage .mem-group > summary{ position: relative; }
+
+/* 5. 设置那一列（上下文条数、自动总结、每到多少条、手动总结）文字右移 25px */
+.messages-app #memPage .mem-settings-card .mem-lbl{ position: relative !important; left: 25px !important; }
+
+/* ===== 记忆区背景：聊天室设置背景图里的「记忆区背景.jpg」 ===== */
+.messages-app #memPage{
+    background: #F4F4F6 url("../assets/聊天室设置背景图/记忆区背景.jpg") center / cover no-repeat !important;
+}
+
+/* ===== 聊天里的保存 / 取消按钮：SF Mono 字体 ===== */
+.messages-app .sv-mono, #gpPanOverlay .sv-mono{ font-family: "SF Mono", "Menlo", "Monaco", "Courier New", monospace !important; letter-spacing: 0.3px; }
+
+/* ===== 记忆区背景：加半透明白色遮罩 ===== */
+.messages-app #memPage{
+    background: linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.6)), #F4F4F6 url("../assets/聊天室设置背景图/记忆区背景.jpg") center / cover no-repeat !important;
+}
+
+/* ===== 记忆区背景遮罩再加白 ===== */
+.messages-app #memPage{
+    background: linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.85)), #F4F4F6 url("../assets/聊天室设置背景图/记忆区背景.jpg") center / cover no-repeat !important;
+}
+
+/* ===== 编辑联系人页：Cancel 与右边的「完成」字号、粗细、字距一致（仍用 SF Mono） ===== */
+.messages-app .edit-header .action.sv-mono{
+    font-size: 14px !important; font-weight: 600 !important; letter-spacing: 0 !important; line-height: 1.2;
+}
+
+/* ===== 新建联系人底部「完成」：去掉字距，字号与顶部「完成」一致 ===== */
+.messages-app .persona-done{ letter-spacing: 0 !important; font-size: 14px !important; font-weight: 600 !important; }
+
+/* ===== 记忆区点击闪烁：去掉手机的点击高亮，重建时不跑过渡 ===== */
+.messages-app #memPage, .messages-app #memPage *{ -webkit-tap-highlight-color: transparent !important; }
+.messages-app #memPage button:focus, .messages-app #memPage button:focus-visible{ outline: none !important; }
+.messages-app #memPage.mp-rebuild, .messages-app #memPage.mp-rebuild *{ transition: none !important; animation: none !important; }

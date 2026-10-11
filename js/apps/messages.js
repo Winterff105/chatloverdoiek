@@ -619,7 +619,8 @@ async function runSummary(c, from, to) {
             points: Array.isArray(o.points) ? o.points.map(String).slice(0, 6) : [],
             relation: String(o.relation || '').trim(),
             keys: Array.isArray(o.keys) ? o.keys.map(String).slice(0, 8) : [],
-            priority: pr
+            priority: pr,
+            sec: 'main', level: memLvlFromPrio(pr)
         });
         c.memCursor = to;
         persistContacts(); renderMemoryPage();
@@ -651,27 +652,105 @@ const MEM_ICO = {
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
     doc: '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/></svg>'
 };
+/* ---------------- 记忆区：共同 / 单独 / 主 / 番外 四个分区，添加记忆，高中低级 ---------------- */
+let MEM_SEC = 'main';            // 当前分区
+let MEM_ADD = null;              // 正在添加的草稿：{text, sec, level}，null 表示没有打开
+let MEM_EDIT = null;             // 正在编辑内容的条目 id
+const MEM_SEC_LIST = [
+    { k: 'common', name: '共同' },
+    { k: 'solo',   name: '单独' },
+    { k: 'main',   name: '主' },
+    { k: 'extra',  name: '番外' }
+];
+const MEM_SEC_NAME = { common: '共同记忆', solo: '单独记忆', main: '主记忆', extra: '番外记忆' };
+const MEM_LVL_NAME = { high: '高', mid: '中', low: '低' };
+const MEM_LVL_RANK = { high: 0, mid: 1, low: 2 };
+function memSecOf(x) { return x && x.sec ? x.sec : 'main'; }
+function memLvlFromPrio(p) { const n = parseInt(p, 10) || 5; return n >= 7 ? 'high' : (n >= 4 ? 'mid' : 'low'); }
+function memLvlOf(x) { return (x && x.level) || memLvlFromPrio(x && x.priority); }
+function memLvlPrio(l) { return l === 'high' ? 8 : (l === 'mid' ? 5 : 2); }
+function memSortItems(list) {
+    return list.slice().sort((a, b) => (MEM_LVL_RANK[memLvlOf(a)] - MEM_LVL_RANK[memLvlOf(b)]) || ((b.priority || 0) - (a.priority || 0)));
+}
+function memSecOptions(sel) {
+    return MEM_SEC_LIST.filter(s => s.k !== 'extra')
+        .map(s => `<option value="${s.k}" ${sel === s.k ? 'selected' : ''}>${MEM_SEC_NAME[s.k]}</option>`).join('');
+}
+function memLvlOptions(sel) {
+    return ['high', 'mid', 'low'].map(l => `<option value="${l}" ${sel === l ? 'selected' : ''}>${MEM_LVL_NAME[l]}级</option>`).join('');
+}
+function memItemHtml(x) {
+    const editing = MEM_EDIT === x.id;
+    const body = editing
+        ? `<textarea class="mem-edit-ta" id="memEditTa" rows="4">${esc(x.text)}</textarea>
+           <div class="mem-btns"><button class="mem-btn" type="button" onclick="memCancelEdit()">取消</button><button class="mem-btn mem-primary-sm" type="button" onclick="memSaveEdit('${x.id}')">SAVE</button></div>`
+        : `<div class="mem-text"><span class="mem-stamp">${esc(x.label || '')}</span> ${esc(x.text)}</div>
+           ${x.points && x.points.length ? `<div class="mem-points">${x.points.map(p => `<div>- ${esc(p)}</div>`).join('')}</div>` : ''}
+           ${x.relation ? `<div class="mem-rel"><span>关系与感情</span>${esc(x.relation)}</div>` : ''}
+           ${x.keys && x.keys.length ? `<div class="mem-keys">${x.keys.map(k => `<em>${esc(k)}</em>`).join('')}</div>` : ''}`;
+    return `<div class="mem-card mem-item">
+        <div class="mem-head">
+            <div class="mem-tags">
+                <select class="mem-select" onchange="memSetLevel('${x.id}', this.value)">${memLvlOptions(memLvlOf(x))}</select>
+                <select class="mem-select" onchange="memSetItemSec('${x.id}', this.value)">${memSecOptions(memSecOf(x))}</select>
+            </div>
+            <div class="mem-actions">
+                <button class="mem-del mem-edit" type="button" onclick="memStartEdit('${x.id}')">编辑</button>
+                <button class="mem-del" type="button" onclick="memDelete('${x.id}')">删除</button>
+            </div>
+        </div>
+        ${body}
+    </div>`;
+}
+function memAddFormHtml() {
+    if (!MEM_ADD) return '';
+    return `<div class="mem-card mem-form">
+        <div class="mem-sec">添加记忆</div>
+        <textarea class="mem-edit-ta" id="memNewTa" rows="4" placeholder="写下这段记忆…">${esc(MEM_ADD.text)}</textarea>
+        <div class="mem-row"><span class="mem-lbl">分区</span><select class="mem-select" id="memNewSec">${memSecOptions(MEM_ADD.sec)}</select></div>
+        <div class="mem-row"><span class="mem-lbl">级别</span><select class="mem-select" id="memNewLvl">${memLvlOptions(MEM_ADD.level)}</select></div>
+        <div class="mem-btns"><button class="mem-btn" type="button" onclick="memCloseAdd()">取消</button><button class="mem-btn mem-primary-sm" type="button" onclick="memSaveNew()">SAVE</button></div>
+    </div>`;
+}
+function memSectionHtml(c) {
+    if (MEM_SEC === 'extra') return '<div class="mem-empty">番外记忆先空着，之后再来填。</div>';
+    const items = (c.memories || []).filter(x => memSecOf(x) === MEM_SEC);
+    const addBtn = `<button class="mem-btn mem-primary" type="button" onclick="memOpenAdd()">${MEM_ICO.plus}<span>添加记忆</span></button>`;
+    if (MEM_SEC === 'main') {
+        const groups = ['high', 'mid', 'low'].map(l => {
+            const arr = memSortItems(items.filter(x => memLvlOf(x) === l));
+            return `<details class="mem-group" ${l === 'high' ? 'open' : ''}>
+                <summary><span>${MEM_LVL_NAME[l]}级</span><small>${arr.length} 条</small></summary>
+                ${arr.map(memItemHtml).join('') || '<div class="mem-empty">这一级还没有记忆</div>'}
+            </details>`;
+        }).join('');
+        return addBtn + memAddFormHtml() + `<div class="mem-sec">按高中低级展开（高级在提示词里排在最前）</div>` + groups;
+    }
+    const hint = MEM_SEC === 'common'
+        ? '还没有共同记忆。对方点赞、评论你的朋友圈，会直接出现在这里。'
+        : '还没有单独记忆。点上面的添加，写下只有对方知道的私人记忆。';
+    const list = memSortItems(items).map(memItemHtml).join('') || `<div class="mem-empty">${hint}</div>`;
+    return addBtn + memAddFormHtml() + list;
+}
 function renderMemoryPage() {
     const page = document.getElementById('memPage'); const c = curMemContact();
     if (!page || !c) return;
+    // 页头和背景只建一次；之后只替换滚动区里的内容，按钮一按不会整页重画，也不会闪
+    if (!page.querySelector('.mem-scroll')) {
+        page.innerHTML = `
+        <header class="mem-top"><button class="mem-back" type="button" onclick="closeMemoryPage()">返回</button><span class="mem-title">记忆</span><span class="mem-spacer"></span></header>
+        <div class="mem-scroll"></div>`;
+    }
+    const scroll = page.querySelector('.mem-scroll');
     const m = memOf(c);
     const presets = memPresets();
     const presetOpts = '<option value="-1">默认指令</option>' + presets.map((p, i) => `<option value="${i}" ${m.presetIdx === i ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
-    const mems = (c.memories || []).slice().sort((a, b) => (b.priority || 0) - (a.priority || 0));
-    const memHtml = mems.length ? mems.map(x => `
-        <div class="mem-card mem-item">
-            <div class="mem-head"><span class="mem-prio">优先级 <input type="number" min="1" max="10" value="${x.priority}" onchange="memSetPriority('${x.id}', this.value)"></span><button class="mem-del" type="button" onclick="memDelete('${x.id}')">删除</button></div>
-            <div class="mem-text"><span class="mem-stamp">${esc(x.label)}</span> ${esc(x.text)}</div>
-            ${x.points && x.points.length ? `<div class="mem-points">${x.points.map(p => `<div>- ${esc(p)}</div>`).join('')}</div>` : ''}
-            ${x.relation ? `<div class="mem-rel"><span>关系与感情</span>${esc(x.relation)}</div>` : ''}
-            ${x.keys && x.keys.length ? `<div class="mem-keys">${x.keys.map(k => `<em>${esc(k)}</em>`).join('')}</div>` : ''}
-        </div>`).join('') : '<div class="mem-empty">还没有记忆。开启自动总结，或手动总结一段对话。</div>';
-    const last = c.msgs.length;
-    page.innerHTML = `
-        <header class="mem-top"><button class="mem-back" type="button" onclick="closeMemoryPage()">返回</button><span class="mem-title">记忆</span><span class="mem-spacer"></span></header>
-        <div class="mem-scroll">
-            <div class="mem-sec">设置</div>
-            <div class="mem-card">
+    const seg = `<div class="mem-seg">${MEM_SEC_LIST.map(x => `<button class="mem-seg-pill ${MEM_SEC === x.k ? 'active' : ''}" type="button" onclick="memSetSec('${x.k}')">${x.name}</button>`).join('')}</div>`;
+    page.classList.add('mp-rebuild');
+    scroll.innerHTML = `
+            ${seg}
+            ${MEM_SEC === 'main' ? `<div class="mem-sec">设置</div>
+            <div class="mem-card mem-settings-card">
                 <div class="mem-row"><span class="mem-lbl">上下文条数</span><input type="number" min="1" value="${m.ctx}" onchange="memSetNum('ctx', this.value)"></div>
                 <div class="mem-row"><span class="mem-lbl">自动总结</span><button class="mem-switch ${m.auto ? 'on' : ''}" type="button" onclick="memToggleAuto()" aria-label="自动总结"></button></div>
                 <div class="mem-row"><span class="mem-lbl">每到多少条总结一次</span><input type="number" min="1" value="${m.every}" onchange="memSetNum('every', this.value)"></div>
@@ -684,15 +763,58 @@ function renderMemoryPage() {
                 <textarea class="mem-instr" id="memInstr" rows="9">${esc(m.instr)}</textarea>
                 <div class="mem-btns">
                     <button class="mem-btn" type="button" onclick="memRestoreDefault()">${MEM_ICO.restore}<span>恢复默认</span></button>
-                    <button class="mem-btn" type="button" onclick="memSaveInstr()">${MEM_ICO.save}<span>保存修改</span></button>
+                    <button class="mem-btn" type="button" onclick="memSaveInstr()">${MEM_ICO.save}<span>SAVE</span></button>
                     <button class="mem-btn" type="button" onclick="memSavePreset()">${MEM_ICO.plus}<span>存为预设</span></button>
                     ${m.presetIdx >= 0 ? `<button class="mem-btn" type="button" onclick="memUpdatePreset()">${MEM_ICO.refresh}<span>更新预设</span></button><button class="mem-btn mem-danger" type="button" onclick="memDeletePreset()">${MEM_ICO.trash}<span>删除预设</span></button>` : ''}
                 </div>
                 <div class="mem-hint">{{char}} 代表角色名，{{user}} 代表你的名字。</div>
             </div>
-            <div class="mem-sec">查看记忆（优先级高的排在提示词前面）</div>
-            ${memHtml}
-        </div>`;
+            ` : ''}
+            ${memSectionHtml(c)}
+    `;
+    requestAnimationFrame(() => page.classList.remove('mp-rebuild'));
+}
+
+function memSetSec(k) { MEM_SEC = k; MEM_ADD = null; MEM_EDIT = null; renderMemoryPage(); }
+function memOpenAdd() {
+    MEM_ADD = { text: '', sec: MEM_SEC === 'extra' ? 'main' : MEM_SEC, level: 'mid' };
+    renderMemoryPage();
+}
+function memCloseAdd() { MEM_ADD = null; renderMemoryPage(); }
+function memSaveNew() {
+    const c = curMemContact(); if (!c) return;
+    const text = (document.getElementById('memNewTa').value || '').trim();
+    if (!text) { toast('写点什么再保存吧'); return; }
+    const sec = document.getElementById('memNewSec').value;
+    const level = document.getElementById('memNewLvl').value;
+    c.memories = c.memories || [];
+    c.memories.unshift({
+        id: 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        label: '手动添加 · ' + memStamp(Date.now()),
+        text, points: [], relation: '', keys: [],
+        priority: memLvlPrio(level), sec, level
+    });
+    MEM_SEC = sec; MEM_ADD = null;
+    persistContacts(); renderMemoryPage(); toast('已添加记忆');
+}
+function memSetItemSec(id, sec) {
+    const c = curMemContact(); if (!c) return;
+    const x = (c.memories || []).find(y => y.id === id); if (!x) return;
+    x.sec = sec; persistContacts(); renderMemoryPage();
+}
+function memSetLevel(id, lvl) {
+    const c = curMemContact(); if (!c) return;
+    const x = (c.memories || []).find(y => y.id === id); if (!x) return;
+    x.level = lvl; persistContacts(); renderMemoryPage();
+}
+function memStartEdit(id) { MEM_EDIT = id; renderMemoryPage(); }
+function memCancelEdit() { MEM_EDIT = null; renderMemoryPage(); }
+function memSaveEdit(id) {
+    const c = curMemContact(); if (!c) return;
+    const x = (c.memories || []).find(y => y.id === id); if (!x) return;
+    const text = (document.getElementById('memEditTa').value || '').trim();
+    if (!text) { toast('内容不能为空'); return; }
+    x.text = text; MEM_EDIT = null; persistContacts(); renderMemoryPage(); toast('已保存');
 }
 function memSetNum(key, v) { const c = curMemContact(); if (!c) return; const m = memOf(c); m[key] = Math.max(1, parseInt(v, 10) || 1); persistContacts(); renderMemoryPage(); }
 function memToggleAuto() { const c = curMemContact(); if (!c) return; const m = memOf(c); m.auto = !m.auto; persistContacts(); renderMemoryPage(); }
@@ -1955,6 +2077,33 @@ async function pullReply() {
     finally { c._busy=false; if(cap) cap.classList.remove('pulling'); }
 }
 
+/* ---------------- 底栏上拉菜单：重新回复 ---------------- */
+// 删掉最后一条我发的消息之后，对方这一轮的所有回复，然后重新调取
+function redoLastReply() {
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!c || c._busy) return;
+    let lastMe = -1;
+    c.msgs.forEach((m, i) => { if (m.me) lastMe = i; });
+    if (lastMe < 0) { toast('还没有我发的消息，没法重新回复'); return; }
+    c.msgs = c.msgs.slice(0, lastMe + 1);
+    persistContacts(); renderThread(); renderChats();
+    toggleQuickMenu(false);
+    pullReply();
+}
+
+// 把「重新回复」插到上拉菜单的第一个（只插一次）
+function ensureRedoQuickItem() {
+    const menu = document.getElementById('quickMenu');
+    if (!menu || menu.querySelector('[data-quick="redo"]')) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'quick-item';
+    b.dataset.quick = 'redo';
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8"/><path d="M20 3v5h-5"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 16"/><path d="M4 21v-5h5"/></svg><span>重新回复</span>';
+    b.addEventListener('click', e => { e.stopPropagation(); redoLastReply(); });
+    menu.insertBefore(b, menu.firstChild);
+}
+
 /* 人设页第一区折叠 */
 function togglePersonaFold() {
     const f = document.getElementById('pFold');
@@ -1981,6 +2130,7 @@ let touchStartX = 0;
 function toggleQuickMenu(force) {
     const menu = document.getElementById('quickMenu');
     if (!menu) return;
+    ensureRedoQuickItem();
     const show = typeof force === 'boolean' ? force : !menu.classList.contains('show');
     menu.classList.toggle('show', show);
 }
@@ -2418,7 +2568,7 @@ function finishProfileEdit(el) {
     const orig = PROFILE[key];
     const next = el.textContent.replace(/\s+/g, ' ').trim().slice(0, 24);
     if (!next || next === orig) { el.textContent = orig; return; }
-    askConfirm('保存修改？', `把「${orig}」改为「${next}」`, '保存', () => {
+    askConfirm('保存修改？', `把「${orig}」改为「${next}」`, 'SAVE', () => {
         PROFILE[key] = next;
         saveProfileCard();
         renderChats();
@@ -2597,7 +2747,7 @@ function finishSettingsNameEdit(el) {
     const next = el.textContent.replace(/\s+/g, ' ').trim().slice(0, 16);
     if (next === shown) { el.textContent = shown; return; }
     const isReset = next === '';
-    askConfirm('保存修改？', isReset ? '恢复为默认名字（跟随当前身份）' : `把「${shown}」改为「${next}」`, '保存', () => {
+    askConfirm('保存修改？', isReset ? '恢复为默认名字（跟随当前身份）' : `把「${shown}」改为「${next}」`, 'SAVE', () => {
         saveSettingsName(next);
         applySelf();
     }, () => { el.textContent = shown; });
@@ -4099,11 +4249,50 @@ async function publishMoment() {
         }
         imgs.push(key);
     }
-    POSTS.unshift({ id, text, t: Date.now(), by: ACTIVE_ID, vis: MOMENT_VIS,
+    const post = { id, text, t: Date.now(), by: ACTIVE_ID, vis: MOMENT_VIS,
         visTo: MOMENT_VIS === 'some' ? MOMENT_VIS_TO.slice() : [],
-        likes: [], comments: [], imgs });
+        likes: [], comments: [], imgs };
+    POSTS.unshift(post);
     PENDING_IMGS = [];
     persistMoments(); closeFullMask(); renderMoments(); toast('已发布');
+    momentRepliesFor(post);   // 能看到这条动态的联系人会自己决定要不要点赞、评论
+}
+
+/* ---------------- 朋友圈回复逻辑：点赞 / 评论 → 直接进入共同记忆 ---------------- */
+function momentVisibleTo(p, c) {
+    if (p.vis === 'self') return false;
+    if (p.vis === 'some') return (p.visTo || []).includes(c.id);
+    return true;
+}
+function addCommonMemory(c, text) {
+    c.memories = c.memories || [];
+    c.memories.unshift({
+        id: 'mc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        label: memStamp(Date.now()),
+        text, points: [], relation: '', keys: [],
+        priority: 8, sec: 'common', level: 'high'
+    });
+}
+async function momentRepliesFor(p) {
+    if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) return;   // 没接入 API 时不自动回复
+    const who = CONTACTS.filter(c => momentVisibleTo(p, c));
+    const excerpt = (p.text || '').trim().slice(0, 20) || '一张照片';
+    for (const c of who) {
+        try {
+            const r = await window.MessagesAPI.momentReply(c, p);
+            p.likes = p.likes || []; p.comments = p.comments || [];
+            if (r.like && !p.likes.includes(c.id)) {
+                p.likes.push(c.id);
+                addCommonMemory(c, `${c.name}点赞了你的朋友圈（${excerpt}）`);
+            }
+            if (r.comment) {
+                p.comments.push({ by: c.id, text: r.comment, t: Date.now() });
+                addCommonMemory(c, `${c.name}在你的朋友圈（${excerpt}）下评论：${r.comment}`);
+            }
+            persistContacts(); persistMoments(); renderMoments();
+            if (document.getElementById('memPage') && document.getElementById('memPage').classList.contains('open')) renderMemoryPage();
+        } catch (e) { toast((e && e.message) || '朋友圈回复失败'); }
+    }
 }
 
 function deleteMoment(id) {
@@ -4130,8 +4319,30 @@ bindChatDrop();
 bindChatDropSwipe();
 bindChatDropOutside();
 applyTheme(THEME);
+/* ---------------- 聊天里的保存 / 取消按钮：英文 Save / Cancel，SF Mono 字体（记忆页不处理） ---------------- */
+function markSaveCancelButtons() {
+    const LABEL = { '完成': 'SAVE', '保存': 'SAVE', '保存样式': 'SAVE', '取消': 'Cancel', 'Save': 'SAVE', 'SAVE': 'SAVE', 'Cancel': 'Cancel' };
+    const scan = (root) => {
+        const list = (root.matches && root.matches('button')) ? [root, ...root.querySelectorAll('button')] : root.querySelectorAll('button');
+        list.forEach(b => {
+            if (!b.closest('.messages-app') && !b.closest('#gpPanOverlay')) return;
+            const t = (b.textContent || '').trim();
+            if (!LABEL[t]) return;
+            const editorSave = /saveContact\(|savePersona\(/.test(b.getAttribute('onclick') || '');
+            const want = editorSave ? 'Save' : LABEL[t];
+            b.classList.add('sv-mono');
+            if (b.childElementCount === 0 && t !== want) b.textContent = want;
+        });
+    };
+    scan(document.body);
+    new MutationObserver(muts => {
+        muts.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) scan(n); }));
+    }).observe(document.body, { childList: true, subtree: true });
+}
+markSaveCancelButtons();
 initComposerGesture();
 
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
+Object.assign(__messagesHandlers, {memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 };

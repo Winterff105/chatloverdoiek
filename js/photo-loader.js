@@ -6,16 +6,15 @@
    可选设置（放在这个 js 加载之前）：
      window.PHOTO_BG          背景图路径，默认 'assets/前景/ovo.png'
      window.PHOTO_LIST        要等的照片，例如 ['assets/照片/1.jpg']
-     window.PHOTO_LOAD_TIMEOUT 最多等多久（毫秒），默认 15000，超时也会进入
      window.PHOTO_LOADER_CSS  样式文件路径，默认 'css/photo-loader.css'
-     window.PHOTO_MIN_SHOW    开场最少停留多久（毫秒），默认 5000（故意停 5 秒）
    ===================================================================== */
 (function () {
     const BG = window.PHOTO_BG || 'assets/前景/ovo.png';
     const LIST = Array.isArray(window.PHOTO_LIST) ? window.PHOTO_LIST.slice() : [];
-    const TIMEOUT = window.PHOTO_LOAD_TIMEOUT || 15000;
+    const TIMEOUT = 15000;   // 兜底：照片一直读不出来，最多等 15 秒
+    const HOLD_MIN = 3000;   // 最少停留 3 秒，之后照片读完就进入
     const CSS_PATH = window.PHOTO_LOADER_CSS || 'css/photo-loader.css';
-    const MIN_SHOW = window.PHOTO_MIN_SHOW != null ? window.PHOTO_MIN_SHOW : 5000;   // 故意停留的最短时间
+
     const startedAt = Date.now();
 
     // 1. 样式文件（如果 index.html 已经引用了，就不重复加）
@@ -60,7 +59,7 @@
         finished = true;
         done = total; setProgress();                    // 进度条走到 100%
         // 照片读完也要等够最短停留时间（默认 5 秒）再淡出
-        const wait = Math.max(350, MIN_SHOW - (Date.now() - startedAt));
+        const wait = Math.max(350, HOLD_MIN - (Date.now() - startedAt));   // 至少停满 3 秒
         setTimeout(() => {
             layer.classList.add('pl-hide');
             setTimeout(() => layer.remove(), 800);
@@ -71,7 +70,7 @@
 
     urls.forEach(src => {
         const im = new Image();
-        const one = () => { done++; setProgress(); if (done >= total) finish(); };
+        const one = () => { done++; setProgress(); if (done >= total) finish(); };   // 照片全部读完就进入
         im.onload = one;
         im.onerror = one;                               // 读取失败也算完成，不卡住
         im.src = src;

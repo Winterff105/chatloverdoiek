@@ -58,6 +58,33 @@
 [FAKE COMFORT]
 - 人类不会轻易说"我在这呢，说吧"。不要说这类假陪伴、假安慰的话，它们会让人觉得虚假、虚拟感很重。`;
 
+  /* 记忆分区与级别：共同 / 单独 / 主 / 番外；级别 高 / 中 / 低（旧数据没有级别时按优先级推算） */
+  const MEM_SEC_NAME = { common: '共同记忆', solo: '单独记忆', main: '主记忆', extra: '番外记忆' };
+  const MEM_LVL_NAME = { high: '高', mid: '中', low: '低' };
+  const MEM_LVL_RANK = { high: 0, mid: 1, low: 2 };
+  function memSecOf(x) { return x && x.sec ? x.sec : 'main'; }
+  function memLvlOf(x) {
+    if (x && x.level) return x.level;
+    const p = parseInt(x && x.priority, 10) || 5;
+    return p >= 7 ? 'high' : (p >= 4 ? 'mid' : 'low');
+  }
+  function buildMemBlock(list, fillU) {
+    const items = (list || []).filter(Boolean);
+    if (!items.length) return '';
+    const line = x => `[${MEM_LVL_NAME[memLvlOf(x)]}级] ${x.label || ''} ${fillU(x.text)}`
+        + (x.points && x.points.length ? '\n' + x.points.map(p => '- ' + fillU(p)).join('\n') : '')
+        + (x.relation ? '\n关系与感情：' + fillU(x.relation) : '')
+        + (x.keys && x.keys.length ? '\n关键词：' + x.keys.join('、') : '');
+    const sorted = sec => items.filter(x => memSecOf(x) === sec)
+        .sort((a, b) => (MEM_LVL_RANK[memLvlOf(a)] - MEM_LVL_RANK[memLvlOf(b)]) || ((b.priority || 0) - (a.priority || 0)));
+    const out = ['【记忆】分为四个分区：共同记忆是你和对方共同经历的事（比如对方点赞、评论过你的朋友圈），这些是双方都记得的；单独记忆是只有对方这一方知道的私人记忆；主记忆是总结出的事情经过，按高、中、低级排列，越靠前越重要；番外记忆是番外设定。提到共同经历时要自然地呼应，不要当成新鲜事再讲一遍。'];
+    [['common', 20], ['solo', 20], ['main', 12], ['extra', 8]].forEach(([sec, n]) => {
+        const arr = sorted(sec).slice(0, n);
+        if (arr.length) out.push(`【${MEM_SEC_NAME[sec]}】\n` + arr.map(line).join('\n'));
+    });
+    return out.length > 1 ? out.join('\n') : '';
+  }
+
   const FORMAT_PROMPT = [
     '【输出格式：优先级最高，高于以上所有角色要求】',
     '1. 只输出一个 JSON 对象，不要输出任何其他文字、解释、标题、Markdown 或代码块。',
@@ -107,12 +134,7 @@
     const c = config(); if (!isConfigured()) throw new Error('请先返回主界面，在「设置 → API」里保存接口地址、密钥和模型');
     const memCount = (contact.mem && contact.mem.ctx) || 30;
     const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
-    const mems = (contact.memories || []).slice().sort((a, b) => (b.priority || 0) - (a.priority || 0)).slice(0, 12);
-    const memBlock = mems.length ? ['【记忆（按优先级排序，越靠前越重要）】'].concat(mems.map(x =>
-        `${x.label || ''} ${fillU(x.text)}`
-        + (x.points && x.points.length ? '\n' + x.points.map(p => '- ' + fillU(p)).join('\n') : '')
-        + (x.relation ? '\n关系与感情：' + fillU(x.relation) : '')
-        + (x.keys && x.keys.length ? '\n关键词：' + x.keys.join('、') : ''))).join('\n') : '';
+    const memBlock = buildMemBlock(contact.memories || [], fillU);
     const PROMPT_OPT_TEXT = {
         ai: '避免八股套话和模板化的客套句式，说话要具体、自然。',
         greasy: '语气自然不油腻，不用过度亲昵的称呼和暧昧措辞。' + '\n' + '请把user视为独立的人类，不要刻意矮化，幼化user' + '\n' + 'Avoid greasy, cringeworthy, or overly patronizing terms of endearment (e.g., "小丫头", "小没良心的", "小野猫"). Such expressions can make your character feel artificial, clichéd, or insincere.',
@@ -171,6 +193,41 @@
     if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
     return parts;
   }
+  /* 朋友圈回复：判断这个联系人看到用户的朋友圈后，是否点赞、是否评论 */
+  const MOMENT_RULE = [
+    '【朋友圈回复】',
+    '用户刚发了一条朋友圈，你看到了。请根据你的性格、与用户的关系和你的记忆，决定要不要点赞、要不要评论。',
+    '不是每条都要点赞或评论；不愿意的时候就都不做。评论要像真人随手一句，简短口语化，不要客套话，不要解释自己。',
+    '只输出一个 JSON 对象，不要输出任何其他文字、解释或代码块，格式固定为：{"like":true或false,"comment":"评论内容，没有评论就写空字符串"}'
+  ].join('\n');
+  async function momentReply(contact, post) {
+    const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
+    const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
+    const memBlock = buildMemBlock(contact.memories || [], fillU);
+    const system = [
+      ROLEPLAY_PROMPT,
+      memBlock,
+      contact.name ? `你的名字：${contact.name}` : '',
+      contact.persona ? `联系人设定：${contact.persona}` : '',
+      contact.relation ? `与用户的关系：${contact.relation}` : '',
+      MOMENT_RULE
+    ].filter(Boolean).join('\n');
+    const when = post && post.t ? new Date(post.t) : new Date();
+    const user = `这是用户刚发的朋友圈（${when.getHours()}时${when.getMinutes()}分）：\n${String(post && post.text || '').trim() || '（只发了照片）'}`;
+    let response;
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: 0.8 }) }); }
+    catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);
+    const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    const raw = Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content || '');
+    const t = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    let o = null;
+    try { o = JSON.parse(t); } catch (_) { const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a >= 0 && b > a) { try { o = JSON.parse(t.slice(a, b + 1)); } catch (_) {} } }
+    if (!o || typeof o !== 'object') throw new Error('朋友圈回复没有解析出结果，请重试');
+    return { like: o.like === true || o.like === 'true', comment: String(o.comment || '').trim().slice(0, 120) };
+  }
+
   /* 记忆总结：单次请求，返回模型原文 */
   async function complete(systemText, userText) {
     const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
@@ -183,5 +240,5 @@
     if (!content) throw new Error('API 返回内容为空');
     return Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content);
   }
-  window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete };
+  window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply };
 })();
