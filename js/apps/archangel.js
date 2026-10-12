@@ -591,8 +591,11 @@
           return [
             '【输出格式】',
             '你必须只输出一个 JSON 对象，不要用 Markdown 代码围栏，也不要输出 JSON 以外的任何文字：',
-            short?'{"thinking":"你的思考过程","reply":["第一条消息","第二条消息"]}':'{"thinking":"你的思考过程","reply":"发给用户的正文"}',
+            short
+              ?'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":["第一条消息","第二条消息"]}'
+              :'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":"发给用户的正文"}',
             'thinking：用中文写 2 到 4 句思考过程，比如你理解到用户想要什么、此刻的语气或意图、打算怎样回应。它是展示给用户看的思维链，要像真实的内心推理，不要写成对用户说的话。',
+            'steps：2 到 4 个短语，每个不超过 10 个字，列出你这一轮实际做的几件事，比如“听懂你的意思”“想好开头的画面”“组织温柔的语气”。',
             short
               ?'reply 必须是数组，模拟真人连发微信：每一条只写一句话，每条不超过 30 个字，通常 1 到 4 条。不要把长段落塞进一条里，也不要使用代码块。'
               :'reply：你真正要发给用户的话，语气遵循上面的角色设定。'
@@ -639,7 +642,7 @@
               const msgs=[{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。'].join('\n')},...hist];
               if(!hist.length)msgs.push({role:'user',content:text});
               const out=await chatText(msgs);
-              dC('完成');
+              if(out.steps.length){steps.innerHTML='';out.steps.forEach((t,i)=>step(i,t)())}else dC('完成');
               tp.textContent=out.thinking||'（这次回复没有返回思维链）';
               say(bodyHTML(out.parts));
               commit(out.parts,out.thinking);
@@ -904,24 +907,35 @@
           if(!r.ok)throw new Error('AI 请求失败：'+await err(r));
           const d=await r.json();runTokens+=(d.usage&&d.usage.total_tokens)||0;
           const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
-          const raw=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');
+          const rawOut=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');
+
+          // 模型把思考写在 <think>…</think> / <thinking>…</thinking> 里时，取出来当思维链，并从正文里去掉
+          const tagged=[];
+          const raw=String(rawOut).replace(/<(think|thinking)>([\s\S]*?)<\/\1>/gi,(_m,_t,inner)=>{tagged.push(inner.trim());return ''}).trim();
+
           let thinking=typeof m.reasoning_content==='string'?m.reasoning_content.trim():'';
-          const toParts=v=>(Array.isArray(v)?v:[v]).map(x=>String(x??'').trim()).filter(Boolean).slice(0,6);
+          if(!thinking&&tagged.length)thinking=tagged.join('\n').trim();
+
+          const toList=(v,max,len)=>(Array.isArray(v)?v:[v]).map(x=>String(x??'').trim()).filter(Boolean).slice(0,max).map(x=>x.slice(0,len));
+          let steps=[];
           let parts=null;
           try{
             const o=pj(raw);
-            if(o&&o.reply!==undefined){
-              const p=toParts(o.reply);
-              if(p.length)parts=p;
+            if(o&&typeof o==='object'){
               if(!thinking&&typeof o.thinking==='string')thinking=o.thinking.trim();
+              if(Array.isArray(o.steps))steps=toList(o.steps,4,20);
+              if(o.reply!==undefined){
+                const p=toList(o.reply,6,2000);
+                if(p.length)parts=p;
+              }
             }
           }catch(e){}
           if(!parts){
-            const t=String(raw).trim();
+            const t=raw;
             const lines=short?t.split(/\n+/).map(x=>x.trim()).filter(Boolean).slice(0,6):[];
-            parts=lines.length>1?lines:[t];
+            parts=lines.length>1?lines:[t||'（模型没有返回内容）'];
           }
-          return {thinking,parts};
+          return {thinking,steps,parts};
         }
 
     };
