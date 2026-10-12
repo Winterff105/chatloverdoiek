@@ -26,7 +26,9 @@
   <main class="main collapsed" id="ar-main">
     <aside class="closed" id="ar-side"><div class="sin">
 <h3>GitHub 仓库</h3>
+<button type="button" class="tok-link" id="ar-tokHelp">怎么找 Token？</button>
 <label><span>Token</span><input id="ar-gToken" type="password" autocomplete="off" placeholder="ghp_..."></label>
+
 <label><span>Owner</span><input id="ar-gOwner" placeholder="仓库所有者"></label>
 <label><span>Repository</span><input id="ar-gRepo" placeholder="仓库名称"></label>
 <label><span>Branch</span><input id="ar-gBranch" placeholder="main"></label>
@@ -62,6 +64,21 @@
         <div class="ar-cons-rounds" id="ar-consRounds"></div>
         <div class="ar-cons-detail" id="ar-consDetail"></div>
         <div class="ar-foot"><button type="button" class="ar-close" id="ar-consClose">关闭</button></div>
+    </div>
+</div>
+<div class="ar-sheet ar-tokguide" id="ar-tokGuide" hidden>
+    <div class="ar-sheet-card">
+        <div class="ar-sheet-title">怎么找 GitHub Token</div>
+        <ol class="tok-steps">
+            <li>打开 GitHub，点右上角头像，进入 <b>Settings</b>（设置）。</li>
+            <li>左边最下面找到 <b>Developer settings</b>（开发者设置）。</li>
+            <li>依次点 <b>Personal access tokens</b> → <b>Fine-grained tokens</b> → <b>Generate new token</b>。</li>
+            <li><b>Repository access</b> 选 <b>Only select repositories</b>，勾选你要改的那个仓库。</li>
+            <li>在 <b>Repository permissions</b> 里找到 <b>Contents</b>，改成 <b>Read and write</b>。不开这一项就只能读，不能上传。</li>
+            <li>点 <b>Generate token</b>，复制生成的 token（以 github_pat_ 开头），粘贴到这里。token 只显示一次，记得先存好。</li>
+        </ol>
+        <div class="tok-note">菜单名字可能随 GitHub 改版略有不同，大致路径就是这样。</div>
+        <button type="button" class="ar-close" id="ar-tokGuideClose">知道了</button>
     </div>
 </div>
 <div class="ar-sheet" id="ar-sheet" hidden>
@@ -270,9 +287,24 @@
             img.src=url;
           });
         }
+        function fileTreeHTML(files){
+          const groups=new Map();
+          (files||[]).forEach(f=>{
+            const i=f.name.lastIndexOf('/');
+            const dir=i>=0?f.name.slice(0,i):'';
+            const base=f.name.slice(i+1);
+            if(!groups.has(dir))groups.set(dir,[]);
+            groups.get(dir).push({base,size:String(f.content||'').length});
+          });
+          const fmt=n=>n<1024?n+' B':(n/1024).toFixed(1)+' KB';
+          return [...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([dir,items])=>
+            `<div class="fdir"><button type="button" class="fdir-head" aria-expanded="false"><span class="fdir-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4.2l1.8 2H19a1.5 1.5 0 0 1 1.5 1.5V18A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z"/></svg></span><span class="fdir-name"><b>${esc(dir||'（根目录）')}</b></span><span class="fdir-count">${items.length}</span><span class="fdir-chev" aria-hidden="true"></span></button><div class="fdir-body"><div><ul class="ffiles">${items.map(it=>`<li><span class="fdot"></span><span class="ffname">${esc(it.base)}</span><span class="ffsize">${fmt(it.size)}</span></li>`).join('')}</ul></div></div></div>`
+          ).join('');
+        }
         function fileCardHTML(mid,files){
-          const n=(files||[]).length;
-          return `<button type="button" class="file-card" data-mid="${escA(mid)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h6.5L18 8v12.5H7z"/><path d="M13.5 3.5V8H18"/><path d="M12 11v5.5M9.5 14l2.5 2.5 2.5-2.5"/></svg><span>下载 ${n} 个文件（zip）</span></button>`;
+          const list=files||[];
+          const names=list.slice(0,3).map(f=>esc(f.name)).join('、')+(list.length>3?` 等 ${list.length} 个`:'');
+          return `<div class="fc-wrap"><button type="button" class="file-card" data-mid="${escA(mid)}"><span class="fc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h6.5L18 8v12.5H7z"/><path d="M13.5 3.5V8H18"/></svg></span><span class="fc-main"><b>下载 zip</b><small>${names}</small></span><span class="fc-go" aria-hidden="true">↓</span></button><div class="fc-tree">${fileTreeHTML(list)}</div></div>`;
         }
         const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
         function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC_T[(c^b[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
@@ -392,6 +424,17 @@
           }
         }
 
+        function deleteConversation(id){
+          conversationHistory=conversationHistory.filter(c=>c.id!==id);
+          if(currentConversation&&currentConversation.id===id){
+            currentConversation=null;
+            createNewConversation();
+          }
+          saveConversationHistory();
+          renderConversationHistory();
+          toast('已删除对话');
+        }
+
         function renderConversationHistory(){
           const list=$('#ar-historyList');
 
@@ -416,7 +459,22 @@
             button.textContent=conversation.title||'未命名对话';
             button.title=conversation.title||'未命名对话';
 
+            let lpTimer=null,longFired=false;
+            button.addEventListener('pointerdown',()=>{
+              longFired=false;
+              clearTimeout(lpTimer);
+              lpTimer=setTimeout(()=>{
+                longFired=true;
+                list.querySelectorAll('.history-item.pink').forEach(x=>x.classList.remove('pink'));
+                button.classList.add('pink');
+              },500);
+            });
+            ['pointerup','pointerleave','pointercancel'].forEach(t=>button.addEventListener(t,()=>clearTimeout(lpTimer)));
+
             button.addEventListener('click',()=>{
+              if(longFired){longFired=false;return}
+              if(button.classList.contains('pink')){deleteConversation(conversation.id);return}
+              list.querySelectorAll('.history-item.pink').forEach(x=>x.classList.remove('pink'));
               openConversation(conversation.id);
             });
 
@@ -1065,6 +1123,15 @@
         host.querySelector('#ar-consClose').addEventListener('click',()=>fadeSheet(consoleSheet,false));
         consoleSheet.addEventListener('click',e=>{if(e.target.id==='ar-consoleSheet')fadeSheet(consoleSheet,false)});
         const bottomBar=host.querySelector('.bottom');
+        /* ---- 文件夹：点一下展开 / 收起 ---- */
+        host.addEventListener('click',e=>{
+          const h=e.target.closest&&e.target.closest('.fdir-head');
+          if(!h)return;
+          const open=!h.parentElement.classList.contains('open');
+          h.parentElement.classList.toggle('open',open);
+          h.setAttribute('aria-expanded',String(open));
+        });
+
         /* ---- 文件卡片：点一下下载 zip ---- */
         host.addEventListener('click',e=>{
           const c=e.target.closest&&e.target.closest('.file-card');
@@ -1072,6 +1139,10 @@
           const m=msgById(c.dataset.mid);
           if(m&&m.files&&m.files.length)downloadZip(m.files);
         });
+
+        host.querySelector('#ar-tokHelp').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();fadeSheet(host.querySelector('#ar-tokGuide'),true)});
+        host.querySelector('#ar-tokGuideClose').addEventListener('click',()=>fadeSheet(host.querySelector('#ar-tokGuide'),false));
+        host.querySelector('#ar-tokGuide').addEventListener('click',e=>{if(e.target.id==='ar-tokGuide')fadeSheet(host.querySelector('#ar-tokGuide'),false)});
 
         /* ---- 思维链：点一下展开 / 收起 ---- */
         host.addEventListener('click',e=>{
