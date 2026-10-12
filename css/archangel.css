@@ -408,3 +408,72 @@
 
 /* ===== 没有步骤时：一个爱心放在 tk 下面 ===== */
 .archangel-app .ar-heart{display:block;width:16px;height:16px;margin:6px auto 0;color:#7a8594;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+/* ===== 第一个步骤的爱心：白色 ===== */
+.archangel-app .steps .step:nth-child(1) .ic{color:#fff !important}
+
+/* ===== 思维链 / 步骤文字：保护，避免被其他样式隐藏 ===== */
+.archangel-app .steps .step span{display:inline-block !important;visibility:visible !important;opacity:1 !important;color:#5d6670 !important;font-size:14px !important}
+.archangel-app .arow .think{display:block !important;visibility:visible !important;opacity:1 !important}
+.archangel-app .arow .think > summary{display:block !important;visibility:visible !important}
+.archangel-app .arow .think[open] > p{display:block !important;visibility:visible !important;opacity:1 !important;color:#5b636d !important}
+
+/* ===== 底栏上方右侧的蓝色控制台按钮 ===== */
+.archangel-app #ar-console:active{transform:translateY(1px) scale(.97)}
+
+/* ===== 控制台弹窗：轻微的电子机械风 ===== */
+@keyframes ar-led{50%{opacity:.35}}
+.archangel-app .ar-cons-card{position:relative;width:min(380px,92%);max-height:84%;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:14px;background:rgba(255,255,255,.97);border:1px solid #cfd8e3;box-shadow:0 18px 40px rgba(40,60,90,.25);color:#2b3440;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden}
+.archangel-app .ar-cons-card::before,.archangel-app .ar-cons-card::after{content:"";position:absolute;width:16px;height:16px;border:2px solid #2a5bcc;pointer-events:none}
+.archangel-app .ar-cons-card::before{top:-1px;left:-1px;border-right:0;border-bottom:0;border-radius:14px 0 0 0}
+.archangel-app .ar-cons-card::after{bottom:-1px;right:-1px;border-left:0;border-top:0;border-radius:0 0 14px 0}
+.archangel-app .ar-cons-top{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#4a5a70;border-bottom:1px dashed #c3ccd8;padding-bottom:8px}
+.archangel-app .ar-cons-led{width:7px;height:7px;border-radius:50%;background:#2fd17a;box-shadow:0 0 8px #2fd17a;animation:ar-led 1.6s infinite}
+.archangel-app .ar-cons-title{flex:1}
+.archangel-app .ar-cons-count{color:#2a5bcc}
+.archangel-app .ar-cons-rounds{display:flex;flex-wrap:wrap;gap:6px}
+.archangel-app .ar-cr{min-width:38px;height:28px;padding:0 8px;border:1px solid #b9c6d8;border-radius:6px;background:#f5f8fc;color:#4a5a70;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer}
+.archangel-app .ar-cr.on{background:#2a5bcc;border-color:#2a5bcc;color:#fff;box-shadow:0 0 0 3px rgba(42,91,204,.15)}
+.archangel-app .ar-cons-detail{overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:10px;font-size:12px;line-height:1.5}
+.archangel-app .ar-cd-head{display:flex;justify-content:space-between;font-size:10px;color:#2a5bcc;letter-spacing:.1em}
+.archangel-app .ar-cd-sec{border:1px solid #dbe3ee;border-radius:8px;padding:8px 10px;background:repeating-linear-gradient(0deg,rgba(42,91,204,.035) 0 1px,transparent 1px 6px),#fff}
+.archangel-app .ar-cd-sec h4{margin:0 0 6px;font-size:9px;letter-spacing:.16em;color:#6b7b90;font-weight:600}
+.archangel-app .ar-cd-sec pre{margin:0;white-space:pre-wrap;word-break:break-word;font:11.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#2b3440;max-height:260px;overflow:auto}
+.archangel-app .ar-cd-steps{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+.archangel-app .ar-cd-steps li{display:flex;gap:8px;align-items:baseline}
+.archangel-app .ar-cd-steps b{display:inline-grid;place-items:center;width:18px;height:18px;border:1px solid #2a5bcc;border-radius:50%;font-size:10px;color:#2a5bcc;flex:none}
+.archangel-app .ar-cd-steps i{color:#8a929c;font-style:normal}
+.archangel-app .ar-cd-bub{display:flex;gap:8px;padding:6px 8px;margin-bottom:6px;border:1px dashed #b9c6d8;border-radius:6px;background:#fbfdff}
+.archangel-app .ar-cd-bub b{color:#2a5bcc;flex:none}
+.archangel-app .ar-cd-raw{margin-bottom:8px}
+.archangel-app .ar-cd-rl{font-size:9px;letter-spacing:.12em;color:#6b7b90;margin-bottom:4px}
+.archangel-app .ar-cd-none{color:#8a929c;font-size:11px}
+.archangel-app .ar-cd-empty{color:#8a929c;text-align:center;padding:18px 0}
+
+/* ===== 控制台把手：底栏顶部的小横条，也可以点它切换控制台 ===== */
+.archangel-app .bottom{touch-action:none}
+
+/* ===== 把手：淡色爱心 ===== */
+.archangel-app .ar-grip{position:absolute;top:4px;left:50%;transform:translateX(-50%);width:28px;height:18px;padding:0;border:0;background:none;cursor:pointer;color:#c3cad4;display:grid;place-items:center}
+.archangel-app .ar-grip svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+/* ===== 控制台按钮：扁、横向拉长，低饱和高明度的蓝，邮票边 ===== */
+.archangel-app #ar-console{position:absolute;right:18px;bottom:calc(84px + env(safe-area-inset-bottom,0px));width:60px;height:32px;display:grid;place-items:center;padding:0;border:0;border-radius:0;cursor:pointer;color:#fff;background:#cddbef;z-index:40;
+  -webkit-mask:
+    radial-gradient(circle 3px at 5px 0, #0000 98%, #000) 0 0 / 10px 100% repeat-x,
+    radial-gradient(circle 3px at 5px 100%, #0000 98%, #000) 0 0 / 10px 100% repeat-x,
+    radial-gradient(circle 3px at 0 5px, #0000 98%, #000) 0 0 / 100% 10px repeat-y,
+    radial-gradient(circle 3px at 100% 5px, #0000 98%, #000) 0 0 / 100% 10px repeat-y;
+  -webkit-mask-composite: source-in;
+          mask:
+    radial-gradient(circle 3px at 5px 0, #0000 98%, #000) 0 0 / 10px 100% repeat-x,
+    radial-gradient(circle 3px at 5px 100%, #0000 98%, #000) 0 0 / 10px 100% repeat-x,
+    radial-gradient(circle 3px at 0 5px, #0000 98%, #000) 0 0 / 100% 10px repeat-y,
+    radial-gradient(circle 3px at 100% 5px, #0000 98%, #000) 0 0 / 100% 10px repeat-y;
+  mask-composite: intersect;
+}
+.archangel-app #ar-console svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+/* ===== 两个爱心（把手、控制台）：缺口位置 ===== */
+.archangel-app .ar-grip path,
+.archangel-app #ar-console path{stroke-dasharray:90 10;stroke-dashoffset:25}

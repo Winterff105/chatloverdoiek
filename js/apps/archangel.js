@@ -46,7 +46,7 @@
 </div></aside>
     <section id="ar-chat"><div class="hint">先在左侧填好 GitHub 和 AI 设置并读取文件树。发送需求（可连发），再点底栏“调取”开始处理。长按消息可重回、编辑或多选删除。</div></section>
   </main>
-  <footer class="bottom"><div class="comp">
+  <footer class="bottom"><span class="ar-grip" id="ar-grip" aria-label="控制台把手"></span><div class="comp">
     <input id="ar-prompt" type="text" placeholder="告诉 AI 你想修改什么…" />
     <div class="act"><button id="ar-send">发送</button><span></span><button id="ar-fetch">调取</button></div>
   </div></footer>
@@ -54,6 +54,15 @@
 <div id="ar-selbar"><span id="ar-selcount">已选 0 条</span><div><button id="ar-seldel">删除</button><button id="ar-selcancel">取消</button></div></div>
 <div class="lace-frame"></div>
 <div id="ar-toast"></div>
+<button type="button" id="ar-console" class="ar-cbtn" aria-label="控制台" hidden></button>
+<div class="ar-sheet ar-cons" id="ar-consoleSheet" hidden>
+    <div class="ar-cons-card">
+        <div class="ar-cons-top"><span class="ar-cons-led"></span><span class="ar-cons-title">CONSOLE // 对面输出</span><span class="ar-cons-count" id="ar-consCount"></span></div>
+        <div class="ar-cons-rounds" id="ar-consRounds"></div>
+        <div class="ar-cons-detail" id="ar-consDetail"></div>
+        <div class="ar-foot"><button type="button" class="ar-close" id="ar-consClose">关闭</button></div>
+    </div>
+</div>
 <div class="ar-sheet" id="ar-sheet" hidden>
     <div class="ar-sheet-card">
         <div class="ar-sheet-title ar-script">Settings</div>
@@ -247,7 +256,7 @@
         function avatarHtml(role){return `<img data-role="${role}" src="${avatarSrc(role)}" alt="${role==='me'?'我':'Archangel'}" onerror="this.style.visibility='hidden'">`}
 
         let pending=[];
-        let busy=false;let runTokens=0;
+        let busy=false;let runTokens=0;let runLog=[];
         let currentConversation=null;
         let conversationHistory=loadConversationHistory();
 
@@ -545,7 +554,7 @@
           let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败：'+await err(r));
           const d=await r.json();runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
-          return Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):m.content||'';
+          const outText=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):m.content||'';runLog.push({label:'仓库调用 '+(runLog.length+1),raw:String(outText)});return outText;
         }
         function pj(t){const c=String(t||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');try{return JSON.parse(c)}catch{const i=c.indexOf('{'),j=c.lastIndexOf('}');if(i<0||j<=i)throw new Error('AI 返回的不是有效 JSON');return JSON.parse(c.slice(i,j+1))}}
         async function getFile(path){
@@ -608,7 +617,7 @@
           if(busy)return toast('对面正在回复，请稍候');
           if(!pending.length){const last=chat.lastElementChild;if(last&&last.classList.contains('urow'))pending=[last]}
           if(!pending.length)return toast('先发送需求，再点调取');
-          const rows=pending;pending=[];busy=true;runTokens=0;rows.forEach(r=>r.classList.remove('pending'));
+          const rows=pending;pending=[];busy=true;runTokens=0;runLog=[];rows.forEach(r=>r.classList.remove('pending'));
           const restore=()=>{rows.forEach(r=>{if(r.isConnected&&!pending.includes(r)){r.classList.add('pending');pending.push(r)}})};
           const text=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>bubbleText(b))).filter(Boolean).join('\n');
           const box=document.createElement('div');box.className='arow ai enter';
@@ -633,7 +642,7 @@
               return {t:el.dataset.t||full,x:k>=0?full.slice(k+3):''};
             });
             if(!stepList.length){const mEl=box.querySelector('.ar-meta');if(mEl&&!mEl.querySelector('.ar-heart'))mEl.insertAdjacentHTML('beforeend',heartHTML())}
-            const msg={id:mid,role:'assistant',text:parts.join('\n'),parts,thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
+            const msg={id:mid,role:'assistant',text:parts.join('\n'),parts,raw:runLog.map(x=>({label:x.label,raw:x.raw})),prompt:text,thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
             if(currentConversation){currentConversation.messages.push(msg);saveCurrentConversation()}
           };
           const hasRepo=(()=>{const g=G();return !!(g.token&&g.owner&&g.repo)})();
@@ -796,6 +805,70 @@
 
         bootApplication();
 
+        /* ---- 控制台：底栏上滑后出现，点开查看每一轮对面的原始输出 ---- */
+        const consoleBtn=host.querySelector('#ar-console');
+        consoleBtn.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[0]}</svg>`;
+        const consoleSheet=host.querySelector('#ar-consoleSheet');
+        let consoleIdx=-1;
+        function consoleRoundsList(){
+          const out=[];let acc=[];
+          ((currentConversation&&currentConversation.messages)||[]).forEach(m=>{
+            if(m.role==='user')acc.push(m.text);
+            else if(m.role==='assistant'){out.push({msg:m,prompt:acc.join('\n')});acc=[]}
+          });
+          return out;
+        }
+        function consoleDetailHTML(r,i){
+          const m=r.msg,raws=m.raw||[],steps=m.steps||[];
+          const meta=m.meta?`${m.meta.sec}s · ${m.meta.tk||0} tk`:'';
+          const stepHTML=steps.length
+            ?steps.map((s,k)=>`<li><b>${k+1}</b>${esc(s.t||'')}${s.x?` <i>· ${esc(s.x)}</i>`:''}</li>`).join('')
+            :'<li class="ar-cd-none">（模型没有输出步骤）</li>';
+          const partsHTML=(m.parts&&m.parts.length?m.parts:[m.text]).map((p,k)=>`<div class="ar-cd-bub"><b>${k+1}</b>${esc(p)}</div>`).join('');
+          const rawHTML=raws.length
+            ?raws.map(x=>`<div class="ar-cd-raw"><div class="ar-cd-rl">${esc(x.label)}</div><pre>${esc(x.raw)}</pre></div>`).join('')
+            :'<div class="ar-cd-none">（这一轮没有保存原始输出，可能是旧记录）</div>';
+          return `<div class="ar-cd-head"><span>ROUND ${String(i+1).padStart(2,'0')}</span><span>${esc(meta)}</span></div>
+            <section class="ar-cd-sec"><h4>INPUT · 你的输入</h4><pre>${esc(r.prompt||'')}</pre></section>
+            <section class="ar-cd-sec"><h4>THINKING · 思维链</h4><pre>${esc(m.thinking!==undefined?m.thinking:'（没有保存）')}</pre></section>
+            <section class="ar-cd-sec"><h4>STEPS · 步骤</h4><ol class="ar-cd-steps">${stepHTML}</ol></section>
+            <section class="ar-cd-sec"><h4>REPLY · 回复气泡</h4>${partsHTML}</section>
+            <section class="ar-cd-sec"><h4>RAW OUTPUT · 原始输出</h4>${rawHTML}</section>`;
+        }
+        function renderConsole(){
+          const rounds=consoleRoundsList();
+          host.querySelector('#ar-consCount').textContent=rounds.length?`${rounds.length} ROUNDS`:'NO DATA';
+          if(!rounds.length)consoleIdx=-1;
+          else if(consoleIdx<0||consoleIdx>=rounds.length)consoleIdx=rounds.length-1;
+          const sel=host.querySelector('#ar-consRounds');
+          sel.innerHTML=rounds.map((r,i)=>`<button type="button" class="ar-cr${i===consoleIdx?' on':''}" data-i="${i}">${String(i+1).padStart(2,'0')}</button>`).join('');
+          sel.querySelectorAll('button').forEach(b=>b.onclick=()=>{consoleIdx=+b.dataset.i;renderConsole()});
+          host.querySelector('#ar-consDetail').innerHTML=rounds.length?consoleDetailHTML(rounds[consoleIdx],consoleIdx):'<div class="ar-cd-none">还没有对面的输出</div>';
+        }
+        function openConsole(){renderConsole();fadeSheet(consoleSheet,true)}
+        consoleBtn.addEventListener('click',openConsole);
+        host.querySelector('#ar-consClose').addEventListener('click',()=>fadeSheet(consoleSheet,false));
+        consoleSheet.addEventListener('click',e=>{if(e.target.id==='ar-consoleSheet')fadeSheet(consoleSheet,false)});
+        const bottomBar=host.querySelector('.bottom');
+        const gripBtn=host.querySelector('#ar-grip');
+        gripBtn.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[0]}</svg>`;
+        let swipe=null;
+        const swipeStart=y=>{swipe={y,done:false}};
+        const swipeMove=y=>{
+          if(!swipe||swipe.done)return;
+          const dy=y-swipe.y;
+          if(dy<-28){consoleBtn.hidden=false;swipe.done=true}
+          else if(dy>28){consoleBtn.hidden=true;swipe.done=true}
+        };
+        const swipeEnd=()=>{swipe=null};
+        bottomBar.addEventListener('pointerdown',e=>swipeStart(e.clientY));
+        bottomBar.addEventListener('touchstart',e=>swipeStart(e.touches[0].clientY),{passive:true});
+        host.addEventListener('pointermove',e=>{if(e.pointerType!=='touch')swipeMove(e.clientY)});
+        host.addEventListener('touchmove',e=>{if(swipe)swipeMove(e.touches[0].clientY)},{passive:true});
+        ['pointerup','pointercancel'].forEach(t=>host.addEventListener(t,swipeEnd));
+        ['touchend','touchcancel'].forEach(t=>host.addEventListener(t,swipeEnd));
+        gripBtn.addEventListener('click',e=>{e.stopPropagation();consoleBtn.hidden=!consoleBtn.hidden});
+
         /* ---- 设置：短消息模式 / 小尾巴 / 头像 / 退出 ---- */
         const UI_KEY='archangel.ui.v1';
         const uiCfg=()=>{try{return Object.assign({tail:'first',short:'on'},JSON.parse(localStorage.getItem(UI_KEY))||{})}catch(e){return {tail:'first',short:'on'}}};
@@ -912,7 +985,7 @@
           if(!r.ok)throw new Error('AI 请求失败：'+await err(r));
           const d=await r.json();runTokens+=(d.usage&&d.usage.total_tokens)||0;
           const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
-          const rawOut=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');
+          const rawOut=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');runLog.push({label:'聊天输出',raw:String(rawOut)});
 
           // 模型把思考写在 <think>…</think> / <thinking>…</thinking> 里时，取出来当思维链，并从正文里去掉
           const tagged=[];
