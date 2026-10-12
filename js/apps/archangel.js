@@ -54,7 +54,8 @@
 <div id="ar-selbar"><span id="ar-selcount">已选 0 条</span><div><button id="ar-seldel">删除</button><button id="ar-selcancel">取消</button></div></div>
 <div class="lace-frame"></div>
 <div id="ar-toast"></div>
-<button type="button" id="ar-console" class="ar-cbtn" aria-label="控制台" hidden></button>
+<div class="ar-cgroup" id="ar-cgroup" hidden><button type="button" id="ar-console" class="ar-cbtn" aria-label="控制台"></button><button type="button" id="ar-upload" class="ar-cbtn" aria-label="上传文件"></button></div>
+<input type="file" id="ar-file" multiple hidden accept="image/*,.txt,.md,.markdown,.js,.jsx,.ts,.tsx,.json,.html,.htm,.css,.py,.java,.c,.h,.cpp,.hpp,.go,.rs,.rb,.php,.sh,.xml,.yml,.yaml,.ini,.toml,.csv,.sql,.vue,.svg,.log">
 <div class="ar-sheet ar-cons" id="ar-consoleSheet" hidden>
     <div class="ar-cons-card">
         <div class="ar-cons-top"><span class="ar-cons-led"></span><span class="ar-cons-title">CONSOLE // 对面输出</span><span class="ar-cons-count" id="ar-consCount"></span></div>
@@ -81,6 +82,7 @@
         <div class="ar-avrow">
             <label class="ar-av" id="ar-avAi"><img id="ar-sheetAvAi" alt=""><span>对面</span><input type="file" accept="image/*" hidden></label>
             <label class="ar-av" id="ar-avMe"><img id="ar-sheetAvMe" alt=""><span>我</span><input type="file" accept="image/*" hidden></label>
+            <input id="ar-meName" class="ar-meName" maxlength="12" placeholder="我的名字" autocomplete="off">
         </div>
         <div class="ar-foot">
             <button type="button" class="ar-exit" id="ar-exit">退出</button>
@@ -242,8 +244,65 @@
           saveCurrentConversation();
         }
         function meName(){try{return (localStorage.getItem('archangel.me.name')||'').trim()||'我'}catch(e){return '我'}}
-        function meNameHTML(){return `<span class="me-name" title="点击改名">${esc(meName())}</span>`}
         function heartHTML(){return `<svg class="ar-heart" viewBox="0 0 24 24" aria-label="没有步骤">${IC[0]}</svg>`}
+        function attachTextOf(a){return a.type==='image'?`\n\n【图片：${a.name}】`:`\n\n【附件：${a.name}】\n${a.content}`}
+        function histOf(m,withImages){
+          if(m.role==='assistant')return {role:'assistant',content:m.text||''};
+          let t=(m.role==='system'?'【系统提示】':'')+(m.text||'');
+          const atts=m.attach||[];
+          atts.forEach(a=>{if(a.type==='image'&&withImages)return;t+=attachTextOf(a)});
+          const imgs=withImages?atts.filter(a=>a.type==='image'):[];
+          if(!imgs.length)return {role:'user',content:t};
+          return {role:'user',content:[{type:'text',text:t},...imgs.map(a=>({type:'image_url',image_url:{url:a.dataUrl}}))]};
+        }
+        function shrinkImage(file){
+          return new Promise((resolve,reject)=>{
+            const url=URL.createObjectURL(file);
+            const img=new Image();
+            img.onload=()=>{
+              const k=Math.min(1,1024/Math.max(img.naturalWidth,img.naturalHeight));
+              const c=document.createElement('canvas');
+              c.width=Math.max(1,Math.round(img.naturalWidth*k));c.height=Math.max(1,Math.round(img.naturalHeight*k));
+              c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+              URL.revokeObjectURL(url);
+              resolve(c.toDataURL('image/jpeg',0.82));
+            };
+            img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('图片读取失败'))};
+            img.src=url;
+          });
+        }
+        function fileCardHTML(mid,files){
+          const n=(files||[]).length;
+          return `<button type="button" class="file-card" data-mid="${escA(mid)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h6.5L18 8v12.5H7z"/><path d="M13.5 3.5V8H18"/><path d="M12 11v5.5M9.5 14l2.5 2.5 2.5-2.5"/></svg><span>下载 ${n} 个文件（zip）</span></button>`;
+        }
+        const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+        function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC_T[(c^b[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
+        function makeZip(files){
+          const enc=new TextEncoder(),parts=[],central=[];let offset=0;
+          const u16=v=>[v&255,(v>>>8)&255],u32=v=>[v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255];
+          files.forEach(f=>{
+            const name=enc.encode(f.name),data=enc.encode(f.content),crc=crc32(data);
+            const local=new Uint8Array([...u32(0x04034b50),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(crc),...u32(data.length),...u32(data.length),...u16(name.length),...u16(0)]);
+            parts.push(local,name,data);
+            central.push({name,crc,size:data.length,offset});
+            offset+=local.length+name.length+data.length;
+          });
+          const cdStart=offset;let cdSize=0;
+          central.forEach(c=>{
+            const rec=new Uint8Array([...u32(0x02014b50),...u16(20),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(c.crc),...u32(c.size),...u32(c.size),...u16(c.name.length),...u16(0),...u16(0),...u16(0),...u16(0),...u32(0),...u32(c.offset)]);
+            parts.push(rec,c.name);cdSize+=rec.length+c.name.length;
+          });
+          parts.push(new Uint8Array([...u32(0x06054b50),...u16(0),...u16(0),...u16(central.length),...u16(central.length),...u32(cdSize),...u32(cdStart),...u16(0)]));
+          const out=new Uint8Array(parts.reduce((n,p)=>n+p.length,0));let o=0;
+          parts.forEach(p=>{out.set(p,o);o+=p.length});
+          return out;
+        }
+        function downloadZip(files){
+          const url=URL.createObjectURL(new Blob([makeZip(files)],{type:'application/zip'}));
+          const a=document.createElement('a');a.href=url;a.download=`archangel-files-${Date.now()}.zip`;
+          document.body.appendChild(a);a.click();a.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),4000);
+        }
         function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
         function stepsHTML(steps){
           return (steps||[]).map((s,i)=>{
@@ -394,7 +453,7 @@
             }else if(message.role==='assistant'){
               addAssistantHistory(message);
             }else if(message.role==='system'){
-              addSystemHistory(message.text);
+              addSystemHistory(message.text,message.id);
             }
           });
 
@@ -415,14 +474,16 @@
           const metaHTML=m?`<div class="ar-meta"><span class="ar-time">${esc(m.sec)}s</span><span class="ar-tk">${m.tk?esc(m.tk)+' tk':'— tk'}</span>${noSteps?heartHTML():''}</div>`:'';
           const thinkHTML=msg.thinking!==undefined?`<details class="think" open><summary>Thinking…</summary><p>${esc(msg.thinking)}</p></details>`:'';
           const parts=msg.parts&&msg.parts.length?msg.parts:[msg.text];
-          row.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel',metaHTML)}${thinkHTML}</div><div class="steps">${stepsHTML(msg.steps)}</div>${bodyHTML(parts)}`;
+          const filesHTML=msg.files&&msg.files.length?fileCardHTML(msg.id,msg.files):'';
+          row.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel',metaHTML)}${thinkHTML}</div><div class="steps">${stepsHTML(msg.steps)}</div>${bodyHTML(parts)}${filesHTML}`;
           chat.appendChild(row);
         }
 
-        function addSystemHistory(text){
+        function addSystemHistory(text,mid){
           const row=document.createElement('div');
           row.className='arow enter';
-          row.innerHTML=`<div class="abody">${esc(text)}</div>`;
+          if(mid)row.dataset.mid=mid;
+          row.innerHTML=`<div class="abody sys">${esc(text)}</div>`;
           chat.appendChild(row);
         }
 
@@ -470,46 +531,49 @@
           backdrop.addEventListener('touchend',e=>{e.preventDefault();setSide(false)});
         }
         host.addEventListener('click',e=>{if(!$('#ar-side').classList.contains('closed')&&!e.target.closest('#ar-side,#ar-menu'))setSide(false)});
-        function addUser(text,saveMessage=true,mid=newMid()){
+        function addUser(text,saveMessage=true,mid=newMid(),attach=[]){
           if(!currentConversation){
             currentConversation=createConversation();
           }
 
           if(saveMessage){
-            currentConversation.messages.push({
-              id:mid,
-              role:'user',
-              text
-            });
-
+            const m={id:mid,role:'user',text};
+            if(attach.length)m.attach=attach;
+            currentConversation.messages.push(m);
             saveCurrentConversation();
           }
 
+          const attHTML=attach.length?`<div class="att">${attach.map(a=>a.type==='image'?`<img class="pimg" src="${escA(a.dataUrl)}" alt="">`:'附件：'+esc(a.name)).join('<br>')}</div>`:'';
           const last=chat.lastElementChild;
 
           if(last&&last.classList.contains('urow')){
-            last.querySelector('.ubody').insertAdjacentHTML('beforeend',`<div class="bubble more enter" data-mid="${mid}">${TAILIMG}${esc(text)}</div>`);
+            last.querySelector('.ubody').insertAdjacentHTML('beforeend',`<div class="bubble more enter" data-mid="${mid}">${TAILIMG}${esc(text)}</div>${attHTML}`);
             scroll();
             return;
           }
 
           const r=document.createElement('div');
           r.className=saveMessage?'urow pending enter':'urow enter';
-          r.innerHTML=`<div class="ucol">${head(avatarHtml('me'),'我',meNameHTML())}<div class="ubody"><div class="b1"><div class="elbow"></div><div class="bubble first" data-mid="${mid}">${TAILIMG}${esc(text)}</div></div></div></div>`;
+          r.innerHTML=`<div class="ucol">${head(avatarHtml('me'),meName())}<div class="ubody"><div class="b1"><div class="elbow"></div><div class="bubble first" data-mid="${mid}">${TAILIMG}${esc(text)}</div>${attHTML}</div></div></div>`;
           chat.appendChild(r);
           if(saveMessage)pending.push(r);
           scroll();
         }
 
+        let pendingAttach=[];
+        const DEFAULT_PLACEHOLDER=input.placeholder||'告诉 AI 你想修改什么…';
         function send(){
           const value=input.value.trim();
+          const att=pendingAttach;
 
-          if(!value){
+          if(!value&&!att.length){
             return;
           }
 
           input.value='';
-          addUser(value,true);
+          pendingAttach=[];
+          input.placeholder=DEFAULT_PLACEHOLDER;
+          addUser(value||'（见附件）',true,newMid(),att);
         }
         const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'},LIM=60000;
         const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}};
@@ -519,6 +583,11 @@
         const ST={tree:[],key:'',files:{}};
         const rk=g=>`${g.owner}/${g.repo}@${g.branch}`;
         const need=g=>{if(!g.token||!g.owner||!g.repo)throw new Error('请先填写 GitHub Token、Owner 和 Repository')};
+        const ghHint=st=>st===401?'Token 无效或已过期，请重新生成'
+          :st===403?'Token 没有写入权限：Contents 需要选 Read and write，并且要授权这个仓库'
+          :st===404?'找不到仓库或文件：检查 Owner、Repository，以及 Token 是否授权了这个仓库'
+          :st===409||st===422?'GitHub 上的文件已经被改过，请重新读取文件树再试'
+          :'请稍后再试';
         const gh=(g,j)=>({Authorization:'Bearer '+g.token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(j?{'Content-Type':'application/json'}:{})});
         const base=g=>`https://api.github.com/repos/${encodeURIComponent(g.owner)}/${encodeURIComponent(g.repo)}`;
         const cu=(g,p)=>`${base(g)}/contents/${p.split('/').filter(Boolean).map(encodeURIComponent).join('/')}`;
@@ -540,7 +609,15 @@
           const d=await r.json();if(!Array.isArray(d.tree))throw new Error('GitHub 没有返回有效的文件树');
           if(ST.key!==rk(g)){ST.files={};ST.key=rk(g)}
           ST.tree=d.tree.filter(x=>x.type=='blob').map(x=>({path:x.path,size:x.size||0})).sort((a,b)=>a.path.localeCompare(b.path));
-          $('#ar-treeInfo').textContent=`已读取 ${ST.tree.length} 个文件`+(d.truncated?'（仓库过大，部分未显示）':'');
+          ST.canPush=null;
+          try{
+            const rr=await req(base(g),{headers:gh(g)});
+            if(rr.ok){const j=await rr.json();if(j.permissions)ST.canPush=!!j.permissions.push}
+          }catch(e){}
+          const writeTip=ST.canPush===true?' · 可以写入'
+            :ST.canPush===false?' · 只有读取权限，修改无法上传（请把 Token 的 Contents 权限改为 Read and write）'
+            :'';
+          $('#ar-treeInfo').textContent=`已读取 ${ST.tree.length} 个文件`+(d.truncated?'（仓库过大，部分未显示）':'')+writeTip;
         }
         $('#ar-gTree').onclick=async()=>{const b=$('#ar-gTree');b.disabled=true;try{await loadTree();toast('文件树已读取')}catch(e){toast(e.message)}b.disabled=false};
         $('#ar-aFetch').onclick=async()=>{
@@ -622,14 +699,37 @@
             '【输出格式】',
             '你必须只输出一个 JSON 对象，不要用 Markdown 代码围栏，也不要输出 JSON 以外的任何文字：',
             short
-              ?'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":["第一条消息","第二条消息"]}'
-              :'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":"发给用户的正文"}',
+              ?'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":["第一条消息","第二条消息"],"files":[]}'
+              :'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":"发给用户的正文","files":[]}',
             'thinking：用中文写 2 到 4 句思考过程，比如你理解到用户想要什么、此刻的语气或意图、打算怎样回应。它是展示给用户看的思维链，要像真实的内心推理，不要写成对用户说的话。',
             'steps：2 到 4 个短语，每个不超过 10 个字，列出你这一轮实际做的几件事，比如“听懂你的意思”“想好开头的画面”“组织温柔的语气”。',
             short
               ?'reply 必须是数组，模拟真人连发微信：每一条只写一句话，每条不超过 30 个字，通常 1 到 4 条。不要把长段落塞进一条里，也不要使用代码块。'
-              :'reply：你真正要发给用户的话，语气遵循上面的角色设定。'
+              :'reply：你真正要发给用户的话，语气遵循上面的角色设定。',
+            'files：如果用户要你做文件（代码、文档、笔记、表格内容等），把它们放进 files，格式是 [{"name":"文件名或相对路径","content":"完整的文件内容"}]，每个文件都要写完整；不需要做文件时保持 []。reply 里只写给用户看的话，文件内容不要重复写进 reply。'
           ];
+        }
+        async function explainError(errText){
+          if(!currentConversation)currentConversation=createConversation();
+          const mid=newMid();
+          const sysText='报错：'+errText;
+          currentConversation.messages.push({id:mid,role:'system',text:sysText});
+          saveCurrentConversation();
+          addSystemHistory(sysText,mid);
+          scroll();
+          const a=A();
+          if(!a.base||!a.key||!a.model)return;
+          try{
+            const hist=currentConversation.messages.slice(-20).map(m=>histOf(m,false));
+            const hint='刚才系统执行时出了错，见上面的“报错”。请用角色的语气告诉用户：发生了什么、可能的原因、用户可以怎么做。不要假装操作已经完成。';
+            const msgs=[{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。',hint].join('\n')},...hist];
+            const out=await chatText(msgs);
+            const msg={id:newMid(),role:'assistant',text:out.parts.join('\n'),parts:out.parts,thinking:out.thinking||'（这次回复没有返回思维链）',steps:out.steps||[],meta:{sec:'0.0',tk:runTokens}};
+            currentConversation.messages.push(msg);
+            saveCurrentConversation();
+            addAssistantHistory(msg);
+            scroll();
+          }catch(e){}
         }
         async function run(){
           if(busy)return toast('对面正在回复，请稍候');
@@ -637,7 +737,9 @@
           if(!pending.length)return toast('先发送需求，再点调取');
           const rows=pending;pending=[];busy=true;runTokens=0;runLog=[];rows.forEach(r=>r.classList.remove('pending'));
           const restore=()=>{rows.forEach(r=>{if(r.isConnected&&!pending.includes(r)){r.classList.add('pending');pending.push(r)}})};
-          const text=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>bubbleText(b))).filter(Boolean).join('\n');
+          const pendingMsgs=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>msgById(b.dataset.mid))).filter(Boolean);
+          const text=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>bubbleText(b))).filter(Boolean).join('\n')+pendingMsgs.flatMap(m=>(m.attach||[]).map(attachTextOf)).join('');
+          const pendingIds=new Set(pendingMsgs.map(m=>m.id));
           const box=document.createElement('div');box.className='arow ai enter';
           box.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel')}<details class="think" open><summary>Thinking…</summary><p>正在思考…</p></details></div><div class="steps"></div>`;
           chat.appendChild(box);const steps=box.querySelector('.steps'),tp=box.querySelector('.think p');
@@ -650,7 +752,7 @@
             s.innerHTML=`<svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[i]}</svg><span>${t}</span>`;
             steps.appendChild(s);scroll();return x=>{s.classList.add('done');if(x)s.querySelector('span').textContent=s.dataset.t+' · '+x}};
           const say=h=>{box.insertAdjacentHTML('beforeend',h);scroll()};
-          const commit=(reply,thinking)=>{
+          const commit=(reply,thinking,files)=>{
             const mid=newMid();
             box.dataset.mid=mid;
             const parts=(Array.isArray(reply)?reply:[reply]).map(x=>String(x??'')).filter(x=>x.trim());
@@ -660,7 +762,8 @@
               return {t:el.dataset.t||full,x:k>=0?full.slice(k+3):''};
             });
             if(!stepList.length){const mEl=box.querySelector('.ar-meta');if(mEl&&!mEl.querySelector('.ar-heart'))mEl.insertAdjacentHTML('beforeend',heartHTML())}
-            const msg={id:mid,role:'assistant',text:parts.join('\n'),parts,raw:runLog.map(x=>({label:x.label,raw:x.raw})),prompt:text,thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
+            const msg={id:mid,role:'assistant',text:parts.join('\n'),parts,raw:runLog.map(x=>({label:x.label,raw:x.raw})),prompt:text,files:(files||[]).map(f=>({name:f.name,content:f.content})),thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
+            if(files&&files.length)box.insertAdjacentHTML('beforeend',fileCardHTML(mid,files));
             if(currentConversation){currentConversation.messages.push(msg);saveCurrentConversation()}
           };
           const hasRepo=(()=>{const g=G();return !!(g.token&&g.owner&&g.repo)})();
@@ -669,7 +772,7 @@
             const dC=()=>{};
             try{
               const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
-              const hist=((currentConversation&&currentConversation.messages)||[]).slice(-20).map(m=>({role:m.role,content:m.text}));
+              const hist=((currentConversation&&currentConversation.messages)||[]).slice(-20).map(m=>histOf(m,pendingIds.has(m.id)));
               const msgs=[{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。'].join('\n')},...hist];
               if(!hist.length)msgs.push({role:'user',content:text});
               const out=await chatText(msgs);
@@ -677,10 +780,10 @@
               
               tp.textContent=out.thinking||'（这次回复没有返回思维链）';
               say(bodyHTML(out.parts));
-              commit(out.parts,out.thinking);
+              commit(out.parts,out.thinking,out.files);
             }catch(e){
               box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
-              say(`<div class="abody">${esc(e.message)}</div>`);toast(e.message);restore();
+              toast(e.message);restore();await explainError(e.message);
             }
             stopMeta();busy=false;return;
           }
@@ -714,8 +817,8 @@
 
             if(!ch.length){
               const noChangeReply='我读取了相关文件，但没有生成可以安全应用的修改，可以把需求描述得更具体些。';
-              say(`<div class="abody">${esc(noChangeReply)}</div>`);
-              commit(noChangeReply,sel.thinking);
+              await explainError('读取了相关文件，但没有生成可以安全应用的修改。AI 的说明：'+assistantReply);
+              
               stopMeta();busy=false;
               return;
             }
@@ -735,22 +838,23 @@
               btn.disabled=true;const g=G();
               try{
                 need(g);if(ST.key!==rk(g))throw new Error('仓库设置已改变，请重新读取文件树');
+                if(ST.canPush===false)throw new Error('这个 Token 只有读取权限，无法上传。请在 GitHub 把 Token 的 Contents 权限改为 Read and write，并确认已授权这个仓库');
                 for(const f of ch){
                   if(f.w.classList.contains('ok'))continue;
                   btn.textContent='上传中：'+f.path;
                   const r=await req(cu(g,f.path),{method:'PUT',headers:gh(g,true),body:JSON.stringify({message:`Update ${f.path} from Archangel AI`,content:b64(f.edit),branch:g.branch,sha:f.sha})});
-                  if(!r.ok)throw new Error(`上传 ${f.path} 失败：`+await err(r));
+                  if(!r.ok)throw new Error(`上传 ${f.path} 失败（${r.status}）：${await err(r)}。${ghHint(r.status)}`);
                   const j=await r.json();f.sha=(j.content&&j.content.sha)||f.sha;
                   if(ST.files[f.path]){ST.files[f.path].sha=f.sha;ST.files[f.path].orig=f.edit}
                   f.w.classList.add('ok');f.w.querySelector('i').textContent='已上传';
                 }
                 btn.textContent='已全部上传';toast('已上传到 GitHub');
-              }catch(e){btn.disabled=false;btn.textContent='重试上传';toast(e.message);say(`<div class="abody">${esc(e.message)}</div>`)}
+              }catch(e){btn.disabled=false;btn.textContent='重试上传';toast(e.message);explainError('上传失败：'+e.message)}
             };
             scroll();
           }catch(e){
             box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
-            say(`<div class="abody">操作失败：${esc(e.message)}</div>`);toast(e.message);restore();
+            toast(e.message);restore();await explainError('操作失败：'+e.message);
           }
           stopMeta();busy=false;
         }
@@ -759,16 +863,45 @@
         function clearMasks(){host.querySelectorAll('.mask').forEach(m=>m.remove())}
         function showMask(b){
           clearMasks();const m=document.createElement('div');m.className='mask';
-          m.innerHTML='<button data-a="back">重回</button>'+(b.classList.contains('urow')?'<button data-a="edit">编辑</button>':'')+'<button data-a="multi">多选删除</button>';
+          const isUser=b.classList.contains('urow');
+          const hasMid=!!(b.dataset.mid||b.querySelector('[data-mid]'));
+          const canEdit=isUser?hasMid:!!b.dataset.mid;
+          m.innerHTML='<button data-a="back">重回</button>'+(hasMid?'<button data-a="copy">复制</button>':'')+(canEdit?'<button data-a="edit">编辑</button>':'')+'<button data-a="multi">多选删除</button>';
           (b.querySelector('.ucol')||b).appendChild(m);
-          m.onclick=e=>{const a=e.target.dataset.a;if(!a)return;clearMasks();if(a=='back')rewind(b);else if(a=='edit')editRow(b);else enterSel(b)};
+          m.onclick=e=>{const a=e.target.dataset.a;if(!a)return;clearMasks();if(a=='back')rewind(b);else if(a=='copy')copyRow(b);else if(a=='edit')editRow(b);else enterSel(b)};
+        }
+        function copyText(t){
+          const done=()=>toast('已复制');
+          const fallback=()=>{const ta=document.createElement('textarea');ta.value=t;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy')}catch(e){}ta.remove();done()};
+          if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(done,fallback)}else fallback();
+        }
+        function copyRow(b){
+          let t='';
+          if(b.classList.contains('urow'))t=[...b.querySelectorAll('.bubble')].map(bubbleText).join('\n');
+          else{const m=msgById(b.dataset.mid);t=m?(m.text||''):[...b.querySelectorAll('.abody')].map(bubbleText).join('\n')}
+          copyText(t);
         }
         function editRow(b){
-          const bs=b.querySelectorAll('.bubble');b.classList.add('editing');
+          const isArow=b.classList.contains('arow');
+          const bs=[...b.querySelectorAll(isArow?'.abody':'.bubble')];
+          if(!bs.length)return;
+          b.classList.add('editing');
           bs.forEach(x=>x.contentEditable='true');bs[0].focus();
           const d=document.createElement('button');d.className='edone';d.textContent='完成';
-          d.onclick=()=>{bs.forEach(x=>{x.contentEditable='false';const m=msgById(x.dataset.mid);if(m)m.text=bubbleText(x)});if(currentConversation)saveCurrentConversation();b.classList.remove('editing');d.remove();toast('已修改，点“重回”可按新内容重新回复')};
-          b.querySelector('.ucol').appendChild(d);
+          d.onclick=()=>{
+            bs.forEach(x=>x.contentEditable='false');b.classList.remove('editing');d.remove();
+            if(isArow){
+              const m=msgById(b.dataset.mid);
+              if(m){m.parts=bs.map(x=>bubbleText(x));m.text=m.parts.join('\n')}
+              if(currentConversation)saveCurrentConversation();
+              toast('已修改');
+            }else{
+              bs.forEach(x=>{const m=msgById(x.dataset.mid);if(m)m.text=bubbleText(x)});
+              if(currentConversation)saveCurrentConversation();
+              toast('已修改，点“重回”可按新内容重新回复');
+            }
+          };
+          (b.querySelector('.ucol')||b).appendChild(d);
         }
         function mark(r){if(!pending.includes(r)){r.classList.add('pending');pending.push(r)}}
         function rewind(b){
@@ -825,7 +958,35 @@
 
         /* ---- 控制台：底栏上滑后出现，点开查看每一轮对面的原始输出 ---- */
         const consoleBtn=host.querySelector('#ar-console');
+        const uploadBtn=host.querySelector('#ar-upload');
+        const cgroup=host.querySelector('#ar-cgroup');
+        const fileInput=host.querySelector('#ar-file');
         consoleBtn.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[0]}</svg>`;
+        uploadBtn.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[0].replace('<path ','<path class="hrt" ')}<path d="M12 10v5M9.5 12.5h5"/></svg>`;
+        uploadBtn.addEventListener('click',()=>fileInput.click());
+        const ATT_MAX=200*1024;
+        fileInput.addEventListener('change',async e=>{
+          const picked=[...e.target.files];
+          e.target.value='';
+          for(const f of picked){
+            if(pendingAttach.some(a=>a.name===f.name))continue;
+            if(pendingAttach.length>=6){toast('一次最多 6 个附件');break}
+            if(f.type.startsWith('image/')){
+              try{pendingAttach.push({name:f.name,type:'image',dataUrl:await shrinkImage(f)})}
+              catch(err){toast(`${f.name} 读不了`)}
+              continue;
+            }
+            if(f.size>ATT_MAX){toast(`${f.name} 太大了（最大 200KB）`);continue}
+            let text='';
+            try{text=await f.text()}catch(err){toast(`${f.name} 读不了`);continue}
+            if(text.includes('\u0000')){toast(`${f.name} 不是文本文件，暂不支持`);continue}
+            pendingAttach.push({name:f.name,content:text.slice(0,60000)});
+          }
+          if(pendingAttach.length){
+            input.placeholder=`已附加 ${pendingAttach.length} 个：${pendingAttach.map(a=>a.name).join('、')}`.slice(0,60);
+            toast(`已附加 ${pendingAttach.length} 个，发送时一起带上`);
+          }
+        });
         const consoleSheet=host.querySelector('#ar-consoleSheet');
         let consoleIdx=-1;
         function consoleRoundsList(){
@@ -858,29 +1019,12 @@
         host.querySelector('#ar-consClose').addEventListener('click',()=>fadeSheet(consoleSheet,false));
         consoleSheet.addEventListener('click',e=>{if(e.target.id==='ar-consoleSheet')fadeSheet(consoleSheet,false)});
         const bottomBar=host.querySelector('.bottom');
-        /* ---- 我的名字：点头像右边的白胶囊改名 ---- */
+        /* ---- 文件卡片：点一下下载 zip ---- */
         host.addEventListener('click',e=>{
-          const n=e.target.closest&&e.target.closest('.me-name');
-          if(!n||n.isContentEditable)return;
-          e.stopPropagation();
-          n.dataset.before=n.textContent;
-          n.contentEditable='true';n.classList.add('editing');n.focus();
-          const r=document.createRange();r.selectNodeContents(n);
-          const sel=window.getSelection();sel.removeAllRanges();sel.addRange(r);
-        });
-        host.addEventListener('keydown',e=>{
-          const n=e.target;
-          if(!n||!n.classList||!n.classList.contains('me-name')||!n.isContentEditable)return;
-          if(e.key==='Enter'){e.preventDefault();n.blur()}
-          else if(e.key==='Escape'){n.textContent=n.dataset.before||meName();n.blur()}
-        });
-        host.addEventListener('focusout',e=>{
-          const n=e.target;
-          if(!n||!n.classList||!n.classList.contains('me-name')||!n.isContentEditable)return;
-          const v=(n.textContent||'').replace(/\s+/g,' ').trim().slice(0,12)||'我';
-          try{localStorage.setItem('archangel.me.name',v)}catch(err){}
-          n.contentEditable='false';n.classList.remove('editing');
-          host.querySelectorAll('.me-name').forEach(x=>{x.textContent=v});
+          const c=e.target.closest&&e.target.closest('.file-card');
+          if(!c)return;
+          const m=msgById(c.dataset.mid);
+          if(m&&m.files&&m.files.length)downloadZip(m.files);
         });
 
         /* ---- 思维链：点一下展开 / 收起 ---- */
@@ -895,8 +1039,8 @@
         const swipeMove=y=>{
           if(!swipe||swipe.done)return;
           const dy=y-swipe.y;
-          if(dy<-28){consoleBtn.hidden=false;swipe.done=true}
-          else if(dy>28){consoleBtn.hidden=true;swipe.done=true}
+          if(dy<-28){cgroup.hidden=false;swipe.done=true}
+          else if(dy>28){cgroup.hidden=true;swipe.done=true}
         };
         const swipeEnd=()=>{swipe=null};
         bottomBar.addEventListener('pointerdown',e=>swipeStart(e.clientY));
@@ -905,7 +1049,7 @@
         host.addEventListener('touchmove',e=>{if(swipe)swipeMove(e.touches[0].clientY)},{passive:true});
         ['pointerup','pointercancel'].forEach(t=>host.addEventListener(t,swipeEnd));
         ['touchend','touchcancel'].forEach(t=>host.addEventListener(t,swipeEnd));
-        gripBtn.addEventListener('click',e=>{e.stopPropagation();consoleBtn.hidden=!consoleBtn.hidden});
+        gripBtn.addEventListener('click',e=>{e.stopPropagation();cgroup.hidden=!cgroup.hidden});
 
         /* ---- 设置：短消息模式 / 小尾巴 / 头像 / 退出 ---- */
         const UI_KEY='archangel.ui.v1';
@@ -957,6 +1101,16 @@
         host.querySelector('#ar-avAi input').addEventListener('change',e=>setAvatarFile('ai',e.target.files[0]));
         host.querySelector('#ar-exit').addEventListener('click',()=>{openSheet(false);if(typeof closeApp==='function')closeApp()});
         applyTail();applyShortMode();refreshSheetAvatars();
+        const meInput=host.querySelector('#ar-meName');
+        meInput.value=meName();
+        meInput.addEventListener('change',()=>{
+          const v=meInput.value.replace(/\s+/g,' ').trim().slice(0,12)||'我';
+          meInput.value=v;
+          try{localStorage.setItem('archangel.me.name',v)}catch(err){}
+          host.querySelectorAll('.urow .pill').forEach(p=>{p.textContent=v});
+          toast('名字已保存');
+        });
+        meInput.addEventListener('keydown',e=>{if(e.key==='Enter')meInput.blur()});
 
         /* ---- 开场：头像框 + 胶囊 + HI 字样 + 三个胶囊（点胶囊把提示词填进输入框） ---- */
         const INTRO_CHIPS=[['讲个小故事','讲一个关于萌主大教堂的小故事'],['帮我想个名字','帮我想一个好听的名字'],['陪我聊聊天','陪我聊聊天吧']];
@@ -1042,13 +1196,17 @@
           if(!thinking&&tagged.length)thinking=tagged.join('\n').trim();
 
           const toList=(v,max,len)=>(Array.isArray(v)?v:[v]).map(x=>String(x??'').trim()).filter(Boolean).slice(0,max).map(x=>x.slice(0,len));
-          let steps=[];
+          let steps=[];let files=[];
           let parts=null;
           try{
             const o=pj(raw);
             if(o&&typeof o==='object'){
               if(!thinking&&typeof o.thinking==='string')thinking=o.thinking.trim();
               if(Array.isArray(o.steps))steps=toList(o.steps,4,20);
+              if(Array.isArray(o.files)){
+                const cn=n=>String(n||'').replace(/\\/g,'/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('/').slice(0,120)||'file.txt';
+                files=o.files.filter(f=>f&&typeof f.content==='string').map(f=>({name:cn(f.name),content:f.content})).slice(0,30);
+              }
               if(o.reply!==undefined){
                 const p=toList(o.reply,6,2000);
                 if(p.length)parts=p;
@@ -1060,7 +1218,7 @@
             const lines=short?t.split(/\n+/).map(x=>x.trim()).filter(Boolean).slice(0,6):[];
             parts=lines.length>1?lines:[t||'（模型没有返回内容）'];
           }
-          return {thinking,steps,parts};
+          return {thinking,steps,parts,files};
         }
 
     };

@@ -60,10 +60,17 @@
   opacity: 0; animation: plFade .8s ease .4s forwards;
 }
 .pl-fill{
+  position: relative; overflow: hidden;
   height: 100%; width: 0%;
   background: linear-gradient(90deg, #8a8a92 0%, #2a2a30 100%);
-  transition: width .35s ease;       /* 跟着真实加载速度走 */
 }
+/* 进度条上流动的高光：一直在走，让人看到还在加载 */
+.pl-fill::after{
+  content: ""; position: absolute; top: 0; bottom: 0; left: -45%; width: 45%;
+  background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.55), rgba(255,255,255,0));
+  animation: pl-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes pl-shimmer{ from{ left: -45%; } to{ left: 100%; } }
 
 /* ---------------------------------------------------------------
    文字：标题、作者、举报、警告
@@ -126,19 +133,63 @@
 /* 整屏淡出（加载完成后） */
 @keyframes plFade{ from{ opacity: 0; } to{ opacity: 1; } }
 
-/* ===== 进度条右边两个流动的小点 =====
+/* ===== 进度条右边两个小圆点：慢速闪动 + 轻微跳起 =====
    位置：left 紧跟在进度条右边（进度条 left 18% + width 18% = 36%，这里 36% + 1.2cqw）
-   上下：top 与进度条对齐；大小：改 width/height；速度：改 animation 的 1.2s */
+   上下：top 与进度条对齐；大小：改 width/height；速度：改 animation 的 3s（越大越慢）；跳起高度：改 -0.5cqw */
 .pl-dots{
   position: absolute; left: calc(36% + 1.2cqw); top: 57%; transform: translateY(-50%);
-  display: flex; align-items: center; gap: 0.7cqw; opacity: 0; animation: plFade .8s ease .4s forwards;
+  display: flex; align-items: center; gap: 0.9cqw; opacity: 0; animation: plFade .8s ease .4s forwards;
 }
 .pl-dots i{
-  display: block; width: 0.6cqw; height: 0.6cqw; min-width: 3px; min-height: 3px; border-radius: 50%;
-  background: #3e4550; animation: pl-flow 1.2s ease-in-out infinite;
+  display: block; width: 0.6cqw; height: 0.6cqw; min-width: 4px; min-height: 4px; border-radius: 50%;
+  background: #3e4550; animation: pl-glow 3s ease-in-out infinite;
 }
-.pl-dots i:nth-child(2){ animation-delay: .25s; }
+.pl-dots i:nth-child(2){ animation-delay: 1.5s; }
+@keyframes pl-glow{
+  0%, 100%{ opacity: .15; transform: translateY(0); }
+  25%     { opacity: .45; transform: translateY(-0.25cqw); }
+  40%     { opacity: .3;  transform: translateY(0); }
+  60%     { opacity: 1;   transform: translateY(-0.5cqw); }
+  80%     { opacity: .35; transform: translateY(0); }
+}
+
+/* =====================================================================
+   小圆点备选动画（两个点）
+   用法：把 <div class="pl-dots"> 换成下面任一个 class（pl-dots 要保留）
+     pl-dots pl-dots--orig  原来的左右流动（对比用）
+     pl-dots pl-dots--a     呼吸滑动：左右流动 + 大小一起变
+     pl-dots pl-dots--b     交替弹跳：两个点一上一下轮流跳
+     pl-dots pl-dots--c     渐隐接力：一个亮起时另一个暗下，原地呼吸
+   ===================================================================== */
+.pl-dots--orig i{ animation: pl-flow 1.2s ease-in-out infinite; }
+.pl-dots--orig i:nth-child(2){ animation-delay: .25s; }
 @keyframes pl-flow{
   0%, 100%{ opacity: .2; transform: translateX(0); }
   50%{ opacity: 1; transform: translateX(0.9cqw); }
 }
+
+.pl-dots--a i{ animation: pl-breathe 1.2s ease-in-out infinite; }
+.pl-dots--a i:nth-child(2){ animation-delay: .25s; }
+@keyframes pl-breathe{
+  0%, 100%{ opacity: .2; transform: translateX(0) scale(.7); }
+  50%{ opacity: 1; transform: translateX(0.9cqw) scale(1.2); }
+}
+
+.pl-dots--b i{ animation: pl-hop 1s cubic-bezier(.45,0,.55,1) infinite; }
+.pl-dots--b i:nth-child(2){ animation-delay: .5s; }
+@keyframes pl-hop{
+  0%, 100%{ opacity: .35; transform: translateY(0); }
+  25%{ opacity: 1; transform: translateY(-0.9cqw); }
+  50%{ opacity: .35; transform: translateY(0); }
+}
+
+.pl-dots--c i{ animation: pl-handoff 1.6s ease-in-out infinite; }
+.pl-dots--c i:nth-child(2){ animation-delay: .8s; }
+@keyframes pl-handoff{
+  0%, 100%{ opacity: .25; transform: scale(.8); }
+  50%{ opacity: 1; transform: scale(1.15); }
+}
+
+/* 备选：和默认相同的闪动跳起（需要时可以单独挂在 .pl-dots 上） */
+.pl-dots--d i{ animation: pl-glow 3s ease-in-out infinite; }
+.pl-dots--d i:nth-child(2){ animation-delay: 1.5s; }

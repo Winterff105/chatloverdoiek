@@ -51,9 +51,22 @@
     const total = urls.length;
     let done = 0, finished = false;
 
-    function setProgress() {
-        fill.style.width = Math.round((done / total) * 100) + '%';
+    // 进度条：每一帧平滑往目标走。目标 = 真实加载进度，和“按时间慢慢爬”两者取大的那个，
+    // 所以素材少、加载很快时也会有明显的推进；全部完成后走到 100%
+    let shown = 0, closing = false;
+    function tick() {
+        const realT = total ? Math.min(done / total, 0.92) : 0;
+        const timeT = Math.min(0.92, (Date.now() - startedAt) / HOLD_MIN * 0.92);
+        const loaded = done >= total;
+        // 还在加载：跟着真实进度（但不超过 92%）；已经全部加载：按时间慢慢走完停留时间；淡出那一刻走到 100%
+        const goal = closing ? 1 : (loaded ? timeT : Math.max(realT, timeT));
+        shown += (goal - shown) * 0.08;
+        if (closing && shown > 0.995) shown = 1;
+        fill.style.width = (shown * 100).toFixed(2) + '%';
+        if (!closing || shown < 1) requestAnimationFrame(tick);
     }
+    function setProgress() { /* 进度由 tick() 每帧更新 */ }
+    requestAnimationFrame(tick);
 
     function finish() {
         if (finished) return;
@@ -62,6 +75,7 @@
         // 照片读完也要等够最短停留时间（默认 5 秒）再淡出
         const wait = Math.max(350, HOLD_MIN - (Date.now() - startedAt));   // 至少停满 3 秒
         setTimeout(() => {
+            closing = true;                                 // 进度条此刻走到 100%
             layer.classList.add('pl-hide');
             setTimeout(() => layer.remove(), 800);
         }, wait);
@@ -78,4 +92,30 @@
     });
 
     setTimeout(finish, TIMEOUT);                        // 超时保护
+})();
+
+/* ---- 自动全屏：进入后尽量进入浏览器全屏 ----
+   浏览器要求必须有一次用户点击/触摸才允许全屏，所以：
+   - 页面一打开先试一次（多数浏览器会拒绝，正常）
+   - 之后第一次点击或触摸屏幕时进入全屏，成功后就不再重复进入
+   iPhone 的 Safari 不支持网页全屏，这种情况下请用“添加到主屏幕”打开 */
+(function autoFullscreen(){
+    const el = document.documentElement;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (!request) return;
+    const isFull = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const enter = () => {
+        if (isFull()) return;
+        try {
+            const p = request.call(el);
+            if (p && p.catch) p.catch(() => {});
+        } catch (e) {}
+    };
+    const events = ['pointerdown', 'touchend', 'keydown'];
+    const onGesture = () => {
+        enter();
+        if (isFull()) events.forEach(t => window.removeEventListener(t, onGesture, true));
+    };
+    events.forEach(t => window.addEventListener(t, onGesture, true));
+    enter();
 })();
