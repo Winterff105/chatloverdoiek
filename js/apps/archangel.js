@@ -558,6 +558,7 @@
           const say=h=>{box.insertAdjacentHTML('beforeend',h);scroll()};
           const hasRepo=(()=>{const g=G();return !!(g.token&&g.owner&&g.repo)})();
           if(!hasRepo){
+            tp.textContent='正在结合角色设定组织回复内容…';
             const dC=step(0,'在想怎么回复');
             try{
               const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
@@ -565,7 +566,8 @@
               const msgs=[{role:'system',content:[...modeSystemLines(),'用中文回复。'].join('\n')},...hist];
               if(!hist.length)msgs.push({role:'user',content:text});
               const reply=await chatText(msgs);
-              dC();
+              dC('完成');
+              tp.textContent='已完成回复。';
               say(`<div class="abody">${esc(reply)}</div>`);
               if(currentConversation){currentConversation.messages.push({role:'assistant',text:reply});saveCurrentConversation()}
             }catch(e){

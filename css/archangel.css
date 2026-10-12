@@ -70,7 +70,7 @@
 .archangel-app .think summary {cursor:pointer;width:max-content;list-style:none;font:400 26px/1.2 "Great Vibes","Snell Roundhand",cursive;color:#6b7682}
 .archangel-app .think summary::-webkit-details-marker {display:none}
 .archangel-app .think p {max-width:min(480px,calc(100vw - 140px));margin:6px 0 0;padding:8px 12px;font-size:13px;border-left:2px solid #c4ccd7;background:rgba(255,255,255,.5);border-radius:0 8px 8px 0}
-.archangel-app .abody {margin:4px 0 10px 56px;padding:6px 16px;border:1px solid rgba(213,219,227,.76);border-radius:20px;background:rgba(255,255,255,.64);box-shadow:0 8px 24px rgba(145,153,166,.12)}
+.archangel-app .abody {margin:4px 0 10px 56px;padding:6px 16px;font-size:13px;line-height:1.55;border:1px solid rgba(213,219,227,.76);border-radius:20px;background:rgba(255,255,255,.64);box-shadow:0 8px 24px rgba(145,153,166,.12)}
 .archangel-app .cards {margin:0 0 12px 56px;display:grid;gap:3px}
 .archangel-app .card {width:100%;display:flex;align-items:center;gap:10px;padding:5px 14px;text-align:left;border:1px solid #e3e7ee;border-radius:16px;background:#fff;box-shadow:0 4px 12px rgba(130,140,155,.1);transition:box-shadow .2s}
 .archangel-app .card:hover {box-shadow:0 8px 18px rgba(130,140,155,.2)}
@@ -372,9 +372,15 @@
 }
 /* 竖线：从第一个圆点连到最后一个，从上往下画出来 */
 @keyframes ar-line-grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.archangel-app .steps:empty::before{
+  display:none;
+}
 .archangel-app .steps::before{
   left: var(--ai-line-x); top: -8px; width: var(--ai-line-w);
   transform-origin: top; animation: ar-line-grow .7s ease .1s both;
+}
+.archangel-app .arow:not(:has(.steps .step)):not(:has(.think)) .abody{
+  top: 0;
 }
 
 /* ===== 爱心：缩小（改 width / height，px）===== */
