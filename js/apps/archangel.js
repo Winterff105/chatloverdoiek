@@ -316,7 +316,7 @@
         function avatarHtml(role){return `<img data-role="${role}" src="${avatarSrc(role)}" alt="${role==='me'?'我':'Archangel'}" onerror="this.style.visibility='hidden'">`}
 
         let pending=[];
-        let busy=false;let runTokens=0;let runLog=[];
+        let busy=false;let runTokens=0;let runLog=[];let runStartedAt=0;
         let currentConversation=null;
         let conversationHistory=loadConversationHistory();
 
@@ -726,7 +726,7 @@
             const hint='刚才系统执行时出了错，见上面的“报错”。请用角色的语气告诉用户：发生了什么、可能的原因、用户可以怎么做。不要假装操作已经完成。如果是找文件的问题，不要让用户去提供文件名，只需要用户描述想改的功能即可。';
             const msgs=[{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。',hint].join('\n')},...hist];
             const out=await chatText(msgs);
-            const msg={id:newMid(),role:'assistant',text:out.parts.join('\n'),parts:out.parts,thinking:out.thinking||'（这次回复没有返回思维链）',steps:out.steps||[],meta:{sec:'0.0',tk:runTokens}};
+            const msg={id:newMid(),role:'assistant',text:out.parts.join('\n'),parts:out.parts,thinking:out.thinking||'（这次回复没有返回思维链）',steps:out.steps||[],meta:{sec:((Date.now()-runStartedAt)/1000).toFixed(1),tk:runTokens}};
             currentConversation.messages.push(msg);
             saveCurrentConversation();
             addAssistantHistory(msg);
@@ -737,7 +737,7 @@
           if(busy)return toast('对面正在回复，请稍候');
           if(!pending.length){const last=chat.lastElementChild;if(last&&last.classList.contains('urow'))pending=[last]}
           if(!pending.length)return toast('先发送需求，再点调取');
-          const rows=pending;pending=[];busy=true;runTokens=0;runLog=[];rows.forEach(r=>r.classList.remove('pending'));
+          const rows=pending;pending=[];busy=true;runTokens=0;runLog=[];runStartedAt=Date.now();rows.forEach(r=>r.classList.remove('pending'));
           const restore=()=>{rows.forEach(r=>{if(r.isConnected&&!pending.includes(r)){r.classList.add('pending');pending.push(r)}})};
           const pendingMsgs=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>msgById(b.dataset.mid))).filter(Boolean);
           const text=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>bubbleText(b))).filter(Boolean).join('\n')+pendingMsgs.flatMap(m=>(m.attach||[]).map(attachTextOf)).join('');
@@ -795,7 +795,7 @@
             let d=step(0,LBL[0]);
             if(!ST.tree.length||ST.key!==rk(G()))await loadTree();if(!ST.tree.length)throw new Error('仓库文件树为空');
             d();d=step(1,LBL[1]);
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：用户只是想看、想了解或找东西（比如看看目录、问某个文件是干什么的）就写 read；用户明确要改、加、删、修才写 edit。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"intent":"read 或 edit","files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
             tp.textContent=sel.thinking||'已完成分析。';
             if(Array.isArray(sel.steps))sel.steps.slice(0,4).forEach((t,k)=>{if(t&&String(t).trim())LBL[k]=String(t).trim().slice(0,20)});
             steps.querySelectorAll('.step').forEach((el,k)=>{if(LBL[k]){el.dataset.t=LBL[k];const sp=el.querySelector('span');if(sp&&!sp.textContent.includes(' · '))sp.textContent=LBL[k]}});
@@ -812,7 +812,16 @@
             const got=[];
             for(const f of pick){try{const x=await getFile(f.path);if(x.orig.length>LIM){tp.textContent+=`\n（${f.path} 过大，已跳过）`;continue}got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
             if(!got.length)throw new Error('相关文件读取失败或过大，无法安全修改');
-            d(got.length+' 个');d=step(3,LBL[3]);
+            d(got.length+' 个');
+            if(sel.intent==='read'){
+              const rr=await chatText([{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。','你正在帮用户查看他的代码仓库。根据下面提供的文件内容，直接回答用户的问题或总结他想了解的内容。这一步不修改任何文件。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n文件内容：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]);
+              d=step(3,'整理回复');d();
+              tp.textContent=rr.thinking||'（这次回复没有返回思维链）';
+              say(bodyHTML(rr.parts));
+              commit(rr.parts,rr.thinking);
+              stopMeta();busy=false;return;
+            }
+            d=step(3,LBL[3]);
             const mod=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是一个专业代码修改助手。','根据用户需求修改提供的文件，只修改真正需要修改的文件。','必须保留原文件的完整内容，不能用省略号、占位符或说明文字代替代码。','不要返回 Markdown 代码围栏，只返回 JSON：{"reply":"修改说明","files":[{"path":"真实文件路径","content":"修改后的完整文件内容"}]}','files 只放发生修改的文件，content 必须是完整可直接保存的内容。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
             const ch=[];
             (mod.files||[]).forEach(c=>{const p=String(c&&c.path||'').trim().replace(/^\/+/,''),f=got.find(x=>x.path==p);
@@ -825,7 +834,7 @@
 
             if(!ch.length){
               const noChangeReply='我读取了相关文件，但没有生成可以安全应用的修改，可以把需求描述得更具体些。';
-              await explainError('读取了相关文件，但没有生成可以安全应用的修改。AI 的说明：'+assistantReply);
+              const noChangeText=String(mod.reply||'我看了一下，这次不需要改动任何文件。');say(bodyHTML([noChangeText]));commit(noChangeText,sel.thinking);
               
               stopMeta();busy=false;
               return;
