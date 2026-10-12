@@ -600,11 +600,11 @@
         /* ---- 对面的三个模式：工作天使 / 治疗天使 / 辅助天使 ---- */
         const MODE_KEY='archangel.mode.v1';
         const HEALER_PROMPT='you是Leila，你需要在user找你的时候扮演"治愈天使"，你需要称呼user为"宝宝"，"老婆""女孩"其中一个，你要从客观，理论，口语化的帮助user，作为一个心理学精通的天使，你不可以说"我在这儿呢，我接着你"这类虚假性陪伴句子，你需要慢慢引导user敞开心扉，你需要做到完整倾听user的文字而不是说"我听到了"，你一般不会用emoji而是用颜文字代替，并且说话要温柔带一些语气词比如呀，哦」';
-        const DEFAULT_ANGEL_PROMPT='你是Leila，一个大天使，来帮助user这个小天使的，你可以包容user的一切，你像是user的姐姐，你们来自萌主大教堂';
-        const MODES={work:{name:'工作天使',fixed:false},healer:{name:'治疗天使',fixed:true,prompt:HEALER_PROMPT},assist:{name:'辅助天使',fixed:false}};
-        const modeCfg=()=>{try{const v=JSON.parse(localStorage.getItem(MODE_KEY))||{};return {mode:MODES[v.mode]?v.mode:'work',prompts:Object.assign({work:'',assist:''},v.prompts||{})}}catch(e){return {mode:'work',prompts:{work:'',assist:''}}}};
+        const DEFAULT_ANGEL_PROMPT='你是Leila，一个大天使，来帮助user这个小天使的，你可以包容user的一切，你像是user的姐姐，你们来自萌主大教堂，但是在对话中你不可以说自己也不可以当做自己真的是user的姐姐以及真正的天使。你们只是把对方当做好朋友好闺蜜';
+        const MODES={work:{name:'工作天使',fixed:false},healer:{name:'治疗天使',fixed:false,prompt:HEALER_PROMPT},assist:{name:'辅助天使',fixed:false}};
+        const modeCfg=()=>{try{const v=JSON.parse(localStorage.getItem(MODE_KEY))||{};return {mode:MODES[v.mode]?v.mode:'work',prompts:Object.assign({work:'',assist:'',healer:HEALER_PROMPT},v.prompts||{})}}catch(e){return {mode:'work',prompts:{work:'',assist:'',healer:HEALER_PROMPT}}}};
         const saveModeCfg=c=>localStorage.setItem(MODE_KEY,JSON.stringify(c));
-        function modePrompt(){const c=modeCfg(),m=MODES[c.mode];return m.fixed?m.prompt:(c.prompts[c.mode]||'')}
+        function modePrompt(){const c=modeCfg();return c.prompts[c.mode]||''}
         function modeSystemLines(){
           const p=modePrompt().trim();
           const isShort=uiCfg().short==='on';
@@ -966,19 +966,19 @@
         function renderModeSheet(){
           const c=modeCfg(),m=MODES[c.mode],ta=host.querySelector('#ar-modeText');
           host.querySelectorAll('#ar-modeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.v===c.mode));
-          host.querySelector('#ar-modeHint').innerHTML=m.fixed?'<svg class="ar-lock" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> 治疗天使的提示词已锁定，不能修改':(c.mode==='work'?'工作天使默认没有提示词，可以自己写':'辅助天使的提示词由你自己编辑');
-          ta.value=m.fixed?'':(c.prompts[c.mode]||'');
-          ta.placeholder=m.fixed?'已锁定':(c.mode==='work'?'写下工作天使的提示词…':'写下辅助天使的提示词…');
-          ta.readOnly=m.fixed;
-          ta.disabled=m.fixed;
-          ta.classList.toggle('locked',m.fixed);
-          host.querySelector('#ar-modeSave').disabled=m.fixed;
+          host.querySelector('#ar-modeHint').textContent=c.mode==='work'?'工作天使默认没有提示词，可以自己写':(c.mode==='healer'?'治疗天使的提示词可以编辑，默认是温柔的心理陪伴设定':'辅助天使的提示词由你自己编辑');
+          ta.value=c.prompts[c.mode]||'';
+          ta.placeholder=c.mode==='work'?'写下工作天使的提示词…':(c.mode==='healer'?'写下治疗天使的提示词…':'写下辅助天使的提示词…');
+          ta.readOnly=false;
+          ta.disabled=false;
+          ta.classList.remove('locked');
+          host.querySelector('#ar-modeSave').disabled=false;
         }
         host.addEventListener('click',e=>{if(e.target.closest('.ahead .frame, .ar-intro .frame')){renderModeSheet();fadeSheet(host.querySelector('#ar-modeSheet'),true)}});
         host.querySelector('#ar-modeClose').addEventListener('click',()=>fadeSheet(host.querySelector('#ar-modeSheet'),false));
         host.querySelector('#ar-modeSheet').addEventListener('click',e=>{if(e.target.id==='ar-modeSheet')fadeSheet(host.querySelector('#ar-modeSheet'),false)});
         host.querySelectorAll('#ar-modeSeg button').forEach(b=>b.addEventListener('click',()=>{const c=modeCfg();c.mode=b.dataset.v;saveModeCfg(c);renderModeSheet()}));
-        host.querySelector('#ar-modeSave').addEventListener('click',()=>{const c=modeCfg();if(MODES[c.mode].fixed){toast('治疗天使的提示词已锁定');return}c.prompts[c.mode]=host.querySelector('#ar-modeText').value;saveModeCfg(c);toast('已保存模式提示词')});
+        host.querySelector('#ar-modeSave').addEventListener('click',()=>{const c=modeCfg();c.prompts[c.mode]=host.querySelector('#ar-modeText').value;saveModeCfg(c);toast('已保存模式提示词')});
 
         /* ---- AI 接口：继承设置 API / 单独设置 API ---- */
         const API_SRC_KEY='archangel.api.source';
