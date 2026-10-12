@@ -580,5 +580,26 @@
 .archangel-app .sin .tok-link:hover{color:#6e3a56}
 
 /* ===== 侧边栏整体往下推 20px ===== */
-.archangel-app #ar-side{top:20px;height:calc(100vh - 20px);height:calc(100dvh - 20px)}
+
+
+/* ===== 展开后的样式：和文件夹展开列表一致（邮票边、行间虚线），用在确认卡片的 diff 上 ===== */
+.archangel-app .diff{margin-top:6px;padding:4px 0;border:0;border-radius:4px;background:#fff;box-shadow:none;
+  -webkit-mask:radial-gradient(circle 3px at 5px 0,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 5px 100%,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 0 5px,#0000 98%,#000) 0 0/100% 10px repeat-y,radial-gradient(circle 3px at 100% 5px,#0000 98%,#000) 0 0/100% 10px repeat-y;-webkit-mask-composite:source-in;mask:radial-gradient(circle 3px at 5px 0,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 5px 100%,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 0 5px,#0000 98%,#000) 0 0/100% 10px repeat-y,radial-gradient(circle 3px at 100% 5px,#0000 98%,#000) 0 0/100% 10px repeat-y;mask-composite:intersect;}
+.archangel-app .ln{padding:2px 12px 2px 6px}
+.archangel-app .ln+.ln{border-top:1px dashed #e3e7ee}
+.archangel-app .ln.del,.archangel-app .ln.add{border-top-color:transparent}
+
+/* ===== 侧边栏：背景仍然从顶部开始，只把内容往下推 20px ===== */
+.archangel-app #ar-side{top:0;height:100vh;height:100dvh}
+.archangel-app .sin{padding-top:calc(36px + env(safe-area-inset-top,0px))}
+
+/* ===== 待确认的文件卡片：和文件夹展开后的样式一致 ===== */
+.archangel-app .fitem .card{border:0;border-radius:4px;background:#fff;box-shadow:none;padding:9px 12px;
+  -webkit-mask:radial-gradient(circle 3px at 5px 0,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 5px 100%,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 0 5px,#0000 98%,#000) 0 0/100% 10px repeat-y,radial-gradient(circle 3px at 100% 5px,#0000 98%,#000) 0 0/100% 10px repeat-y;-webkit-mask-composite:source-in;
+  mask:radial-gradient(circle 3px at 5px 0,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 5px 100%,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 0 5px,#0000 98%,#000) 0 0/100% 10px repeat-y,radial-gradient(circle 3px at 100% 5px,#0000 98%,#000) 0 0/100% 10px repeat-y;mask-composite:intersect}
+.archangel-app .fitem .fdiff>div{margin-top:4px;padding:4px 0;background:#fff;
+  -webkit-mask:radial-gradient(circle 3px at 5px 0,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 5px 100%,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 0 5px,#0000 98%,#000) 0 0/100% 10px repeat-y,radial-gradient(circle 3px at 100% 5px,#0000 98%,#000) 0 0/100% 10px repeat-y;-webkit-mask-composite:source-in;
+  mask:radial-gradient(circle 3px at 5px 0,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 5px 100%,#0000 98%,#000) 0 0/10px 100% repeat-x,radial-gradient(circle 3px at 0 5px,#0000 98%,#000) 0 0/100% 10px repeat-y,radial-gradient(circle 3px at 100% 5px,#0000 98%,#000) 0 0/100% 10px repeat-y;mask-composite:intersect}
+.archangel-app .fitem .diff{margin-top:0;border:0;border-radius:0;background:transparent;max-height:240px;overflow-x:hidden;overflow-y:auto}
+.archangel-app .fitem.open .card{box-shadow:none}
 
