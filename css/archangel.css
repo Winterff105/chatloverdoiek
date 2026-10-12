@@ -210,9 +210,6 @@
   margin:8px auto 14px; animation:ar-open .5s ease both;
   transition:opacity .3s ease;
 }
-.archangel-app .ar-intro .ar-chips{
-  display:none;
-}
 /* 头像框放大：改 .ar-intro .frame 的 width / height（px） */
 .archangel-app .ar-intro .head{width:auto}
 .archangel-app .ar-intro .frame{width:84px;height:84px}

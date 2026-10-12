@@ -215,7 +215,29 @@
             };
           });
         }
-        const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+        const esc=s=>String(s??'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+        const escA=s=>esc(s).replace(/"/g,'&quot;');
+        const newMid=()=>`m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+        function ensureIds(conv){(conv.messages||[]).forEach(m=>{if(!m.id)m.id=newMid()});return conv}
+        function msgById(id){return currentConversation?currentConversation.messages.find(m=>m.id===id):null}
+        function bubbleText(b){return (b.innerText||b.textContent||'').trim()}
+        function forgetRows(nodes){
+          if(!currentConversation)return;
+          const gone=new Set();
+          nodes.forEach(n=>{
+            if(n.dataset&&n.dataset.mid)gone.add(n.dataset.mid);
+            if(n.querySelectorAll)n.querySelectorAll('[data-mid]').forEach(x=>gone.add(x.dataset.mid));
+          });
+          if(!gone.size)return;
+          currentConversation.messages=currentConversation.messages.filter(m=>!gone.has(m.id));
+          saveCurrentConversation();
+        }
+        function stepsHTML(steps){
+          return (steps||[]).map((s,i)=>{
+            const x=s.x?` · ${esc(s.x)}`:'';
+            return `<div class="step done" data-t="${escA(s.t||'')}"><svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[Math.min(i,IC.length-1)]}</svg><span>${esc(s.t||'')}${x}</span></div>`;
+          }).join('');
+        }
         const AV_KEY={me:'archangel.avatar.me',ai:'archangel.avatar.ai'};
         const AV_DEF={me:'assets/背景/我的头像.jpg',ai:'assets/背景/对面头像.jpg'};
         const TAILIMG='<img class="tail-img" src="assets/角标/github角标.png" alt="">';
@@ -263,7 +285,11 @@
         }
 
         function saveCurrentConversation(){
-          if(!currentConversation||!currentConversation.messages.length){
+          if(!currentConversation)return;
+          if(!currentConversation.messages.length){
+            conversationHistory=conversationHistory.filter(item=>item.id!==currentConversation.id);
+            saveConversationHistory();
+            renderConversationHistory();
             return;
           }
 
@@ -287,7 +313,7 @@
             const record=await databaseGet('app','conversation-history');
 
             if(record&&Array.isArray(record.value)){
-              conversationHistory=record.value;
+              conversationHistory=record.value.map(ensureIds);
               renderConversationHistory();
             }
           }catch(error){
@@ -334,7 +360,7 @@
             return;
           }
 
-          currentConversation=JSON.parse(JSON.stringify(conversation));
+          currentConversation=ensureIds(JSON.parse(JSON.stringify(conversation)));
           pending=[];
           busy=false;
 
@@ -351,9 +377,9 @@
 
           currentConversation.messages.forEach(message=>{
             if(message.role==='user'){
-              addUser(message.text,false);
+              addUser(message.text,false,message.id);
             }else if(message.role==='assistant'){
-              addAssistantHistory(message.text);
+              addAssistantHistory(message);
             }else if(message.role==='system'){
               addSystemHistory(message.text);
             }
@@ -367,10 +393,14 @@
           }
         }
 
-        function addAssistantHistory(text){
+        function addAssistantHistory(msg){
           const row=document.createElement('div');
           row.className='arow ai enter';
-          row.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel')}</div><div class="abody">${esc(text)}</div>`;
+          if(msg.id)row.dataset.mid=msg.id;
+          const m=msg.meta;
+          const metaHTML=m?`<div class="ar-meta"><span class="ar-time">${esc(m.sec)}s</span><span class="ar-tk">${m.tk?esc(m.tk)+' tk':'— tk'}</span></div>`:'';
+          const thinkHTML=msg.thinking!==undefined?`<details class="think" open><summary>Thinking…</summary><p>${esc(msg.thinking)}</p></details>`:'';
+          row.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel',metaHTML)}${thinkHTML}</div><div class="steps">${stepsHTML(msg.steps)}</div><div class="abody">${esc(msg.text)}</div>`;
           chat.appendChild(row);
         }
 
@@ -406,7 +436,7 @@
         }
         function toast(t){const e=$('#ar-toast');e.textContent=t;e.classList.remove('show');void e.offsetWidth;e.classList.add('show')}
         function scroll(){chat.scrollTop=chat.scrollHeight}
-        function head(svg,name){return `<div class="head"><div class="frame"><div class="av">${svg}</div></div><div class="pill">${name}</div></div>`}
+        function head(svg,name,extra=''){return `<div class="head"><div class="frame"><div class="av">${svg}</div></div><div class="pill">${name}</div>${extra}</div>`}
         function setSide(o){
           const side=$('#ar-side'), backdrop=$('#ar-sideBackdrop');
           side.classList.toggle('closed',!o);
@@ -424,13 +454,14 @@
           backdrop.addEventListener('touchend',e=>{e.preventDefault();setSide(false)});
         }
         host.addEventListener('click',e=>{if(!$('#ar-side').classList.contains('closed')&&!e.target.closest('#ar-side,#ar-menu'))setSide(false)});
-        function addUser(text,saveMessage=true){
+        function addUser(text,saveMessage=true,mid=newMid()){
           if(!currentConversation){
             currentConversation=createConversation();
           }
 
           if(saveMessage){
             currentConversation.messages.push({
+              id:mid,
               role:'user',
               text
             });
@@ -441,16 +472,16 @@
           const last=chat.lastElementChild;
 
           if(last&&last.classList.contains('urow')){
-            last.querySelector('.ubody').insertAdjacentHTML('beforeend',`<div class="bubble more enter">${TAILIMG}${esc(text)}</div>`);
+            last.querySelector('.ubody').insertAdjacentHTML('beforeend',`<div class="bubble more enter" data-mid="${mid}">${TAILIMG}${esc(text)}</div>`);
             scroll();
             return;
           }
 
           const r=document.createElement('div');
-          r.className='urow pending enter';
-          r.innerHTML=`<div class="ucol">${head(avatarHtml('me'),'我')}<div class="ubody"><div class="b1"><div class="elbow"></div><div class="bubble first">${TAILIMG}${esc(text)}</div></div></div></div>`;
+          r.className=saveMessage?'urow pending enter':'urow enter';
+          r.innerHTML=`<div class="ucol">${head(avatarHtml('me'),'我')}<div class="ubody"><div class="b1"><div class="elbow"></div><div class="bubble first" data-mid="${mid}">${TAILIMG}${esc(text)}</div></div></div></div>`;
           chat.appendChild(r);
-          pending.push(r);
+          if(saveMessage)pending.push(r);
           scroll();
         }
 
@@ -549,24 +580,25 @@
           const isShort=uiCfg().short==='on';
           const shortLines=isShort?[
             '【短消息模式】',
-            '当前为短消息交互模式，必须输出符合 JSON 语法的单条消息对象：{"reply":"单条短消息文本"}。',
-            '回复内容请保持简短精炼、贴合即时聊天习惯，单句发送，不做长篇大论，不带代码块。'
+            '当前为短消息交互模式：reply 内容保持简短精炼，贴合即时聊天习惯，单句发送，不做长篇大论，不带代码块。'
           ]:[];
           return ['【基础设定】',DEFAULT_ANGEL_PROMPT,...(p?['【角色设定】',p]:[]),...shortLines,'（角色语气只用于 reply 字段；files 和 JSON 结构保持不变。）'];
         }
-        function parseShortReply(raw){
-          if(uiCfg().short!=='on')return raw;
-          try{
-            const parsed=pj(raw);
-            if(parsed&&typeof parsed.reply==='string')return parsed.reply;
-          }catch(e){}
-          return raw;
+        function chatFormatLines(){
+          return [
+            '【输出格式】',
+            '你必须只输出一个 JSON 对象，不要用 Markdown 代码围栏，也不要输出 JSON 以外的任何文字：',
+            '{"thinking":"你的思考过程","reply":"发给用户的正文"}',
+            'thinking：用中文写 2 到 4 句思考过程，比如你理解到用户想要什么、此刻的语气或意图、打算怎样回应。它是展示给用户看的思维链，要像真实的内心推理，不要写成对用户说的话。',
+            'reply：你真正要发给用户的话，语气遵循上面的角色设定。'
+          ];
         }
         async function run(){
           if(busy)return toast('对面正在回复，请稍候');
           if(!pending.length)return toast('先发送需求，再点调取');
           const rows=pending;pending=[];busy=true;runTokens=0;rows.forEach(r=>r.classList.remove('pending'));
-          const text=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>b.textContent.trim())).filter(Boolean).join('\n');
+          const restore=()=>{rows.forEach(r=>{if(r.isConnected&&!pending.includes(r)){r.classList.add('pending');pending.push(r)}})};
+          const text=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>bubbleText(b))).filter(Boolean).join('\n');
           const box=document.createElement('div');box.className='arow ai enter';
           box.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel')}<details class="think" open><summary>Thinking…</summary><p>正在思考…</p></details></div><div class="steps"></div>`;
           chat.appendChild(box);const steps=box.querySelector('.steps'),tp=box.querySelector('.think p');
@@ -579,6 +611,17 @@
             s.innerHTML=`<svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[i]}</svg><span>${t}</span>`;
             steps.appendChild(s);scroll();return x=>{s.classList.add('done');if(x)s.querySelector('span').textContent=s.dataset.t+' · '+x}};
           const say=h=>{box.insertAdjacentHTML('beforeend',h);scroll()};
+          const commit=(reply,thinking)=>{
+            const mid=newMid();
+            box.dataset.mid=mid;
+            const stepList=[...steps.querySelectorAll('.step')].map(el=>{
+              const full=el.querySelector('span')?.textContent||'';
+              const k=full.indexOf(' · ');
+              return {t:el.dataset.t||full,x:k>=0?full.slice(k+3):''};
+            });
+            const msg={id:mid,role:'assistant',text:reply,thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
+            if(currentConversation){currentConversation.messages.push(msg);saveCurrentConversation()}
+          };
           const hasRepo=(()=>{const g=G();return !!(g.token&&g.owner&&g.repo)})();
           if(!hasRepo){
             tp.textContent='正在结合角色设定组织回复内容…';
@@ -586,17 +629,16 @@
             try{
               const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
               const hist=((currentConversation&&currentConversation.messages)||[]).slice(-20).map(m=>({role:m.role,content:m.text}));
-              const msgs=[{role:'system',content:[...modeSystemLines(),'用中文回复。'].join('\n')},...hist];
+              const msgs=[{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。'].join('\n')},...hist];
               if(!hist.length)msgs.push({role:'user',content:text});
-              const rawReply=await chatText(msgs);
-              const reply=parseShortReply(rawReply);
+              const out=await chatText(msgs);
               dC('完成');
-              tp.textContent='已完成回复。';
-              say(`<div class="abody">${esc(reply)}</div>`);
-              if(currentConversation){currentConversation.messages.push({role:'assistant',text:reply});saveCurrentConversation()}
+              tp.textContent=out.thinking||'（这次回复没有返回思维链）';
+              say(`<div class="abody">${esc(out.reply)}</div>`);
+              commit(out.reply,out.thinking);
             }catch(e){
               box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
-              say(`<div class="abody">${esc(e.message)}</div>`);toast(e.message);
+              say(`<div class="abody">${esc(e.message)}</div>`);toast(e.message);restore();
             }
             stopMeta();busy=false;return;
           }
@@ -624,40 +666,23 @@
               if(!f||typeof c.content!='string'||!c.content)return;
               const lf=c.content.replace(/\r\n/g,'\n'),t=f.orig.includes('\r\n')?lf.replace(/\n/g,'\r\n'):lf;
               if(t!==f.orig)ch.push({...f,edit:t,lines:diff(f.orig.replace(/\r\n/g,'\n'),lf)})});
-            d(ch.length+' 个文件');
+            d(ch.length+' 个');
 
             const assistantReply=String(mod.reply||'已生成修改。');
 
             if(!ch.length){
               const noChangeReply='我读取了相关文件，但没有生成可以安全应用的修改，可以把需求描述得更具体些。';
-
               say(`<div class="abody">${esc(noChangeReply)}</div>`);
-
-              if(currentConversation){
-                currentConversation.messages.push({
-                  role:'assistant',
-                  text:noChangeReply
-                });
-                saveCurrentConversation();
-              }
-
+              commit(noChangeReply,sel.thinking);
               stopMeta();busy=false;
               return;
             }
 
-            const fullReply=`${assistantReply}
-
-        共修改 ${ch.length} 个文件，点开卡片查看改动（红色是删除，绿色是新增）。确认后才会一起上传到 GitHub。`;
+            const fullReply=assistantReply+'\n\n'+`共修改 ${ch.length} 个文件，点开卡片查看改动（红色是删除，绿色是新增）。确认后才会一起上传到 GitHub。`;
 
             say(`<div class="abody">${esc(fullReply)}</div><div class="cards"></div><button class="confirm">确认修改，一起上传到 GitHub</button>`);
+            commit(fullReply,sel.thinking);
 
-            if(currentConversation){
-              currentConversation.messages.push({
-                role:'assistant',
-                text:fullReply
-              });
-              saveCurrentConversation();
-            }
             const cards=box.querySelector('.cards');
             ch.forEach(f=>{const w=document.createElement('div');w.className='fitem';
               const k=f.lines.filter(l=>l[0]=='+').length;
@@ -683,7 +708,7 @@
             scroll();
           }catch(e){
             box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
-            say(`<div class="abody">操作失败：${esc(e.message)}</div>`);toast(e.message);
+            say(`<div class="abody">操作失败：${esc(e.message)}</div>`);toast(e.message);restore();
           }
           stopMeta();busy=false;
         }
@@ -700,14 +725,16 @@
           const bs=b.querySelectorAll('.bubble');b.classList.add('editing');
           bs.forEach(x=>x.contentEditable='true');bs[0].focus();
           const d=document.createElement('button');d.className='edone';d.textContent='完成';
-          d.onclick=()=>{bs.forEach(x=>x.contentEditable='false');b.classList.remove('editing');d.remove();toast('已修改，点“重回”可按新内容重新回复')};
+          d.onclick=()=>{bs.forEach(x=>{x.contentEditable='false';const m=msgById(x.dataset.mid);if(m)m.text=bubbleText(x)});if(currentConversation)saveCurrentConversation();b.classList.remove('editing');d.remove();toast('已修改，点“重回”可按新内容重新回复')};
           b.querySelector('.ucol').appendChild(d);
         }
         function mark(r){if(!pending.includes(r)){r.classList.add('pending');pending.push(r)}}
         function rewind(b){
           if(busy)return toast('对面正在回复，请稍候');
-          let n=b.nextElementSibling;
-          while(n){const x=n.nextElementSibling;pending=pending.filter(r=>r!==n);n.remove();n=x}
+          const after=[];let n=b.nextElementSibling;
+          while(n){after.push(n);n=n.nextElementSibling}
+          forgetRows(b.classList.contains('arow')?[b,...after]:after);
+          after.forEach(x=>{pending=pending.filter(r=>r!==x);x.remove()});
           if(b.classList.contains('arow')){const p=b.previousElementSibling;pending=pending.filter(r=>r!==b);b.remove();if(p&&p.classList.contains('urow'))mark(p)}
           else mark(b);
           scroll();run();
@@ -715,7 +742,7 @@
         function upd(){$('#ar-selcount').textContent='已选 '+host.querySelectorAll('.picked').length+' 条'}
         function enterSel(b){host.classList.add('sel');b.classList.add('picked');upd()}
         function exitSel(){host.classList.remove('sel');host.querySelectorAll('.picked').forEach(x=>x.classList.remove('picked'))}
-        $('#ar-seldel').onclick=()=>{host.querySelectorAll('.picked').forEach(x=>{pending=pending.filter(r=>r!==x);x.remove()});exitSel();toast('已删除')};
+        $('#ar-seldel').onclick=()=>{const picked=[...host.querySelectorAll('.picked')];forgetRows(picked);picked.forEach(x=>{pending=pending.filter(r=>r!==x);x.remove()});exitSel();toast('已删除')};
         $('#ar-selcancel').onclick=exitSel;
         chat.addEventListener('pointerdown',e=>{
           if(IS()||e.target.closest('.mask,.editing'))return;
@@ -864,11 +891,22 @@
 
         async function chatText(msgs){
           const a=A();
-          const r=await req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,messages:msgs,temperature:.8})});
+          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,messages:msgs,temperature:.8,...(j?{response_format:{type:'json_object'}}:{})})},120000);
+          let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败：'+await err(r));
           const d=await r.json();runTokens+=(d.usage&&d.usage.total_tokens)||0;
           const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
-          return Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');
+          const raw=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');
+          let thinking=typeof m.reasoning_content==='string'?m.reasoning_content.trim():'';
+          let reply=String(raw).trim();
+          try{
+            const o=pj(raw);
+            if(o&&typeof o.reply==='string'&&o.reply.trim()){
+              reply=o.reply.trim();
+              if(!thinking&&typeof o.thinking==='string')thinking=o.thinking.trim();
+            }
+          }catch(e){}
+          return {thinking,reply};
         }
 
     };
