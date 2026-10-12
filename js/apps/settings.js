@@ -398,6 +398,49 @@ function getSettingsAppHTML() {
 
                     </div>
                 </div>
+                <div class="section-tag mono-font" style="margin-top: 8px;">Model Tuning</div>
+                <div class="setting-card">
+                    <div class="setting-row" onclick="toggleApiTuningPanel()">
+                        <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><path d="M14 14.76V5a2 2 0 0 0-4 0v9.76a4 4 0 1 0 4 0z"/></svg>
+                            </div>
+                            <div class="row-text-group">
+                                <span class="row-label">温度与思考力度</span>
+                                <span class="row-note mono-font">Temperature · Thinking</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <svg id="apiTuningArrow" class="viewport-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                    </div>
+                    <div class="viewport-panel collapsed" id="apiTuningPanel">
+                        <div class="viewport-panel-inner">
+                            <div class="tune-wrap">
+                                <div class="tune-block">
+                                    <div class="tune-head">
+                                        <span class="tune-name">温度 <em>Temperature</em></span>
+                                        <span class="tune-value" id="settingsTempValue">0.8</span>
+                                    </div>
+                                    <input type="range" class="tune-range" min="0" max="2" step="0.1" value="0.8" id="settingsTemp" style="--p:40%" oninput="tuneTempInput(this)">
+                                    <div class="tune-hint"><span>严谨</span><span>发散</span></div>
+                                </div>
+                                <div class="tune-block">
+                                    <div class="tune-head">
+                                        <span class="tune-name">思考力度 <em>Thinking</em></span>
+                                    </div>
+                                    <div class="tune-seg" id="settingsThinkingSeg">
+                                        <button type="button" data-val="" class="active" onclick="tuneThinkingPick('')">关</button>
+                                        <button type="button" data-val="low" onclick="tuneThinkingPick('low')">低</button>
+                                        <button type="button" data-val="medium" onclick="tuneThinkingPick('medium')">中</button>
+                                        <button type="button" data-val="high" onclick="tuneThinkingPick('high')">高</button>
+                                    </div>
+                                    <input type="hidden" id="settingsThinking" value="">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
         </div>
@@ -546,9 +589,46 @@ function loadSettingsApiPresets() {
         if (Array.isArray(list)) {
             settingsApiPresets = list
                 .filter(p => p && p.name && p.url)
-                .map(p => ({ id: p.id || Date.now() + Math.random(), name: String(p.name), url: String(p.url), key: String(p.key || ''), model: String(p.model || '') }));
+                .map(p => ({ id: p.id || Date.now() + Math.random(), name: String(p.name), url: String(p.url), key: String(p.key || ''), model: String(p.model || ''),
+                    temperature: (typeof p.temperature === 'number' && isFinite(p.temperature)) ? p.temperature : 0.8,
+                    thinking: ['low', 'medium', 'high'].includes(p.thinking) ? p.thinking : '' }));
         }
     } catch (e) { console.warn('[Settings API] 预设读取失败', e); }
+}
+/* 温度滑块：数值、滑过的颜色同步 */
+function tuneTempInput(el) {
+    const v = Number(el.value);
+    const lbl = document.getElementById('settingsTempValue');
+    if (lbl) lbl.textContent = v.toFixed(1);
+    el.style.setProperty('--p', (v / 2 * 100) + '%');
+}
+/* 思考力度分段：点哪个就选哪个 */
+function tuneThinkingPick(val) {
+    const h = document.getElementById('settingsThinking');
+    if (h) h.value = val;
+    syncThinkingSeg(val);
+}
+function syncThinkingSeg(val) {
+    document.querySelectorAll('#settingsThinkingSeg button').forEach(b => b.classList.toggle('active', b.dataset.val === (val || '')));
+}
+/* 温度与思考力度：读取表单 / 填回表单 */
+function settingsTuningFromForm() {
+    const t = document.getElementById('settingsTemp');
+    const th = document.getElementById('settingsThinking');
+    const temperature = t ? Math.max(0, Math.min(2, parseFloat(t.value) || 0)) : 0.8;
+    const thinking = th && ['low', 'medium', 'high'].includes(th.value) ? th.value : '';
+    return { temperature, thinking };
+}
+function settingsSetTuningForm(p) {
+    const temperature = (p && typeof p.temperature === 'number' && isFinite(p.temperature)) ? p.temperature : 0.8;
+    const thinking = p && ['low', 'medium', 'high'].includes(p.thinking) ? p.thinking : '';
+    const t = document.getElementById('settingsTemp');
+    const v = document.getElementById('settingsTempValue');
+    const th = document.getElementById('settingsThinking');
+    if (t) { t.value = String(temperature); t.style.setProperty('--p', (temperature / 2 * 100) + '%'); }
+    if (v) v.textContent = temperature.toFixed(1);
+    if (th) th.value = thinking;
+    syncThinkingSeg(thinking);
 }
 /* 没有已保存的当前配置时，把表单填成当前预设（与原来的默认表单一致） */
 function prefillSettingsForm(p) {
@@ -560,6 +640,7 @@ function prefillSettingsForm(p) {
     if (url) url.value = p.url;
     if (key) key.value = p.key;
     ensureModelOption(document.getElementById('settingsModelDropdown'), p.model);
+    settingsSetTuningForm(p);
 }
 function saveSettingsApiPresets() {
     try { localStorage.setItem(SETTINGS_PRESETS_KEY, JSON.stringify(settingsApiPresets)); }
@@ -613,7 +694,10 @@ function publishActiveSettingsApi(preset) {
     try {
         localStorage.setItem('forever_settings_active_api_v1', JSON.stringify({
             name: String(preset.name || ''), url: String(preset.url || '').trim(),
-            key: String(preset.key || '').trim(), model: String(preset.model || '').trim(), updatedAt: Date.now()
+            key: String(preset.key || '').trim(), model: String(preset.model || '').trim(),
+            temperature: (typeof preset.temperature === 'number' && isFinite(preset.temperature)) ? preset.temperature : 0.8,
+            thinking: ['low', 'medium', 'high'].includes(preset.thinking) ? preset.thinking : '',
+            updatedAt: Date.now()
         }));
     } catch (e) { console.warn('[Settings API] 无法同步 API 配置到聊天模块', e); }
 }
@@ -637,6 +721,8 @@ function restoreActiveSettingsApi() {
         if (name) name.value = settingsApiPresets[idx].name;
         if (url) url.value = saved.url;
         if (key) key.value = saved.key || '';
+        Object.assign(settingsApiPresets[idx], { temperature: saved.temperature, thinking: saved.thinking });
+        settingsSetTuningForm(saved);
         ensureModelOption(model, saved.model);
     } catch (e) { console.warn('[Settings API] 配置恢复失败', e); }
 }
@@ -1595,6 +1681,7 @@ function saveSettingsPreset() {
     const url = document.getElementById('settingsApiUrl').value.trim();
     const key = document.getElementById('settingsApiKey').value.trim();
     const model = document.getElementById('settingsModelDropdown').value;
+    const tune = settingsTuningFromForm();
 
     if (!name || !url || !key) {
         alert('预设名称、URL 和 Key 都要填完整');
@@ -1610,9 +1697,10 @@ function saveSettingsPreset() {
         existing.url = url;
         existing.key = key;
         existing.model = model;
+        Object.assign(existing, tune);
         alert(`预设 "${name}" 已更新！`);
     } else {
-        settingsApiPresets.push({ id: Date.now(), name, url, key, model });
+        settingsApiPresets.push({ id: Date.now(), name, url, key, model, ...tune });
         alert(`新预设 "${name}" 保存成功！`);
     }
 
@@ -1709,6 +1797,7 @@ function cycleSettingsPreset() {
     document.getElementById('settingsApiKey').value = current.key;
     const modelSelect = document.getElementById('settingsModelDropdown');
     ensureModelOption(modelSelect, current.model);
+    settingsSetTuningForm(current);
     publishActiveSettingsApi(current);
 
     updateSettingsActivePresetBadge();
@@ -3247,6 +3336,14 @@ function handlePwaIconUpload(e) {
 }
 
 // 展开 / 收起（只切换显示，不重新渲染）
+function toggleApiTuningPanel() {
+    const panel = document.getElementById('apiTuningPanel');
+    const arrow = document.getElementById('apiTuningArrow');
+    if (!panel) return;
+    panel.classList.toggle('collapsed');
+    const open = !panel.classList.contains('collapsed');
+    if (arrow) arrow.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
+}
 function togglePwaIconPanel() {
     const panel = document.getElementById('pwaIconPanel');
     const arrow = document.getElementById('pwaIconArrow');

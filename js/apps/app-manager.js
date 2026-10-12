@@ -1,4 +1,19 @@
 /* Robust app launcher: always opens the host window, even if a module has an initialization error. */
+/* 按需加载 Little Lace 的样式与脚本（只加载一次） */
+function loadArchangelApp(done) {
+    if (!document.querySelector('link[href$="css/archangel.css"]')) {
+        const l = document.createElement('link');
+        l.rel = 'stylesheet'; l.href = 'css/archangel.css';
+        document.head.appendChild(l);
+    }
+    if (window.initArchangelApp) { done(); return; }
+    const existing = document.querySelector('script[data-archangel-js]');
+    if (existing) { existing.addEventListener('load', done); existing.addEventListener('error', done); return; }
+    const s = document.createElement('script');
+    s.src = 'js/apps/archangel.js'; s.dataset.archangelJs = '1';
+    s.onload = done; s.onerror = done;
+    document.body.appendChild(s);
+}
 function openApp(appId) {
     const def = (typeof APPS !== 'undefined' && APPS[appId]) || { name: appId === 'chat' ? 'chat' : appId, svg: '' };
     const home = document.getElementById('homeScreen');
@@ -44,6 +59,13 @@ function openApp(appId) {
                 const note = document.createElement('div'); note.style.cssText = 'padding:24px;color:#fff';
                 note.textContent = '信息脚本未加载，请检查 js/apps/messages.js 的路径。'; root.appendChild(note);
             }
+        } else if (appId === 'book') {
+            // Little Lace：Archangel 工作台，直接挂在应用窗口里（样式 css/archangel.css，脚本 js/apps/archangel.js）
+            contentArea.innerHTML = '<div class="archangel-app"></div>';
+            loadArchangelApp(() => {
+                if (typeof window.initArchangelApp === 'function') window.initArchangelApp(contentArea.firstElementChild);
+                else contentArea.innerHTML = '<div style="padding:24px;color:#fff">Little Lace 模块未加载，请检查 js/apps/archangel.js 与 css/archangel.css 的路径。</div>';
+            });
         } else {
             contentArea.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;"><div class="app-icon" style="width:68px;height:68px;"><div class="floating-glyph" style="width:40px;height:40px;">${def.svg || ''}</div></div><h2 style="color:var(--text-dark);font-size:17px;font-weight:600;">${def.name || '应用'}</h2><p style="font-size:13px;color:var(--text-sub);">应用开发中...</p></div>`;
         }

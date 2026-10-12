@@ -131,13 +131,8 @@ const APPS = {
         </svg>`
     },
     'book': {
-        name: '手账',
-        svg: `<svg viewBox="0 0 40 40">
-            <path class="stroke-primary" d="M20 11.5c-3-2.2-6.8-2.4-10.5-2.4v17.5c3.7 0 7.5.2 10.5 2.4 3-2.2 6.8-2.4 10.5-2.4V9.1c-3.7 0-7.5.2-10.5 2.4z"/>
-            <line class="stroke-secondary" x1="20" y1="11.5" x2="20" y2="29"/>
-            <path class="stroke-primary" d="M25.5 11v6l2-1.5 2 1.5v-5.5"/>
-            <path class="star-solid-translucent" d="M9 7v3M7.5 8.5h3"/>
-        </svg>`
+        name: 'little Leila',
+        svg: `<div style="position:relative;width:100%;height:100%;"><img src="assets/app/github.jpg" alt="Leila" style="width:100%;height:100%;object-fit:cover;border-radius:22%;display:block;"><span style="position:absolute;left:0;right:0;bottom:9%;text-align:center;font:600 7px/1 -apple-system,'Helvetica Neue',Arial,sans-serif;letter-spacing:.6px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.55);pointer-events:none;">little</span></div>`
     },
     'wallet': {
         name: '卡包',

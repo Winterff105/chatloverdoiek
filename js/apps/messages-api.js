@@ -62,7 +62,7 @@
   const MEM_SEC_NAME = { common: '共同记忆', solo: '单独记忆', main: '主记忆', extra: '番外记忆' };
   const MEM_LVL_NAME = { high: '高', mid: '中', low: '低' };
   const MEM_LVL_RANK = { high: 0, mid: 1, low: 2 };
-  function memSecOf(x) { return x && x.sec ? x.sec : 'main'; }
+  function memSecOf(x) { return x && x.sec && x.sec !== 'solo' ? x.sec : 'main'; }   // 单独已去掉：旧的单独记忆并入主记忆
   function memLvlOf(x) {
     if (x && x.level) return x.level;
     const p = parseInt(x && x.priority, 10) || 5;
@@ -77,8 +77,8 @@
         + (x.keys && x.keys.length ? '\n关键词：' + x.keys.join('、') : '');
     const sorted = sec => items.filter(x => memSecOf(x) === sec)
         .sort((a, b) => (MEM_LVL_RANK[memLvlOf(a)] - MEM_LVL_RANK[memLvlOf(b)]) || ((b.priority || 0) - (a.priority || 0)));
-    const out = ['【记忆】分为四个分区：共同记忆是你和对方共同经历的事（比如对方点赞、评论过你的朋友圈），这些是双方都记得的；单独记忆是只有对方这一方知道的私人记忆；主记忆是总结出的事情经过，按高、中、低级排列，越靠前越重要；番外记忆是番外设定。提到共同经历时要自然地呼应，不要当成新鲜事再讲一遍。'];
-    [['common', 20], ['solo', 20], ['main', 12], ['extra', 8]].forEach(([sec, n]) => {
+    const out = ['【记忆】分为四个分区：共同记忆是你和对方共同经历的事（比如对方点赞、评论过你的朋友圈），这些是双方都记得的；主记忆是总结出的事情经过，按高、中、低级排列，越靠前越重要；番外记忆是番外设定。提到共同经历时要自然地呼应，不要当成新鲜事再讲一遍。'];
+    [['common', 20], ['main', 12], ['extra', 8]].forEach(([sec, n]) => {
         const arr = sorted(sec).slice(0, n);
         if (arr.length) out.push(`【${MEM_SEC_NAME[sec]}】\n` + arr.map(line).join('\n'));
     });
@@ -100,7 +100,16 @@
     try { c = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (_) {}
     let endpoint = String(c.url || c.endpoint || '').trim();
     if (endpoint && !/\/chat\/completions\/?$/i.test(endpoint)) endpoint = endpoint.replace(/\/+$/, '') + '/chat/completions';
-    return { endpoint, model: String(c.model || '').trim(), apiKey: String(c.key || c.apiKey || '').trim(), systemPrompt: BASE_PROMPT };
+    const temperature = (typeof c.temperature === 'number' && isFinite(c.temperature)) ? c.temperature : null;
+    const thinking = ['low', 'medium', 'high'].includes(c.thinking) ? c.thinking : '';
+    return { endpoint, model: String(c.model || '').trim(), apiKey: String(c.key || c.apiKey || '').trim(), systemPrompt: BASE_PROMPT, temperature, thinking };
+  }
+  /* 所有调用 API 的地方都经过这里：温度与思考力度来自设置页；没设置温度时用调用处的默认值 */
+  function withTuning(body, fallbackTemp) {
+    const c = config();
+    const out = Object.assign({}, body, { temperature: c.temperature !== null ? c.temperature : fallbackTemp });
+    if (c.thinking) out.reasoning_effort = c.thinking;
+    return out;
   }
   function isConfigured() { const c = config(); return !!(c.endpoint && c.model && c.apiKey); }
 
@@ -182,7 +191,7 @@
     const messages = [{ role: 'system', content: system }];
     for (const m of (contact.msgs || []).slice(-memCount)) messages.push({ role: m.me ? 'user' : 'assistant', content: String(m.text || '') });
     let response;
-    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify({ model: c.model, messages, temperature: 0.8 }) }); }
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages }, 0.8)) }); }
     catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);
@@ -215,7 +224,7 @@
     const when = post && post.t ? new Date(post.t) : new Date();
     const user = `这是用户刚发的朋友圈（${when.getHours()}时${when.getMinutes()}分）：\n${String(post && post.text || '').trim() || '（只发了照片）'}`;
     let response;
-    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], temperature: 0.8 }) }); }
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
     catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);
@@ -232,7 +241,7 @@
   async function complete(systemText, userText) {
     const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
     let response;
-    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify({ model: c.model, messages: [{ role: 'system', content: systemText }, { role: 'user', content: userText }], temperature: 0.4 }) }); }
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: systemText }, { role: 'user', content: userText }] }, 0.4)) }); }
     catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);

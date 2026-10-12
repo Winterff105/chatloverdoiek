@@ -652,20 +652,19 @@ const MEM_ICO = {
     trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>',
     doc: '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M10 13h6M10 17h6"/></svg>'
 };
-/* ---------------- 记忆区：共同 / 单独 / 主 / 番外 四个分区，添加记忆，高中低级 ---------------- */
-let MEM_SEC = 'main';            // 当前分区
-let MEM_ADD = null;              // 正在添加的草稿：{text, sec, level}，null 表示没有打开
+/* ---------------- 记忆库：外壳只搭一次；点击只更新变化的部分，不整页重画 ---------------- */
+let MEM_SEC = 'main';            // 当前分区：common / solo / main / extra
+let MEM_ADD = null;              // 添加表单打开时：{sec, level}
 let MEM_EDIT = null;             // 正在编辑内容的条目 id
 const MEM_SEC_LIST = [
     { k: 'common', name: '共同' },
-    { k: 'solo',   name: '单独' },
     { k: 'main',   name: '主' },
     { k: 'extra',  name: '番外' }
 ];
 const MEM_SEC_NAME = { common: '共同记忆', solo: '单独记忆', main: '主记忆', extra: '番外记忆' };
 const MEM_LVL_NAME = { high: '高', mid: '中', low: '低' };
 const MEM_LVL_RANK = { high: 0, mid: 1, low: 2 };
-function memSecOf(x) { return x && x.sec ? x.sec : 'main'; }
+function memSecOf(x) { return x && x.sec && x.sec !== 'solo' ? x.sec : 'main'; }   // 单独已去掉：旧的单独记忆并入主记忆
 function memLvlFromPrio(p) { const n = parseInt(p, 10) || 5; return n >= 7 ? 'high' : (n >= 4 ? 'mid' : 'low'); }
 function memLvlOf(x) { return (x && x.level) || memLvlFromPrio(x && x.priority); }
 function memLvlPrio(l) { return l === 'high' ? 8 : (l === 'mid' ? 5 : 2); }
@@ -679,11 +678,112 @@ function memSecOptions(sel) {
 function memLvlOptions(sel) {
     return ['high', 'mid', 'low'].map(l => `<option value="${l}" ${sel === l ? 'selected' : ''}>${MEM_LVL_NAME[l]}级</option>`).join('');
 }
+function memPageEl() { return document.getElementById('memPage'); }
+
+/* 外壳（背景层、页头、分段、滚动区）只搭一次；之后的操作都走事件委托 */
+function memMount() {
+    const page = memPageEl(); if (!page) return null;
+    if (page.dataset.mounted === '1') return page;
+    page.dataset.mounted = '1';
+    page.innerHTML = `
+        <div class="mem-bg"></div>
+        <header class="mem-top"><button class="mem-back" type="button" data-act="close">返回</button><span class="mem-title">记忆</span><span class="mem-spacer"></span></header>
+        <div class="mem-scroll">
+            <div class="mem-seg">${MEM_SEC_LIST.map(x => `<button class="mem-seg-pill" type="button" data-act="sec" data-sec="${x.k}">${x.name}</button>`).join('')}</div>
+            <div data-role="main-only">
+                <div class="mem-sec">设置</div>
+                <div class="mem-card mem-settings-card" data-role="settings"></div>
+                <div class="mem-sec">总结指令</div>
+                <div class="mem-card mem-settings-card" data-role="instr"></div>
+            </div>
+            <div data-role="body"></div>
+        </div>`;
+    page.addEventListener('click', memOnClick);
+    page.addEventListener('change', memOnChange);
+    return page;
+}
+function memOnClick(e) {
+    const el = e.target.closest('[data-act]'); if (!el) return;
+    const id = el.dataset.id;
+    switch (el.dataset.act) {
+        case 'close': closeMemoryPage(); break;
+        case 'sec': memSetSec(el.dataset.sec); break;
+        case 'add': memOpenAdd(); break;
+        case 'addCancel': memCloseAdd(); break;
+        case 'addSave': memSaveNew(); break;
+        case 'edit': memStartEdit(id); break;
+        case 'editCancel': memCancelEdit(); break;
+        case 'editSave': memSaveEdit(id); break;
+        case 'delete': memDelete(id); break;
+        case 'toggleAuto': memToggleAuto(); break;
+        case 'sumRange': memSummarizeRange(); break;
+        case 'instrSave': memSaveInstr(); break;
+        case 'instrRestore': memRestoreDefault(); break;
+        case 'presetSave': memSavePreset(); break;
+        case 'presetUpdate': memUpdatePreset(); break;
+        case 'presetDelete': memDeletePreset(); break;
+    }
+}
+function memOnChange(e) {
+    const el = e.target.closest('[data-chg]'); if (!el) return;
+    const k = el.dataset.chg;
+    if (k === 'setNum') memSetNum(el.dataset.key, el.value);
+    else if (k === 'preset') memSwitchPreset(el.value);
+    else if (k === 'lvl') memSetLevel(el.dataset.id, el.value);
+    else if (k === 'itemSec') memSetItemSec(el.dataset.id, el.value);
+}
+
+/* 只更新分段按钮的选中状态和主记忆的设置区显示 */
+function memRenderSeg() {
+    const page = memMount(); if (!page) return;
+    page.querySelectorAll('.mem-seg-pill').forEach(b => b.classList.toggle('active', b.dataset.sec === MEM_SEC));
+    page.querySelector('[data-role="main-only"]').hidden = MEM_SEC !== 'main';
+}
+/* 设置卡片和总结指令卡片（只在需要时重写，且只重写这两块） */
+function memRenderSettings() {
+    const page = memMount(); const c = curMemContact(); if (!page || !c) return;
+    const m = memOf(c);
+    const presets = memPresets();
+    const last = c.msgs.length;
+    const presetOpts = '<option value="-1">默认指令</option>' + presets.map((p, i) => `<option value="${i}" ${m.presetIdx === i ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    page.querySelector('[data-role="settings"]').innerHTML = `
+        <div class="mem-row"><span class="mem-lbl">上下文条数</span><input type="number" min="1" value="${m.ctx}" data-chg="setNum" data-key="ctx"></div>
+        <div class="mem-row"><span class="mem-lbl">自动总结</span><button class="mem-switch ${m.auto ? 'on' : ''}" type="button" data-act="toggleAuto" aria-label="自动总结"></button></div>
+        <div class="mem-row"><span class="mem-lbl">每到多少条总结一次</span><input type="number" min="1" value="${m.every}" data-chg="setNum" data-key="every"></div>
+        <div class="mem-row"><span class="mem-lbl">手动总结：第几条到第几条</span><span class="mem-range"><input type="number" min="1" id="memFrom" value="${Math.max(1, last - 39)}"><i>—</i><input type="number" min="1" id="memTo" value="${last}"></span></div>
+        <button class="mem-btn mem-primary" type="button" data-act="sumRange">${MEM_ICO.doc}<span>手动总结这段</span></button>`;
+    page.querySelector('[data-role="instr"]').innerHTML = `
+        <div class="mem-row"><span class="mem-lbl">预设</span><select class="mem-select" data-role="presetSelect" data-chg="preset">${presetOpts}</select></div>
+        <textarea class="mem-instr" id="memInstr" rows="9">${esc(m.instr)}</textarea>
+        <div class="mem-btns mem-foot">
+            <button class="mem-btn" type="button" data-act="instrRestore">${MEM_ICO.restore}<span>恢复默认</span></button>
+            <button class="mem-btn" type="button" data-act="presetSave" aria-label="存为预设" title="存为预设">${MEM_ICO.save}</button>
+        </div>
+        <div class="mem-btns">
+            <button class="mem-btn mem-wide" type="button" data-act="instrSave">${MEM_ICO.save}<span>保存修改</span></button>
+            <button class="mem-btn" type="button" data-act="presetUpdate" data-role="presetUpdate" ${m.presetIdx >= 0 ? '' : 'hidden'}>${MEM_ICO.refresh}<span>更新预设</span></button>
+            <button class="mem-btn mem-danger" type="button" data-act="presetDelete" data-role="presetDelete" ${m.presetIdx >= 0 ? '' : 'hidden'}>${MEM_ICO.trash}<span>删除预设</span></button>
+        </div>
+        <div class="mem-hint">{{char}} 代表角色名，{{user}} 代表你的名字。</div>`;
+}
+/* 预设只更新下拉选项和两个按钮的显示，不重写指令文本框 */
+function memRenderPresetBar() {
+    const page = memMount(); const c = curMemContact(); if (!page || !c) return;
+    const m = memOf(c);
+    const sel = page.querySelector('[data-role="presetSelect"]');
+    if (sel) {
+        const presets = memPresets();
+        sel.innerHTML = '<option value="-1">默认指令</option>' + presets.map((p, i) => `<option value="${i}" ${m.presetIdx === i ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+    }
+    const up = page.querySelector('[data-role="presetUpdate"]'); if (up) up.hidden = !(m.presetIdx >= 0);
+    const del = page.querySelector('[data-role="presetDelete"]'); if (del) del.hidden = !(m.presetIdx >= 0);
+}
+function memSetInstrText(t) { const ta = document.getElementById('memInstr'); if (ta) ta.value = t; }
 function memItemHtml(x) {
     const editing = MEM_EDIT === x.id;
     const body = editing
         ? `<textarea class="mem-edit-ta" id="memEditTa" rows="4">${esc(x.text)}</textarea>
-           <div class="mem-btns"><button class="mem-btn" type="button" onclick="memCancelEdit()">取消</button><button class="mem-btn mem-primary-sm" type="button" onclick="memSaveEdit('${x.id}')">SAVE</button></div>`
+           <div class="mem-btns"><button class="mem-btn" type="button" data-act="editCancel">取消</button><button class="mem-btn mem-primary-sm" type="button" data-act="editSave" data-id="${x.id}">保存</button></div>`
         : `<div class="mem-text"><span class="mem-stamp">${esc(x.label || '')}</span> ${esc(x.text)}</div>
            ${x.points && x.points.length ? `<div class="mem-points">${x.points.map(p => `<div>- ${esc(p)}</div>`).join('')}</div>` : ''}
            ${x.relation ? `<div class="mem-rel"><span>关系与感情</span>${esc(x.relation)}</div>` : ''}
@@ -691,12 +791,12 @@ function memItemHtml(x) {
     return `<div class="mem-card mem-item">
         <div class="mem-head">
             <div class="mem-tags">
-                <select class="mem-select" onchange="memSetLevel('${x.id}', this.value)">${memLvlOptions(memLvlOf(x))}</select>
-                <select class="mem-select" onchange="memSetItemSec('${x.id}', this.value)">${memSecOptions(memSecOf(x))}</select>
+                <select class="mem-select" data-chg="lvl" data-id="${x.id}">${memLvlOptions(memLvlOf(x))}</select>
+                <select class="mem-select" data-chg="itemSec" data-id="${x.id}">${memSecOptions(memSecOf(x))}</select>
             </div>
             <div class="mem-actions">
-                <button class="mem-del mem-edit" type="button" onclick="memStartEdit('${x.id}')">编辑</button>
-                <button class="mem-del" type="button" onclick="memDelete('${x.id}')">删除</button>
+                <button class="mem-del mem-edit" type="button" data-act="edit" data-id="${x.id}">编辑</button>
+                <button class="mem-del" type="button" data-act="delete" data-id="${x.id}">删除</button>
             </div>
         </div>
         ${body}
@@ -706,84 +806,53 @@ function memAddFormHtml() {
     if (!MEM_ADD) return '';
     return `<div class="mem-card mem-form">
         <div class="mem-sec">添加记忆</div>
-        <textarea class="mem-edit-ta" id="memNewTa" rows="4" placeholder="写下这段记忆…">${esc(MEM_ADD.text)}</textarea>
+        <textarea class="mem-edit-ta" id="memNewTa" rows="4" placeholder="写下这段记忆…"></textarea>
         <div class="mem-row"><span class="mem-lbl">分区</span><select class="mem-select" id="memNewSec">${memSecOptions(MEM_ADD.sec)}</select></div>
         <div class="mem-row"><span class="mem-lbl">级别</span><select class="mem-select" id="memNewLvl">${memLvlOptions(MEM_ADD.level)}</select></div>
-        <div class="mem-btns"><button class="mem-btn" type="button" onclick="memCloseAdd()">取消</button><button class="mem-btn mem-primary-sm" type="button" onclick="memSaveNew()">SAVE</button></div>
+        <div class="mem-btns"><button class="mem-btn" type="button" data-act="addCancel">取消</button><button class="mem-btn mem-primary-sm" type="button" data-act="addSave">保存</button></div>
     </div>`;
 }
-function memSectionHtml(c) {
-    if (MEM_SEC === 'extra') return '<div class="mem-empty">番外记忆先空着，之后再来填。</div>';
+/* 只重写滚动区里的内容，并保留主记忆各级的展开状态 */
+function memRenderBody() {
+    const page = memMount(); const c = curMemContact(); if (!page || !c) return;
+    const box = page.querySelector('[data-role="body"]');
+    if (MEM_SEC === 'extra') { box.innerHTML = '<div class="mem-empty">番外记忆先空着，之后再来填。</div>'; return; }
+    const openLvls = new Set([...box.querySelectorAll('details.mem-group[open]')].map(d => d.dataset.lvl));
+    const firstRun = !box.dataset.ready; box.dataset.ready = '1';
     const items = (c.memories || []).filter(x => memSecOf(x) === MEM_SEC);
-    const addBtn = `<button class="mem-btn mem-primary" type="button" onclick="memOpenAdd()">${MEM_ICO.plus}<span>添加记忆</span></button>`;
+    const addBtn = `<button class="mem-btn mem-primary" type="button" data-act="add">${MEM_ICO.plus}<span>添加记忆</span></button>`;
+    let list;
     if (MEM_SEC === 'main') {
-        const groups = ['high', 'mid', 'low'].map(l => {
+        list = ['high', 'mid', 'low'].map(l => {
             const arr = memSortItems(items.filter(x => memLvlOf(x) === l));
-            return `<details class="mem-group" ${l === 'high' ? 'open' : ''}>
+            const open = firstRun ? l === 'high' : openLvls.has(l);
+            return `<details class="mem-group" data-lvl="${l}" ${open ? 'open' : ''}>
                 <summary><span>${MEM_LVL_NAME[l]}级</span><small>${arr.length} 条</small></summary>
                 ${arr.map(memItemHtml).join('') || '<div class="mem-empty">这一级还没有记忆</div>'}
             </details>`;
         }).join('');
-        return addBtn + memAddFormHtml() + `<div class="mem-sec">按高中低级展开（高级在提示词里排在最前）</div>` + groups;
+        list = `<div class="mem-sec">按高中低级展开（高级在提示词里排在最前）</div>` + list;
+    } else {
+        const hint = MEM_SEC === 'common'
+            ? '还没有共同记忆。对方点赞、评论你的朋友圈，会直接出现在这里。'
+            : '还没有单独记忆。点上面的添加，写下只有对方知道的私人记忆。';
+        list = memSortItems(items).map(memItemHtml).join('') || `<div class="mem-empty">${hint}</div>`;
     }
-    const hint = MEM_SEC === 'common'
-        ? '还没有共同记忆。对方点赞、评论你的朋友圈，会直接出现在这里。'
-        : '还没有单独记忆。点上面的添加，写下只有对方知道的私人记忆。';
-    const list = memSortItems(items).map(memItemHtml).join('') || `<div class="mem-empty">${hint}</div>`;
-    return addBtn + memAddFormHtml() + list;
+    box.innerHTML = addBtn + memAddFormHtml() + list;
 }
+/* 外部调用（总结完成、朋友圈回复等）：整体刷新，但外壳不动 */
 function renderMemoryPage() {
-    const page = document.getElementById('memPage'); const c = curMemContact();
-    if (!page || !c) return;
-    // 页头和背景只建一次；之后只替换滚动区里的内容，按钮一按不会整页重画，也不会闪
-    if (!page.querySelector('.mem-scroll')) {
-        page.innerHTML = `
-        <header class="mem-top"><button class="mem-back" type="button" onclick="closeMemoryPage()">返回</button><span class="mem-title">记忆</span><span class="mem-spacer"></span></header>
-        <div class="mem-scroll"></div>`;
-    }
-    const scroll = page.querySelector('.mem-scroll');
-    const m = memOf(c);
-    const presets = memPresets();
-    const presetOpts = '<option value="-1">默认指令</option>' + presets.map((p, i) => `<option value="${i}" ${m.presetIdx === i ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
-    const seg = `<div class="mem-seg">${MEM_SEC_LIST.map(x => `<button class="mem-seg-pill ${MEM_SEC === x.k ? 'active' : ''}" type="button" onclick="memSetSec('${x.k}')">${x.name}</button>`).join('')}</div>`;
-    page.classList.add('mp-rebuild');
-    scroll.innerHTML = `
-            ${seg}
-            ${MEM_SEC === 'main' ? `<div class="mem-sec">设置</div>
-            <div class="mem-card mem-settings-card">
-                <div class="mem-row"><span class="mem-lbl">上下文条数</span><input type="number" min="1" value="${m.ctx}" onchange="memSetNum('ctx', this.value)"></div>
-                <div class="mem-row"><span class="mem-lbl">自动总结</span><button class="mem-switch ${m.auto ? 'on' : ''}" type="button" onclick="memToggleAuto()" aria-label="自动总结"></button></div>
-                <div class="mem-row"><span class="mem-lbl">每到多少条总结一次</span><input type="number" min="1" value="${m.every}" onchange="memSetNum('every', this.value)"></div>
-                <div class="mem-row"><span class="mem-lbl">手动总结：第几条到第几条</span><span class="mem-range"><input type="number" min="1" id="memFrom" value="${Math.max(1, last - 39)}"><i>—</i><input type="number" min="1" id="memTo" value="${last}"></span></div>
-                <button class="mem-btn mem-primary" type="button" onclick="memSummarizeRange()">${MEM_ICO.doc}<span>手动总结这段</span></button>
-            </div>
-            <div class="mem-sec">总结指令</div>
-            <div class="mem-card">
-                <div class="mem-row"><span class="mem-lbl">预设</span><select class="mem-select" onchange="memSwitchPreset(this.value)">${presetOpts}</select></div>
-                <textarea class="mem-instr" id="memInstr" rows="9">${esc(m.instr)}</textarea>
-                <div class="mem-btns">
-                    <button class="mem-btn" type="button" onclick="memRestoreDefault()">${MEM_ICO.restore}<span>恢复默认</span></button>
-                    <button class="mem-btn" type="button" onclick="memSaveInstr()">${MEM_ICO.save}<span>SAVE</span></button>
-                    <button class="mem-btn" type="button" onclick="memSavePreset()">${MEM_ICO.plus}<span>存为预设</span></button>
-                    ${m.presetIdx >= 0 ? `<button class="mem-btn" type="button" onclick="memUpdatePreset()">${MEM_ICO.refresh}<span>更新预设</span></button><button class="mem-btn mem-danger" type="button" onclick="memDeletePreset()">${MEM_ICO.trash}<span>删除预设</span></button>` : ''}
-                </div>
-                <div class="mem-hint">{{char}} 代表角色名，{{user}} 代表你的名字。</div>
-            </div>
-            ` : ''}
-            ${memSectionHtml(c)}
-    `;
-    requestAnimationFrame(() => page.classList.remove('mp-rebuild'));
+    const page = memMount(); if (!page) return;
+    memRenderSeg(); memRenderSettings(); memRenderBody();
 }
 
-function memSetSec(k) { MEM_SEC = k; MEM_ADD = null; MEM_EDIT = null; renderMemoryPage(); }
-function memOpenAdd() {
-    MEM_ADD = { text: '', sec: MEM_SEC === 'extra' ? 'main' : MEM_SEC, level: 'mid' };
-    renderMemoryPage();
-}
-function memCloseAdd() { MEM_ADD = null; renderMemoryPage(); }
+function memSetSec(k) { MEM_SEC = k; MEM_ADD = null; MEM_EDIT = null; memRenderSeg(); memRenderBody(); }
+function memOpenAdd() { MEM_ADD = { sec: MEM_SEC === 'extra' ? 'main' : MEM_SEC, level: 'mid' }; memRenderBody(); }
+function memCloseAdd() { MEM_ADD = null; memRenderBody(); }
 function memSaveNew() {
     const c = curMemContact(); if (!c) return;
-    const text = (document.getElementById('memNewTa').value || '').trim();
+    const ta = document.getElementById('memNewTa');
+    const text = ((ta && ta.value) || '').trim();
     if (!text) { toast('写点什么再保存吧'); return; }
     const sec = document.getElementById('memNewSec').value;
     const level = document.getElementById('memNewLvl').value;
@@ -795,29 +864,36 @@ function memSaveNew() {
         priority: memLvlPrio(level), sec, level
     });
     MEM_SEC = sec; MEM_ADD = null;
-    persistContacts(); renderMemoryPage(); toast('已添加记忆');
+    persistContacts(); memRenderSeg(); memRenderBody(); toast('已添加记忆');
 }
 function memSetItemSec(id, sec) {
     const c = curMemContact(); if (!c) return;
     const x = (c.memories || []).find(y => y.id === id); if (!x) return;
-    x.sec = sec; persistContacts(); renderMemoryPage();
+    x.sec = sec; persistContacts(); memRenderBody();
 }
 function memSetLevel(id, lvl) {
     const c = curMemContact(); if (!c) return;
     const x = (c.memories || []).find(y => y.id === id); if (!x) return;
-    x.level = lvl; persistContacts(); renderMemoryPage();
+    x.level = lvl; persistContacts(); memRenderBody();
 }
-function memStartEdit(id) { MEM_EDIT = id; renderMemoryPage(); }
-function memCancelEdit() { MEM_EDIT = null; renderMemoryPage(); }
+function memStartEdit(id) { MEM_EDIT = id; memRenderBody(); }
+function memCancelEdit() { MEM_EDIT = null; memRenderBody(); }
 function memSaveEdit(id) {
     const c = curMemContact(); if (!c) return;
     const x = (c.memories || []).find(y => y.id === id); if (!x) return;
-    const text = (document.getElementById('memEditTa').value || '').trim();
+    const ta = document.getElementById('memEditTa');
+    const text = ((ta && ta.value) || '').trim();
     if (!text) { toast('内容不能为空'); return; }
-    x.text = text; MEM_EDIT = null; persistContacts(); renderMemoryPage(); toast('已保存');
+    x.text = text; MEM_EDIT = null; persistContacts(); memRenderBody(); toast('已保存');
 }
-function memSetNum(key, v) { const c = curMemContact(); if (!c) return; const m = memOf(c); m[key] = Math.max(1, parseInt(v, 10) || 1); persistContacts(); renderMemoryPage(); }
-function memToggleAuto() { const c = curMemContact(); if (!c) return; const m = memOf(c); m.auto = !m.auto; persistContacts(); renderMemoryPage(); }
+
+/* 设置与总结指令：只保存数据，不重画卡片（数字输入、开关不会因此闪） */
+function memSetNum(key, v) { const c = curMemContact(); if (!c) return; const m = memOf(c); m[key] = Math.max(1, parseInt(v, 10) || 1); persistContacts(); }
+function memToggleAuto() {
+    const c = curMemContact(); if (!c) return;
+    const m = memOf(c); m.auto = !m.auto; persistContacts();
+    const sw = memPageEl() && memPageEl().querySelector('.mem-switch'); if (sw) sw.classList.toggle('on', !!m.auto);
+}
 async function memSummarizeRange() {
     const c = curMemContact(); if (!c) return;
     const a = Math.max(1, parseInt(document.getElementById('memFrom').value, 10) || 1);
@@ -827,29 +903,33 @@ async function memSummarizeRange() {
     await runSummary(c, a - 1, b);
 }
 function memSaveInstr() { const c = curMemContact(); if (!c) return; memOf(c).instr = document.getElementById('memInstr').value; persistContacts(); toast('已保存总结指令'); }
-function memRestoreDefault() { const c = curMemContact(); if (!c) return; const m = memOf(c); m.instr = DEFAULT_SUMMARY_INSTR; m.presetIdx = -1; persistContacts(); renderMemoryPage(); }
+function memRestoreDefault() { const c = curMemContact(); if (!c) return; const m = memOf(c); m.instr = DEFAULT_SUMMARY_INSTR; m.presetIdx = -1; persistContacts(); memSetInstrText(m.instr); memRenderPresetBar(); }
 function memSavePreset() {
     const c = curMemContact(); if (!c) return; const m = memOf(c);
     const list = memPresets();
     list.push({ name: '预设 ' + (list.length + 1), text: document.getElementById('memInstr').value });
     saveMemPresets(list);
     m.presetIdx = list.length - 1; m.instr = list[m.presetIdx].text;
-    persistContacts(); renderMemoryPage(); toast('已存为预设');
+    persistContacts(); memRenderPresetBar(); toast('已存为预设');
 }
 function memUpdatePreset() {
     const c = curMemContact(); if (!c) return; const m = memOf(c);
     const list = memPresets(); if (m.presetIdx < 0 || !list[m.presetIdx]) return;
     list[m.presetIdx].text = document.getElementById('memInstr').value; saveMemPresets(list);
-    m.instr = list[m.presetIdx].text; persistContacts(); renderMemoryPage(); toast('预设已更新');
+    m.instr = list[m.presetIdx].text; persistContacts(); memRenderPresetBar(); toast('预设已更新');
 }
 function memSwitchPreset(v) {
     const c = curMemContact(); if (!c) return; const m = memOf(c);
     const i = parseInt(v, 10); const list = memPresets();
     if (i < 0 || !list[i]) { m.presetIdx = -1; m.instr = DEFAULT_SUMMARY_INSTR; }
     else { m.presetIdx = i; m.instr = list[i].text; }
-    persistContacts(); renderMemoryPage();
+    persistContacts(); memSetInstrText(m.instr); memRenderPresetBar();
 }
-function memSetPriority(id, v) { const c = curMemContact(); if (!c) return; const x = (c.memories || []).find(y => y.id === id); if (!x) return; x.priority = Math.max(1, Math.min(10, parseInt(v, 10) || 1)); persistContacts(); renderMemoryPage(); }
+function memSetPriority(id, v) {
+    const c = curMemContact(); if (!c) return;
+    const x = (c.memories || []).find(y => y.id === id); if (!x) return;
+    x.priority = Math.max(1, Math.min(10, parseInt(v, 10) || 1)); persistContacts(); memRenderBody();
+}
 function memDeletePreset() {
     const c = curMemContact(); if (!c) return; const m = memOf(c);
     if (m.presetIdx < 0) { toast('当前是默认指令，不能删除'); return; }
@@ -857,9 +937,10 @@ function memDeletePreset() {
     const list = memPresets(); list.splice(idx, 1); saveMemPresets(list);
     CONTACTS.forEach(x => { if (x.mem) { if (x.mem.presetIdx === idx) x.mem.presetIdx = -1; else if (x.mem.presetIdx > idx) x.mem.presetIdx -= 1; } });
     m.presetIdx = -1; m.instr = DEFAULT_SUMMARY_INSTR;
-    persistContacts(); renderMemoryPage(); toast('已删除预设');
+    persistContacts(); memSetInstrText(m.instr); memRenderPresetBar(); toast('已删除预设');
 }
-function memDelete(id) { const c = curMemContact(); if (!c) return; c.memories = (c.memories || []).filter(y => y.id !== id); persistContacts(); renderMemoryPage(); }
+function memDelete(id) { const c = curMemContact(); if (!c) return; c.memories = (c.memories || []).filter(y => y.id !== id); persistContacts(); memRenderBody(); }
+
 /* ---------------- 长按消息菜单：编辑 / 复制 / 删除 / 多选 ---------------- */
 function mmHost() { return document.querySelector('.messages-app'); }
 function mmMenuEl() {
@@ -4325,11 +4406,16 @@ function markSaveCancelButtons() {
     const scan = (root) => {
         const list = (root.matches && root.matches('button')) ? [root, ...root.querySelectorAll('button')] : root.querySelectorAll('button');
         list.forEach(b => {
+            if (b.closest('#memPage')) return;
+            if (b.closest('#gpPanOverlay')) {
+                const PAN = { 'gp-editSave': '保存', 'gp-doneBtn': '完成', 'gp-mgrClose': '完成' };
+                if (PAN[b.id]) { if (b.textContent.trim() !== PAN[b.id]) b.textContent = PAN[b.id]; return; }
+            }
             if (!b.closest('.messages-app') && !b.closest('#gpPanOverlay')) return;
             const t = (b.textContent || '').trim();
             if (!LABEL[t]) return;
-            const editorSave = /saveContact\(|savePersona\(/.test(b.getAttribute('onclick') || '');
-            const want = editorSave ? 'Save' : LABEL[t];
+            const oc = b.getAttribute('onclick') || '';
+            const want = /saveContact\(/.test(oc) ? 'Save' : (/savePersona\(/.test(oc) ? 'SAVE' : LABEL[t]);
             b.classList.add('sv-mono');
             if (b.childElementCount === 0 && t !== want) b.textContent = want;
         });

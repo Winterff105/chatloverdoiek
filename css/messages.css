@@ -4143,7 +4143,7 @@
 /* 3. 记忆区按钮：半透明 */
 .messages-app #memPage .mem-primary,
 .messages-app #memPage .mem-primary-sm,
-.messages-app #memPage .mem-seg-pill.active{ background: rgba(17,17,17,0.72) !important; }
+.messages-app #memPage .mem-seg-pill.active{ background: rgba(34,34,34,0.5) !important; }
 .messages-app #memPage .mem-btn:not(.mem-primary):not(.mem-primary-sm):not(.mem-danger){ background: rgba(242,242,244,0.55) !important; }
 .messages-app #memPage .mem-btn.mem-danger{ background: rgba(251,235,234,0.55) !important; }
 
@@ -4169,10 +4169,14 @@
     background: linear-gradient(rgba(255,255,255,0.6), rgba(255,255,255,0.6)), #F4F4F6 url("../assets/聊天室设置背景图/记忆区背景.jpg") center / cover no-repeat !important;
 }
 
-/* ===== 记忆区背景遮罩再加白 ===== */
-.messages-app #memPage{
-    background: linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.85)), #F4F4F6 url("../assets/聊天室设置背景图/记忆区背景.jpg") center / cover no-repeat !important;
+/* ===== 记忆区背景：单独一层，内容变化时不再整面重画 ===== */
+.messages-app #memPage{ background: #F4F4F6 !important; isolation: isolate; }
+.messages-app #memPage > .mem-bg{
+    position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background: linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.85)), #F4F4F6 url("../assets/聊天室设置背景图/记忆区背景.jpg") center / cover no-repeat;
+    transform: translateZ(0); backface-visibility: hidden;
 }
+.messages-app #memPage > .mem-top, .messages-app #memPage > .mem-scroll{ position: relative; z-index: 1; }
 
 /* ===== 编辑联系人页：Cancel 与右边的「完成」字号、粗细、字距一致（仍用 SF Mono） ===== */
 .messages-app .edit-header .action.sv-mono{
@@ -4186,3 +4190,111 @@
 .messages-app #memPage, .messages-app #memPage *{ -webkit-tap-highlight-color: transparent !important; }
 .messages-app #memPage button:focus, .messages-app #memPage button:focus-visible{ outline: none !important; }
 .messages-app #memPage.mp-rebuild, .messages-app #memPage.mp-rebuild *{ transition: none !important; animation: none !important; }
+
+/* ===== 预设按钮排版：两列等宽，统一高度，保存修改横跨一整行 ===== */
+.messages-app #memPage .mem-btns{ display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px 0 4px; }
+.messages-app #memPage .mem-btns .mem-btn{
+    width: 100%; height: 38px; margin: 0; padding: 0 10px; box-sizing: border-box;
+    border-radius: 19px; font-size: 12.5px; font-weight: 600; letter-spacing: 0.1px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    background: rgba(242,242,244,0.6) !important; color: #111111;
+}
+.messages-app #memPage .mem-btns .mem-btn svg{ width: 14px; height: 14px; }
+.messages-app #memPage .mem-btns .mem-btn.mem-wide{
+    grid-column: 1 / -1; height: 42px; font-size: 13px;
+}
+.messages-app #memPage .mem-btns .mem-btn.mem-danger{ background: rgba(251,235,234,0.7) !important; color: #C0392B; }
+.messages-app #memPage .mem-btns .mem-btn[hidden]{ display: none !important; }
+
+/* ===== 记忆区不用 SF Mono：整页字体跟随系统 ===== */
+.messages-app #memPage, .messages-app #memPage *{ font-family: inherit !important; }
+
+/* ===== 恢复默认 / 存为预设：和表达偏好底部的「恢复默认」「保存」同样式 ===== */
+.messages-app #memPage .mem-btns .mem-btn.mem-btn[data-act="instrRestore"]{
+    width: 100% !important; height: 44px !important; min-height: 44px !important; padding: 0 22px !important;
+    border-radius: 999px !important; border: 0 !important; background: #f7f7f7 !important; color: #777777 !important;
+    box-shadow: none !important; font-size: 13px !important; font-weight: 500 !important; letter-spacing: 0.26px !important;
+    font-family: "TanSongCustom", "KaiTi", "STKaiti", "Kaiti SC", serif !important; justify-content: center !important;
+}
+.messages-app #memPage .mem-btns .mem-btn.mem-btn[data-act="presetSave"]{
+    width: 100% !important; height: 44px !important; min-height: 44px !important; padding: 0 22px !important;
+    border-radius: 999px !important; border: 1px solid #111111 !important; background: #111111 !important; color: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important; font-size: 13px !important; font-weight: 500 !important; letter-spacing: 0.26px !important;
+    font-family: "TanSongCustom", "KaiTi", "STKaiti", "Kaiti SC", serif !important; justify-content: center !important;
+}
+
+/* ===== 预设按钮：和表达偏好底部一样 —— 左边恢复默认长胶囊，右边圆形黑色保存键 ===== */
+.messages-app #memPage .mem-btns.mem-foot{ display: flex !important; align-items: center; gap: 9px; padding: 8px 0 4px; }
+.messages-app #memPage .mem-btns.mem-foot .mem-btn.mem-btn[data-act="instrRestore"]{
+    flex: 1 1 auto !important; width: auto !important; min-width: 0 !important; height: 44px !important; min-height: 44px !important;
+    padding: 0 22px !important; border-radius: 999px !important; border: 0 !important; background: #f7f7f7 !important; color: #777777 !important;
+    box-shadow: none !important; font-size: 13px !important; font-weight: 500 !important; letter-spacing: 0.26px !important;
+    font-family: "TanSongCustom", "KaiTi", "STKaiti", "Kaiti SC", serif !important; justify-content: center !important;
+}
+.messages-app #memPage .mem-btns.mem-foot .mem-btn.mem-btn[data-act="presetSave"]{
+    flex: 0 0 44px !important; width: 44px !important; min-width: 44px !important; height: 44px !important; min-height: 44px !important;
+    padding: 0 !important; border-radius: 50% !important; border: 1px solid #111111 !important; background: #111111 !important; color: #ffffff !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important; display: grid !important; place-items: center !important; margin: 0 !important;
+}
+.messages-app #memPage .mem-btns.mem-foot .mem-btn.mem-btn[data-act="presetSave"] svg{ width: 20px !important; height: 20px !important; stroke: #ffffff !important; margin: 0 !important; }
+/* 保存修改：和恢复默认一样的浅胶囊，整行宽 */
+.messages-app #memPage .mem-btns .mem-btn.mem-wide{ grid-column: 1 / -1; height: 44px !important; background: #f7f7f7 !important; color: #777777 !important; }
+
+/* ===== 记忆区黑色按钮：半透明，背景透出来；按钮上的图标是白的 ===== */
+.messages-app #memPage .mem-primary svg{ stroke: #ffffff !important; color: #ffffff !important; }
+
+/* ===== 提示框在记忆页上面显示（之前被记忆页盖住，看起来像没反应） ===== */
+.messages-app .toast{ z-index: 300; }
+/* ===== 记忆卡片半透明：卡片里的黑色按钮透出背景 ===== */
+.messages-app #memPage .mem-card{ background: rgba(255,255,255,0.38) !important; }
+/* ===== 手动总结这段的图标改成白色 ===== */
+.messages-app #memPage .mem-primary svg, .messages-app #memPage .mem-primary svg *{ stroke: #ffffff !important; }
+
+/* ===== 记忆区：黑色按钮柔和一点（不那么扎眼） ===== */
+.messages-app #memPage .mem-primary,
+.messages-app #memPage .mem-primary-sm,
+.messages-app #memPage .mem-seg-pill.active{ background: rgba(78,78,84,0.66) !important; }
+.messages-app #memPage .mem-btns.mem-foot .mem-btn.mem-btn[data-act="presetSave"]{ background: #3c3c42 !important; border-color: #3c3c42 !important; }
+/* ===== 记忆区：白色部分透明度再加一点 ===== */
+.messages-app #memPage .mem-card{ background: rgba(255,255,255,0.26) !important; }
+.messages-app #memPage .mem-seg{ background: rgba(255,255,255,0.7) !important; }
+.messages-app .mem-top{ background: rgba(255,255,255,0.72) !important; }
+
+/* ===== 记忆区：每个区块底色再透明一点 ===== */
+.messages-app #memPage .mem-card{ background: rgba(255,255,255,0.1) !important; }
+.messages-app #memPage .mem-seg{ background: rgba(255,255,255,0.32) !important; }
+.messages-app .mem-top{ background: rgba(255,255,255,0.32) !important; }
+.messages-app #memPage .mem-instr,
+.messages-app #memPage .mem-edit-ta,
+.messages-app #memPage .mem-select{ background: rgba(255,255,255,0.3) !important; }
+/* ===== 记忆区：自动总结的开关柔和一点 ===== */
+.messages-app #memPage .mem-switch.on{ background: rgba(78,78,84,0.6) !important; }
+
+/* ===== 记忆区：实底色的小区块全部改成半透明 ===== */
+.messages-app #memPage input:not([type=range]), .messages-app #memPage select, .messages-app #memPage textarea, .messages-app #memPage .mem-stamp{ background-color: rgba(242,242,244,0.4) !important; }
+.messages-app #memPage .mem-switch{ background-color: rgba(217,217,222,0.45) !important; }
+.messages-app #memPage .mem-switch.on{ background-color: rgba(78,78,84,0.5) !important; }
+.messages-app #memPage .mem-btn:not(.mem-primary):not(.mem-primary-sm):not(.mem-danger){ background-color: rgba(247,247,247,0.4) !important; }
+.messages-app #memPage .mem-btns.mem-foot .mem-btn.mem-btn[data-act="presetSave"]{ background-color: rgba(60,60,66,0.6) !important; border-color: rgba(60,60,66,0.6) !important; }
+
+.messages-app #memPage .mem-btns .mem-btn.mem-btn[data-act="instrRestore"], .messages-app #memPage .mem-btns .mem-btn.mem-wide{ background-color: rgba(247,247,247,0.4) !important; }
+.messages-app #memPage .mem-rel{ background-color: rgba(247,247,248,0.4) !important; }
+.messages-app #memPage .mem-keys em{ background-color: rgba(239,239,242,0.4) !important; }
+
+/* ===== 记忆区：按钮底色改回半透明（之前改成了不透明，方向反了） ===== */
+.messages-app #memPage .mem-btn:not(.mem-primary):not(.mem-primary-sm):not(.mem-danger),
+.messages-app #memPage .mem-btns.mem-foot .mem-btn.mem-btn[data-act="instrRestore"],
+.messages-app #memPage .mem-btns .mem-btn.mem-wide{ background: rgba(247,247,247,0.4) !important; }
+.messages-app #memPage .mem-btns.mem-foot .mem-btn.mem-btn[data-act="presetSave"]{ background: rgba(60,60,66,0.62) !important; border-color: rgba(60,60,66,0.4) !important; }
+.messages-app #memPage .mem-btn.mem-danger{ background: rgba(251,235,234,0.45) !important; }
+
+/* ===== 记忆区：区块底色做实（不透明） ===== */
+.messages-app #memPage .mem-card,
+.messages-app #memPage .mem-settings-card{ background: #FFFFFF !important; }
+.messages-app #memPage .mem-seg{ background: #FFFFFF !important; }
+.messages-app .mem-top{ background: #FFFFFF !important; }
+.messages-app #memPage .mem-instr,
+.messages-app #memPage .mem-edit-ta,
+.messages-app #memPage .mem-select{ background: #F2F2F4 !important; }
+.messages-app #memPage .mem-btn:not(.mem-primary):not(.mem-primary-sm):not(.mem-danger),
+.messages-app #memPage .mem-btns.mem-foot .mem-btn.mem-btn[data-act="instrRestore"]{ background: #F7F7F7 !important; }
