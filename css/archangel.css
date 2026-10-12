@@ -421,34 +421,6 @@
 /* ===== 底栏上方右侧的蓝色控制台按钮 ===== */
 .archangel-app #ar-console:active{transform:translateY(1px) scale(.97)}
 
-/* ===== 控制台弹窗：轻微的电子机械风 ===== */
-@keyframes ar-led{50%{opacity:.35}}
-.archangel-app .ar-cons-card{position:relative;width:min(380px,92%);max-height:84%;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:14px;background:rgba(255,255,255,.97);border:1px solid #cfd8e3;box-shadow:0 18px 40px rgba(40,60,90,.25);color:#2b3440;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden}
-.archangel-app .ar-cons-card::before,.archangel-app .ar-cons-card::after{content:"";position:absolute;width:16px;height:16px;border:2px solid #2a5bcc;pointer-events:none}
-.archangel-app .ar-cons-card::before{top:-1px;left:-1px;border-right:0;border-bottom:0;border-radius:14px 0 0 0}
-.archangel-app .ar-cons-card::after{bottom:-1px;right:-1px;border-left:0;border-top:0;border-radius:0 0 14px 0}
-.archangel-app .ar-cons-top{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#4a5a70;border-bottom:1px dashed #c3ccd8;padding-bottom:8px}
-.archangel-app .ar-cons-led{width:7px;height:7px;border-radius:50%;background:#2fd17a;box-shadow:0 0 8px #2fd17a;animation:ar-led 1.6s infinite}
-.archangel-app .ar-cons-title{flex:1}
-.archangel-app .ar-cons-count{color:#2a5bcc}
-.archangel-app .ar-cons-rounds{display:flex;flex-wrap:wrap;gap:6px}
-.archangel-app .ar-cr{min-width:38px;height:28px;padding:0 8px;border:1px solid #b9c6d8;border-radius:6px;background:#f5f8fc;color:#4a5a70;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer}
-.archangel-app .ar-cr.on{background:#2a5bcc;border-color:#2a5bcc;color:#fff;box-shadow:0 0 0 3px rgba(42,91,204,.15)}
-.archangel-app .ar-cons-detail{overflow-y:auto;min-height:0;display:flex;flex-direction:column;gap:10px;font-size:12px;line-height:1.5}
-.archangel-app .ar-cd-head{display:flex;justify-content:space-between;font-size:10px;color:#2a5bcc;letter-spacing:.1em}
-.archangel-app .ar-cd-sec{border:1px solid #dbe3ee;border-radius:8px;padding:8px 10px;background:repeating-linear-gradient(0deg,rgba(42,91,204,.035) 0 1px,transparent 1px 6px),#fff}
-.archangel-app .ar-cd-sec h4{margin:0 0 6px;font-size:9px;letter-spacing:.16em;color:#6b7b90;font-weight:600}
-.archangel-app .ar-cd-sec pre{margin:0;white-space:pre-wrap;word-break:break-word;font:11.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#2b3440;max-height:260px;overflow:auto}
-.archangel-app .ar-cd-steps{margin:0;padding:0;list-style:none;display:grid;gap:4px}
-.archangel-app .ar-cd-steps li{display:flex;gap:8px;align-items:baseline}
-.archangel-app .ar-cd-steps b{display:inline-grid;place-items:center;width:18px;height:18px;border:1px solid #2a5bcc;border-radius:50%;font-size:10px;color:#2a5bcc;flex:none}
-.archangel-app .ar-cd-steps i{color:#8a929c;font-style:normal}
-.archangel-app .ar-cd-bub{display:flex;gap:8px;padding:6px 8px;margin-bottom:6px;border:1px dashed #b9c6d8;border-radius:6px;background:#fbfdff}
-.archangel-app .ar-cd-bub b{color:#2a5bcc;flex:none}
-.archangel-app .ar-cd-raw{margin-bottom:8px}
-.archangel-app .ar-cd-rl{font-size:9px;letter-spacing:.12em;color:#6b7b90;margin-bottom:4px}
-.archangel-app .ar-cd-none{color:#8a929c;font-size:11px}
-.archangel-app .ar-cd-empty{color:#8a929c;text-align:center;padding:18px 0}
 
 /* ===== 控制台把手：底栏顶部的小横条，也可以点它切换控制台 ===== */
 .archangel-app .bottom{touch-action:none}
@@ -484,16 +456,42 @@
 .archangel-app .arow .think > p.open{max-height:38vh;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
 .archangel-app .arow .think > p.open::after{display:none}
 
-/* ===== 控制台弹窗：竖向占满的面板 ===== */
-.archangel-app .ar-cons{place-items:end center;padding:64px 10px 14px;box-sizing:border-box}
-.archangel-app .ar-cons-card{width:100%;max-width:440px;height:100%;max-height:none;border-radius:16px}
-.archangel-app .ar-cons-detail{flex:1 1 auto;min-height:0}
 
 /* ===== 侧边栏底部：对话（新对话 + 历史对话）默认收起，点一下展开 ===== */
 .archangel-app .side-fold{margin-top:18px;border-top:1px solid rgba(208,215,224,.7);padding-top:4px}
 .archangel-app .side-fold > summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 0;font-size:13px;font-weight:700;color:#68727d;letter-spacing:.04em;user-select:none}
 .archangel-app .side-fold > summary::-webkit-details-marker{display:none}
-.archangel-app .side-fold > summary::after{content:"";width:7px;height:7px;border-right:1.6px solid #8a929c;border-bottom:1.6px solid #8a929c;transform:rotate(-45deg);transition:transform .25s ease;margin-top:-3px}
-.archangel-app .side-fold[open] > summary::after{transform:rotate(135deg);margin-top:3px}
 .archangel-app .side-fold > .full{margin-top:6px}
 .archangel-app .side-fold .history-list{max-height:42vh}
+
+/* ===== 控制台：无边框，只保留原始输出，面板高度减半 ===== */
+@keyframes ar-led{50%{opacity:.35}}
+.archangel-app .ar-cons{place-items:end center;padding:64px 10px 14px;box-sizing:border-box}
+.archangel-app .ar-cons-card{width:100%;max-width:440px;height:50%;min-height:260px;display:flex;flex-direction:column;gap:10px;padding:14px;border:0;border-radius:16px;background:rgba(255,255,255,.97);box-shadow:0 14px 34px rgba(40,60,90,.22);color:#2b3440;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;overflow:hidden}
+.archangel-app .ar-cons-top{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#4a5a70}
+.archangel-app .ar-cons-led{width:7px;height:7px;border-radius:50%;background:#2fd17a;box-shadow:0 0 8px #2fd17a;animation:ar-led 1.6s infinite}
+.archangel-app .ar-cons-title{flex:1}
+.archangel-app .ar-cons-count{color:#2a5bcc}
+.archangel-app .ar-cons-rounds{display:flex;flex-wrap:wrap;gap:6px}
+.archangel-app .ar-cr{min-width:38px;height:28px;padding:0 8px;border:0;border-radius:6px;background:#eef3fa;color:#4a5a70;font:600 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace;cursor:pointer}
+.archangel-app .ar-cr.on{background:#2a5bcc;color:#fff}
+.archangel-app .ar-cons-detail{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:12px;font-size:12px;line-height:1.5}
+.archangel-app .ar-cd-sec{background:#f6f8fb;border-radius:8px;padding:8px 10px}
+.archangel-app .ar-cd-sec h4{margin:0 0 6px;font-size:9px;letter-spacing:.16em;color:#6b7b90;font-weight:600}
+.archangel-app .ar-cd-raw{margin-bottom:10px}
+.archangel-app .ar-cd-raw:last-child{margin-bottom:0}
+.archangel-app .ar-cd-rl{font-size:9px;letter-spacing:.12em;color:#6b7b90;margin-bottom:4px}
+.archangel-app .ar-cd-raw pre{margin:0;white-space:pre-wrap;word-break:break-word;font:11.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#2b3440}
+.archangel-app .ar-cd-none{color:#8a929c;font-size:11px}
+
+/* ===== 侧边栏“对话”折叠：SVG 箭头放在浅色圆形底上，展开时翻转 ===== */
+.archangel-app .fold-ic{display:inline-grid;place-items:center;width:22px;height:22px;margin-left:6px;border-radius:50%;background:#eef1f5;box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 2px 5px rgba(140,150,165,.14);vertical-align:middle}
+.archangel-app .fold-ic svg{width:14px;height:14px;fill:none;stroke:#7a8594;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .28s ease}
+.archangel-app .side-fold[open] .fold-ic svg{transform:rotate(180deg)}
+
+/* ===== 我的名字：头像右边的白胶囊，点一下改名 ===== */
+.archangel-app .urow .head{position:relative}
+.archangel-app .urow .ucol{padding-right:96px}
+.archangel-app .me-name{position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);max-width:84px;padding:5px 12px;border-radius:99px;background:#fff;color:#4a5a70;font-size:12px;font-weight:600;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 4px 12px rgba(125,135,149,.18);cursor:pointer;user-select:none;outline:none}
+.archangel-app .me-name.editing{user-select:text;cursor:text;text-overflow:clip;box-shadow:0 0 0 2px #cddbef,0 4px 12px rgba(125,135,149,.18)}
+

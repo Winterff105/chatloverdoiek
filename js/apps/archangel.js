@@ -39,7 +39,7 @@
 <label><span>API Key</span><input id="ar-aKey" type="password" autocomplete="off" placeholder="sk-..."></label>
 <label><span>模型</span><select id="ar-aModel"><option value="">请先获取模型</option></select></label>
 <div class="row"><button id="ar-aFetch">获取模型</button><button id="ar-aSave">保存</button></div>
-<details class="side-fold" id="ar-chatFold"><summary>对话</summary>
+<details class="side-fold" id="ar-chatFold"><summary>对话<span class="fold-ic" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M6.5 8.5 10 12l3.5-3.5"/></svg></span></summary>
 <button class="full" id="ar-newChat">新对话</button>
 <div class="history-title">历史对话</div>
 <div class="history-list" id="ar-historyList"></div>
@@ -241,6 +241,8 @@
           currentConversation.messages=currentConversation.messages.filter(m=>!gone.has(m.id));
           saveCurrentConversation();
         }
+        function meName(){try{return (localStorage.getItem('archangel.me.name')||'').trim()||'我'}catch(e){return '我'}}
+        function meNameHTML(){return `<span class="me-name" title="点击改名">${esc(meName())}</span>`}
         function heartHTML(){return `<svg class="ar-heart" viewBox="0 0 24 24" aria-label="没有步骤">${IC[0]}</svg>`}
         function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
         function stepsHTML(steps){
@@ -493,7 +495,7 @@
 
           const r=document.createElement('div');
           r.className=saveMessage?'urow pending enter':'urow enter';
-          r.innerHTML=`<div class="ucol">${head(avatarHtml('me'),'我')}<div class="ubody"><div class="b1"><div class="elbow"></div><div class="bubble first" data-mid="${mid}">${TAILIMG}${esc(text)}</div></div></div></div>`;
+          r.innerHTML=`<div class="ucol">${head(avatarHtml('me'),'我',meNameHTML())}<div class="ubody"><div class="b1"><div class="elbow"></div><div class="bubble first" data-mid="${mid}">${TAILIMG}${esc(text)}</div></div></div></div>`;
           chat.appendChild(r);
           if(saveMessage)pending.push(r);
           scroll();
@@ -835,21 +837,11 @@
           return out;
         }
         function consoleDetailHTML(r,i){
-          const m=r.msg,raws=m.raw||[],steps=m.steps||[];
-          const meta=m.meta?`${m.meta.sec}s · ${m.meta.tk||0} tk`:'';
-          const stepHTML=steps.length
-            ?steps.map((s,k)=>`<li><b>${k+1}</b>${esc(s.t||'')}${s.x?` <i>· ${esc(s.x)}</i>`:''}</li>`).join('')
-            :'<li class="ar-cd-none">（模型没有输出步骤）</li>';
-          const partsHTML=(m.parts&&m.parts.length?m.parts:[m.text]).map((p,k)=>`<div class="ar-cd-bub"><b>${k+1}</b>${esc(p)}</div>`).join('');
+          const raws=r.msg.raw||[];
           const rawHTML=raws.length
             ?raws.map(x=>`<div class="ar-cd-raw"><div class="ar-cd-rl">${esc(x.label)}</div><pre>${esc(x.raw)}</pre></div>`).join('')
             :'<div class="ar-cd-none">（这一轮没有保存原始输出，可能是旧记录）</div>';
-          return `<div class="ar-cd-head"><span>ROUND ${String(i+1).padStart(2,'0')}</span><span>${esc(meta)}</span></div>
-            <section class="ar-cd-sec"><h4>INPUT · 你的输入</h4><pre>${esc(r.prompt||'')}</pre></section>
-            <section class="ar-cd-sec"><h4>THINKING · 思维链</h4><pre>${esc(m.thinking!==undefined?m.thinking:'（没有保存）')}</pre></section>
-            <section class="ar-cd-sec"><h4>STEPS · 步骤</h4><ol class="ar-cd-steps">${stepHTML}</ol></section>
-            <section class="ar-cd-sec"><h4>REPLY · 回复气泡</h4>${partsHTML}</section>
-            <section class="ar-cd-sec"><h4>RAW OUTPUT · 原始输出</h4>${rawHTML}</section>`;
+          return `<section class="ar-cd-sec"><h4>RAW OUTPUT · 原始输出</h4>${rawHTML}</section>`;
         }
         function renderConsole(){
           const rounds=consoleRoundsList();
@@ -866,6 +858,31 @@
         host.querySelector('#ar-consClose').addEventListener('click',()=>fadeSheet(consoleSheet,false));
         consoleSheet.addEventListener('click',e=>{if(e.target.id==='ar-consoleSheet')fadeSheet(consoleSheet,false)});
         const bottomBar=host.querySelector('.bottom');
+        /* ---- 我的名字：点头像右边的白胶囊改名 ---- */
+        host.addEventListener('click',e=>{
+          const n=e.target.closest&&e.target.closest('.me-name');
+          if(!n||n.isContentEditable)return;
+          e.stopPropagation();
+          n.dataset.before=n.textContent;
+          n.contentEditable='true';n.classList.add('editing');n.focus();
+          const r=document.createRange();r.selectNodeContents(n);
+          const sel=window.getSelection();sel.removeAllRanges();sel.addRange(r);
+        });
+        host.addEventListener('keydown',e=>{
+          const n=e.target;
+          if(!n||!n.classList||!n.classList.contains('me-name')||!n.isContentEditable)return;
+          if(e.key==='Enter'){e.preventDefault();n.blur()}
+          else if(e.key==='Escape'){n.textContent=n.dataset.before||meName();n.blur()}
+        });
+        host.addEventListener('focusout',e=>{
+          const n=e.target;
+          if(!n||!n.classList||!n.classList.contains('me-name')||!n.isContentEditable)return;
+          const v=(n.textContent||'').replace(/\s+/g,' ').trim().slice(0,12)||'我';
+          try{localStorage.setItem('archangel.me.name',v)}catch(err){}
+          n.contentEditable='false';n.classList.remove('editing');
+          host.querySelectorAll('.me-name').forEach(x=>{x.textContent=v});
+        });
+
         /* ---- 思维链：点一下展开 / 收起 ---- */
         host.addEventListener('click',e=>{
           const p=e.target.closest&&e.target.closest('.arow .think > p');
