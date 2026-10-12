@@ -334,6 +334,32 @@
           document.body.appendChild(a);a.click();a.remove();
           setTimeout(()=>URL.revokeObjectURL(url),4000);
         }
+        function changeCardHTML(f){
+          const k=(f.lines||[]).filter(l=>l[0]=='+').length;
+          return `<div class="fitem${f.uploaded?' ok':''}" data-path="${escA(f.path)}"><button type="button" class="card hc"><b>${esc(f.path)}</b><em>${esc(f.why||'')}</em><i>${f.uploaded?'已上传':k+' 行新增'}</i></button><div class="fdiff"><div><div class="diff">${(f.lines||[]).map(([t,x])=>`<div class="ln ${t=='-'?'del':t=='+'?'add':''}"><span>${t=='-'?'−':t=='+'?'+':''}</span><code>${esc(x)}</code></div>`).join('')}</div></div></div></div>`;
+        }
+        async function uploadChanges(ch,btn,mid){
+          const g=G();
+          btn.disabled=true;
+          try{
+            need(g);
+            if(ST.canPush===false)throw new Error('这个 Token 只有读取权限，无法上传。请在 GitHub 把 Token 的 Contents 权限改为 Read and write，并确认已授权这个仓库');
+            for(const f of ch){
+              if(f.uploaded)continue;
+              btn.textContent='上传中：'+f.path;
+              const r=await req(cu(g,f.path),{method:'PUT',headers:gh(g,true),body:JSON.stringify({message:`Update ${f.path} from Archangel AI`,content:b64(f.edit),branch:g.branch,sha:f.sha})});
+              if(!r.ok)throw new Error(`上传 ${f.path} 失败（${r.status}）：${await err(r)}。${ghHint(r.status)}`);
+              const j=await r.json();f.sha=(j.content&&j.content.sha)||f.sha;f.uploaded=true;
+              if(ST.files[f.path]){ST.files[f.path].sha=f.sha;ST.files[f.path].orig=f.edit}
+              const card=[...host.querySelectorAll('.fitem')].find(x=>x.dataset.path===f.path);
+              if(card){card.classList.add('ok');const i=card.querySelector('i');if(i)i.textContent='已上传'}
+              const m=msgById(mid);
+              if(m&&m.changes){const c=m.changes.find(x=>x.path===f.path);if(c){c.uploaded=true;c.sha=f.sha}saveCurrentConversation()}
+            }
+            btn.textContent='已全部上传';toast('已上传到 GitHub');
+            recordSystem('已上传到 GitHub：'+ch.map(f=>f.path).join('、'));
+          }catch(e){btn.disabled=false;btn.textContent='重试上传';toast(e.message);explainError('上传失败：'+e.message)}
+        }
         function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
         function stepsHTML(steps){
           return (steps||[]).map((s,i)=>{
@@ -532,7 +558,10 @@
           const thinkHTML=msg.thinking!==undefined?`<details class="think" open><summary>Thinking…</summary><p>${esc(msg.thinking)}</p></details>`:'';
           const parts=msg.parts&&msg.parts.length?msg.parts:[msg.text];
           const filesHTML=msg.files&&msg.files.length?fileCardHTML(msg.id,msg.files):'';
-          row.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel',metaHTML)}${thinkHTML}</div><div class="steps">${stepsHTML(msg.steps)}</div>${bodyHTML(parts)}${filesHTML}`;
+          const changes=msg.changes||[];
+          const allDone=changes.length>0&&changes.every(c=>c.uploaded);
+          const changesHTML=changes.length?`<div class="cards">${changes.map(changeCardHTML).join('')}</div><button type="button" class="confirm confirm-h"${allDone?' disabled':''}>${allDone?'已全部上传':'确认修改，一起上传到 GitHub'}</button>`:'';
+          row.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel',metaHTML)}${thinkHTML}</div><div class="steps">${stepsHTML(msg.steps)}</div>${bodyHTML(parts)}${filesHTML}${changesHTML}`;
           chat.appendChild(row);
         }
 
@@ -830,30 +859,15 @@
 
               say(`<div class="abody">${esc(fullReply)}</div><div class="cards"></div><button class="confirm">确认修改，一起上传到 GitHub</button>`);
               commit(fullReply,thinking);
+            const cm=msgById(box.dataset.mid);if(cm){cm.changes=ch.map(f=>({path:f.path,edit:f.edit,sha:f.sha,why:f.why,lines:f.lines,uploaded:false}));saveCurrentConversation()}
 
               const cards=box.querySelector('.cards');
-              ch.forEach(f=>{const w=document.createElement('div');w.className='fitem';
+              ch.forEach(f=>{const w=document.createElement('div');w.className='fitem';w.dataset.path=f.path;
                 const k=f.lines.filter(l=>l[0]=='+').length;
                 w.innerHTML=`<button class="card"><b>${esc(f.path)}</b><em>${esc(f.why)}</em><i>${k} 行新增</i></button><div class="fdiff"><div><div class="diff">${f.lines.map(([t,x])=>`<div class="ln ${t=='-'?'del':t=='+'?'add':''}"><span>${t=='-'?'−':t=='+'?'+':''}</span><code>${esc(x)}</code></div>`).join('')}</div></div></div>`;
                 w.querySelector('.card').onclick=()=>w.classList.toggle('open');cards.appendChild(w);f.w=w});
               const btn=box.querySelector('.confirm');
-              btn.onclick=async()=>{
-                btn.disabled=true;const g=G();
-                try{
-                  need(g);if(ST.key!==rk(g))throw new Error('仓库设置已改变，请重新读取文件树');
-                  if(ST.canPush===false)throw new Error('这个 Token 只有读取权限，无法上传。请在 GitHub 把 Token 的 Contents 权限改为 Read and write，并确认已授权这个仓库');
-                  for(const f of ch){
-                    if(f.w.classList.contains('ok'))continue;
-                    btn.textContent='上传中：'+f.path;
-                    const r=await req(cu(g,f.path),{method:'PUT',headers:gh(g,true),body:JSON.stringify({message:`Update ${f.path} from Archangel AI`,content:b64(f.edit),branch:g.branch,sha:f.sha})});
-                    if(!r.ok)throw new Error(`上传 ${f.path} 失败（${r.status}）：${await err(r)}。${ghHint(r.status)}`);
-                    const j=await r.json();f.sha=(j.content&&j.content.sha)||f.sha;
-                    if(ST.files[f.path]){ST.files[f.path].sha=f.sha;ST.files[f.path].orig=f.edit}
-                    f.w.classList.add('ok');f.w.querySelector('i').textContent='已上传';
-                  }
-                  btn.textContent='已全部上传';toast('已上传到 GitHub');recordSystem('已上传到 GitHub：'+ch.map(f=>f.path).join('、'));
-                }catch(e){btn.disabled=false;btn.textContent='重试上传';toast(e.message);explainError('上传失败：'+e.message)}
-              };
+              btn.onclick=()=>uploadChanges(ch,btn,box.dataset.mid);
               scroll();
           };
           const hasRepo=modeCfg().mode!=='healer'&&(()=>{const g=G();return !!(g.token&&g.owner&&g.repo&&modeCfg().mode!=='healer')})();
@@ -1130,6 +1144,18 @@
           const open=!h.parentElement.classList.contains('open');
           h.parentElement.classList.toggle('open',open);
           h.setAttribute('aria-expanded',String(open));
+        });
+
+        /* ---- 重新打开后的修改卡片：展开，以及确认上传 ---- */
+        host.addEventListener('click',e=>{
+          const cardBtn=e.target.closest&&e.target.closest('.card.hc');
+          if(cardBtn){cardBtn.parentElement.classList.toggle('open');return}
+          const up=e.target.closest&&e.target.closest('.confirm-h');
+          if(up&&!up.disabled){
+            const row=up.closest('.arow');
+            const m=msgById(row.dataset.mid);
+            if(m&&m.changes)uploadChanges(m.changes,up,row.dataset.mid);
+          }
         });
 
         /* ---- 文件卡片：点一下下载 zip ---- */

@@ -603,3 +603,11 @@
 .archangel-app .fitem .diff{margin-top:0;border:0;border-radius:0;background:transparent;max-height:240px;overflow-x:hidden;overflow-y:auto}
 .archangel-app .fitem.open .card{box-shadow:none}
 
+/* ===== 待确认卡片：收起时展开区域不留任何残留 ===== */
+.archangel-app .fitem:not(.open) .fdiff>div{margin-top:0;padding:0;background:transparent;-webkit-mask:none;mask:none}
+
+/* ===== 小尾巴：固定在第一行（基准是气泡顶部），不随多行气泡往下掉 =====
+   --tail-top 19px 是按你调好的单行位置换算的：原来 --tail-bottom 13px 对应的位置 */
+.archangel-app{--tail-top:19px}
+.archangel-app .tail-img{position:absolute;right:var(--tail-right);top:var(--tail-top);bottom:auto;transform:translateY(-100%)}
+
