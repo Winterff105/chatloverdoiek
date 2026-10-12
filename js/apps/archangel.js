@@ -768,6 +768,36 @@
             if(files&&files.length)box.insertAdjacentHTML('beforeend',fileCardHTML(mid,files));
             if(currentConversation){currentConversation.messages.push(msg);saveCurrentConversation()}
           };
+          const showConfirm=(ch,fullReply,thinking)=>{
+
+              say(`<div class="abody">${esc(fullReply)}</div><div class="cards"></div><button class="confirm">确认修改，一起上传到 GitHub</button>`);
+              commit(fullReply,thinking);
+
+              const cards=box.querySelector('.cards');
+              ch.forEach(f=>{const w=document.createElement('div');w.className='fitem';
+                const k=f.lines.filter(l=>l[0]=='+').length;
+                w.innerHTML=`<button class="card"><b>${esc(f.path)}</b><em>${esc(f.why)}</em><i>${k} 行新增</i></button><div class="fdiff"><div><div class="diff">${f.lines.map(([t,x])=>`<div class="ln ${t=='-'?'del':t=='+'?'add':''}"><span>${t=='-'?'−':t=='+'?'+':''}</span><code>${esc(x)}</code></div>`).join('')}</div></div></div>`;
+                w.querySelector('.card').onclick=()=>w.classList.toggle('open');cards.appendChild(w);f.w=w});
+              const btn=box.querySelector('.confirm');
+              btn.onclick=async()=>{
+                btn.disabled=true;const g=G();
+                try{
+                  need(g);if(ST.key!==rk(g))throw new Error('仓库设置已改变，请重新读取文件树');
+                  if(ST.canPush===false)throw new Error('这个 Token 只有读取权限，无法上传。请在 GitHub 把 Token 的 Contents 权限改为 Read and write，并确认已授权这个仓库');
+                  for(const f of ch){
+                    if(f.w.classList.contains('ok'))continue;
+                    btn.textContent='上传中：'+f.path;
+                    const r=await req(cu(g,f.path),{method:'PUT',headers:gh(g,true),body:JSON.stringify({message:`Update ${f.path} from Archangel AI`,content:b64(f.edit),branch:g.branch,sha:f.sha})});
+                    if(!r.ok)throw new Error(`上传 ${f.path} 失败（${r.status}）：${await err(r)}。${ghHint(r.status)}`);
+                    const j=await r.json();f.sha=(j.content&&j.content.sha)||f.sha;
+                    if(ST.files[f.path]){ST.files[f.path].sha=f.sha;ST.files[f.path].orig=f.edit}
+                    f.w.classList.add('ok');f.w.querySelector('i').textContent='已上传';
+                  }
+                  btn.textContent='已全部上传';toast('已上传到 GitHub');recordSystem('已上传到 GitHub：'+ch.map(f=>f.path).join('、'));
+                }catch(e){btn.disabled=false;btn.textContent='重试上传';toast(e.message);explainError('上传失败：'+e.message)}
+              };
+              scroll();
+          };
           const hasRepo=modeCfg().mode!=='healer'&&(()=>{const g=G();return !!(g.token&&g.owner&&g.repo&&modeCfg().mode!=='healer')})();
           if(!hasRepo){
             tp.textContent='正在结合角色设定组织回复内容…';
@@ -795,23 +825,43 @@
             let d=step(0,LBL[0]);
             if(!ST.tree.length||ST.key!==rk(G()))await loadTree();if(!ST.tree.length)throw new Error('仓库文件树为空');
             d();d=step(1,LBL[1]);
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：用户只是想看、想了解或找东西（比如看看目录、问某个文件是干什么的）就写 read；用户明确要改、加、删、修才写 edit。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"intent":"read 或 edit","files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            const attachCands=[];
+            ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
+              if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
+            }));
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：用户只是想看、想了解或找东西（比如看看目录、问某个文件是干什么的）就写 read；要你新建一个文件（写一个新文件，然后上传）就写 create；用户明确要改、加、删、修现有文件才写 edit。','uploadFiles：用户想把之前附带的文件上传到仓库时，把文件名放进这里（只能从“用户附带过的文件”里选，没有就空数组）。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"intent":"read、edit 或 create","uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
             tp.textContent=sel.thinking||'已完成分析。';
             if(Array.isArray(sel.steps))sel.steps.slice(0,4).forEach((t,k)=>{if(t&&String(t).trim())LBL[k]=String(t).trim().slice(0,20)});
             steps.querySelectorAll('.step').forEach((el,k)=>{if(LBL[k]){el.dataset.t=LBL[k];const sp=el.querySelector('span');if(sp&&!sp.textContent.includes(' · '))sp.textContent=LBL[k]}});
+            const uploadNames=Array.isArray(sel.uploadFiles)?sel.uploadFiles.map(x=>String(x)):[];
+            const uploads=attachCands.filter(a=>uploadNames.includes(a.name));
+            if(uploads.length){
+              const cleanPath=n=>String(n||'').replace(/\\/g,'/').replace(/^\/+/,'').split('/').filter(x=>x&&x!=='..').join('/')||'file.txt';
+              const staged=[];
+              for(const a of uploads){
+                const pth=cleanPath(a.name);
+                const existing=ST.tree.some(f=>f.path===pth);
+                let orig='',sha;
+                if(existing){const x=await getFile(pth);orig=x.orig;sha=x.sha}
+                staged.push({path:pth,edit:a.content,orig,sha,lines:diff(orig,a.content),why:existing?'覆盖仓库里已有的文件':'新文件'});
+              }
+              d(staged.length+' 个');
+              showConfirm(staged,'我准备把 '+staged.map(x=>x.path).join('、')+' 上传到仓库。确认后才会真正上传。',sel.thinking);
+              stopMeta();busy=false;return;
+            }
             const valid=new Set(ST.tree.map(f=>f.path)),seen=new Set(),pick=[];
             (sel.files||[]).forEach(f=>{const p=String(f&&f.path||'').trim().replace(/^\/+/,'');if(valid.has(p)&&!seen.has(p)){seen.add(p);pick.push({path:p,why:String(f.reason||'与需求相关')})}});
-            if(!pick.length){
+            if(!pick.length&&sel.intent!=='create'){
               const textFiles=ST.tree.filter(f=>/\.(js|jsx|ts|tsx|mjs|json|md|txt|html|htm|css|py|java|go|rs|rb|php|c|h|cpp|hpp|sh|sql|xml|yml|yaml|toml|ini|csv|vue|svelte)$/i.test(f.path));
               const words=String(text).toLowerCase().split(/[^a-z0-9_\u4e00-\u9fa5]+/).filter(w=>w.length>=2);
               const scored=textFiles.map(f=>{const p=f.path.toLowerCase();return {path:f.path,score:words.reduce((n,w)=>n+(p.includes(w)?1:0),0)+(/readme|index|main|app/.test(p)?0.5:0)-f.path.split('/').length*0.05}});
               scored.sort((a,b)=>b.score-a.score).slice(0,5).forEach(x=>{if(!seen.has(x.path)){seen.add(x.path);pick.push({path:x.path,why:'根据需求和文件名挑选'})}});
             }
-            if(!pick.length)throw new Error('仓库里没有可以读取的文本文件');
+            if(!pick.length&&sel.intent!=='create')throw new Error('仓库里没有可以读取的文本文件');
             d(pick.length+' 个');d=step(2,LBL[2]);
             const got=[];
             for(const f of pick){try{const x=await getFile(f.path);if(x.orig.length>LIM){tp.textContent+=`\n（${f.path} 过大，已跳过）`;continue}got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
-            if(!got.length)throw new Error('相关文件读取失败或过大，无法安全修改');
+            if(!got.length&&sel.intent!=='create')throw new Error('相关文件读取失败或过大，无法安全修改');
             d(got.length+' 个');
             if(sel.intent==='read'){
               const rr=await chatText([{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。','你正在帮用户查看他的代码仓库。根据下面提供的文件内容，直接回答用户的问题或总结他想了解的内容。这一步不修改任何文件。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n文件内容：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]);
@@ -822,10 +872,16 @@
               stopMeta();busy=false;return;
             }
             d=step(3,LBL[3]);
-            const mod=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是一个专业代码修改助手。','根据用户需求修改提供的文件，只修改真正需要修改的文件。','必须保留原文件的完整内容，不能用省略号、占位符或说明文字代替代码。','不要返回 Markdown 代码围栏，只返回 JSON：{"reply":"修改说明","files":[{"path":"真实文件路径","content":"修改后的完整文件内容"}]}','files 只放发生修改的文件，content 必须是完整可直接保存的内容。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
+            const mod=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是一个专业代码修改助手。','根据用户需求修改提供的文件；如果用户要求新建文件，就在 files 里给出新文件的路径和完整内容（这个路径不存在也没关系）。只修改真正需要修改的文件。','必须保留原文件的完整内容，不能用省略号、占位符或说明文字代替代码。','不要返回 Markdown 代码围栏，只返回 JSON：{"reply":"修改说明","files":[{"path":"真实文件路径","content":"修改后的完整文件内容"}]}','files 只放发生修改的文件，content 必须是完整可直接保存的内容。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
             const ch=[];
-            (mod.files||[]).forEach(c=>{const p=String(c&&c.path||'').trim().replace(/^\/+/,''),f=got.find(x=>x.path==p);
-              if(!f||typeof c.content!='string'||!c.content)return;
+            (mod.files||[]).forEach(c=>{const p=String(c&&c.path||'').trim().replace(/^\/+/,'').replace(/\.\.\//g,''),f=got.find(x=>x.path==p);
+              if(typeof c.content!='string'||!c.content||!p)return;
+              if(!f){
+                if(ST.tree.some(x=>x.path===p))return;
+                const nl=c.content.replace(/\r\n/g,'\n');
+                ch.push({path:p,edit:nl,orig:'',sha:undefined,lines:diff('',nl),why:'新文件'});
+                return;
+              }
               const lf=c.content.replace(/\r\n/g,'\n'),t=f.orig.includes('\r\n')?lf.replace(/\n/g,'\r\n'):lf;
               if(t!==f.orig)ch.push({...f,edit:t,lines:diff(f.orig.replace(/\r\n/g,'\n'),lf)})});
             d(ch.length+' 个');
@@ -841,34 +897,7 @@
             }
 
             const fullReply=assistantReply+'\n\n'+`共修改 ${ch.length} 个文件，点开卡片查看改动（红色是删除，绿色是新增）。确认后才会一起上传到 GitHub。`;
-
-            say(`<div class="abody">${esc(fullReply)}</div><div class="cards"></div><button class="confirm">确认修改，一起上传到 GitHub</button>`);
-            commit(fullReply,sel.thinking);
-
-            const cards=box.querySelector('.cards');
-            ch.forEach(f=>{const w=document.createElement('div');w.className='fitem';
-              const k=f.lines.filter(l=>l[0]=='+').length;
-              w.innerHTML=`<button class="card"><b>${esc(f.path)}</b><em>${esc(f.why)}</em><i>${k} 行新增</i></button><div class="fdiff"><div><div class="diff">${f.lines.map(([t,x])=>`<div class="ln ${t=='-'?'del':t=='+'?'add':''}"><span>${t=='-'?'−':t=='+'?'+':''}</span><code>${esc(x)}</code></div>`).join('')}</div></div></div>`;
-              w.querySelector('.card').onclick=()=>w.classList.toggle('open');cards.appendChild(w);f.w=w});
-            const btn=box.querySelector('.confirm');
-            btn.onclick=async()=>{
-              btn.disabled=true;const g=G();
-              try{
-                need(g);if(ST.key!==rk(g))throw new Error('仓库设置已改变，请重新读取文件树');
-                if(ST.canPush===false)throw new Error('这个 Token 只有读取权限，无法上传。请在 GitHub 把 Token 的 Contents 权限改为 Read and write，并确认已授权这个仓库');
-                for(const f of ch){
-                  if(f.w.classList.contains('ok'))continue;
-                  btn.textContent='上传中：'+f.path;
-                  const r=await req(cu(g,f.path),{method:'PUT',headers:gh(g,true),body:JSON.stringify({message:`Update ${f.path} from Archangel AI`,content:b64(f.edit),branch:g.branch,sha:f.sha})});
-                  if(!r.ok)throw new Error(`上传 ${f.path} 失败（${r.status}）：${await err(r)}。${ghHint(r.status)}`);
-                  const j=await r.json();f.sha=(j.content&&j.content.sha)||f.sha;
-                  if(ST.files[f.path]){ST.files[f.path].sha=f.sha;ST.files[f.path].orig=f.edit}
-                  f.w.classList.add('ok');f.w.querySelector('i').textContent='已上传';
-                }
-                btn.textContent='已全部上传';toast('已上传到 GitHub');recordSystem('已上传到 GitHub：'+ch.map(f=>f.path).join('、'));
-              }catch(e){btn.disabled=false;btn.textContent='重试上传';toast(e.message);explainError('上传失败：'+e.message)}
-            };
-            scroll();
+            showConfirm(ch,fullReply,sel.thinking);
           }catch(e){
             box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
             toast(e.message);restore();await explainError('操作失败：'+e.message);
