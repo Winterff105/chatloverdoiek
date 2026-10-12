@@ -232,6 +232,7 @@
           currentConversation.messages=currentConversation.messages.filter(m=>!gone.has(m.id));
           saveCurrentConversation();
         }
+        function heartHTML(){return `<svg class="ar-heart" viewBox="0 0 24 24" aria-label="没有步骤">${IC[0]}</svg>`}
         function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
         function stepsHTML(steps){
           return (steps||[]).map((s,i)=>{
@@ -399,7 +400,8 @@
           row.className='arow ai enter';
           if(msg.id)row.dataset.mid=msg.id;
           const m=msg.meta;
-          const metaHTML=m?`<div class="ar-meta"><span class="ar-time">${esc(m.sec)}s</span><span class="ar-tk">${m.tk?esc(m.tk)+' tk':'— tk'}</span></div>`:'';
+          const noSteps=!(msg.steps&&msg.steps.length);
+          const metaHTML=m?`<div class="ar-meta"><span class="ar-time">${esc(m.sec)}s</span><span class="ar-tk">${m.tk?esc(m.tk)+' tk':'— tk'}</span>${noSteps?heartHTML():''}</div>`:'';
           const thinkHTML=msg.thinking!==undefined?`<details class="think" open><summary>Thinking…</summary><p>${esc(msg.thinking)}</p></details>`:'';
           const parts=msg.parts&&msg.parts.length?msg.parts:[msg.text];
           row.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel',metaHTML)}${thinkHTML}</div><div class="steps">${stepsHTML(msg.steps)}</div>${bodyHTML(parts)}`;
@@ -439,6 +441,7 @@
         function toast(t){const e=$('#ar-toast');e.textContent=t;e.classList.remove('show');void e.offsetWidth;e.classList.add('show')}
         function scroll(){chat.scrollTop=chat.scrollHeight}
         function head(svg,name,extra=''){return `<div class="head"><div class="frame"><div class="av">${svg}</div></div><div class="pill">${name}</div>${extra}</div>`}
+        
         function setSide(o){
           const side=$('#ar-side'), backdrop=$('#ar-sideBackdrop');
           side.classList.toggle('closed',!o);
@@ -629,20 +632,22 @@
               const k=full.indexOf(' · ');
               return {t:el.dataset.t||full,x:k>=0?full.slice(k+3):''};
             });
+            if(!stepList.length){const mEl=box.querySelector('.ar-meta');if(mEl&&!mEl.querySelector('.ar-heart'))mEl.insertAdjacentHTML('beforeend',heartHTML())}
             const msg={id:mid,role:'assistant',text:parts.join('\n'),parts,thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
             if(currentConversation){currentConversation.messages.push(msg);saveCurrentConversation()}
           };
           const hasRepo=(()=>{const g=G();return !!(g.token&&g.owner&&g.repo)})();
           if(!hasRepo){
             tp.textContent='正在结合角色设定组织回复内容…';
-            const dC=step(0,'在想怎么回复');
+            const dC=()=>{};
             try{
               const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
               const hist=((currentConversation&&currentConversation.messages)||[]).slice(-20).map(m=>({role:m.role,content:m.text}));
               const msgs=[{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。'].join('\n')},...hist];
               if(!hist.length)msgs.push({role:'user',content:text});
               const out=await chatText(msgs);
-              if(out.steps.length){steps.innerHTML='';out.steps.forEach((t,i)=>step(i,t)())}else dC('完成');
+              if(out.steps.length){steps.innerHTML='';out.steps.forEach((t,i)=>step(i,t)())}
+              
               tp.textContent=out.thinking||'（这次回复没有返回思维链）';
               say(bodyHTML(out.parts));
               commit(out.parts,out.thinking);

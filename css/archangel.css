@@ -397,3 +397,14 @@
 .archangel-app .arow .abody{position:relative;top:0;left:0;margin:8px 0 0 70px}
 .archangel-app .arow .abody + .abody{margin-top:6px}
 .archangel-app .arow{margin-bottom:22px}
+
+/* ===== 对面气泡居中：左右到屏幕边缘的距离相同 ===== */
+.archangel-app .arow{max-width:none;width:100%;margin-bottom:22px}
+.archangel-app .arow .abody{position:relative;top:0;left:0;margin:8px auto 0;width:fit-content;max-width:min(78%,520px)}
+.archangel-app .arow .abody + .abody{margin-top:6px}
+
+/* ===== 步骤完成后：圆点改成带边框的空心圆 ===== */
+.archangel-app .step.done .dot circle{fill:#fff;stroke:#4a5058;stroke-width:1.8;animation:none}
+
+/* ===== 没有步骤时：一个爱心放在 tk 下面 ===== */
+.archangel-app .ar-heart{display:block;width:16px;height:16px;margin:6px auto 0;color:#7a8594;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
