@@ -389,3 +389,11 @@
 
 /* ===== 爱心：缩小（改 width / height，px）===== */
 .archangel-app .step .ic{width:15px !important; height:15px !important; stroke-dashoffset:18}
+
+/* ===== 对面布局（最终版）：思维链 → 步骤 → 气泡，自上而下排列，不再用负偏移互相压住 ===== */
+.archangel-app .arow .think{margin:12px 0 0}
+.archangel-app .arow .steps{margin:6px 0 0 0}
+.archangel-app .arow .steps:empty{display:none}
+.archangel-app .arow .abody{position:relative;top:0;left:0;margin:8px 0 0 70px}
+.archangel-app .arow .abody + .abody{margin-top:6px}
+.archangel-app .arow{margin-bottom:22px}

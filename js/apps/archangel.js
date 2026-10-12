@@ -232,6 +232,7 @@
           currentConversation.messages=currentConversation.messages.filter(m=>!gone.has(m.id));
           saveCurrentConversation();
         }
+        function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
         function stepsHTML(steps){
           return (steps||[]).map((s,i)=>{
             const x=s.x?` · ${esc(s.x)}`:'';
@@ -400,7 +401,8 @@
           const m=msg.meta;
           const metaHTML=m?`<div class="ar-meta"><span class="ar-time">${esc(m.sec)}s</span><span class="ar-tk">${m.tk?esc(m.tk)+' tk':'— tk'}</span></div>`:'';
           const thinkHTML=msg.thinking!==undefined?`<details class="think" open><summary>Thinking…</summary><p>${esc(msg.thinking)}</p></details>`:'';
-          row.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel',metaHTML)}${thinkHTML}</div><div class="steps">${stepsHTML(msg.steps)}</div><div class="abody">${esc(msg.text)}</div>`;
+          const parts=msg.parts&&msg.parts.length?msg.parts:[msg.text];
+          row.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel',metaHTML)}${thinkHTML}</div><div class="steps">${stepsHTML(msg.steps)}</div>${bodyHTML(parts)}`;
           chat.appendChild(row);
         }
 
@@ -585,16 +587,20 @@
           return ['【基础设定】',DEFAULT_ANGEL_PROMPT,...(p?['【角色设定】',p]:[]),...shortLines,'（角色语气只用于 reply 字段；files 和 JSON 结构保持不变。）'];
         }
         function chatFormatLines(){
+          const short=uiCfg().short==='on';
           return [
             '【输出格式】',
             '你必须只输出一个 JSON 对象，不要用 Markdown 代码围栏，也不要输出 JSON 以外的任何文字：',
-            '{"thinking":"你的思考过程","reply":"发给用户的正文"}',
+            short?'{"thinking":"你的思考过程","reply":["第一条消息","第二条消息"]}':'{"thinking":"你的思考过程","reply":"发给用户的正文"}',
             'thinking：用中文写 2 到 4 句思考过程，比如你理解到用户想要什么、此刻的语气或意图、打算怎样回应。它是展示给用户看的思维链，要像真实的内心推理，不要写成对用户说的话。',
-            'reply：你真正要发给用户的话，语气遵循上面的角色设定。'
+            short
+              ?'reply 必须是数组，模拟真人连发微信：每一条只写一句话，每条不超过 30 个字，通常 1 到 4 条。不要把长段落塞进一条里，也不要使用代码块。'
+              :'reply：你真正要发给用户的话，语气遵循上面的角色设定。'
           ];
         }
         async function run(){
           if(busy)return toast('对面正在回复，请稍候');
+          if(!pending.length){const last=chat.lastElementChild;if(last&&last.classList.contains('urow'))pending=[last]}
           if(!pending.length)return toast('先发送需求，再点调取');
           const rows=pending;pending=[];busy=true;runTokens=0;rows.forEach(r=>r.classList.remove('pending'));
           const restore=()=>{rows.forEach(r=>{if(r.isConnected&&!pending.includes(r)){r.classList.add('pending');pending.push(r)}})};
@@ -614,12 +620,13 @@
           const commit=(reply,thinking)=>{
             const mid=newMid();
             box.dataset.mid=mid;
+            const parts=(Array.isArray(reply)?reply:[reply]).map(x=>String(x??'')).filter(x=>x.trim());
             const stepList=[...steps.querySelectorAll('.step')].map(el=>{
               const full=el.querySelector('span')?.textContent||'';
               const k=full.indexOf(' · ');
               return {t:el.dataset.t||full,x:k>=0?full.slice(k+3):''};
             });
-            const msg={id:mid,role:'assistant',text:reply,thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
+            const msg={id:mid,role:'assistant',text:parts.join('\n'),parts,thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
             if(currentConversation){currentConversation.messages.push(msg);saveCurrentConversation()}
           };
           const hasRepo=(()=>{const g=G();return !!(g.token&&g.owner&&g.repo)})();
@@ -634,8 +641,8 @@
               const out=await chatText(msgs);
               dC('完成');
               tp.textContent=out.thinking||'（这次回复没有返回思维链）';
-              say(`<div class="abody">${esc(out.reply)}</div>`);
-              commit(out.reply,out.thinking);
+              say(bodyHTML(out.parts));
+              commit(out.parts,out.thinking);
             }catch(e){
               box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
               say(`<div class="abody">${esc(e.message)}</div>`);toast(e.message);restore();
@@ -891,6 +898,7 @@
 
         async function chatText(msgs){
           const a=A();
+          const short=uiCfg().short==='on';
           const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,messages:msgs,temperature:.8,...(j?{response_format:{type:'json_object'}}:{})})},120000);
           let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败：'+await err(r));
@@ -898,15 +906,22 @@
           const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
           const raw=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');
           let thinking=typeof m.reasoning_content==='string'?m.reasoning_content.trim():'';
-          let reply=String(raw).trim();
+          const toParts=v=>(Array.isArray(v)?v:[v]).map(x=>String(x??'').trim()).filter(Boolean).slice(0,6);
+          let parts=null;
           try{
             const o=pj(raw);
-            if(o&&typeof o.reply==='string'&&o.reply.trim()){
-              reply=o.reply.trim();
+            if(o&&o.reply!==undefined){
+              const p=toParts(o.reply);
+              if(p.length)parts=p;
               if(!thinking&&typeof o.thinking==='string')thinking=o.thinking.trim();
             }
           }catch(e){}
-          return {thinking,reply};
+          if(!parts){
+            const t=String(raw).trim();
+            const lines=short?t.split(/\n+/).map(x=>x.trim()).filter(Boolean).slice(0,6):[];
+            parts=lines.length>1?lines:[t];
+          }
+          return {thinking,parts};
         }
 
     };
