@@ -57,6 +57,11 @@
 <div class="ar-sheet" id="ar-sheet" hidden>
     <div class="ar-sheet-card">
         <div class="ar-sheet-title ar-script">Settings</div>
+        <div class="ar-sec">短消息模式</div>
+        <div class="ar-seg" id="ar-shortSeg">
+            <button type="button" data-v="off">关</button>
+            <button type="button" data-v="on">开</button>
+        </div>
         <div class="ar-sec">小尾巴（只给我的气泡用）</div>
         <div class="ar-seg" id="ar-tailSeg">
             <button type="button" data-v="off">关</button>
@@ -342,6 +347,7 @@
           hint.className='hint';
           hint.textContent='历史对话已打开。发送新消息后，点击底栏“调取”继续对话。';
           chat.appendChild(hint);
+          showIntro();
 
           currentConversation.messages.forEach(message=>{
             if(message.role==='user'){
@@ -419,7 +425,6 @@
         }
         host.addEventListener('click',e=>{if(!$('#ar-side').classList.contains('closed')&&!e.target.closest('#ar-side,#ar-menu'))setSide(false)});
         function addUser(text,saveMessage=true){
-          hideIntro();
           if(!currentConversation){
             currentConversation=createConversation();
           }
@@ -539,19 +544,37 @@
         const modeCfg=()=>{try{const v=JSON.parse(localStorage.getItem(MODE_KEY))||{};return {mode:MODES[v.mode]?v.mode:'work',prompts:Object.assign({work:'',assist:''},v.prompts||{})}}catch(e){return {mode:'work',prompts:{work:'',assist:''}}}};
         const saveModeCfg=c=>localStorage.setItem(MODE_KEY,JSON.stringify(c));
         function modePrompt(){const c=modeCfg(),m=MODES[c.mode];return m.fixed?m.prompt:(c.prompts[c.mode]||'')}
-        function modeSystemLines(){const p=modePrompt().trim();return ['【基础设定】',DEFAULT_ANGEL_PROMPT,...(p?['【角色设定】',p]:[]),'（角色语气只用于 reply 字段；files 和 JSON 结构保持不变。）']}
+        function modeSystemLines(){
+          const p=modePrompt().trim();
+          const isShort=uiCfg().short==='on';
+          const shortLines=isShort?[
+            '【短消息模式】',
+            '当前为短消息交互模式，必须输出符合 JSON 语法的单条消息对象：{"reply":"单条短消息文本"}。',
+            '回复内容请保持简短精炼、贴合即时聊天习惯，单句发送，不做长篇大论，不带代码块。'
+          ]:[];
+          return ['【基础设定】',DEFAULT_ANGEL_PROMPT,...(p?['【角色设定】',p]:[]),...shortLines,'（角色语气只用于 reply 字段；files 和 JSON 结构保持不变。）'];
+        }
+        function parseShortReply(raw){
+          if(uiCfg().short!=='on')return raw;
+          try{
+            const parsed=pj(raw);
+            if(parsed&&typeof parsed.reply==='string')return parsed.reply;
+          }catch(e){}
+          return raw;
+        }
         async function run(){
           if(busy)return toast('对面正在回复，请稍候');
           if(!pending.length)return toast('先发送需求，再点调取');
           const rows=pending;pending=[];busy=true;runTokens=0;rows.forEach(r=>r.classList.remove('pending'));
           const text=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>b.textContent.trim())).filter(Boolean).join('\n');
           const box=document.createElement('div');box.className='arow ai enter';
-          box.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel')}<details class="think"><summary>Thinking…</summary><p>正在思考…</p></details></div><div class="steps"></div>`;
+          box.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel')}<details class="think" open><summary>Thinking…</summary><p>正在思考…</p></details></div><div class="steps"></div>`;
           chat.appendChild(box);const steps=box.querySelector('.steps'),tp=box.querySelector('.think p');
-          box.querySelector('.head .pill').insertAdjacentHTML('afterend','<div class="ar-meta"><span class="ar-time">0.0s</span><span class="ar-tk">— tk</span></div>');
+          const pill=box.querySelector('.head .pill');
+          if(pill&&!box.querySelector('.ar-meta')){pill.insertAdjacentHTML('afterend','<div class="ar-meta"><span class="ar-time">0.0s</span><span class="ar-tk">— tk</span></div>')}
           const tEl=box.querySelector('.ar-time'),kEl=box.querySelector('.ar-tk'),t0=Date.now();
-          const tmr=setInterval(()=>{tEl.textContent=((Date.now()-t0)/1000).toFixed(1)+'s'},100);
-          const stopMeta=()=>{clearInterval(tmr);tEl.textContent=((Date.now()-t0)/1000).toFixed(1)+'s';kEl.textContent=runTokens+' tk'};
+          const tmr=setInterval(()=>{if(tEl)tEl.textContent=((Date.now()-t0)/1000).toFixed(1)+'s'},100);
+          const stopMeta=()=>{clearInterval(tmr);if(tEl)tEl.textContent=((Date.now()-t0)/1000).toFixed(1)+'s';if(kEl)kEl.textContent=runTokens+' tk'};
           const step=(i,t)=>{const s=document.createElement('div');s.className='step';s.dataset.t=t;
             s.innerHTML=`<svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[i]}</svg><span>${t}</span>`;
             steps.appendChild(s);scroll();return x=>{s.classList.add('done');if(x)s.querySelector('span').textContent=s.dataset.t+' · '+x}};
@@ -565,7 +588,8 @@
               const hist=((currentConversation&&currentConversation.messages)||[]).slice(-20).map(m=>({role:m.role,content:m.text}));
               const msgs=[{role:'system',content:[...modeSystemLines(),'用中文回复。'].join('\n')},...hist];
               if(!hist.length)msgs.push({role:'user',content:text});
-              const reply=await chatText(msgs);
+              const rawReply=await chatText(msgs);
+              const reply=parseShortReply(rawReply);
               dC('完成');
               tp.textContent='已完成回复。';
               say(`<div class="abody">${esc(reply)}</div>`);
@@ -730,15 +754,29 @@
 
         bootApplication();
 
-        /* ---- 设置：小尾巴 / 头像 / 退出 ---- */
+        /* ---- 设置：短消息模式 / 小尾巴 / 头像 / 退出 ---- */
         const UI_KEY='archangel.ui.v1';
-        const uiCfg=()=>{try{return Object.assign({tail:'first'},JSON.parse(localStorage.getItem(UI_KEY))||{})}catch(e){return {tail:'first'}}};
+        const uiCfg=()=>{try{return Object.assign({tail:'first',short:'on'},JSON.parse(localStorage.getItem(UI_KEY))||{})}catch(e){return {tail:'first',short:'on'}}};
         function applyTail(){const t=uiCfg().tail;host.dataset.tail=t;host.querySelectorAll('#ar-tailSeg button').forEach(b=>b.classList.toggle('on',b.dataset.v===t))}
         function setTail(v){const c=uiCfg();c.tail=v;localStorage.setItem(UI_KEY,JSON.stringify(c));applyTail()}
+        function applyShortMode(){
+          const s=uiCfg().short;
+          host.dataset.short=s;
+          host.querySelectorAll('#ar-shortSeg button').forEach(b=>b.classList.toggle('on',b.dataset.v===s));
+        }
+        function setShortMode(v){
+          const c=uiCfg();
+          c.short=v;
+          localStorage.setItem(UI_KEY,JSON.stringify(c));
+          applyShortMode();
+        }
         function openSheet(o){
           const sh=host.querySelector('#ar-sheet');
           clearTimeout(sh._t);
           if(o){
+            applyTail();
+            applyShortMode();
+            refreshSheetAvatars();
             sh.hidden=false;
             requestAnimationFrame(()=>requestAnimationFrame(()=>sh.classList.add('show')));
           }else{
@@ -760,11 +798,12 @@
         host.querySelector('#ar-set').addEventListener('click',()=>openSheet(true));
         host.querySelector('#ar-sheetClose').addEventListener('click',()=>openSheet(false));
         host.querySelector('#ar-sheet').addEventListener('click',e=>{if(e.target.id==='ar-sheet')openSheet(false)});
+        host.querySelectorAll('#ar-shortSeg button').forEach(b=>b.addEventListener('click',()=>setShortMode(b.dataset.v)));
         host.querySelectorAll('#ar-tailSeg button').forEach(b=>b.addEventListener('click',()=>setTail(b.dataset.v)));
         host.querySelector('#ar-avMe input').addEventListener('change',e=>setAvatarFile('me',e.target.files[0]));
         host.querySelector('#ar-avAi input').addEventListener('change',e=>setAvatarFile('ai',e.target.files[0]));
         host.querySelector('#ar-exit').addEventListener('click',()=>{openSheet(false);if(typeof closeApp==='function')closeApp()});
-        applyTail();refreshSheetAvatars();
+        applyTail();applyShortMode();refreshSheetAvatars();
 
         /* ---- 开场：头像框 + 胶囊 + HI 字样 + 三个胶囊（点胶囊把提示词填进输入框） ---- */
         const INTRO_CHIPS=[['讲个小故事','讲一个关于萌主大教堂的小故事'],['帮我想个名字','帮我想一个好听的名字'],['陪我聊聊天','陪我聊聊天吧']];
