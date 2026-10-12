@@ -708,18 +708,21 @@
             'files：如果用户要你做文件（代码、文档、笔记、表格内容等），把它们放进 files，格式是 [{"name":"文件名或相对路径","content":"完整的文件内容"}]，每个文件都要写完整；不需要做文件时保持 []。reply 里只写给用户看的话，文件内容不要重复写进 reply。'
           ];
         }
-        async function explainError(errText){
+        function recordSystem(text){
           if(!currentConversation)currentConversation=createConversation();
           const mid=newMid();
-          const sysText='报错：'+errText;
-          currentConversation.messages.push({id:mid,role:'system',text:sysText});
+          currentConversation.messages.push({id:mid,role:'system',text});
           saveCurrentConversation();
-          addSystemHistory(sysText,mid);
+          addSystemHistory(text,mid);
           scroll();
+          return mid;
+        }
+        async function explainError(errText){
+          recordSystem('报错：'+errText);
           const a=A();
           if(!a.base||!a.key||!a.model)return;
           try{
-            const hist=currentConversation.messages.slice(-20).map(m=>histOf(m,false));
+            const hist=currentConversation.messages.slice(-20).filter((m,i,a)=>m.role!=='system'||i>=a.length-2).map(m=>histOf(m,false));
             const hint='刚才系统执行时出了错，见上面的“报错”。请用角色的语气告诉用户：发生了什么、可能的原因、用户可以怎么做。不要假装操作已经完成。如果是找文件的问题，不要让用户去提供文件名，只需要用户描述想改的功能即可。';
             const msgs=[{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。',hint].join('\n')},...hist];
             const out=await chatText(msgs);
@@ -765,13 +768,13 @@
             if(files&&files.length)box.insertAdjacentHTML('beforeend',fileCardHTML(mid,files));
             if(currentConversation){currentConversation.messages.push(msg);saveCurrentConversation()}
           };
-          const hasRepo=(()=>{const g=G();return !!(g.token&&g.owner&&g.repo)})();
+          const hasRepo=modeCfg().mode!=='healer'&&(()=>{const g=G();return !!(g.token&&g.owner&&g.repo&&modeCfg().mode!=='healer')})();
           if(!hasRepo){
             tp.textContent='正在结合角色设定组织回复内容…';
             const dC=()=>{};
             try{
               const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
-              const hist=((currentConversation&&currentConversation.messages)||[]).slice(-20).map(m=>histOf(m,pendingIds.has(m.id)));
+              const hist=((currentConversation&&currentConversation.messages)||[]).slice(-20).filter((m,i,a)=>m.role!=='system'||i>=a.length-2).map(m=>histOf(m,pendingIds.has(m.id)));
               const msgs=[{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。'].join('\n')},...hist];
               if(!hist.length)msgs.push({role:'user',content:text});
               const out=await chatText(msgs);
@@ -779,7 +782,7 @@
               
               tp.textContent=out.thinking||'（这次回复没有返回思维链）';
               say(bodyHTML(out.parts));
-              commit(out.parts,out.thinking,out.files);
+              commit(out.parts,out.thinking,modeCfg().mode==='healer'?[]:out.files);
             }catch(e){
               box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
               toast(e.message);restore();await explainError(e.message);
@@ -853,7 +856,7 @@
                   if(ST.files[f.path]){ST.files[f.path].sha=f.sha;ST.files[f.path].orig=f.edit}
                   f.w.classList.add('ok');f.w.querySelector('i').textContent='已上传';
                 }
-                btn.textContent='已全部上传';toast('已上传到 GitHub');
+                btn.textContent='已全部上传';toast('已上传到 GitHub');recordSystem('已上传到 GitHub：'+ch.map(f=>f.path).join('、'));
               }catch(e){btn.disabled=false;btn.textContent='重试上传';toast(e.message);explainError('上传失败：'+e.message)}
             };
             scroll();
