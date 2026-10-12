@@ -299,3 +299,83 @@
     radial-gradient(circle at 50% 100%, rgba(255,255,255,.78) 4.2px, transparent 4.8px) 0 0 / 14px 7px repeat-x,
     radial-gradient(circle at 50% 100%, rgba(190,200,212,.55) 5px, transparent 5.6px) 0 0 / 14px 7px repeat-x;
 }
+
+/* ===== 思考步骤：图标只留爱心，没有底色；从第一个最浅到最后一个最深（颜色在这里改） ===== */
+.archangel-app .step .ic{background:none !important; box-shadow:none !important; padding:0 !important; border-radius:0 !important}
+.archangel-app .steps .step:nth-child(1) .ic{color:#e2e8ef !important}
+.archangel-app .steps .step:nth-child(2) .ic{color:#b3bdc9 !important}
+.archangel-app .steps .step:nth-child(3) .ic{color:#7a8594 !important}
+.archangel-app .steps .step:nth-child(4) .ic{color:#363e48 !important}
+
+/* ===== 模式面板标题：英文花字（天使选择） ===== */
+.archangel-app .ar-sheet-title.ar-script{font-size:10.5px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#8a929c}
+
+/* ===== 思考步骤：处理完自动收起，点“思考过程”再展开 ===== */
+
+
+/* ===== 提示词：邮票边（四边圆孔），字写在邮票中间 =====
+   颜色：background（纸色）；圆孔大小：4px 半径，间距：12px（改下面的 12px / 4px） */
+.archangel-app .ar-stamp{
+  position:relative; padding:14px 16px 12px; background:#fbfaf6; border-radius:4px;
+  box-shadow:0 6px 16px rgba(120,130,145,.14);
+  -webkit-mask:
+    radial-gradient(circle 4px at 6px 0, #0000 98%, #000) 0 0 / 12px 100% repeat-x,
+    radial-gradient(circle 4px at 6px 100%, #0000 98%, #000) 0 0 / 12px 100% repeat-x,
+    radial-gradient(circle 4px at 0 6px, #0000 98%, #000) 0 0 / 100% 12px repeat-y,
+    radial-gradient(circle 4px at 100% 6px, #0000 98%, #000) 0 0 / 100% 12px repeat-y;
+          mask:
+    radial-gradient(circle 4px at 6px 0, #0000 98%, #000) 0 0 / 12px 100% repeat-x,
+    radial-gradient(circle 4px at 6px 100%, #0000 98%, #000) 0 0 / 12px 100% repeat-x,
+    radial-gradient(circle 4px at 0 6px, #0000 98%, #000) 0 0 / 100% 12px repeat-y,
+    radial-gradient(circle 4px at 100% 6px, #0000 98%, #000) 0 0 / 100% 12px repeat-y;
+  -webkit-mask-composite: source-in; mask-composite: intersect;
+}
+.archangel-app .ar-stamp-label{font-size:10.5px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#8a929c; text-align:center; margin-bottom:4px}
+.archangel-app .ar-stamp .ar-mode-text{background:transparent; text-align:center; padding:8px 4px; border:0; color:#3e454e}
+.archangel-app .ar-stamp .ar-mode-text[readonly]{background:transparent; color:#7d8792}
+.archangel-app .ar-stamp .ar-sec{text-align:center}
+
+/* ===== 邮票：纯白实色，纵向缩短（文本框高度、内边距在这里改） ===== */
+.archangel-app .ar-stamp{background:#ffffff !important; padding:10px 16px 8px}
+.archangel-app .ar-stamp .ar-mode-text{height:80px !important; min-height:0; max-height:80px}
+
+/* ===== 思考过程：默认展开，按钮在思考步骤下面、与步骤左对齐 ===== */
+
+
+/* ===== 竖线：从第一个圆点连到最后一个圆点，画在圆点和爱心下面 =====
+   left：竖线离思维链左边的距离（px，= 圆点列中心 28px）
+   width：线的粗细 */
+.archangel-app .steps{position:relative}
+.archangel-app .steps::before{
+  content:""; position:absolute; left:28px; top:15px; bottom:15px; width:1.5px;
+  background:#aab3bf; z-index:0; pointer-events:none;
+}
+.archangel-app .step{position:relative; z-index:1}
+.archangel-app .step .dot line{display:none}
+
+/* ===== 对面布局变量（改这里，预览文件里也是这一组）=====
+   --ai-head      头像列宽（px）
+   --ai-gap       头像和思考文字之间的间距（px）
+   --ai-bubble-dx 回复气泡左右偏移（负数往左）
+   --ai-bubble-dy 回复气泡上下偏移（负数往上）
+   --ai-line-x    竖线离思维链左边的距离（px，= 圆点列中心）
+   --ai-line-w    竖线粗细（px）
+*/
+.archangel-app{
+  --ai-head: 56px; --ai-gap: 14px;
+  --ai-bubble-dx: -10px; --ai-bubble-dy: -20px;
+  --ai-line-x: 42px; --ai-line-w: 1.5px;
+}
+.archangel-app .arow .abody{
+  margin-left: calc(var(--ai-head) + var(--ai-gap));
+  position: relative; top: var(--ai-bubble-dy); left: var(--ai-bubble-dx);
+}
+/* 竖线：从第一个圆点连到最后一个，从上往下画出来 */
+@keyframes ar-line-grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.archangel-app .steps::before{
+  left: var(--ai-line-x); top: -8px; width: var(--ai-line-w);
+  transform-origin: top; animation: ar-line-grow .7s ease .1s both;
+}
+
+/* ===== 爱心：缩小（改 width / height，px）===== */
+.archangel-app .step .ic{width:15px !important; height:15px !important; stroke-dashoffset:18}

@@ -56,7 +56,7 @@
 <div id="ar-toast"></div>
 <div class="ar-sheet" id="ar-sheet" hidden>
     <div class="ar-sheet-card">
-        <div class="ar-sheet-title">设置</div>
+        <div class="ar-sheet-title ar-script">Settings</div>
         <div class="ar-sec">小尾巴（只给我的气泡用）</div>
         <div class="ar-seg" id="ar-tailSeg">
             <button type="button" data-v="off">关</button>
@@ -76,14 +76,17 @@
 </div>
 <div class="ar-sheet" id="ar-modeSheet" hidden>
     <div class="ar-sheet-card">
-        <div class="ar-sheet-title">对面的模式</div>
+        <div class="ar-sheet-title ar-script">Angel Selection</div>
         <div class="ar-seg" id="ar-modeSeg">
             <button type="button" data-v="work">工作天使</button>
             <button type="button" data-v="healer">治疗天使</button>
             <button type="button" data-v="assist">辅助天使</button>
         </div>
-        <div class="ar-sec" id="ar-modeHint"></div>
-        <textarea class="ar-mode-text" id="ar-modeText" rows="8"></textarea>
+        <div class="ar-stamp" id="ar-stamp">
+            <div class="ar-stamp-label">提示词</div>
+            <div class="ar-sec" id="ar-modeHint"></div>
+            <textarea class="ar-mode-text" id="ar-modeText" rows="8"></textarea>
+        </div>
         <div class="ar-foot">
             <button type="button" class="ar-save" id="ar-modeSave">保存</button>
             <button type="button" class="ar-close" id="ar-modeClose">关闭</button>
@@ -526,7 +529,7 @@
             while(p<n)mid.push(['-',P[p++]]);while(q<m)mid.push(['+',Q[q++]])}
           return[...a.slice(Math.max(0,i-3),i).map(s=>[' ',s]),...mid,...a.slice(x,x+3).map(s=>[' ',s])];
         }
-        const IC=['<circle class="f" cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>','<path class="f" d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M9 13.2l2.2 2.2L15.5 11"/>','<path class="f" d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/>','<path d="M8.5 8l-4 4 4 4M15.5 8l4 4-4 4M13.2 6.5l-2.4 11"/><path d="M19 2.5v3M17.5 4h3"/>'];
+        const IC=['<path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.3 3 4.5 6.9 4.5c2 0 3.6 1.1 5.1 2.7 1.5-1.6 3.1-2.7 5.1-2.7 3.9 0 6 3.8 4.5 7.3C19.5 16.4 12 21 12 21z" pathLength="100" stroke-dasharray="45 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>','<path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.3 3 4.5 6.9 4.5c2 0 3.6 1.1 5.1 2.7 1.5-1.6 3.1-2.7 5.1-2.7 3.9 0 6 3.8 4.5 7.3C19.5 16.4 12 21 12 21z" pathLength="100" stroke-dasharray="45 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>','<path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.3 3 4.5 6.9 4.5c2 0 3.6 1.1 5.1 2.7 1.5-1.6 3.1-2.7 5.1-2.7 3.9 0 6 3.8 4.5 7.3C19.5 16.4 12 21 12 21z" pathLength="100" stroke-dasharray="45 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>','<path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.3 3 4.5 6.9 4.5c2 0 3.6 1.1 5.1 2.7 1.5-1.6 3.1-2.7 5.1-2.7 3.9 0 6 3.8 4.5 7.3C19.5 16.4 12 21 12 21z" pathLength="100" stroke-dasharray="45 10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'];
 
         /* ---- 对面的三个模式：工作天使 / 治疗天使 / 辅助天使 ---- */
         const MODE_KEY='archangel.mode.v1';
@@ -549,25 +552,46 @@
           const tEl=box.querySelector('.ar-time'),kEl=box.querySelector('.ar-tk'),t0=Date.now();
           const tmr=setInterval(()=>{tEl.textContent=((Date.now()-t0)/1000).toFixed(1)+'s'},100);
           const stopMeta=()=>{clearInterval(tmr);tEl.textContent=((Date.now()-t0)/1000).toFixed(1)+'s';kEl.textContent=runTokens+' tk'};
-          const step=(i,t)=>{const s=document.createElement('div');s.className='step';
+          const step=(i,t)=>{const s=document.createElement('div');s.className='step';s.dataset.t=t;
             s.innerHTML=`<svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[i]}</svg><span>${t}</span>`;
-            steps.appendChild(s);scroll();return x=>{s.classList.add('done');if(x)s.querySelector('span').textContent=t+' · '+x}};
+            steps.appendChild(s);scroll();return x=>{s.classList.add('done');if(x)s.querySelector('span').textContent=s.dataset.t+' · '+x}};
           const say=h=>{box.insertAdjacentHTML('beforeend',h);scroll()};
+          const hasRepo=(()=>{const g=G();return !!(g.token&&g.owner&&g.repo)})();
+          if(!hasRepo){
+            const dC=step(0,'在想怎么回复');
+            try{
+              const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
+              const hist=((currentConversation&&currentConversation.messages)||[]).slice(-20).map(m=>({role:m.role,content:m.text}));
+              const msgs=[{role:'system',content:[...modeSystemLines(),'用中文回复。'].join('\n')},...hist];
+              if(!hist.length)msgs.push({role:'user',content:text});
+              const reply=await chatText(msgs);
+              dC();
+              say(`<div class="abody">${esc(reply)}</div>`);
+              if(currentConversation){currentConversation.messages.push({role:'assistant',text:reply});saveCurrentConversation()}
+            }catch(e){
+              box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
+              say(`<div class="abody">${esc(e.message)}</div>`);toast(e.message);
+            }
+            stopMeta();busy=false;return;
+          }
           try{
             const a=A();if(!a.key||!a.model)throw new Error('请先在左侧填写 API 设置并选择模型');
-            let d=step(0,'分析你的需求');
+            const LBL=['分析你的需求','选择相关文件','查看文件内容','生成修改内容'];
+            let d=step(0,LBL[0]);
             if(!ST.tree.length)await loadTree();if(!ST.tree.length)throw new Error('仓库文件树为空');
-            d();d=step(1,'选择相关文件');
-            const sel=pj(await ai([{role:'system',content:['你是谨慎的代码仓库修改助手。','根据用户需求，从文件列表里选出真正相关的文件，只能选列表中存在的路径。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            d();d=step(1,LBL[1]);
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','根据用户需求，从文件列表里选出真正相关的文件，只能选列表中存在的路径。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
             tp.textContent=sel.thinking||'已完成分析。';
+            if(Array.isArray(sel.steps))sel.steps.slice(0,4).forEach((t,k)=>{if(t&&String(t).trim())LBL[k]=String(t).trim().slice(0,20)});
+            steps.querySelectorAll('.step').forEach((el,k)=>{if(LBL[k]){el.dataset.t=LBL[k];const sp=el.querySelector('span');if(sp&&!sp.textContent.includes(' · '))sp.textContent=LBL[k]}});
             const valid=new Set(ST.tree.map(f=>f.path)),seen=new Set(),pick=[];
             (sel.files||[]).forEach(f=>{const p=String(f&&f.path||'').trim().replace(/^\/+/,'');if(valid.has(p)&&!seen.has(p)){seen.add(p);pick.push({path:p,why:String(f.reason||'与需求相关')})}});
             if(!pick.length)throw new Error('没有找到足够相关的文件，请把需求描述得更具体些');
-            d(pick.length+' 个');d=step(2,'查看文件内容');
+            d(pick.length+' 个');d=step(2,LBL[2]);
             const got=[];
             for(const f of pick){try{const x=await getFile(f.path);if(x.orig.length>LIM){tp.textContent+=`\n（${f.path} 过大，已跳过）`;continue}got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
             if(!got.length)throw new Error('相关文件读取失败或过大，无法安全修改');
-            d(got.length+' 个');d=step(3,'生成修改内容');
+            d(got.length+' 个');d=step(3,LBL[3]);
             const mod=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是一个专业代码修改助手。','根据用户需求修改提供的文件，只修改真正需要修改的文件。','必须保留原文件的完整内容，不能用省略号、占位符或说明文字代替代码。','不要返回 Markdown 代码围栏，只返回 JSON：{"reply":"修改说明","files":[{"path":"真实文件路径","content":"修改后的完整文件内容"}]}','files 只放发生修改的文件，content 必须是完整可直接保存的内容。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
             const ch=[];
             (mod.files||[]).forEach(c=>{const p=String(c&&c.path||'').trim().replace(/^\/+/,''),f=got.find(x=>x.path==p);
@@ -796,6 +820,15 @@
         }
         host.querySelectorAll('#ar-apiSrc button').forEach(b=>b.addEventListener('click',()=>{localStorage.setItem(API_SRC_KEY,b.dataset.src);applyApiSource()}));
         applyApiSource();
+
+        async function chatText(msgs){
+          const a=A();
+          const r=await req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,messages:msgs,temperature:.8})});
+          if(!r.ok)throw new Error('AI 请求失败：'+await err(r));
+          const d=await r.json();runTokens+=(d.usage&&d.usage.total_tokens)||0;
+          const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
+          return Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');
+        }
 
     };
 })();
