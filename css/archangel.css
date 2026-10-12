@@ -477,3 +477,23 @@
 /* ===== 两个爱心（把手、控制台）：缺口位置 ===== */
 .archangel-app .ar-grip path,
 .archangel-app #ar-console path{stroke-dasharray:90 10;stroke-dashoffset:25}
+
+/* ===== 思维链：默认两行，下面渐隐；点一下展开，展开后可以上下翻动 ===== */
+.archangel-app .arow .think > p{max-height:58px;overflow:hidden;position:relative;cursor:pointer;transition:max-height .3s ease}
+.archangel-app .arow .think > p::after{content:"";position:absolute;left:0;right:0;bottom:0;height:30px;pointer-events:none;background:linear-gradient(to bottom,rgba(250,251,253,0),rgba(250,251,253,.96))}
+.archangel-app .arow .think > p.open{max-height:38vh;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y}
+.archangel-app .arow .think > p.open::after{display:none}
+
+/* ===== 控制台弹窗：竖向占满的面板 ===== */
+.archangel-app .ar-cons{place-items:end center;padding:64px 10px 14px;box-sizing:border-box}
+.archangel-app .ar-cons-card{width:100%;max-width:440px;height:100%;max-height:none;border-radius:16px}
+.archangel-app .ar-cons-detail{flex:1 1 auto;min-height:0}
+
+/* ===== 侧边栏底部：对话（新对话 + 历史对话）默认收起，点一下展开 ===== */
+.archangel-app .side-fold{margin-top:18px;border-top:1px solid rgba(208,215,224,.7);padding-top:4px}
+.archangel-app .side-fold > summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 0;font-size:13px;font-weight:700;color:#68727d;letter-spacing:.04em;user-select:none}
+.archangel-app .side-fold > summary::-webkit-details-marker{display:none}
+.archangel-app .side-fold > summary::after{content:"";width:7px;height:7px;border-right:1.6px solid #8a929c;border-bottom:1.6px solid #8a929c;transform:rotate(-45deg);transition:transform .25s ease;margin-top:-3px}
+.archangel-app .side-fold[open] > summary::after{transform:rotate(135deg);margin-top:3px}
+.archangel-app .side-fold > .full{margin-top:6px}
+.archangel-app .side-fold .history-list{max-height:42vh}

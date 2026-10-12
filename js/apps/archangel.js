@@ -25,10 +25,6 @@
   </header>
   <main class="main collapsed" id="ar-main">
     <aside class="closed" id="ar-side"><div class="sin">
-<h3>对话</h3>
-<button class="full" id="ar-newChat">新对话</button>
-<div class="history-title">历史对话</div>
-<div class="history-list" id="ar-historyList"></div>
 <h3>GitHub 仓库</h3>
 <label><span>Token</span><input id="ar-gToken" type="password" autocomplete="off" placeholder="ghp_..."></label>
 <label><span>Owner</span><input id="ar-gOwner" placeholder="仓库所有者"></label>
@@ -43,7 +39,11 @@
 <label><span>API Key</span><input id="ar-aKey" type="password" autocomplete="off" placeholder="sk-..."></label>
 <label><span>模型</span><select id="ar-aModel"><option value="">请先获取模型</option></select></label>
 <div class="row"><button id="ar-aFetch">获取模型</button><button id="ar-aSave">保存</button></div>
-</div></aside>
+<details class="side-fold" id="ar-chatFold"><summary>对话</summary>
+<button class="full" id="ar-newChat">新对话</button>
+<div class="history-title">历史对话</div>
+<div class="history-list" id="ar-historyList"></div>
+</details></div></aside>
     <section id="ar-chat"><div class="hint">先在左侧填好 GitHub 和 AI 设置并读取文件树。发送需求（可连发），再点底栏“调取”开始处理。长按消息可重回、编辑或多选删除。</div></section>
   </main>
   <footer class="bottom"><span class="ar-grip" id="ar-grip" aria-label="控制台把手"></span><div class="comp">
@@ -512,7 +512,7 @@
         const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'},LIM=60000;
         const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}};
         const G=()=>({token:$('#ar-gToken').value.trim(),owner:$('#ar-gOwner').value.trim(),repo:$('#ar-gRepo').value.trim(),branch:$('#ar-gBranch').value.trim()||'main'});
-        const A=()=>{if(localStorage.getItem('archangel.api.source')==='inherit'){const f=ld0('forever_settings_active_api_v1');return {base:String(f.url||'').replace(/\/+$/,''),key:String(f.key||'').trim(),model:String(f.model||'')}}return {base:$('#ar-aBase').value.trim().replace(/\/+$/,''),key:$('#ar-aKey').value.trim(),model:$('#ar-aModel').value}};
+        const A=()=>{if(localStorage.getItem('archangel.api.source')==='inherit'){const f=ld0('forever_settings_active_api_v1');return {base:String(f.url||'').replace(/\/+$/,''),key:String(f.key||'').trim(),model:localStorage.getItem('archangel.api.inheritModel')||String(f.model||'')}}return {base:$('#ar-aBase').value.trim().replace(/\/+$/,''),key:$('#ar-aKey').value.trim(),model:$('#ar-aModel').value}};
         const ld0=k=>{try{return JSON.parse(localStorage.getItem(k))||{}}catch(e){return {}}};
         const ST={tree:[],key:'',files:{}};
         const rk=g=>`${g.owner}/${g.repo}@${g.branch}`;
@@ -526,7 +526,10 @@
         function unb64(v,p){try{const t=new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(String(v).replace(/\s/g,'')),c=>c.charCodeAt(0)));if(t.includes('\0'))throw 0;return t}catch{throw new Error(p+' 不是 UTF-8 文本文件')}}
         $('#ar-gSave').onclick=()=>{localStorage.setItem(K.g,JSON.stringify(G()));toast('GitHub 设置已保存')};
         $('#ar-aSave').onclick=()=>{localStorage.setItem(K.a,JSON.stringify(A()));toast('API 设置已保存')};
-        $('#ar-aModel').onchange=()=>$('#ar-aSave').click();
+        $('#ar-aModel').onchange=()=>{
+          if(localStorage.getItem('archangel.api.source')==='inherit'){localStorage.setItem('archangel.api.inheritModel',$('#ar-aModel').value);toast('已选择模型')}
+          else $('#ar-aSave').click();
+        };
         $('#ar-newChat').onclick=createNewConversation;
         async function loadTree(){
           const g=G();need(g);localStorage.setItem(K.g,JSON.stringify(g));
@@ -540,9 +543,22 @@
         $('#ar-gTree').onclick=async()=>{const b=$('#ar-gTree');b.disabled=true;try{await loadTree();toast('文件树已读取')}catch(e){toast(e.message)}b.disabled=false};
         $('#ar-aFetch').onclick=async()=>{
           const a=A();if(!a.base||!a.key)return toast('请先填写 Base URL 和 Key');
-          try{const r=await req(a.base+'/models',{headers:{Authorization:'Bearer '+a.key}});if(!r.ok)throw new Error('获取模型失败：'+await err(r));
+          const inheritMode=localStorage.getItem('archangel.api.source')==='inherit';
+          try{
+            const r=await req(a.base+'/models',{headers:{Authorization:'Bearer '+a.key}});if(!r.ok)throw new Error('获取模型失败：'+await err(r));
             const m=((await r.json()).data||[]).map(x=>x.id).sort();if(!m.length)throw new Error('接口没有返回模型');
-            $('#ar-aModel').innerHTML=m.map(x=>`<option>${esc(String(x))}</option>`).join('');localStorage.setItem(K.a,JSON.stringify(A()));toast(`已获取 ${m.length} 个模型`)}catch(e){toast(e.message)}
+            const cur=localStorage.getItem('archangel.api.inheritModel')||a.model;
+            $('#ar-aModel').innerHTML=m.map(x=>`<option>${esc(String(x))}</option>`).join('');
+            if(inheritMode){
+              const pick=m.includes(cur)?cur:m[0];
+              $('#ar-aModel').value=pick;
+              localStorage.setItem('archangel.api.inheritModel',pick);
+              localStorage.setItem('archangel.api.inheritModels',JSON.stringify(m));
+            }else{
+              localStorage.setItem(K.a,JSON.stringify(A()));
+            }
+            toast(`已获取 ${m.length} 个模型`);
+          }catch(e){toast(e.message)}
         };
         (()=>{const g=ld(K.g,{}),a=ld(K.a,{});
           $('#ar-gToken').value=g.token||'';$('#ar-gOwner').value=g.owner||'';$('#ar-gRepo').value=g.repo||'';$('#ar-gBranch').value=g.branch||'main';
@@ -837,7 +853,7 @@
         }
         function renderConsole(){
           const rounds=consoleRoundsList();
-          host.querySelector('#ar-consCount').textContent=rounds.length?`${rounds.length} ROUNDS`:'NO DATA';
+          host.querySelector('#ar-consCount').textContent=rounds.length?`${rounds.length} ROUND${rounds.length>1?'S':''}`:'NO DATA';
           if(!rounds.length)consoleIdx=-1;
           else if(consoleIdx<0||consoleIdx>=rounds.length)consoleIdx=rounds.length-1;
           const sel=host.querySelector('#ar-consRounds');
@@ -850,6 +866,11 @@
         host.querySelector('#ar-consClose').addEventListener('click',()=>fadeSheet(consoleSheet,false));
         consoleSheet.addEventListener('click',e=>{if(e.target.id==='ar-consoleSheet')fadeSheet(consoleSheet,false)});
         const bottomBar=host.querySelector('.bottom');
+        /* ---- 思维链：点一下展开 / 收起 ---- */
+        host.addEventListener('click',e=>{
+          const p=e.target.closest&&e.target.closest('.arow .think > p');
+          if(p){p.classList.toggle('open');e.stopPropagation()}
+        });
         const gripBtn=host.querySelector('#ar-grip');
         gripBtn.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[0]}</svg>`;
         let swipe=null;
@@ -967,11 +988,20 @@
           host.querySelectorAll('#ar-apiSrc button').forEach(b=>b.classList.toggle('on',b.dataset.src===src));
           const inherit=src==='inherit';
           const base=host.querySelector('#ar-aBase'),key=host.querySelector('#ar-aKey'),model=host.querySelector('#ar-aModel');
-          [base,key,model,host.querySelector('#ar-aFetch'),host.querySelector('#ar-aSave')].forEach(x=>x.disabled=inherit);
-          if(inherit){base.value=inh.base;key.value=inh.key;if(inh.model)model.innerHTML=`<option>${esc(inh.model)}</option>`}
-          else{base.value=own.base||'https://api.openai.com/v1';key.value=own.key||''}
+          const chosen=localStorage.getItem('archangel.api.inheritModel')||inh.model;
+          base.disabled=inherit;key.disabled=inherit;
+          host.querySelector('#ar-aSave').disabled=inherit;
+          host.querySelector('#ar-aFetch').disabled=false;
+          model.disabled=false;
+          if(inherit){
+            base.value=inh.base;key.value=inh.key;
+            const list=ld('archangel.api.inheritModels',[]);
+            const opts=[...new Set([chosen,...(Array.isArray(list)?list:[])].filter(Boolean))];
+            if(opts.length)model.innerHTML=opts.map(x=>`<option>${esc(x)}</option>`).join('');
+            if(chosen)model.value=chosen;
+          }else{base.value=own.base||'https://api.openai.com/v1';key.value=own.key||''}
           host.querySelector('#ar-apiSrcInfo').textContent=inherit
-            ?(inh.model?`正在使用手机设置里的 API（${inh.model}）`:'手机设置里还没有 API，请先在设置里保存')
+            ?(chosen?`正在使用手机设置里的 API（${chosen}）`:'手机设置里还没有 API，请先在设置里保存')
             :'正在使用单独设置的 API';
         }
         host.querySelectorAll('#ar-apiSrc button').forEach(b=>b.addEventListener('click',()=>{localStorage.setItem(API_SRC_KEY,b.dataset.src);applyApiSource()}));
