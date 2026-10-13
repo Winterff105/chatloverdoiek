@@ -468,7 +468,7 @@
               out+=text.slice(last,m.index)?`<div class="abody">${esc(text.slice(last,m.index))}</div>`:'';
               const lang=m[1].toLowerCase()==='javascript'?'js':m[1].toLowerCase();
               const code=m[2].replace(/\n+$/,'');
-              out+=`<details class="out-module"><summary><span class="out-module-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8 8h8M8 11.5h8M8 15h5"/></svg></span><span class="out-module-title">${lang.toUpperCase()} 模块${++idx>1?' '+idx:''}</span><span class="out-module-hint">展开查看</span></summary><div class="out-module-content"><pre><code>${esc(code)}</code></pre></div></details>`;
+              out+=`<details class="abody out-module"><summary><span class="out-module-title">${lang.toUpperCase()} 模块${++idx>1?' '+idx:''}</span></summary><div class="out-module-content"><pre><code>${esc(code)}</code></pre></div></details>`;
               last=fence.lastIndex;
             }
             out+=text.slice(last)?`<div class="abody">${esc(text.slice(last))}</div>`:'';
