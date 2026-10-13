@@ -48,7 +48,7 @@
 </details></div></aside>
     <section id="ar-chat"><div class="hint">先在左侧填好 GitHub 和 AI 设置并读取文件树。发送需求（可连发），再点底栏“调取”开始处理。长按消息可重回、编辑或多选删除。</div></section>
   </main>
-  <footer class="bottom"><span class="ar-grip" id="ar-grip" aria-label="控制台把手"></span><div class="comp">
+  <footer class="bottom"><span class="ar-grip" id="ar-grip" aria-label="控制台把手"></span><div class="ar-upp" id="ar-upp"><div class="ar-upp-in"><div class="ar-upp-head"><b id="ar-uppCount">0 个文件</b><span class="sp"></span><button type="button" id="ar-uppMulti">多选</button><button type="button" id="ar-uppDel" disabled>删除所选</button><button type="button" id="ar-uppClear">全部清空</button></div><div class="ar-upp-cards" id="ar-uppCards"></div></div></div><div class="comp">
     <input id="ar-prompt" type="text" placeholder="告诉 AI 你想修改什么…" />
     <div class="act"><button id="ar-send">发送</button><span></span><button id="ar-fetch">调取</button></div>
   </div></footer>
@@ -459,10 +459,11 @@
           setTimeout(()=>URL.revokeObjectURL(url),4000);
         }
         function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
+        const FIXED_STEPS=['PARSE_REQUEST','SELECT_FILES','READ_CONTENT','BUILD_CHANGES'];
         function stepsHTML(steps){
           return (steps||[]).map((s,i)=>{
             const x=s.x?` · ${esc(s.x)}`:'';
-            return `<div class="step done" data-t="${escA(s.t||'')}"><svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[Math.min(i,IC.length-1)]}</svg><span>${esc(s.t||'')}${x}</span></div>`;
+            return `<div class="step done${FIXED_STEPS.includes(s.t)?' fixed':''}" data-t="${escA(s.t||'')}"><svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[Math.min(i,IC.length-1)]}</svg><span>${esc(s.t||'')}${x}</span></div>`;
           }).join('');
         }
         const AV_KEY={me:'archangel.avatar.me',ai:'archangel.avatar.ai'};
@@ -746,6 +747,36 @@
 
         let pendingAttach=[];
         const DEFAULT_PLACEHOLDER=input.placeholder||'告诉 AI 你想修改什么…';
+        let uppSel=new Set(),uppMulti=false;
+        function renderUpPanel(){
+          const up=host.querySelector('#ar-upp');if(!up)return;
+          const cards=host.querySelector('#ar-uppCards');
+          uppSel=new Set([...uppSel].filter(a=>pendingAttach.includes(a)));
+          cards.innerHTML='';
+          pendingAttach.forEach(a=>{
+            const el=document.createElement('div');
+            el.className='ar-upf'+(uppSel.has(a)?' sel':'');
+            const len=(a.content||'').length;
+            const size=a.type==='image'?'IMG':a.type==='zip'?`ZIP · ${(a.files||[]).length} 个`:(len>1024?(len/1024).toFixed(1)+' KB':len+' B');
+            const ext=a.type==='image'?'':(a.type==='zip'?'':(String(a.name).split('.').pop()||'').toUpperCase().slice(0,5)+' · ');
+            el.innerHTML=`<span class="pk"></span><button type="button" class="x" aria-label="删除">×</button><div class="ic">${a.type==='image'?`<img src="${escA(a.dataUrl)}" alt="">`:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h6.5L18 8v12.5H7z"/><path d="M13.5 3.5V8H18"/></svg>'}</div><div class="nm" title="${escA(a.name)}">${esc(a.name)}</div><div class="mt">${esc(ext+size)}</div>`;
+            el.querySelector('.x').addEventListener('click',e=>{e.stopPropagation();pendingAttach=pendingAttach.filter(x=>x!==a);uppSel.delete(a);renderUpPanel()});
+            el.addEventListener('click',()=>{if(!uppMulti)return;uppSel.has(a)?uppSel.delete(a):uppSel.add(a);renderUpPanel()});
+            cards.appendChild(el);
+          });
+          const n=pendingAttach.length,sc=uppSel.size;
+          host.querySelector('#ar-uppCount').textContent=n+' 个文件'+(uppMulti&&sc?'，已选 '+sc+' 个':'');
+          up.classList.toggle('show',n>0);const appEl=host.querySelector('.app');if(appEl)appEl.style.setProperty('--upp-h',n?up.querySelector('.ar-upp-in').scrollHeight+'px':'0px');
+          up.classList.toggle('multi',uppMulti);
+          const m=host.querySelector('#ar-uppMulti');m.textContent=uppMulti?'完成':'多选';m.classList.toggle('on',uppMulti);
+          const d=host.querySelector('#ar-uppDel');d.disabled=!(uppMulti&&sc);d.textContent=sc?`删除所选 (${sc})`:'删除所选';
+          if(!n)uppMulti=false;
+        }
+        function initUpPanel(){
+          host.querySelector('#ar-uppMulti').addEventListener('click',()=>{uppMulti=!uppMulti;uppSel.clear();renderUpPanel()});
+          host.querySelector('#ar-uppDel').addEventListener('click',()=>{pendingAttach=pendingAttach.filter(a=>!uppSel.has(a));uppSel.clear();renderUpPanel()});
+          host.querySelector('#ar-uppClear').addEventListener('click',()=>{pendingAttach=[];uppSel.clear();uppMulti=false;renderUpPanel()});
+        }
         function send(){
           const value=input.value.trim();
           const att=pendingAttach;
@@ -756,7 +787,7 @@
 
           input.value='';
           pendingAttach=[];
-          input.placeholder=DEFAULT_PLACEHOLDER;
+          input.placeholder=DEFAULT_PLACEHOLDER;renderUpPanel();
           addUser(value||'（见附件）',true,newMid(),att);
         }
         const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'},LIM=60000;
@@ -775,7 +806,8 @@
         const gh=(g,j)=>({Authorization:'Bearer '+g.token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(j?{'Content-Type':'application/json'}:{})});
         const base=g=>`https://api.github.com/repos/${encodeURIComponent(g.owner)}/${encodeURIComponent(g.repo)}`;
         const cu=(g,p)=>`${base(g)}/contents/${p.split('/').filter(Boolean).map(encodeURIComponent).join('/')}`;
-        async function req(url,o,ms){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms||30000);try{return await fetch(url,{...o,signal:c.signal})}catch(e){throw new Error(e.name=='AbortError'?'请求超时，请检查网络或设置':e.message)}finally{clearTimeout(t)}}
+        let stopCtl=null;
+        async function req(url,o,ms){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms||30000);if(stopCtl)stopCtl.signal.addEventListener('abort',()=>c.abort(),{once:true});try{return await fetch(url,{...o,signal:c.signal})}catch(e){if(stopCtl&&stopCtl.signal.aborted){const x=new Error('已停止');x.name='StopError';throw x}throw new Error(e.name=='AbortError'?'请求超时，请检查网络或设置':e.message)}finally{clearTimeout(t)}}
         async function err(r){const t=await r.text();try{return JSON.parse(t).message||t}catch{return t||r.status}}
         function b64(t){let s='';new TextEncoder().encode(t).forEach(b=>s+=String.fromCharCode(b));return btoa(s)}
         function unb64(v,p){try{const t=new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(String(v).replace(/\s/g,'')),c=>c.charCodeAt(0)));if(t.includes('\0'))throw 0;return t}catch{throw new Error(p+' 不是 UTF-8 文本文件')}}
@@ -921,7 +953,7 @@
           if(busy)return toast('对面正在回复，请稍候');
           if(!pending.length){const last=chat.lastElementChild;if(last&&last.classList.contains('urow'))pending=[last]}
           if(!pending.length)return toast('先发送需求，再点调取');
-          const rows=pending;pending=[];busy=true;runTokens=0;runLog=[];runStartedAt=Date.now();rows.forEach(r=>r.classList.remove('pending'));
+          const rows=pending;pending=[];busy=true;runTokens=0;runLog=[];runStartedAt=Date.now();stopCtl=new AbortController();rows.forEach(r=>r.classList.remove('pending'));
           const restore=()=>{rows.forEach(r=>{if(r.isConnected&&!pending.includes(r)){r.classList.add('pending');pending.push(r)}})};
           const pendingMsgs=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>msgById(b.dataset.mid))).filter(Boolean);
           const text=rows.flatMap(r=>[...r.querySelectorAll('.bubble')].map(b=>bubbleText(b))).filter(Boolean).join('\n')+pendingMsgs.flatMap(m=>(m.attach||[]).map(attachTextOf)).join('');
@@ -934,7 +966,7 @@
           const tEl=box.querySelector('.ar-time'),kEl=box.querySelector('.ar-tk'),t0=Date.now();
           const tmr=setInterval(()=>{if(tEl)tEl.textContent=((Date.now()-t0)/1000).toFixed(1)+'s'},100);
           const stopMeta=()=>{clearInterval(tmr);if(tEl)tEl.textContent=((Date.now()-t0)/1000).toFixed(1)+'s';if(kEl)kEl.textContent=runTokens+' tk'};
-          const step=(i,t)=>{const s=document.createElement('div');s.className='step';s.dataset.t=t;
+          const step=(i,t)=>{const s=document.createElement('div');s.className='step'+(FIXED_STEPS.includes(t)?' fixed':'');s.dataset.t=t;
             s.innerHTML=`<svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[i]}</svg><span>${t}</span>`;
             steps.appendChild(s);scroll();return x=>{s.classList.add('done');if(x)s.querySelector('span').textContent=s.dataset.t+' · '+x}};
           const say=h=>{box.insertAdjacentHTML('beforeend',h);scroll()};
@@ -984,7 +1016,7 @@
               commit(out.parts,out.thinking,out.files,out.pack,out.zipRaw);
             }catch(e){
               box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
-              toast(e.message);restore();await explainError(e.message);
+              if(e.name==='StopError'||(stopCtl&&stopCtl.signal.aborted)){toast('已停止调取');restore()}else{toast(e.message);restore();await explainError(e.message)}
             }
             stopMeta();busy=false;return;
           }
@@ -1012,7 +1044,7 @@
             }
             tp.textContent=sel.thinking||'已完成分析。';
             if(Array.isArray(sel.steps))sel.steps.slice(0,4).forEach((t,k)=>{const tag=String(t||'').trim().slice(0,28);if(tag)LBL[k]=tag});
-            steps.querySelectorAll('.step').forEach((el,k)=>{if(LBL[k]){el.dataset.t=LBL[k];const sp=el.querySelector('span');if(sp&&!sp.textContent.includes(' · '))sp.textContent=LBL[k]}});
+            steps.querySelectorAll('.step').forEach((el,k)=>{if(LBL[k]){el.dataset.t=LBL[k];el.classList.toggle('fixed',FIXED_STEPS.includes(LBL[k]));const sp=el.querySelector('span');if(sp&&!sp.textContent.includes(' · '))sp.textContent=LBL[k]}});
             const uploadNames=Array.isArray(sel.uploadFiles)?sel.uploadFiles.map(x=>String(x)):[];
             const uploads=attachCands.filter(a=>uploadNames.includes(a.name));
             if(uploads.length){
@@ -1080,7 +1112,7 @@
             showConfirm(ch,fullReply,sel.thinking);
           }catch(e){
             box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
-            toast(e.message);restore();await explainError('操作失败：'+e.message);
+            if(e.name==='StopError'||(stopCtl&&stopCtl.signal.aborted)){toast('已停止调取');restore()}else{toast(e.message);restore();await explainError('操作失败：'+e.message)}
           }
           stopMeta();busy=false;
         }
@@ -1162,7 +1194,8 @@
           if(!e.target.closest('.mask'))clearMasks();
         },true);
         host.addEventListener('keydown',e=>{if(e.key=='Escape'){clearMasks();exitSel()}});
-        $('#ar-send').onclick=send;$('#ar-fetch').onclick=run;
+        $('#ar-send').onclick=send;$('#ar-fetch').onclick=()=>{if(busy){stopCtl&&stopCtl.abort();return}run()};
+        setInterval(()=>{const f=$('#ar-fetch');const on=busy?'1':'0';if(f.dataset.on!==on){f.dataset.on=on;f.innerHTML=busy?'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>':'调取';f.title=busy?'停止调取':'调取'}},120);
         input.addEventListener('keydown',e=>{if(e.key=='Enter'&&!e.isComposing){e.preventDefault();send()}});
         async function bootApplication(){
           if(!currentConversation){
@@ -1216,7 +1249,7 @@
           }
           if(pendingAttach.length){
             input.placeholder=`已附加 ${pendingAttach.length} 个：${pendingAttach.map(a=>a.name).join('、')}`.slice(0,60);
-            toast(`已附加 ${pendingAttach.length} 个，发送时一起带上`);
+            toast(`已附加 ${pendingAttach.length} 个，发送时一起带上`);renderUpPanel();
           }
         });
         const consoleSheet=host.querySelector('#ar-consoleSheet');
@@ -1365,6 +1398,7 @@
         host.querySelector('#ar-avMe input').addEventListener('change',e=>setAvatarFile('me',e.target.files[0]));
         host.querySelector('#ar-avAi input').addEventListener('change',e=>setAvatarFile('ai',e.target.files[0]));
         host.querySelector('#ar-exit').addEventListener('click',()=>{openSheet(false);if(typeof closeApp==='function')closeApp()});
+        initUpPanel();
         applyTail();applyShortMode();refreshSheetAvatars();
         const meInput=host.querySelector('#ar-meName');
         meInput.value=meName();

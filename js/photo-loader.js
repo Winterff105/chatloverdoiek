@@ -38,7 +38,7 @@
         <div class="pl-text pl-author">†正牌作者「<span class="pl-hl">@26443012097</span>」<br>（xhs）†</div>
         <div class="pl-text pl-report">如果你玩到的是「<span class="pl-hl">倒卖或二传</span>」<br>的链接</div>
         <div class="pl-text pl-report2">请举报给我</div>
-        <div class="pl-text pl-warn">我不允许任何形式的照搬、<br>扒源码、倒卖<br>不要盗取我的新血</div>
+        <div class="pl-text pl-warn">我不允许任何形式的照搬、<br>扒源码、倒卖<br>不要盗取我的心血</div>
       </div>`;
     document.body.appendChild(layer);
     const fill = document.getElementById('plFill');
