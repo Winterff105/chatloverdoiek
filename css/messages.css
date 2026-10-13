@@ -4351,7 +4351,7 @@
 /* ---------------- API 报错弹窗：半透明白遮罩 + 浅灰标题 + 白色邮票边内容 ---------------- */
 @keyframes mqFadeIn { from { opacity:0; } to { opacity:1; } }
 .messages-app .api-err-mask{ position:absolute; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center; padding:24px; box-sizing:border-box; background:rgba(255,255,255,0.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); animation:mqFadeIn .2s ease; }
-.messages-app .api-err-box{ width:100%; max-width:320px; box-sizing:border-box; padding:16px; display:flex; flex-direction:column; align-items:center; gap:12px; background:rgba(0,0,0,0.035); border:1px solid rgba(0,0,0,0.06); border-radius:18px; -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); filter:drop-shadow(0 8px 22px rgba(0,0,0,0.12)); }
+.messages-app .api-err-box{ width:100%; max-width:320px; box-sizing:border-box; padding:16px; display:flex; flex-direction:column; align-items:center; gap:12px; background:rgba(0,0,0,0.0175); border:1px solid rgba(0,0,0,0.03); border-radius:18px; -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); filter:drop-shadow(0 8px 22px rgba(0,0,0,0.12)); }
 .messages-app .api-err-title{ border:0; border-radius:999px; background:#FFFFFF; color:#111; font-size:13px; font-weight:600; line-height:1; padding:9px 22px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
 .messages-app .api-err-stamp{
   --n:6px; width:100%; box-sizing:border-box; padding:16px; background:#FFFFFF;
@@ -4380,3 +4380,41 @@
 }
 .messages-app .quick-menu.show{ height: 104px; }
 .messages-app .quick-menu .quick-item{ justify-self: center; }
+
+/* ---------------- 确认弹窗：取消 / 确定 两个按钮大小一致 ---------------- */
+.messages-app .pop-actions > button{ flex:1 1 0; min-width:0; height:44px !important; margin:0 !important; border:0 !important; border-radius:16px !important; padding:0 !important; display:flex; align-items:center; justify-content:center; font-family:inherit !important; font-size:14px !important; font-weight:650 !important; letter-spacing:0 !important; text-transform:none !important; box-sizing:border-box; cursor:pointer; }
+.messages-app .pop-actions > .identity-cancel{ background:#E8E8E8 !important; color:#111 !important; }
+.messages-app .pop-actions > .cid-btn{ background:#111 !important; color:#fff !important; }
+
+/* ---------------- 输入框菜单：5 个选项一排，不再横向滚动 ---------------- */
+.messages-app .quick-menu{ grid-template-columns:repeat(5, minmax(0,1fr)); grid-auto-flow:row; grid-auto-columns:auto; overflow:hidden; justify-items:center; align-items:start; padding:12px 14px; }
+.messages-app .quick-menu .quick-item{ gap:6px; font-size:10.5px; }
+.messages-app .quick-menu .quick-item svg{ width:46px; height:46px; padding:13px; }
+
+/* ---------------- 顶栏带名字头像的胶囊：右边缩短 ---------------- */
+.messages-app .head-capsule{ flex:0 1 auto; width:auto; }
+
+/* ---------------- 顶栏花边（同大天使：白色扇贝，极浅灰边） ---------------- */
+.messages-app .chat-head{ position:relative; }
+.messages-app .chat-head::after{
+  content:""; position:absolute; left:0; right:0; bottom:-7px; height:7px; z-index:0; pointer-events:none;
+  background:
+    linear-gradient(#FFFFFF, #FFFFFF) 0 0 / 100% 3px no-repeat,
+    radial-gradient(circle at 50% 0, #FFFFFF 5.4px, transparent 6px) 0 0 / 14px 7px repeat-x,
+    radial-gradient(circle at 50% 0, rgba(0,0,0,0.06) 6.2px, transparent 6.8px) 0 0 / 14px 7px repeat-x;
+}
+/* ---------------- 聊天室输入框顶部花边（只在聊天室输入框上） ---------------- */
+.messages-app #chatView .composer::before{
+  content:""; position:absolute; left:0; right:0; top:-7px; height:7px; z-index:0; pointer-events:none;
+  background:
+    linear-gradient(#FFFFFF, #FFFFFF) 0 100% / 100% 3px no-repeat,
+    radial-gradient(circle at 50% 100%, #FFFFFF 5.4px, transparent 6px) 0 0 / 14px 7px repeat-x,
+    radial-gradient(circle at 50% 100%, rgba(0,0,0,0.06) 6.2px, transparent 6.8px) 0 0 / 14px 7px repeat-x;
+}
+/* ---------------- 聊天室顶栏：设置按钮放到右上角；名字头像胶囊半透明 ---------------- */
+.messages-app .chat-head .gear-btn{ margin-left:auto; flex:none; }
+.messages-app .head-capsule{ background:transparent !important; border:0 !important; box-shadow:none !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
+
+/* ---------------- 顶栏 / 输入框：纯白实底，花边下面有填充 ---------------- */
+.messages-app #chatView .chat-head{ background:#FFFFFF !important; }
+.messages-app #chatView .composer{ background:#FFFFFF !important; }
