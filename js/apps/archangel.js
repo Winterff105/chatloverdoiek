@@ -294,6 +294,7 @@
         function fileTreeHTML(files){
           const groups=new Map();
           (files||[]).forEach(f=>{
+            if(f.folder){if(!groups.has(f.name))groups.set(f.name,[]);return}
             const i=f.name.lastIndexOf('/');
             const dir=i>=0?f.name.slice(0,i):'';
             const base=f.name.slice(i+1);
@@ -308,7 +309,7 @@
         function fileCardHTML(mid,files){
           const list=files||[];
           const names=list.slice(0,3).map(f=>esc(f.name)).join('、')+(list.length>3?` 等 ${list.length} 个`:'');
-          return `<div class="fc-wrap"><button type="button" class="file-card" data-mid="${escA(mid)}"><span class="fc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h6.5L18 8v12.5H7z"/><path d="M13.5 3.5V8H18"/></svg></span><span class="fc-main"><b>下载 zip</b><small>${names}</small></span><span class="fc-go" aria-hidden="true">↓</span></button><div class="fc-tree">${fileTreeHTML(list)}</div></div>`;
+          return `<div class="fc-wrap"><div class="file-card" data-mid="${escA(mid)}"><span class="fc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4.2l1.8 2H19a1.5 1.5 0 0 1 1.5 1.5V18A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z"/></svg></span><span class="fc-main"><b>保存为文件夹</b><small>${names}</small></span><button type="button" class="fc-alt">逐个下载</button></div><div class="fc-tree">${fileTreeHTML(list)}</div></div>`;
         }
         const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
         function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC_T[(c^b[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
@@ -316,7 +317,8 @@
           const enc=new TextEncoder(),parts=[],central=[];let offset=0;
           const u16=v=>[v&255,(v>>>8)&255],u32=v=>[v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255];
           files.forEach(f=>{
-            const name=enc.encode(f.name),data=enc.encode(f.content),crc=crc32(data);
+            const dirName=f.folder?f.name+'/':f.name;
+            const name=enc.encode(dirName),data=enc.encode(f.folder?'':f.content),crc=crc32(data);
             const local=new Uint8Array([...u32(0x04034b50),...u16(20),...u16(0x0800),...u16(0),...u16(0),...u16(0x21),...u32(crc),...u32(data.length),...u32(data.length),...u16(name.length),...u16(0)]);
             parts.push(local,name,data);
             central.push({name,crc,size:data.length,offset});
@@ -378,7 +380,8 @@
             const nlen=dv.getUint16(p+28,true),xlen=dv.getUint16(p+30,true),clen=dv.getUint16(p+32,true),lho=dv.getUint32(p+42,true);
             const name=dec.decode(u8.subarray(p+46,p+46+nlen));
             p+=46+nlen+xlen+clen;
-            if(name.endsWith('/')||usize>200*1024)continue;
+            if(name.endsWith('/')){if(out.length<60)out.push({name:name.replace(/\/+$/,'').replace(/\\/g,'/'),content:'',folder:true});continue}
+            if(usize>200*1024)continue;
             const start=lho+30+dv.getUint16(lho+26,true)+dv.getUint16(lho+28,true);
             const raw=u8.subarray(start,start+csize);
             let data;
@@ -391,6 +394,38 @@
             out.push({name:name.replace(/\\/g,'/'),content:dec.decode(data)});
           }
           return out;
+        }
+        function cleanOutFile(f){
+          const raw=String(f.name||'file.txt').replace(/\\/g,'/');
+          const folder=f.type==='folder'||/\/$/.test(raw);
+          const name=raw.replace(/^\/+/,'').split('/').filter(x=>x&&x!=='..').join('/')||(folder?'folder':'file.txt');
+          return folder?{name,content:'',folder:true}:{name,content:String(f.content)};
+        }
+        function eachDownload(files){
+          files.forEach(f=>{
+            const url=URL.createObjectURL(new Blob([f.content],{type:'text/plain;charset=utf-8'}));
+            const a=document.createElement('a');a.href=url;a.download=f.name.replace(/\//g,'_');
+            document.body.appendChild(a);a.click();a.remove();
+            setTimeout(()=>URL.revokeObjectURL(url),4000);
+          });
+        }
+        async function saveFolder(files){
+          if(typeof window.showDirectoryPicker!=='function'){
+            eachDownload(files);
+            toast('这个浏览器不能直接保存文件夹（手机上通常也不行），已改为逐个下载');
+            return;
+          }
+          try{
+            const root=await window.showDirectoryPicker({mode:'readwrite'});
+            for(const f of files){
+              const parts=f.name.split('/').filter(Boolean),fname=parts.pop()||'file.txt';
+              let dir=root;
+              for(const p of parts)dir=await dir.getDirectoryHandle(p,{create:true});
+              const fh=await dir.getFileHandle(fname,{create:true});
+              const w=await fh.createWritable();await w.write(f.content);await w.close();
+            }
+            toast(`已保存 ${files.length} 个文件到文件夹`);
+          }catch(e){if(e&&e.name==='AbortError')return;toast('保存文件夹失败：'+(e.message||e))}
         }
         function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
         function stepsHTML(steps){
@@ -824,7 +859,7 @@
             short
               ?'reply 必须是数组，模拟真人连发微信：每一条只写一句话，每条不超过 30 个字，通常 1 到 4 条。不要把长段落塞进一条里，也不要使用代码块。'
               :'reply：你真正要发给用户的话，语气遵循上面的角色设定。',
-            'files：如果用户要你做文件（代码、文档、笔记、表格内容等），把它们放进 files，格式是 [{"name":"文件名或相对路径","content":"完整的文件内容"}]，每个文件都要写完整；不需要做文件时保持 []。reply 里只写给用户看的话，文件内容不要重复写进 reply。'
+            'files：如果用户要你做文件夹，就加一项 {"name":"文件夹名/","type":"folder"}，文件夹里的文件用“文件夹名/文件名”作为 name；如果用户要你做文件（代码、文档、笔记、表格内容等），把它们放进 files，格式是 [{"name":"文件名或相对路径","content":"完整的文件内容"}]，每个文件都要写完整；不需要做文件时保持 []。reply 里只写给用户看的话，文件内容不要重复写进 reply。'
           ];
         }
         function recordSystem(text){
@@ -934,10 +969,10 @@
             ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
             }));
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：如果用户只是聊天、问问题、或者要你直接把文件发给他（不需要动仓库），就写 chat：这时直接在 reply 里写给用户的回复，需要给他的文件放进 outFiles。用户想看、想了解仓库里的东西就写 read；要你新建一个文件并上传到仓库就写 create；要改、加、删、修现有文件就写 edit。','uploadFiles：用户想把之前附带的文件上传到仓库时，把文件名放进这里（只能从“用户附带过的文件”里选，没有就空数组）。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：如果用户只是聊天、问问题、或者要你直接把文件发给他（不需要动仓库），就写 chat：这时直接在 reply 里写给用户的回复，需要给他的文件放进 outFiles。用户想看、想了解仓库里的东西就写 read；要你新建一个文件并上传到仓库就写 create；要改、加、删、修现有文件就写 edit。','uploadFiles：用户想把之前附带的文件上传到仓库时，把文件名放进这里（只能从“用户附带过的文件”里选，没有就空数组）。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
             if(sel.intent==='chat'){
               const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
-              const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&typeof f.content==='string').map(f=>({name:String(f.name||'file.txt').replace(/\\/g,'/').replace(/^\/+/,'').split('/').filter(x=>x&&x!=='..').join('/')||'file.txt',content:f.content})).slice(0,30);
+              const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
               const parts=rp.length?rp:['（这次没有回复内容）'];
               d();
               tp.textContent=sel.thinking||'（这次回复没有返回思维链）';
@@ -1212,7 +1247,8 @@
           const c=e.target.closest&&e.target.closest('.file-card');
           if(!c)return;
           const m=msgById(c.dataset.mid);
-          if(m&&m.files&&m.files.length)downloadZip(m.files);
+          if(!m||!m.files||!m.files.length)return;
+          if(e.target.closest('.fc-alt'))eachDownload(m.files);else saveFolder(m.files);
         });
 
         host.querySelector('#ar-tokHelp').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();fadeSheet(host.querySelector('#ar-tokGuide'),true)});
@@ -1397,7 +1433,7 @@
               if(Array.isArray(o.steps))steps=toList(o.steps,4,20);
               if(Array.isArray(o.files)){
                 const cn=n=>String(n||'').replace(/\\/g,'/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('/').slice(0,120)||'file.txt';
-                files=o.files.filter(f=>f&&typeof f.content==='string').map(f=>({name:cn(f.name),content:f.content})).slice(0,30);
+                files=o.files.filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
               }
               if(o.reply!==undefined){
                 const p=toList(o.reply,6,2000);
