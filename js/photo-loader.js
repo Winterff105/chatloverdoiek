@@ -33,7 +33,7 @@
       <div class="pl-stage" id="plStage">
         <img class="pl-bg" src="${BG}" alt="">
         <div class="pl-progress"><div class="pl-fill" id="plFill"></div></div>
-        <div class="pl-dots" aria-hidden="true"><i></i><i></i></div>
+        <div class="pl-dots pl-dots--c" aria-hidden="true"><i></i><i></i></div>
         <div class="pl-text pl-title">WHATEVERCHAT</div>
         <div class="pl-text pl-author">†正牌作者「<span class="pl-hl">@26443012097</span>」<br>（xhs）†</div>
         <div class="pl-text pl-report">如果你玩到的是「<span class="pl-hl">倒卖或二传</span>」<br>的链接</div>
