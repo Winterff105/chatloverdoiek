@@ -442,12 +442,17 @@
               const inner=await readZip(u8.buffer);
               inner.forEach(x=>out.push({name:x.name,content:x.content}));
               if(!zipRaw)zipRaw={name:f.name,data:b64};
-            }catch(e){}
+            }catch(e){
+              // the model wrote the package's content as plain text: put that text into a real zip
+              const text={name:(String(f.name).replace(/\.zip$/i,'')||'file')+'.txt',content:String(f.content||'')};
+              out.push(text);
+              if(!zipRaw)zipRaw={name:f.name,files:[text]};
+            }
           }
           return {files:out.slice(0,60),zipRaw};
         }
         function downloadRaw(z){
-          const url=URL.createObjectURL(new Blob([b64Bytes(z.data)],{type:'application/zip'}));
+          const url=URL.createObjectURL(new Blob([z.data?b64Bytes(z.data):makeZip(z.files||[])],{type:'application/zip'}));
           const a=document.createElement('a');a.href=url;a.download=z.name||'files.zip';
           document.body.appendChild(a);a.click();a.remove();
           setTimeout(()=>URL.revokeObjectURL(url),4000);
@@ -1463,9 +1468,9 @@
               if(!thinking&&typeof o.thinking==='string')thinking=o.thinking.trim();
               if(Array.isArray(o.steps))steps=toList(o.steps,4,20);
               if(typeof o.pack==='string')pack=o.pack.trim();
-              if(Array.isArray(o.files)){
+              if(Array.isArray(o.files)||Array.isArray(o.outFiles)){
                 const cn=n=>String(n||'').replace(/\\/g,'/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('/').slice(0,120)||'file.txt';
-                files=o.files.filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
+                files=[...(Array.isArray(o.files)?o.files:[]),...(Array.isArray(o.outFiles)?o.outFiles:[])].filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
               }
               if(o.reply!==undefined){
                 const p=toList(o.reply,6,2000);

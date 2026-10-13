@@ -109,7 +109,7 @@
 .archangel-app.sel #ar-selbar {display:flex;animation:ar-fade .3s}
 .archangel-app #ar-selbar button {margin-left:8px}
 .archangel-app #ar-seldel {color:#c4002b!important}
-.archangel-app .editing .bubble {outline:2px solid #aab3bf;outline-offset:1px;background:#fff}
+.archangel-app .editing .bubble {outline:2px solid #d3d9e1;outline-offset:1px;background:#fff}
 .archangel-app .edone {white-space:nowrap;margin:6px 44px 0 0;height:28px;padding:0 16px;border:0;border-radius:99px;color:#5d6670;font-size:13px;font-weight:600;background:rgba(255,255,255,.8);box-shadow:0 6px 14px rgba(130,140,155,.2)}
 .archangel-app .sidebar-backdrop {display:none}
 @media(max-width:900px) {
@@ -491,7 +491,7 @@
 
 /* ===== 照片、AI 气泡的编辑状态、设置里的名字输入框 ===== */
 .archangel-app .pimg{display:block;max-width:150px;max-height:150px;border-radius:14px;margin:4px 0 0 auto;box-shadow:0 4px 12px rgba(125,135,149,.16)}
-.archangel-app .arow.editing .abody{outline:2px solid #aab3bf;outline-offset:2px;background:#fff}
+.archangel-app .arow.editing .abody{outline:2px solid #d3d9e1;outline-offset:2px;background:#fff}
 .archangel-app .arow .edone{margin:6px 0 0 70px}
 
 /* ===== 设置里的名字：我的头像右边一个小胶囊，不占布局 ===== */
@@ -636,4 +636,11 @@
 
 /* ===== 气泡文字：单独的可编辑小段，小尾巴图片留在外面 ===== */
 .archangel-app .bubble .btxt{display:inline;white-space:pre-wrap}
+
+/* ===== 编辑文字时：浅灰色的框，代替浏览器默认的黑色焦点框 ===== */
+.archangel-app .btxt:focus,
+.archangel-app .abody:focus,
+.archangel-app .bubble .btxt[contenteditable="true"],
+.archangel-app .abody[contenteditable="true"]{outline:2px solid #d3d9e1;outline-offset:3px;border-radius:6px}
+.archangel-app .arow.editing .abody{outline:2px solid #d3d9e1;outline-offset:3px}
 
