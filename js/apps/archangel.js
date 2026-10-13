@@ -355,7 +355,7 @@
             need(g);
             for(const f of ch){
               if(f.uploaded)continue;
-              btn.textContent='正在上传：'+f.path;
+              btn.textContent='上传中：'+f.path;
               const r=await req(cu(g,f.path),{method:'PUT',headers:gh(g,true),body:JSON.stringify({message:`Update ${f.path} from Archangel AI`,content:b64(f.edit),branch:g.branch,sha:f.sha})});
               if(!r.ok)throw new Error(`上传 ${f.path} 失败（${r.status}）：${await err(r)}。${ghHint(r.status)}`);
               const j=await r.json();f.sha=(j.content&&j.content.sha)||f.sha;f.uploaded=true;
@@ -367,7 +367,7 @@
             }
             btn.textContent='已全部上传';toast('已上传到 GitHub');
             recordSystem('已上传到 GitHub：'+ch.map(f=>f.path).join('、'));
-          }catch(e){btn.disabled=false;btn.textContent='上传失败，点击重试';toast(e.message);explainError('上传失败：'+e.message)}
+          }catch(e){btn.disabled=false;btn.textContent='重试上传';toast(e.message);explainError('上传失败：'+e.message)}
         }
         async function readZip(buf){
           const u8=new Uint8Array(buf),dv=new DataView(buf);
@@ -458,19 +458,7 @@
           document.body.appendChild(a);a.click();a.remove();
           setTimeout(()=>URL.revokeObjectURL(url),4000);
         }
-        function bodyHTML(parts){
-          return (parts||[]).map(p=>{
-            const text=String(p??'');
-            const lines=text.split('\n');
-            const first=(lines.find(x=>x.trim())||'模块内容').trim().replace(/^#+\s*/, '').replace(/^[*#>\s]+/, '');
-            const moduleLike=/(?:模块|module|文件内容|代码片段|代码模块|```|<script\b|<style\b|\bfunction\s+[$\w]+|\b(?:const|let|class|export)\s+[$\w]+)/i.test(text) && (text.includes('\n')||text.length>180);
-            if(moduleLike){
-              const label=first.length>42?first.slice(0,42)+'…':first;
-              return `<details class="abody out-module"><summary><span class="out-module-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8 8h8M8 11.5h8M8 15h5"/></svg></span><span class="out-module-title">${esc(label||'模块内容')}</span><span class="out-module-hint">展开查看</span></summary><div class="out-module-content">${esc(text)}</div></details>`;
-            }
-            return `<div class="abody">${esc(text)}</div>`;
-          }).join('');
-        }
+        function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
         const FIXED_STEPS=['PARSE_REQUEST','SELECT_FILES','READ_CONTENT','BUILD_CHANGES'];
         function stepLettersHTML(value){return [...String(value??'')].map(ch=>`<i class="step-letter">${esc(ch)}</i>`).join('')}
         function stepsHTML(steps){
@@ -803,7 +791,7 @@
           input.placeholder=DEFAULT_PLACEHOLDER;renderUpPanel();
           addUser(value||'（见附件）',true,newMid(),att);
         }
-        const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'};
+        const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'},LIM=60000;
         const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}};
         const G=()=>({token:$('#ar-gToken').value.trim(),owner:$('#ar-gOwner').value.trim(),repo:$('#ar-gRepo').value.trim(),branch:$('#ar-gBranch').value.trim()||'main'});
         const A=()=>{if(localStorage.getItem('archangel.api.source')==='inherit'){const f=ld0('forever_settings_active_api_v1');return {base:String(f.url||'').replace(/\/+$/,''),key:String(f.key||'').trim(),model:localStorage.getItem('archangel.api.inheritModel')||String(f.model||'')}}return {base:$('#ar-aBase').value.trim().replace(/\/+$/,''),key:$('#ar-aKey').value.trim(),model:$('#ar-aModel').value}};
@@ -918,7 +906,7 @@
             '【短消息模式】',
             '当前为短消息交互模式：reply 内容保持简短精炼，贴合即时聊天习惯，单句发送，不做长篇大论，不带代码块。'
           ]:[];
-          return ['【基础设定】',DEFAULT_ANGEL_PROMPT,...(p?['【角色设定】',p]:[]),...shortLines,'【仓库上传安全规则】除非程序已经显示 GitHub 修改预览卡片并且用户点击“确认修改，一起上传到 GitHub”，否则绝不能说“已上传/已提交/已保存到仓库”。仅生成代码、写出文件内容或口头承诺都不代表上传成功。用户要求上传仓库文件时，提醒其使用底栏“调取”生成可确认的修改卡片。','（角色语气只用于 reply 字段；files 和 JSON 结构保持不变。）'];
+          return ['【基础设定】',DEFAULT_ANGEL_PROMPT,...(p?['【角色设定】',p]:[]),...shortLines,'（角色语气只用于 reply 字段；files 和 JSON 结构保持不变。）'];
         }
         function chatFormatLines(){
           const short=uiCfg().short==='on';
@@ -999,7 +987,7 @@
           };
           const showConfirm=(ch,fullReply,thinking)=>{
 
-              say(`<div class="abody">${esc(fullReply)}</div><div class="cards"></div><button type="button" class="confirm confirm-h">确认修改，一起上传到 GitHub</button>`);
+              say(`<div class="abody">${esc(fullReply)}</div><div class="cards"></div><div class="confirm-note">请检查下方文件改动；在你点击确认之前，不会上传到 GitHub。</div><button type="button" class="confirm">确认修改，一起上传到 GitHub</button>`);
               commit(fullReply,thinking);
             const cm=msgById(box.dataset.mid);if(cm){cm.changes=ch.map(f=>({path:f.path,edit:f.edit,sha:f.sha,why:f.why,lines:f.lines,uploaded:false}));saveCurrentConversation()}
 
@@ -1008,15 +996,17 @@
                 const k=f.lines.filter(l=>l[0]=='+').length;
                 w.innerHTML=`<button class="card"><b>${esc(f.path)}</b><em>${esc(f.why)}</em><i>${k} 行新增</i></button><div class="fdiff"><div><div class="diff">${f.lines.map(([t,x])=>`<div class="ln ${t=='-'?'del':t=='+'?'add':''}"><span>${t=='-'?'−':t=='+'?'+':''}</span><code>${esc(x)}</code></div>`).join('')}</div></div></div>`;
                 w.querySelector('.card').onclick=()=>w.classList.toggle('open');cards.appendChild(w);f.w=w});
+              const btn=box.querySelector('.confirm');
+              btn.onclick=()=>uploadChanges(ch,btn,box.dataset.mid);
               scroll();
           };
-          const asksRepoWrite=/上传|传到仓库|推送到 ?GitHub|提交到 ?GitHub|保存到仓库|写入仓库|覆盖仓库/.test(text);
+          const wantsRepoChange=/(上传|推送|提交|写入|保存到仓库|传到仓库|github|仓库里|仓库文件|修改文件|改一下|修复|新增文件|新建文件|删除文件|改代码|修改代码)/i.test(text);
           const hasRepo=modeCfg().mode!=='healer'&&(()=>{const g=G();return !!(g.token&&g.owner&&g.repo&&modeCfg().mode!=='healer')})();
-          if(!hasRepo&&asksRepoWrite){
-            const notice='我还没有生成修改卡片，也没有上传。当前没有检测到可写入的 GitHub 仓库连接；请先检查仓库设置里的 Token、Owner 和 Repo，再重新点“调取”。连接成功后，我会先显示文件路径和差异卡片，只有你点击“确认修改，一起上传到 GitHub”才会真正写入仓库。';
-            tp.textContent='等待仓库连接';
-            say(bodyHTML([notice]));
-            commit([notice],'仓库连接未就绪，未执行上传。');
+          if(!hasRepo&&wantsRepoChange){
+            const warning='这次还没有生成上传确认卡片，因为当前没有可用的 GitHub 仓库连接，或当前模式不支持仓库修改。请先切换到工作/辅助模式并检查仓库设置。现在没有上传任何文件。';
+            tp.textContent='仓库连接检查未通过';
+            say(`<div class="abody sys">${esc(warning)}</div>`);
+            commit(warning,'仓库连接未就绪，未执行上传。');
             stopMeta();busy=false;return;
           }
           if(!hasRepo){
@@ -1050,11 +1040,8 @@
             ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
             }));
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。重要：你绝不能声称已经上传、已提交或已保存到 GitHub；模型本身没有上传权限。所有仓库写入都必须先生成修改预览卡片，列出文件路径和差异，并显示“确认修改，一起上传到 GitHub”按钮。只有用户点击这个确认按钮后，程序才可以调用 GitHub 写入接口。若没有生成文件差异或确认卡片，必须明确告诉用户尚未上传，并引导用户点击底栏“调取”重新处理；不得用普通文字冒充上传成功。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
-            if(sel.intent==='chat'&&asksRepoWrite){
-              // 用户明确要求写入仓库时，不允许模型把请求误判成普通聊天并口头宣称已上传。
-              sel.intent=attachCands.length?'create':'edit';
-            }
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。只负责生成待上传方案，绝不能声称已经上传；只要用户要求改动或上传仓库文件，就必须返回 edit 或 create，不能返回 chat，也绝不能叫用户再次点击底栏调取。上传必须等用户点击确认卡片。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            if(wantsRepoChange && ['chat','read'].includes(sel.intent)) sel.intent=/(新建|新增|添加文件|上传新文件|创建文件夹)/.test(text)?'create':'edit';
             if(sel.intent==='chat'){
               const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
               const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
@@ -1095,7 +1082,7 @@
             if(!pick.length&&sel.intent!=='create')throw new Error('仓库里没有可以读取的文本文件');
             d(pick.length+' FILES');d=step(2,LBL[2]);
             const got=[];
-            for(const f of pick){try{const x=await getFile(f.path);got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
+            for(const f of pick){try{const x=await getFile(f.path);if(x.orig.length>LIM){tp.textContent+=`\n（${f.path} 过大，已跳过）`;continue}got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
             if(!got.length&&sel.intent!=='create')throw new Error('相关文件读取失败或过大，无法安全修改');
             d(got.length+' FILES');
             if(sel.intent==='read'){
