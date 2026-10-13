@@ -4578,6 +4578,12 @@ function refreshChatBadge() {
 function deleteMoment(id) {
     askConfirm('删除朋友圈', '删除这条朋友圈？', '删除', async () => {
         const p = POSTS.find(x => x.id === id);
+        if (p) {
+            // 告诉能看到这条朋友圈的角色：用户已删除
+            const excerpt = (p.text || '').trim().slice(0, 20) || '一张照片';
+            CONTACTS.filter(x => momentVisibleTo(p, x)).forEach(x => addCommonMemory(x, `{user}删除了自己的朋友圈（${excerpt}）`));
+            persistContacts();
+        }
         if (p && p.imgs && window.DB) { for (const k of p.imgs) await window.DB.remove(k); }
         POSTS = POSTS.filter(x => x.id !== id);
         persistMoments(); renderMoments();

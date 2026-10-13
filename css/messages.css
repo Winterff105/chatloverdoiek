@@ -4305,7 +4305,7 @@
 .messages-app .mq-thought.mq-on{opacity:1}
 .messages-app .mq-thought.mq-fade{opacity:0}
 .messages-app .mq-pill{position:relative;flex-shrink:0;width:72px;height:30px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 12px rgba(0,0,0,.05);font-size:12px;font-weight:600;color:#161616;white-space:nowrap;transition:width .55s cubic-bezier(.2,.8,.2,1),height .55s cubic-bezier(.2,.8,.2,1),transform .55s cubic-bezier(.2,.8,.2,1),background .3s ease,color .3s ease,box-shadow .3s ease,border-color .3s ease}
-.messages-app .mq-thought.mq-done .mq-pill{width:227px;height:40px;transform:translateX(-63.5px);background:#FCEAF1;color:#A3345E;border-color:transparent;box-shadow:none}
+.messages-app .mq-thought.mq-done .mq-pill{width:222px;height:40px;transform:translateX(-61px);background:#FCEAF1;color:#A3345E;border-color:transparent;box-shadow:none}
 .messages-app .mq-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .2s ease}
 .messages-app .mq-rest{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-start;padding-left:27px;gap:10px;opacity:0;transition:opacity .25s ease .35s}
 .messages-app .mq-thought.mq-done .mq-wait{opacity:0}
@@ -4323,7 +4323,7 @@
 .messages-app .mq-sa.mq-lead .av{width:34px;height:34px;font-size:13px}
 .messages-app .mq-sa.mq-bk::after{content:"";position:absolute;inset:0;border-radius:6px;background:rgba(120,120,120,var(--m,.5));pointer-events:none}
 .messages-app .mq-nmsg{font-size:12px;font-weight:600;color:#A3345E;white-space:nowrap;background:#fff;border-radius:999px;padding:4px 8px}
-.messages-app .mq-dot{flex-shrink:0;width:7px;height:7px;border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 1px 4px rgba(0,0,0,.05);transition:background .3s ease,box-shadow .3s ease}
+.messages-app .mq-dot{flex-shrink:0;width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 1px 4px rgba(0,0,0,.05);transition:background .3s ease,box-shadow .3s ease}
 .messages-app .mq-thought.mq-done .mq-dot{background:#FCEAF1;border-color:transparent;box-shadow:none}
 .messages-app .chat-head .glass-btn{position:relative}
 .messages-app .mq-cbadge{position:absolute;top:-2px;right:-2px;width:11px;height:11px;border-radius:50%;background:#FCEAF1;box-shadow:0 0 0 1px rgba(163,52,94,.2);display:none;pointer-events:none}
@@ -4351,7 +4351,7 @@
 /* ---------------- API 报错弹窗：半透明白遮罩 + 浅灰标题 + 白色邮票边内容 ---------------- */
 @keyframes mqFadeIn { from { opacity:0; } to { opacity:1; } }
 .messages-app .api-err-mask{ position:absolute; inset:0; z-index:99999; display:flex; align-items:center; justify-content:center; padding:24px; box-sizing:border-box; background:rgba(255,255,255,0.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); animation:mqFadeIn .2s ease; }
-.messages-app .api-err-box{ width:100%; max-width:320px; display:flex; flex-direction:column; align-items:center; gap:12px; filter:drop-shadow(0 8px 22px rgba(0,0,0,0.16)); }
+.messages-app .api-err-box{ width:100%; max-width:320px; box-sizing:border-box; padding:16px; display:flex; flex-direction:column; align-items:center; gap:12px; background:rgba(255,255,255,0.72); border:1px solid rgba(0,0,0,0.14); border-radius:8px; -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); filter:drop-shadow(0 8px 22px rgba(0,0,0,0.12)); }
 .messages-app .api-err-title{ border:0; border-radius:999px; background:#FFFFFF; color:#111; font-size:13px; font-weight:600; line-height:1; padding:9px 22px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
 .messages-app .api-err-stamp{
   --n:6px; width:100%; box-sizing:border-box; padding:16px; background:#FFFFFF;
