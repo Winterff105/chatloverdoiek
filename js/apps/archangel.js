@@ -430,6 +430,28 @@
             toast(`已保存 ${files.length} 个文件到文件夹`);
           }catch(e){if(e&&e.name==='AbortError')return;toast('保存文件夹失败：'+(e.message||e))}
         }
+        function b64Bytes(b64){const bin=atob(b64);return Uint8Array.from(bin,c=>c.charCodeAt(0))}
+        async function expandZips(list){
+          const out=[];let zipRaw=null;
+          for(const f of (list||[])){
+            if(!/\.zip$/i.test(String(f.name||''))){out.push(f);continue}
+            const b64=String(f.content||'').replace(/\s+/g,'');
+            try{
+              const u8=b64Bytes(b64);
+              if(u8[0]!==0x50||u8[1]!==0x4b)throw new Error('not zip');
+              const inner=await readZip(u8.buffer);
+              inner.forEach(x=>out.push({name:x.name,content:x.content}));
+              if(!zipRaw)zipRaw={name:f.name,data:b64};
+            }catch(e){}
+          }
+          return {files:out.slice(0,60),zipRaw};
+        }
+        function downloadRaw(z){
+          const url=URL.createObjectURL(new Blob([b64Bytes(z.data)],{type:'application/zip'}));
+          const a=document.createElement('a');a.href=url;a.download=z.name||'files.zip';
+          document.body.appendChild(a);a.click();a.remove();
+          setTimeout(()=>URL.revokeObjectURL(url),4000);
+        }
         function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
         function stepsHTML(steps){
           return (steps||[]).map((s,i)=>{
@@ -861,7 +883,7 @@
               ?'reply 必须是数组，模拟真人连发微信：每一条只写一句话，每条不超过 30 个字，通常 1 到 4 条。不要把长段落塞进一条里，也不要使用代码块。'
               :'reply：你真正要发给用户的话，语气遵循上面的角色设定。',
             'pack：files 里有多个文件时，用户要压缩包（zip）就写 "zip"，要文件夹就写 "folder"；没有文件就写空字符串。',
-            'files：如果用户要你做文件夹，就加一项 {"name":"文件夹名/","type":"folder"}，文件夹里的文件用“文件夹名/文件名”作为 name；如果用户要你做文件（代码、文档、笔记、表格内容等），把它们放进 files，格式是 [{"name":"文件名或相对路径","content":"完整的文件内容"}]，每个文件都要写完整；不需要做文件时保持 []。reply 里只写给用户看的话，文件内容不要重复写进 reply。不要把 zip 压缩包本身写进 files（压缩包由系统打包），files 里只放真正的文件，文件夹用路径里的 / 表示。'
+            'files：如果用户要你做文件夹，就加一项 {"name":"文件夹名/","type":"folder"}，文件夹里的文件用“文件夹名/文件名”作为 name；如果用户要你做文件（代码、文档、笔记、表格内容等），把它们放进 files，格式是 [{"name":"文件名或相对路径","content":"完整的文件内容"}]，每个文件都要写完整；不需要做文件时保持 []。reply 里只写给用户看的话，文件内容不要重复写进 reply。用户要 zip 压缩包时，把压缩包作为一个 .zip 文件放进 files，content 填它的 base64 内容；用户要文件夹或普通文件时，files 里只放真正的文件，文件夹用路径里的 / 表示。'
           ];
         }
         function recordSystem(text){
@@ -910,7 +932,7 @@
             s.innerHTML=`<svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[i]}</svg><span>${t}</span>`;
             steps.appendChild(s);scroll();return x=>{s.classList.add('done');if(x)s.querySelector('span').textContent=s.dataset.t+' · '+x}};
           const say=h=>{box.insertAdjacentHTML('beforeend',h);scroll()};
-          const commit=(reply,thinking,files,pack)=>{
+          const commit=(reply,thinking,files,pack,zipRaw)=>{
             const mid=newMid();
             box.dataset.mid=mid;
             const parts=(Array.isArray(reply)?reply:[reply]).map(x=>String(x??'')).filter(x=>x.trim());
@@ -920,7 +942,7 @@
               return {t:el.dataset.t||full,x:k>=0?full.slice(k+3):''};
             });
             if(!stepList.length){const mEl=box.querySelector('.ar-meta');if(mEl&&!mEl.querySelector('.ar-heart'))mEl.insertAdjacentHTML('beforeend',heartHTML())}
-            const msg={id:mid,role:'assistant',text:parts.join('\n'),parts,raw:runLog.map(x=>({label:x.label,raw:x.raw})),prompt:text,files:(files||[]).map(f=>({name:f.name,content:f.content})),pack:pack||'',thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
+            const msg={id:mid,role:'assistant',text:parts.join('\n'),parts,raw:runLog.map(x=>({label:x.label,raw:x.raw})),prompt:text,files:(files||[]).map(f=>({name:f.name,content:f.content})),pack:pack||'',zipRaw:zipRaw||null,thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
             if(files&&files.length)box.insertAdjacentHTML('beforeend',fileCardHTML(mid,files,pack));
             if(currentConversation){currentConversation.messages.push(msg);saveCurrentConversation()}
           };
@@ -953,7 +975,7 @@
               
               tp.textContent=out.thinking||'（这次回复没有返回思维链）';
               say(bodyHTML(out.parts));
-              commit(out.parts,out.thinking,out.files,out.pack);
+              commit(out.parts,out.thinking,out.files,out.pack,out.zipRaw);
             }catch(e){
               box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
               toast(e.message);restore();await explainError(e.message);
@@ -974,12 +996,12 @@
             const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。你可以直接替用户上传，绝对不要让用户自己去上传。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
             if(sel.intent==='chat'){
               const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
-              const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&!/\.zip$/i.test(String(f.name||''))&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
+              const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
               const parts=rp.length?rp:['（这次没有回复内容）'];
               d();
               tp.textContent=sel.thinking||'（这次回复没有返回思维链）';
               say(bodyHTML(parts));
-              commit(parts,sel.thinking,outFs,sel.pack);
+              const exo=await expandZips(outFs);commit(parts,sel.thinking,exo.files,exo.zipRaw?'zip':sel.pack,exo.zipRaw);
               stopMeta();busy=false;return;
             }
             tp.textContent=sel.thinking||'已完成分析。';
@@ -1257,7 +1279,7 @@
           if(!c)return;
           const m=msgById(c.dataset.mid);
           if(!m||!m.files||!m.files.length)return;
-          if(e.target.closest('.fc-alt'))eachDownload(m.files);else if(c.dataset.kind==='zip')downloadZip(m.files);else saveFolder(m.files);
+          if(e.target.closest('.fc-alt'))eachDownload(m.files);else if(c.dataset.kind==='zip'){if(m.zipRaw)downloadRaw(m.zipRaw);else downloadZip(m.files)}else saveFolder(m.files);
         });
 
         host.querySelector('#ar-tokHelp').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();fadeSheet(host.querySelector('#ar-tokGuide'),true)});
@@ -1443,7 +1465,7 @@
               if(typeof o.pack==='string')pack=o.pack.trim();
               if(Array.isArray(o.files)){
                 const cn=n=>String(n||'').replace(/\\/g,'/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('/').slice(0,120)||'file.txt';
-                files=o.files.filter(f=>f&&!/\.zip$/i.test(String(f.name||''))&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
+                files=o.files.filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
               }
               if(o.reply!==undefined){
                 const p=toList(o.reply,6,2000);
@@ -1456,7 +1478,8 @@
             const lines=short?t.split(/\n+/).map(x=>x.trim()).filter(Boolean).slice(0,6):[];
             parts=lines.length>1?lines:[t||'（模型没有返回内容）'];
           }
-          return {thinking,steps,parts,files,pack};
+          const ex=await expandZips(files);
+          return {thinking,steps,parts,files:ex.files,pack:ex.zipRaw?'zip':pack,zipRaw:ex.zipRaw};
         }
 
     };
