@@ -861,7 +861,7 @@
               ?'reply 必须是数组，模拟真人连发微信：每一条只写一句话，每条不超过 30 个字，通常 1 到 4 条。不要把长段落塞进一条里，也不要使用代码块。'
               :'reply：你真正要发给用户的话，语气遵循上面的角色设定。',
             'pack：files 里有多个文件时，用户要压缩包（zip）就写 "zip"，要文件夹就写 "folder"；没有文件就写空字符串。',
-            'files：如果用户要你做文件夹，就加一项 {"name":"文件夹名/","type":"folder"}，文件夹里的文件用“文件夹名/文件名”作为 name；如果用户要你做文件（代码、文档、笔记、表格内容等），把它们放进 files，格式是 [{"name":"文件名或相对路径","content":"完整的文件内容"}]，每个文件都要写完整；不需要做文件时保持 []。reply 里只写给用户看的话，文件内容不要重复写进 reply。'
+            'files：如果用户要你做文件夹，就加一项 {"name":"文件夹名/","type":"folder"}，文件夹里的文件用“文件夹名/文件名”作为 name；如果用户要你做文件（代码、文档、笔记、表格内容等），把它们放进 files，格式是 [{"name":"文件名或相对路径","content":"完整的文件内容"}]，每个文件都要写完整；不需要做文件时保持 []。reply 里只写给用户看的话，文件内容不要重复写进 reply。不要把 zip 压缩包本身写进 files（压缩包由系统打包），files 里只放真正的文件，文件夹用路径里的 / 表示。'
           ];
         }
         function recordSystem(text){
@@ -974,7 +974,7 @@
             const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。你可以直接替用户上传，绝对不要让用户自己去上传。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
             if(sel.intent==='chat'){
               const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
-              const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
+              const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&!/\.zip$/i.test(String(f.name||''))&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
               const parts=rp.length?rp:['（这次没有回复内容）'];
               d();
               tp.textContent=sel.thinking||'（这次回复没有返回思维链）';
@@ -1443,7 +1443,7 @@
               if(typeof o.pack==='string')pack=o.pack.trim();
               if(Array.isArray(o.files)){
                 const cn=n=>String(n||'').replace(/\\/g,'/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('/').slice(0,120)||'file.txt';
-                files=o.files.filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
+                files=o.files.filter(f=>f&&!/\.zip$/i.test(String(f.name||''))&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
               }
               if(o.reply!==undefined){
                 const p=toList(o.reply,6,2000);
