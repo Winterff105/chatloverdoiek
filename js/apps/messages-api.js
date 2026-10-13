@@ -237,6 +237,40 @@
     return { like: o.like === true || o.like === 'true', comment: String(o.comment || '').trim().slice(0, 120) };
   }
 
+  /* 朋友圈调取：结合人设、关系、记忆和该联系人最近的聊天，只回一个词 */
+  async function momentWordReply(contact, post, recentMsgs) {
+    const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
+    const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
+    const memBlock = buildMemBlock(contact.memories || [], fillU);
+    const userName = window.MESSAGES_USER_NAME || 'user';
+    const ctx = (recentMsgs || []).map(m => `${m.me ? userName : contact.name}：${m.text}`).join('\n') || '（暂无聊天记录）';
+    const system = [
+      ROLEPLAY_PROMPT,
+      memBlock,
+      contact.name ? `你的名字：${contact.name}` : '',
+      contact.persona ? `联系人设定：${contact.persona}` : '',
+      contact.relation ? `与用户的关系：${contact.relation}` : '',
+      '【朋友圈调取】',
+      '你看到了用户刚发的一条朋友圈。请结合你的性格、与用户的关系、记忆和你们最近的聊天，决定要不要点赞；如果要评论，只写一个词，像真人随手一个词。',
+      '只输出一个 JSON 对象，不要输出任何其他文字、解释或代码块，格式固定为：{"like":true或false,"comment":"一个词，不评论就写空字符串"}'
+    ].filter(Boolean).join('\n');
+    const when = post && post.t ? new Date(post.t) : new Date();
+    const user = `你们最近的聊天：\n${ctx}\n\n这是用户刚发的朋友圈（${when.getHours()}时${when.getMinutes()}分）：\n${String(post && post.text || '').trim() || '（只发了照片）'}`;
+    let response;
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
+    catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);
+    const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    const raw = Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content || '');
+    const t = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    let o = null;
+    try { o = JSON.parse(t); } catch (_) { const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a >= 0 && b > a) { try { o = JSON.parse(t.slice(a, b + 1)); } catch (_) {} } }
+    if (!o || typeof o !== 'object') throw new Error('朋友圈调取没有解析出结果，请重试');
+    const word = String(o.comment || '').trim().split(/\s+/)[0].slice(0, 6);
+    return { like: o.like === true || o.like === 'true', comment: word };
+  }
+
   /* 记忆总结：单次请求，返回模型原文 */
   async function complete(systemText, userText) {
     const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
@@ -249,5 +283,5 @@
     if (!content) throw new Error('API 返回内容为空');
     return Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content);
   }
-  window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply };
+  window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply };
 })();

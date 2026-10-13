@@ -4354,13 +4354,30 @@ function addCommonMemory(c, text) {
         priority: 8, sec: 'common', level: 'high'
     });
 }
-async function momentRepliesFor(p) {
-    if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) return;   // 没接入 API 时不自动回复
-    const who = CONTACTS.filter(c => momentVisibleTo(p, c));
+/* ---------------- 朋友圈调取：发完 3 秒后，能看到的联系人各回一个词 ---------------- */
+const MOMENT_FETCH_DELAY = 3000;
+let MOMENT_UNSEEN = false;      // 调取完成后，用户还没去朋友圈看过
+let momentFetchTimer = null;
+let momentFetchBusy = false;
+let momentHideTimer = null;
+
+function scheduleMomentFetch(p) {
+    clearTimeout(momentFetchTimer);
+    momentFetchTimer = setTimeout(() => momentFetchFor(p), MOMENT_FETCH_DELAY);
+}
+async function momentFetchFor(p) {
+    momentFetchTimer = null;
+    if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) return;   // 没接入 API 时不调取
+    if (momentFetchBusy) { scheduleMomentFetch(p); return; }
+    momentFetchBusy = true;
+    MOMENT_UNSEEN = false;
+    refreshChatBadge();
+    showMomentLoading();
     const excerpt = (p.text || '').trim().slice(0, 20) || '一张照片';
-    for (const c of who) {
+    const fresh = [];
+    for (const c of CONTACTS.filter(x => momentVisibleTo(p, x))) {
         try {
-            const r = await window.MessagesAPI.momentReply(c, p);
+            const r = await window.MessagesAPI.momentWordReply(c, p, (c.msgs || []).slice(-30));
             p.likes = p.likes || []; p.comments = p.comments || [];
             if (r.like && !p.likes.includes(c.id)) {
                 p.likes.push(c.id);
@@ -4368,12 +4385,72 @@ async function momentRepliesFor(p) {
             }
             if (r.comment) {
                 p.comments.push({ by: c.id, text: r.comment, t: Date.now() });
+                fresh.push(c);
                 addCommonMemory(c, `${c.name}在你的朋友圈（${excerpt}）下评论：${r.comment}`);
             }
             persistContacts(); persistMoments(); renderMoments();
-            if (document.getElementById('memPage') && document.getElementById('memPage').classList.contains('open')) renderMemoryPage();
-        } catch (e) { toast((e && e.message) || '朋友圈回复失败'); }
+        } catch (e) { toast((e && e.message) || '朋友圈调取失败'); }
     }
+    momentFetchBusy = false;
+    if (!fresh.length) { hideMomentBubble(); refreshChatBadge(); return; }
+    showMomentDone(fresh);
+    if (activeTab === 'moments') {
+        setTimeout(() => { if (activeTab === 'moments' && !momentFetchBusy) hideMomentBubble(); }, 2000);
+    } else {
+        MOMENT_UNSEEN = true;
+    }
+    refreshChatBadge();
+}
+
+/* 底栏朋友圈图标上的调取气泡 */
+function momentBubbleEl() {
+    let t = document.getElementById('mcThought');
+    const tab = document.querySelector('#tabbar .tab[data-tab="moments"]');
+    if (!tab) return null;
+    if (t && t.parentNode === tab) return t;
+    t = document.createElement('div');
+    t.id = 'mcThought'; t.className = 'mc-thought';
+    t.innerHTML = `<div class="mc-pill">
+        <span class="mc-wait"><span class="mc-ld"><svg viewBox="0 0 24 24"><circle class="trk" cx="12" cy="12" r="9"/><circle class="arc" cx="12" cy="12" r="9"/></svg></span><span>调取中</span></span>
+        <span class="mc-rest"><span class="mc-stack" id="mcStack"></span><span class="mc-nmsg" id="mcNmsg"></span></span>
+      </div><i class="mc-dot"></i>`;
+    tab.appendChild(t);
+    return t;
+}
+function showMomentLoading() {
+    const t = momentBubbleEl(); if (!t) return;
+    clearTimeout(momentHideTimer);
+    t.classList.remove('mc-fade', 'mc-done');
+    t.classList.add('mc-on');
+}
+function showMomentDone(list) {
+    const t = momentBubbleEl(); if (!t) return;
+    const TILT = ['-7deg', '5deg', '-3deg'], MASK = [0, .6, .35];
+    document.getElementById('mcStack').innerHTML = list.slice(0, 3).map((c, i) =>
+        `<span class="mc-sa ${i === 0 ? 'mc-lead' : 'mc-bk'}" style="--r:${TILT[i]};--m:${MASK[i]};z-index:${3 - i}">${avatar(c, 'sm')}</span>`
+    ).join('');
+    document.getElementById('mcNmsg').textContent = `你有 ${list.length} 条新消息`;
+    t.classList.remove('mc-fade');
+    t.classList.add('mc-on', 'mc-done');
+}
+function hideMomentBubble() {
+    const t = document.getElementById('mcThought');
+    if (!t || !t.classList.contains('mc-on')) return;
+    t.classList.add('mc-fade');
+    clearTimeout(momentHideTimer);
+    momentHideTimer = setTimeout(() => t.classList.remove('mc-on', 'mc-done', 'mc-fade'), 300);
+}
+
+/* 聊天室左上角返回键的角标：调取完成、用户没看朋友圈时出现 */
+function ensureChatBadge() {
+    const back = document.querySelector('#chatView .chat-head .glass-btn');
+    if (back && !document.getElementById('mcChatBadge')) back.insertAdjacentHTML('beforeend', '<i class="mc-cbadge" id="mcChatBadge"></i>');
+}
+function refreshChatBadge() {
+    ensureChatBadge();
+    const b = document.getElementById('mcChatBadge'); if (!b) return;
+    const inChat = document.getElementById('chatView').classList.contains('open');
+    b.classList.toggle('on', inChat && MOMENT_UNSEEN);
 }
 
 function deleteMoment(id) {
