@@ -468,7 +468,7 @@
               out+=text.slice(last,m.index)?`<div class="abody">${esc(text.slice(last,m.index))}</div>`:'';
               const lang=m[1].toLowerCase()==='javascript'?'js':m[1].toLowerCase();
               const code=m[2].replace(/\n+$/,'');
-              out+=`<details class="abody out-module"><summary><span class="out-module-title">${lang.toUpperCase()} 模块${++idx>1?' '+idx:''}</span></summary><div class="out-module-content"><pre><code>${esc(code)}</code></pre></div></details>`;
+              out+=`<details class="out-module"><summary><span class="out-module-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8 8h8M8 11.5h8M8 15h5"/></svg></span><span class="out-module-title">${lang.toUpperCase()} 模块${++idx>1?' '+idx:''}</span><span class="out-module-hint">展开查看</span></summary><div class="out-module-content"><pre><code>${esc(code)}</code></pre></div></details>`;
               last=fence.lastIndex;
             }
             out+=text.slice(last)?`<div class="abody">${esc(text.slice(last))}</div>`:'';
@@ -676,7 +676,7 @@
           const filesHTML=msg.files&&msg.files.length?fileCardHTML(msg.id,msg.files,msg.pack):'';
           const changes=msg.changes||[];
           const allDone=changes.length>0&&changes.every(c=>c.uploaded);
-          const changesHTML=changes.length?`<div class="cards">${changes.map(changeCardHTML).join('')}</div><button type="button" class="confirm confirm-h"${allDone?' disabled':''}>${allDone?'已全部上传':'确认修改，一起上传到 GitHub'}</button>`:'';
+          const changesHTML=changes.length?`<div class="upload-confirm-panel"><div class="upload-confirm-title">${allDone?'上传已完成':'待确认上传'}</div><div class="cards">${changes.map(changeCardHTML).join('')}</div><button type="button" class="confirm confirm-h"${allDone?' disabled':''}>${allDone?'已全部上传':'确认修改，一起上传到 GitHub'}</button><div class="upload-confirm-note">${allDone?'GitHub 已返回成功响应。':'只有点击确认后才会上传；现在尚未上传。'}</div></div>`:(msg.uploadBlocked?`<div class="upload-confirm-panel upload-blocked"><div class="upload-confirm-title">尚未上传</div><p>这次没有生成可供确认的文件，因此没有向 GitHub 上传任何内容。请重新调取并确保生成修改文件后，再确认上传。</p><button type="button" class="confirm" disabled>没有待确认的文件</button></div>`:'');
           row.innerHTML=`<div class="ahead">${head(avatarHtml('ai'),'Archangel',metaHTML)}${thinkHTML}</div><div class="steps">${stepsHTML(msg.steps)}</div>${bodyHTML(parts)}${filesHTML}${changesHTML}`;
           chat.appendChild(row);
         }
@@ -1003,7 +1003,7 @@
           };
           const showConfirm=(ch,fullReply,thinking)=>{
 
-              say(`<div class="abody">${esc(fullReply)}</div><div class="cards"></div><button class="confirm">确认修改，一起上传到 GitHub</button>`);
+              say(`<div class="abody">${esc(fullReply)}</div><div class="upload-confirm-panel"><div class="upload-confirm-title">待确认上传 · 尚未上传</div><div class="cards"></div><button type="button" class="confirm">确认修改，一起上传到 GitHub</button><div class="upload-confirm-note">检查下方文件改动；只有点击确认后才会上传。</div></div>`);
               commit(fullReply,thinking);
             const cm=msgById(box.dataset.mid);if(cm){cm.changes=ch.map(f=>({path:f.path,edit:f.edit,sha:f.sha,why:f.why,lines:f.lines,uploaded:false}));saveCurrentConversation()}
 
@@ -1126,17 +1126,29 @@
               if(t!==f.orig)ch.push({...f,edit:t,lines:diff(f.orig.replace(/\r\n/g,'\n'),lf)})});
             d(ch.length+' FILES');
 
-            const assistantReply=String(mod.reply||'已生成修改。');
+            let assistantReply=String(mod.reply||'已生成修改。');
+            // Upload requests must never be described as completed before the user confirms.
+            if(wantsRepoUpload){
+              assistantReply=assistantReply
+                .replace(/(?:我已|已经|已成功|成功地)?\s*(?:上传成功|已经上传|已上传|提交成功|已经提交|已提交|推送成功|已经推送|已推送)[^。！？\n]*[。！？]?/g,'')
+                .trim();
+            }
 
             if(!ch.length){
-              const noChangeReply='我读取了相关文件，但没有生成可以安全应用的修改，可以把需求描述得更具体些。';
-              const noChangeText=String(mod.reply||'我看了一下，这次不需要改动任何文件。');say(bodyHTML([noChangeText]));commit(noChangeText,sel.thinking);
-              
+              const noChangeText=wantsRepoUpload
+                ?'我没有生成出可安全上传的文件，所以这次并未上传。请重新调取，让我先生成具体文件修改。'
+                :String(mod.reply||'我读取了相关文件，但没有生成可以安全应用的修改，可以把需求描述得更具体些。');
+              say(bodyHTML([noChangeText]));
+              if(wantsRepoUpload){
+                say('<div class="upload-confirm-panel upload-blocked"><div class="upload-confirm-title">尚未上传 · 等待文件</div><p>没有可展示的文件改动，不能确认上传。仓库没有被这次操作修改。</p><button type="button" class="confirm" disabled>没有待确认的文件</button></div>');
+              }
+              commit(noChangeText,sel.thinking);
+              if(wantsRepoUpload){const cm=msgById(box.dataset.mid);if(cm){cm.uploadBlocked=true;saveCurrentConversation()}}
               stopMeta();busy=false;
               return;
             }
 
-            const fullReply=assistantReply+'\n\n'+`共修改 ${ch.length} 个文件，点开卡片查看改动（红色是删除，绿色是新增）。确认后才会一起上传到 GitHub。`;
+            const fullReply=(assistantReply?assistantReply+'\n\n':'')+`共修改 ${ch.length} 个文件，点开卡片查看改动（红色是删除，绿色是新增）。确认后才会一起上传到 GitHub。`;
             showConfirm(ch,fullReply,sel.thinking);
           }catch(e){
             box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
