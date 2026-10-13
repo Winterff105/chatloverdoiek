@@ -2022,7 +2022,16 @@ function renderThread(opts) {
             html += `<div class="narr-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><div class="narr" style="color:${NARR.color};font-size:${NARR.size}px;font-style:${NARR.italic ? 'italic' : 'normal'}">${esc(m.text)}</div></div>`;
             return;
         }
-        const prev = c.msgs[i - 1], next = c.msgs[i + 1];
+        // 旁白是独立的说明行，不参与普通气泡的连续分组判断。
+        // 查找前后最近的普通消息，避免旁白把同一发送方的气泡组拆开，
+        // 也避免旁白被误判成一个不同发送方而导致头像/气泡形状跳变。
+        let prev = null, next = null;
+        for (let j = i - 1; j >= 0; j--) {
+            if (!c.msgs[j].narr) { prev = c.msgs[j]; break; }
+        }
+        for (let j = i + 1; j < c.msgs.length; j++) {
+            if (!c.msgs[j].narr) { next = c.msgs[j]; break; }
+        }
         const newGroup = !prev || prev.me !== m.me;
         const lastInGroup = !next || next.me !== m.me;
         const meta = lastInGroup ? `<span class="mt">${esc(m.t)}</span>` : '';
