@@ -4011,6 +4011,40 @@ async function charPrivateReply(cid, p, userText, quoteText) {
     } catch (e) { showApiError(e); }
 }
 
+/* 长按朋友圈卡片：重新调取（清掉之前角色的评论、点赞和对应的共同记忆） */
+function momentRefetch(p) {
+    const excerpt = (p.text || '').trim().slice(0, 20) || '一张照片';
+    const isAI = id => id !== ACTIVE_ID && id !== 'self' && !!CONTACTS.find(x => x.id === id);
+    p.comments = (p.comments || []).filter(cm => !isAI(cm.by));
+    p.likes = (p.likes || []).filter(id => !isAI(id));
+    CONTACTS.forEach(c => {
+        if (!c.memories) return;
+        c.memories = c.memories.filter(m => !(m.src ? m.src === p.id : (m.text || '').includes(`朋友圈（${excerpt}）下`)));
+    });
+    persistContacts(); persistMoments(); renderMoments();
+    momentFetchFor(p);
+}
+function bindCardLongPress() {
+    const root = document.querySelector('.messages-app'); if (!root || root.dataset.cardBound) return;
+    root.dataset.cardBound = '1';
+    let timer = null, sx = 0, sy = 0, card = null;
+    const cancel = () => { clearTimeout(timer); timer = null; };
+    root.addEventListener('pointerdown', e => {
+        const el = e.target.closest && e.target.closest('.mf-card[data-pid]');
+        if (!el || e.target.closest('button, input, textarea, .mf-cmts, .mf-cmt-line, .mf-cmt-row, .mf-inline-bar, .mf-card-foot')) return;
+        card = el; sx = e.clientX; sy = e.clientY; cancel();
+        timer = setTimeout(() => {
+            timer = null;
+            const pid = card.dataset.pid;
+            askConfirm('重新调取', '清掉这条朋友圈之前角色的评论和共同记忆，再重新调取一次？', '重新调取', () => {
+                const p = POSTS.find(x => x.id === pid); if (p) momentRefetch(p);
+            });
+        }, 600);
+    });
+    root.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel(); });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => root.addEventListener(t, cancel));
+}
+
 /* 长按评论：删除（确认后） */
 function bindCommentLongPress() {
     const root = document.querySelector('.messages-app'); if (!root || root.dataset.cmtBound) return;
@@ -4451,12 +4485,12 @@ function momentVisibleTo(p, c) {
     if (p.vis === 'some') return (p.visTo || []).includes(c.id);
     return true;
 }
-function addCommonMemory(c, text) {
+function addCommonMemory(c, text, src) {
     c.memories = c.memories || [];
     c.memories.unshift({
         id: 'mc' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
         label: memStamp(Date.now()),
-        text, points: [], relation: '', keys: [],
+        text, src: src || null, points: [], relation: '', keys: [],
         priority: 8, sec: 'common', level: 'high'
     });
 }
@@ -4490,13 +4524,13 @@ async function momentFetchFor(p) {
             p.likes = p.likes || []; p.comments = p.comments || [];
             if (r.like && !p.likes.includes(c.id)) {
                 p.likes.push(c.id);
-                addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下点赞`);
+                addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下点赞`, p.id);
             }
             if (r.comment) {
                 const hit = r.to ? existing.find(e => e.name === r.to && e.id !== c.id) : null;
                 p.comments.push({ by: c.id, text: r.comment, t: Date.now(), to: hit ? hit.id : undefined });
                 fresh.push(c);
-                addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下评论：${r.comment}`);
+                addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下评论：${r.comment}`, p.id);
             }
             persistContacts(); persistMoments(); renderMoments();
         } catch (e) { showApiError(e); }
@@ -4600,6 +4634,7 @@ loadProfileCard();
 loadSettingsName();
 preloadDefaultImages();
 bindCommentLongPress();
+bindCardLongPress();
 bindMsgMenu();
 bindChatDrop();
 bindChatDropSwipe();
