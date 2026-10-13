@@ -375,16 +375,19 @@
           for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-65557);i--){if(dv.getUint32(i,true)===0x06054b50){eocd=i;break}}
           if(eocd<0)throw new Error('不是有效的 zip 文件');
           const count=dv.getUint16(eocd+10,true),cdOff=dv.getUint32(eocd+16,true);
+          if(count>200)throw new Error('压缩包包含超过 200 个条目，请拆分后再发');
           const dec=new TextDecoder('utf-8');
-          const out=[];let p=cdOff;
-          for(let n=0;n<count&&out.length<60;n++){
+          const out=[];let p=cdOff,totalUncompressed=0;
+          for(let n=0;n<count;n++){
             if(dv.getUint32(p,true)!==0x02014b50)break;
             const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),usize=dv.getUint32(p+24,true);
             const nlen=dv.getUint16(p+28,true),xlen=dv.getUint16(p+30,true),clen=dv.getUint16(p+32,true),lho=dv.getUint32(p+42,true);
             const name=dec.decode(u8.subarray(p+46,p+46+nlen));
             p+=46+nlen+xlen+clen;
-            if(name.endsWith('/')){if(out.length<60)out.push({name:name.replace(/\/+$/,'').replace(/\\/g,'/'),content:'',folder:true});continue}
-            if(usize>200*1024)continue;
+            if(name.endsWith('/')){out.push({name:name.replace(/\/+$/,'').replace(/\\/g,'/'),content:'',folder:true});continue}
+            if(usize>5*1024*1024)throw new Error(`${name} 解压后超过 5MB，无法安全读取`);
+            totalUncompressed+=usize;
+            if(totalUncompressed>20*1024*1024)throw new Error('压缩包解压后总量超过 20MB，请拆分后再发');
             const start=lho+30+dv.getUint16(lho+26,true)+dv.getUint16(lho+28,true);
             const raw=u8.subarray(start,start+csize);
             let data;
@@ -791,7 +794,7 @@
           input.placeholder=DEFAULT_PLACEHOLDER;renderUpPanel();
           addUser(value||'（见附件）',true,newMid(),att);
         }
-        const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'},LIM=60000;
+        const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'};
         const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}};
         const G=()=>({token:$('#ar-gToken').value.trim(),owner:$('#ar-gOwner').value.trim(),repo:$('#ar-gRepo').value.trim(),branch:$('#ar-gBranch').value.trim()||'main'});
         const A=()=>{if(localStorage.getItem('archangel.api.source')==='inherit'){const f=ld0('forever_settings_active_api_v1');return {base:String(f.url||'').replace(/\/+$/,''),key:String(f.key||'').trim(),model:localStorage.getItem('archangel.api.inheritModel')||String(f.model||'')}}return {base:$('#ar-aBase').value.trim().replace(/\/+$/,''),key:$('#ar-aKey').value.trim(),model:$('#ar-aModel').value}};
@@ -1073,7 +1076,7 @@
             if(!pick.length&&sel.intent!=='create')throw new Error('仓库里没有可以读取的文本文件');
             d(pick.length+' FILES');d=step(2,LBL[2]);
             const got=[];
-            for(const f of pick){try{const x=await getFile(f.path);if(x.orig.length>LIM){tp.textContent+=`\n（${f.path} 过大，已跳过）`;continue}got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
+            for(const f of pick){try{const x=await getFile(f.path);got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
             if(!got.length&&sel.intent!=='create')throw new Error('相关文件读取失败或过大，无法安全修改');
             d(got.length+' FILES');
             if(sel.intent==='read'){
@@ -1224,7 +1227,7 @@
         consoleBtn.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[0]}</svg>`;
         uploadBtn.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[0].replace('<path ','<path class="hrt" ')}<path d="M12 10v5M9.5 12.5h5"/></svg>`;
         uploadBtn.addEventListener('click',()=>fileInput.click());
-        const ATT_MAX=200*1024;
+        const ATT_MAX=2*1024*1024;
         fileInput.addEventListener('change',async e=>{
           const picked=[...e.target.files];
           e.target.value='';
@@ -1232,7 +1235,7 @@
             if(pendingAttach.some(a=>a.name===f.name))continue;
             if(pendingAttach.length>=6){toast('一次最多 6 个附件');break}
             if(/\.zip$/i.test(f.name)){
-              if(f.size>5*1024*1024){toast(`${f.name} 太大了（最大 5MB）`);continue}
+              if(f.size>20*1024*1024){toast(`${f.name} 太大了（最大 20MB）`);continue}
               try{const zf=await readZip(await f.arrayBuffer());if(!zf.length){toast(`${f.name} 里没有可以读的文本文件`);continue}pendingAttach.push({name:f.name,type:'zip',files:zf})}
               catch(err){toast(`${f.name} 读不了：${err.message}`)}
               continue;
@@ -1242,11 +1245,11 @@
               catch(err){toast(`${f.name} 读不了`)}
               continue;
             }
-            if(f.size>ATT_MAX){toast(`${f.name} 太大了（最大 200KB）`);continue}
+            if(f.size>ATT_MAX){toast(`${f.name} 太大了（最大 2MB）`);continue}
             let text='';
             try{text=await f.text()}catch(err){toast(`${f.name} 读不了`);continue}
             if(text.includes('\u0000')){toast(`${f.name} 不是文本文件，暂不支持`);continue}
-            pendingAttach.push({name:f.name,content:text.slice(0,60000)});
+            pendingAttach.push({name:f.name,content:text});
           }
           if(pendingAttach.length){
             input.placeholder=`已附加 ${pendingAttach.length} 个：${pendingAttach.map(a=>a.name).join('、')}`.slice(0,60);
