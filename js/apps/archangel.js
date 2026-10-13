@@ -999,7 +999,7 @@
           };
           const showConfirm=(ch,fullReply,thinking)=>{
 
-              say(`<div class="abody">${esc(fullReply)}</div><div class="cards"></div><button class="confirm">确认修改，一起上传到 GitHub</button>`);
+              say(`<div class="abody">${esc(fullReply)}</div><div class="cards"></div><button type="button" class="confirm confirm-h">确认修改，一起上传到 GitHub</button>`);
               commit(fullReply,thinking);
             const cm=msgById(box.dataset.mid);if(cm){cm.changes=ch.map(f=>({path:f.path,edit:f.edit,sha:f.sha,why:f.why,lines:f.lines,uploaded:false}));saveCurrentConversation()}
 
@@ -1008,11 +1008,17 @@
                 const k=f.lines.filter(l=>l[0]=='+').length;
                 w.innerHTML=`<button class="card"><b>${esc(f.path)}</b><em>${esc(f.why)}</em><i>${k} 行新增</i></button><div class="fdiff"><div><div class="diff">${f.lines.map(([t,x])=>`<div class="ln ${t=='-'?'del':t=='+'?'add':''}"><span>${t=='-'?'−':t=='+'?'+':''}</span><code>${esc(x)}</code></div>`).join('')}</div></div></div>`;
                 w.querySelector('.card').onclick=()=>w.classList.toggle('open');cards.appendChild(w);f.w=w});
-              const btn=box.querySelector('.confirm');
-              btn.onclick=()=>uploadChanges(ch,btn,box.dataset.mid);
               scroll();
           };
+          const asksRepoWrite=/上传|传到仓库|推送到 ?GitHub|提交到 ?GitHub|保存到仓库|写入仓库|覆盖仓库/.test(text);
           const hasRepo=modeCfg().mode!=='healer'&&(()=>{const g=G();return !!(g.token&&g.owner&&g.repo&&modeCfg().mode!=='healer')})();
+          if(!hasRepo&&asksRepoWrite){
+            const notice='我还没有生成修改卡片，也没有上传。当前没有检测到可写入的 GitHub 仓库连接；请先检查仓库设置里的 Token、Owner 和 Repo，再重新点“调取”。连接成功后，我会先显示文件路径和差异卡片，只有你点击“确认修改，一起上传到 GitHub”才会真正写入仓库。';
+            tp.textContent='等待仓库连接';
+            say(bodyHTML([notice]));
+            commit([notice],'仓库连接未就绪，未执行上传。');
+            stopMeta();busy=false;return;
+          }
           if(!hasRepo){
             tp.textContent='正在结合角色设定组织回复内容…';
             const dC=()=>{};
@@ -1045,7 +1051,6 @@
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
             }));
             const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。重要：你绝不能声称已经上传、已提交或已保存到 GitHub；模型本身没有上传权限。所有仓库写入都必须先生成修改预览卡片，列出文件路径和差异，并显示“确认修改，一起上传到 GitHub”按钮。只有用户点击这个确认按钮后，程序才可以调用 GitHub 写入接口。若没有生成文件差异或确认卡片，必须明确告诉用户尚未上传，并引导用户点击底栏“调取”重新处理；不得用普通文字冒充上传成功。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
-            const asksRepoWrite=/上传|传到仓库|推送到 ?GitHub|提交到 ?GitHub|保存到仓库|写入仓库|覆盖仓库/.test(text);
             if(sel.intent==='chat'&&asksRepoWrite){
               // 用户明确要求写入仓库时，不允许模型把请求误判成普通聊天并口头宣称已上传。
               sel.intent=attachCands.length?'create':'edit';
