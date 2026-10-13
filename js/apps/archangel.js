@@ -458,7 +458,19 @@
           document.body.appendChild(a);a.click();a.remove();
           setTimeout(()=>URL.revokeObjectURL(url),4000);
         }
-        function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
+        function bodyHTML(parts){
+          return (parts||[]).map(p=>{
+            const text=String(p??'');
+            const lines=text.split('\n');
+            const first=(lines.find(x=>x.trim())||'模块内容').trim().replace(/^#+\s*/, '').replace(/^[*#>\s]+/, '');
+            const moduleLike=/(?:模块|module|文件内容|代码片段|代码模块|```|<script\b|<style\b|\bfunction\s+[$\w]+|\b(?:const|let|class|export)\s+[$\w]+)/i.test(text) && (text.includes('\n')||text.length>180);
+            if(moduleLike){
+              const label=first.length>42?first.slice(0,42)+'…':first;
+              return `<details class="abody out-module"><summary><span class="out-module-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8 8h8M8 11.5h8M8 15h5"/></svg></span><span class="out-module-title">${esc(label||'模块内容')}</span><span class="out-module-hint">展开查看</span></summary><div class="out-module-content">${esc(text)}</div></details>`;
+            }
+            return `<div class="abody">${esc(text)}</div>`;
+          }).join('');
+        }
         const FIXED_STEPS=['PARSE_REQUEST','SELECT_FILES','READ_CONTENT','BUILD_CHANGES'];
         function stepLettersHTML(value){return [...String(value??'')].map(ch=>`<i class="step-letter">${esc(ch)}</i>`).join('')}
         function stepsHTML(steps){
