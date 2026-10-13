@@ -616,5 +616,5 @@
 
 /* ===== 文件夹顶部的蓝色小标签（和预览页一致） ===== */
 .archangel-app .fdir{position:relative}
-.archangel-app .fdir-tab{position:absolute;left:14px;top:-9px;width:86px;height:12px;background:#cddbef;border-radius:4px 4px 0 0;pointer-events:none}
+.archangel-app .fdir-tab{position:absolute;left:14px;top:-6px;width:86px;height:7px;background:#cddbef;border-radius:4px 4px 0 0;pointer-events:none}
 
