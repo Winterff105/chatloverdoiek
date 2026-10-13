@@ -918,7 +918,7 @@
             '【短消息模式】',
             '当前为短消息交互模式：reply 内容保持简短精炼，贴合即时聊天习惯，单句发送，不做长篇大论，不带代码块。'
           ]:[];
-          return ['【基础设定】',DEFAULT_ANGEL_PROMPT,...(p?['【角色设定】',p]:[]),...shortLines,'（角色语气只用于 reply 字段；files 和 JSON 结构保持不变。）'];
+          return ['【基础设定】',DEFAULT_ANGEL_PROMPT,...(p?['【角色设定】',p]:[]),...shortLines,'【仓库上传安全规则】除非程序已经显示 GitHub 修改预览卡片并且用户点击“确认修改，一起上传到 GitHub”，否则绝不能说“已上传/已提交/已保存到仓库”。仅生成代码、写出文件内容或口头承诺都不代表上传成功。用户要求上传仓库文件时，提醒其使用底栏“调取”生成可确认的修改卡片。','（角色语气只用于 reply 字段；files 和 JSON 结构保持不变。）'];
         }
         function chatFormatLines(){
           const short=uiCfg().short==='on';
@@ -1044,7 +1044,12 @@
             ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
             }));
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。你可以直接替用户上传，绝对不要让用户自己去上传。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。重要：你绝不能声称已经上传、已提交或已保存到 GitHub；模型本身没有上传权限。所有仓库写入都必须先生成修改预览卡片，列出文件路径和差异，并显示“确认修改，一起上传到 GitHub”按钮。只有用户点击这个确认按钮后，程序才可以调用 GitHub 写入接口。若没有生成文件差异或确认卡片，必须明确告诉用户尚未上传，并引导用户点击底栏“调取”重新处理；不得用普通文字冒充上传成功。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            const asksRepoWrite=/上传|传到仓库|推送到 ?GitHub|提交到 ?GitHub|保存到仓库|写入仓库|覆盖仓库/.test(text);
+            if(sel.intent==='chat'&&asksRepoWrite){
+              // 用户明确要求写入仓库时，不允许模型把请求误判成普通聊天并口头宣称已上传。
+              sel.intent=attachCands.length?'create':'edit';
+            }
             if(sel.intent==='chat'){
               const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
               const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
