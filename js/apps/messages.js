@@ -4414,42 +4414,42 @@ function momentBubbleEl() {
     if (!tab) return null;
     if (t && t.parentNode === tab) return t;
     t = document.createElement('div');
-    t.id = 'mcThought'; t.className = 'mc-thought';
-    t.innerHTML = `<div class="mc-pill">
-        <span class="mc-wait"><span class="mc-ld"><svg viewBox="0 0 24 24"><circle class="trk" cx="12" cy="12" r="9"/><circle class="arc" cx="12" cy="12" r="9"/></svg></span><span>调取中</span></span>
-        <span class="mc-rest"><span class="mc-stack" id="mcStack"></span><span class="mc-nmsg" id="mcNmsg"></span></span>
-      </div><i class="mc-dot"></i>`;
+    t.id = 'mcThought'; t.className = 'mq-thought';
+    t.innerHTML = `<div class="mq-pill">
+        <span class="mq-wait"><span class="mq-ld"><svg viewBox="0 0 24 24"><circle class="trk" cx="12" cy="12" r="9"/><circle class="arc" cx="12" cy="12" r="9"/></svg></span><span>调取中</span></span>
+        <span class="mq-rest"><span class="mq-stack" id="mcStack"></span><span class="mq-nmsg" id="mcNmsg"></span></span>
+      </div><i class="mq-dot"></i>`;
     tab.appendChild(t);
     return t;
 }
 function showMomentLoading() {
     const t = momentBubbleEl(); if (!t) return;
     clearTimeout(momentHideTimer);
-    t.classList.remove('mc-fade', 'mc-done');
-    t.classList.add('mc-on');
+    t.classList.remove('mq-fade', 'mq-done');
+    t.classList.add('mq-on');
 }
 function showMomentDone(list) {
     const t = momentBubbleEl(); if (!t) return;
     const TILT = ['-7deg', '5deg', '-3deg'], MASK = [0, .6, .35];
     document.getElementById('mcStack').innerHTML = list.slice(0, 3).map((c, i) =>
-        `<span class="mc-sa ${i === 0 ? 'mc-lead' : 'mc-bk'}" style="--r:${TILT[i]};--m:${MASK[i]};z-index:${3 - i}">${avatar(c, 'sm')}</span>`
+        `<span class="mq-sa ${i === 0 ? 'mq-lead' : 'mq-bk'}" style="--r:${TILT[i]};--m:${MASK[i]};z-index:${3 - i}">${avatar(c, 'sm')}</span>`
     ).join('');
     document.getElementById('mcNmsg').textContent = `你有 ${list.length} 条新消息`;
-    t.classList.remove('mc-fade');
-    t.classList.add('mc-on', 'mc-done');
+    t.classList.remove('mq-fade');
+    t.classList.add('mq-on', 'mq-done');
 }
 function hideMomentBubble() {
     const t = document.getElementById('mcThought');
-    if (!t || !t.classList.contains('mc-on')) return;
-    t.classList.add('mc-fade');
+    if (!t || !t.classList.contains('mq-on')) return;
+    t.classList.add('mq-fade');
     clearTimeout(momentHideTimer);
-    momentHideTimer = setTimeout(() => t.classList.remove('mc-on', 'mc-done', 'mc-fade'), 300);
+    momentHideTimer = setTimeout(() => t.classList.remove('mq-on', 'mq-done', 'mq-fade'), 300);
 }
 
 /* 聊天室左上角返回键的角标：调取完成、用户没看朋友圈时出现 */
 function ensureChatBadge() {
     const back = document.querySelector('#chatView .chat-head .glass-btn');
-    if (back && !document.getElementById('mcChatBadge')) back.insertAdjacentHTML('beforeend', '<i class="mc-cbadge" id="mcChatBadge"></i>');
+    if (back && !document.getElementById('mcChatBadge')) back.insertAdjacentHTML('beforeend', '<i class="mq-cbadge" id="mcChatBadge"></i>');
 }
 function refreshChatBadge() {
     ensureChatBadge();

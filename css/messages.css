@@ -4301,32 +4301,32 @@
 
 /* ---------------- 朋友圈调取气泡 + 聊天室角标 ---------------- */
 .messages-app #tabbar .tab[data-tab="moments"]{position:relative}
-.messages-app .mc-thought{position:absolute;left:50%;width:0;bottom:calc(100% - 3px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:6}
-.messages-app .mc-thought.mc-on{opacity:1}
-.messages-app .mc-thought.mc-fade{opacity:0}
-.messages-app .mc-pill{position:relative;width:72px;height:30px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 12px rgba(0,0,0,.05);font-size:12px;font-weight:600;color:#161616;white-space:nowrap;transition:width .55s cubic-bezier(.2,.8,.2,1),height .55s cubic-bezier(.2,.8,.2,1),transform .55s cubic-bezier(.2,.8,.2,1),background .3s ease,color .3s ease,box-shadow .3s ease,border-color .3s ease}
-.messages-app .mc-thought.mc-done .mc-pill{width:244px;height:40px;transform:translateX(-86px);background:#FCEAF1;color:#A3345E;border-color:transparent;box-shadow:none}
-.messages-app .mc-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .2s ease}
-.messages-app .mc-rest{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-start;padding-left:22px;gap:10px;opacity:0;transition:opacity .25s ease .35s}
-.messages-app .mc-thought.mc-done .mc-wait{opacity:0}
-.messages-app .mc-thought.mc-done .mc-rest{opacity:1}
-.messages-app .mc-ld{width:14px;height:14px;display:block}
-.messages-app .mc-ld svg{width:14px;height:14px;display:block;animation:mc-spin .9s linear infinite}
-@keyframes mc-spin{to{transform:rotate(360deg)}}
-.messages-app .mc-ld circle{fill:none;stroke-width:3}
-.messages-app .mc-ld .trk{stroke:rgba(0,0,0,.12)}
-.messages-app .mc-ld .arc{stroke:#161616;stroke-linecap:round;stroke-dasharray:14 60}
-.messages-app .mc-stack{display:flex;align-items:center}
-.messages-app .mc-sa{position:relative;display:inline-flex;margin-left:-10px;transform:rotate(var(--r,0deg));flex-shrink:0}
-.messages-app .mc-sa:first-child{margin-left:0}
-.messages-app .mc-sa .av{width:30px;height:30px;border-radius:6px;border:2px solid #fff;margin:0;font-size:12px}
-.messages-app .mc-sa.mc-lead .av{width:34px;height:34px;font-size:13px}
-.messages-app .mc-sa.mc-bk::after{content:"";position:absolute;inset:0;border-radius:6px;background:rgba(120,120,120,var(--m,.5));pointer-events:none}
-.messages-app .mc-nmsg{font-size:12px;font-weight:600;color:#A3345E;white-space:nowrap;background:#fff;border-radius:999px;padding:4px 8px}
-.messages-app .mc-dot{width:7px;height:7px;border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 1px 4px rgba(0,0,0,.05);transition:background .3s ease,box-shadow .3s ease}
-.messages-app .mc-thought.mc-done .mc-dot{background:#FCEAF1;border-color:transparent;box-shadow:none}
+.messages-app .mq-thought{position:absolute;left:50%;width:0;bottom:calc(100% - 3px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:6}
+.messages-app .mq-thought.mq-on{opacity:1}
+.messages-app .mq-thought.mq-fade{opacity:0}
+.messages-app .mq-pill{position:relative;flex-shrink:0;width:72px;height:30px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 12px rgba(0,0,0,.05);font-size:12px;font-weight:600;color:#161616;white-space:nowrap;transition:width .55s cubic-bezier(.2,.8,.2,1),height .55s cubic-bezier(.2,.8,.2,1),transform .55s cubic-bezier(.2,.8,.2,1),background .3s ease,color .3s ease,box-shadow .3s ease,border-color .3s ease}
+.messages-app .mq-thought.mq-done .mq-pill{width:232px;height:40px;transform:translateX(-66px);background:#FCEAF1;color:#A3345E;border-color:transparent;box-shadow:none}
+.messages-app .mq-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .2s ease}
+.messages-app .mq-rest{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-start;padding-left:22px;gap:10px;opacity:0;transition:opacity .25s ease .35s}
+.messages-app .mq-thought.mq-done .mq-wait{opacity:0}
+.messages-app .mq-thought.mq-done .mq-rest{opacity:1}
+.messages-app .mq-ld{width:14px;height:14px;display:block}
+.messages-app .mq-ld svg{width:14px;height:14px;display:block;animation:mq-spin .9s linear infinite}
+@keyframes mq-spin{to{transform:rotate(360deg)}}
+.messages-app .mq-ld circle{fill:none;stroke-width:3}
+.messages-app .mq-ld .trk{stroke:rgba(0,0,0,.12)}
+.messages-app .mq-ld .arc{stroke:#161616;stroke-linecap:round;stroke-dasharray:14 60}
+.messages-app .mq-stack{display:flex;align-items:center}
+.messages-app .mq-sa{position:relative;display:inline-flex;margin-left:-10px;transform:rotate(var(--r,0deg));flex-shrink:0}
+.messages-app .mq-sa:first-child{margin-left:0}
+.messages-app .mq-sa .av{width:30px;height:30px;border-radius:6px;border:2px solid #fff;margin:0;font-size:12px}
+.messages-app .mq-sa.mq-lead .av{width:34px;height:34px;font-size:13px}
+.messages-app .mq-sa.mq-bk::after{content:"";position:absolute;inset:0;border-radius:6px;background:rgba(120,120,120,var(--m,.5));pointer-events:none}
+.messages-app .mq-nmsg{font-size:12px;font-weight:600;color:#A3345E;white-space:nowrap;background:#fff;border-radius:999px;padding:4px 8px}
+.messages-app .mq-dot{flex-shrink:0;width:7px;height:7px;border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 1px 4px rgba(0,0,0,.05);transition:background .3s ease,box-shadow .3s ease}
+.messages-app .mq-thought.mq-done .mq-dot{background:#FCEAF1;border-color:transparent;box-shadow:none}
 .messages-app .chat-head .glass-btn{position:relative}
-.messages-app .mc-cbadge{position:absolute;top:-2px;right:-2px;width:11px;height:11px;border-radius:50%;background:#FCEAF1;box-shadow:0 0 0 1px rgba(163,52,94,.2);display:none;pointer-events:none}
-.messages-app .mc-cbadge.on{display:block;animation:mc-pop .3s ease}
-@keyframes mc-pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
-@media (prefers-reduced-motion:reduce){.messages-app .mc-ld svg{animation-duration:2.4s}}
+.messages-app .mq-cbadge{position:absolute;top:-2px;right:-2px;width:11px;height:11px;border-radius:50%;background:#FCEAF1;box-shadow:0 0 0 1px rgba(163,52,94,.2);display:none;pointer-events:none}
+.messages-app .mq-cbadge.on{display:block;animation:mq-pop .3s ease}
+@keyframes mq-pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.messages-app .mq-ld svg{animation-duration:2.4s}}
