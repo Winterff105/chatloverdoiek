@@ -616,5 +616,21 @@
 
 /* ===== 文件夹顶部的蓝色小标签（和预览页一致） ===== */
 .archangel-app .fdir{position:relative}
-.archangel-app .fdir-tab{position:absolute;left:14px;top:-6px;width:86px;height:7px;background:#cddbef;border-radius:4px 4px 0 0;pointer-events:none}
+.archangel-app .fdir-tab{position:absolute;left:14px;top:-3px;width:86px;height:7px;background:#cddbef;border-radius:4px 4px 0 0;pointer-events:none}
+
+/* ===== 待确认卡片：宽度跟着气泡走，长说明省略，状态标志始终可见 ===== */
+.archangel-app .fitem{min-width:0;max-width:100%;width:100%}
+.archangel-app .fitem .card{display:flex;align-items:center;gap:8px;min-width:0;max-width:100%;width:100%;box-sizing:border-box}
+.archangel-app .fitem .card b{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.archangel-app .fitem .card em{flex:1 1 0;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.archangel-app .fitem .card i{flex:none;white-space:nowrap}
+.archangel-app .arow .cards{min-width:0;max-width:100%}
+
+/* ===== 待确认卡片：省略不变，横向滑动后才显示完整文字（滚动条隐藏，界面不变） ===== */
+.archangel-app .fitem .card b,
+.archangel-app .fitem .card em{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+.archangel-app .fitem .card b::-webkit-scrollbar,
+.archangel-app .fitem .card em::-webkit-scrollbar{display:none}
+.archangel-app .fitem .card b.scrolled,
+.archangel-app .fitem .card em.scrolled{text-overflow:clip}
 

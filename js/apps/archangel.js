@@ -1218,6 +1218,13 @@
         host.querySelector('#ar-consClose').addEventListener('click',()=>fadeSheet(consoleSheet,false));
         consoleSheet.addEventListener('click',e=>{if(e.target.id==='ar-consoleSheet')fadeSheet(consoleSheet,false)});
         const bottomBar=host.querySelector('.bottom');
+        /* ---- 待确认卡片：横向滑动文字时，才去掉省略号露出完整内容 ---- */
+        host.addEventListener('scroll',e=>{
+          const t=e.target;
+          if(!t||!t.matches||!t.matches('.fitem .card b,.fitem .card em'))return;
+          t.classList.toggle('scrolled',t.scrollLeft>0);
+        },true);
+
         /* ---- 文件夹：点一下展开 / 收起 ---- */
         host.addEventListener('click',e=>{
           const h=e.target.closest&&e.target.closest('.fdir-head');
