@@ -694,3 +694,16 @@
 .archangel-app .ar-upp-in{overflow:hidden;min-height:0;padding:22px 0 10px}
 .archangel-app .ar-upp:not(.show) .ar-upp-in{padding:0}
 
+
+
+/* ===== 思考步骤文字：逐字呈现深浅不一；Thinking 标题保持原样 ===== */
+.archangel-app .steps .step .step-letter{display:inline-block;font-style:normal;opacity:1;color:inherit;-webkit-text-fill-color:currentColor}
+.archangel-app .steps .step .step-letter:nth-child(9n + 1){opacity:.42}
+.archangel-app .steps .step .step-letter:nth-child(9n + 2){opacity:.68}
+.archangel-app .steps .step .step-letter:nth-child(9n + 3){opacity:.88}
+.archangel-app .steps .step .step-letter:nth-child(9n + 4){opacity:.54}
+.archangel-app .steps .step .step-letter:nth-child(9n + 5){opacity:.78}
+.archangel-app .steps .step .step-letter:nth-child(9n + 6){opacity:.36}
+.archangel-app .steps .step .step-letter:nth-child(9n + 7){opacity:.94}
+.archangel-app .steps .step .step-letter:nth-child(9n + 8){opacity:.60}
+.archangel-app .steps .step .step-letter:nth-child(9n){opacity:.25}

@@ -460,10 +460,11 @@
         }
         function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
         const FIXED_STEPS=['PARSE_REQUEST','SELECT_FILES','READ_CONTENT','BUILD_CHANGES'];
+        function stepLettersHTML(value){return [...String(value??'')].map(ch=>`<i class="step-letter">${esc(ch)}</i>`).join('')}
         function stepsHTML(steps){
           return (steps||[]).map((s,i)=>{
             const x=s.x?` · ${esc(s.x)}`:'';
-            return `<div class="step done${FIXED_STEPS.includes(s.t)?' fixed':''}" data-t="${escA(s.t||'')}"><svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[Math.min(i,IC.length-1)]}</svg><span>${esc(s.t||'')}${x}</span></div>`;
+            return `<div class="step done${FIXED_STEPS.includes(s.t)?' fixed':''}" data-t="${escA(s.t||'')}"><svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[Math.min(i,IC.length-1)]}</svg><span>${stepLettersHTML((s.t||'')+(s.x?` · ${s.x}`:''))}</span></div>`;
           }).join('');
         }
         const AV_KEY={me:'archangel.avatar.me',ai:'archangel.avatar.ai'};
@@ -967,8 +968,8 @@
           const tmr=setInterval(()=>{if(tEl)tEl.textContent=((Date.now()-t0)/1000).toFixed(1)+'s'},100);
           const stopMeta=()=>{clearInterval(tmr);if(tEl)tEl.textContent=((Date.now()-t0)/1000).toFixed(1)+'s';if(kEl)kEl.textContent=runTokens+' tk'};
           const step=(i,t)=>{const s=document.createElement('div');s.className='step'+(FIXED_STEPS.includes(t)?' fixed':'');s.dataset.t=t;
-            s.innerHTML=`<svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[i]}</svg><span>${t}</span>`;
-            steps.appendChild(s);scroll();return x=>{s.classList.add('done');if(x)s.querySelector('span').textContent=s.dataset.t+' · '+x}};
+            s.innerHTML=`<svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[i]}</svg><span>${stepLettersHTML(t)}</span>`;
+            steps.appendChild(s);scroll();return x=>{s.classList.add('done');if(x)s.querySelector('span').innerHTML=stepLettersHTML(s.dataset.t+' · '+x)}};
           const say=h=>{box.insertAdjacentHTML('beforeend',h);scroll()};
           const commit=(reply,thinking,files,pack,zipRaw)=>{
             const mid=newMid();
@@ -1044,7 +1045,7 @@
             }
             tp.textContent=sel.thinking||'已完成分析。';
             if(Array.isArray(sel.steps))sel.steps.slice(0,4).forEach((t,k)=>{const tag=String(t||'').trim().slice(0,28);if(tag)LBL[k]=tag});
-            steps.querySelectorAll('.step').forEach((el,k)=>{if(LBL[k]){el.dataset.t=LBL[k];el.classList.toggle('fixed',FIXED_STEPS.includes(LBL[k]));const sp=el.querySelector('span');if(sp&&!sp.textContent.includes(' · '))sp.textContent=LBL[k]}});
+            steps.querySelectorAll('.step').forEach((el,k)=>{if(LBL[k]){el.dataset.t=LBL[k];el.classList.toggle('fixed',FIXED_STEPS.includes(LBL[k]));const sp=el.querySelector('span');if(sp&&!sp.textContent.includes(' · '))sp.innerHTML=stepLettersHTML(LBL[k])}});
             const uploadNames=Array.isArray(sel.uploadFiles)?sel.uploadFiles.map(x=>String(x)):[];
             const uploads=attachCands.filter(a=>uploadNames.includes(a.name));
             if(uploads.length){

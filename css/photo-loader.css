@@ -43,7 +43,7 @@
   opacity: 0; animation: plFade 1s ease .05s forwards;
 }
 
-/* ---------------------------------------------------------------
+/* --------------------------------------------------------------- 
    进度条：灰框的左上角，往上往左一点
    --bar-left  ：左右（数字变大往右）
    --bar-top   ：上下（数字变小往上）
@@ -72,7 +72,7 @@
 }
 @keyframes pl-shimmer{ from{ left: -45%; } to{ left: 100%; } }
 
-/* ---------------------------------------------------------------
+/* --------------------------------------------------------------- 
    文字：标题、作者、举报、警告
    每一行都有自己的「上下位置」（--xxx-top），改它就能挪这一行
    --------------------------------------------------------------- */
@@ -138,10 +138,10 @@
    上下：top 与进度条对齐；大小：改 width/height；速度：改 animation 的 3s（越大越慢）；跳起高度：改 -0.5cqw */
 .pl-dots{
   position: absolute; left: calc(36% + 1.2cqw); top: 57%; transform: translateY(-50%);
-  display: flex; align-items: center; gap: 0.9cqw; opacity: 0; animation: plFade .8s ease .4s forwards;
+  display: flex; align-items: center; gap: 0.6cqw; opacity: 0; animation: plFade .8s ease .4s forwards;
 }
 .pl-dots i{
-  display: block; width: 0.6cqw; height: 0.6cqw; min-width: 4px; min-height: 4px; border-radius: 50%;
+  display: block; width: 0.35cqw; height: 0.35cqw; min-width: 2px; min-height: 2px; border-radius: 50%;
   background: #3e4550; animation: pl-glow 3s ease-in-out infinite;
 }
 .pl-dots i:nth-child(2){ animation-delay: 1.5s; }
