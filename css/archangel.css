@@ -644,3 +644,9 @@
 .archangel-app .abody[contenteditable="true"]{outline:2px solid #d3d9e1;outline-offset:3px;border-radius:6px}
 .archangel-app .arow.editing .abody{outline:2px solid #d3d9e1;outline-offset:3px}
 
+/* ===== 步骤：英文大写、下划线，等宽字体，像终端输出 ===== */
+.archangel-app .steps .step span{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace !important;font-size:12px !important;letter-spacing:.06em;text-transform:uppercase}
+
+/* 步骤文字：保留等宽字体，大小写和下划线按原样显示 */
+.archangel-app .steps .step span{text-transform:none !important;letter-spacing:.02em}
+

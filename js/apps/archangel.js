@@ -430,6 +430,7 @@
             toast(`已保存 ${files.length} 个文件到文件夹`);
           }catch(e){if(e&&e.name==='AbortError')return;toast('保存文件夹失败：'+(e.message||e))}
         }
+        function stepTag(t){return String(t||'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,24)}
         function b64Bytes(b64){const bin=atob(b64);return Uint8Array.from(bin,c=>c.charCodeAt(0))}
         async function expandZips(list){
           const out=[];let zipRaw=null;
@@ -883,7 +884,7 @@
               ?'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":["第一条消息","第二条消息"],"files":[],"pack":""}'
               :'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":"发给用户的正文","files":[],"pack":""}',
             'thinking：用中文写 2 到 4 句思考过程，比如你理解到用户想要什么、此刻的语气或意图、打算怎样回应。它是展示给用户看的思维链，要像真实的内心推理，不要写成对用户说的话。',
-            'steps：2 到 4 个短语，每个不超过 10 个字，列出你这一轮实际做的几件事，比如“听懂你的意思”“想好开头的画面”“组织温柔的语气”。',
+            'steps：2 到 4 个英文短语，每个不超过 3 个单词，描述你这一轮实际做的几件事，比如 parse request、draft opening、soften tone。大小写和空格、下划线随你选。',
             short
               ?'reply 必须是数组，模拟真人连发微信：每一条只写一句话，每条不超过 30 个字，通常 1 到 4 条。不要把长段落塞进一条里，也不要使用代码块。'
               :'reply：你真正要发给用户的话，语气遵循上面的角色设定。',
@@ -989,7 +990,7 @@
           }
           try{
             const a=A();if(!a.key||!a.model)throw new Error('请先在左侧填写 API 设置并选择模型');
-            const LBL=['分析你的需求','选择相关文件','查看文件内容','生成修改内容'];
+            const LBL=['PARSE_REQUEST','SELECT_FILES','READ_CONTENT','BUILD_CHANGES'];
             let d=step(0,LBL[0]);
             if(!ST.tree.length||ST.key!==rk(G()))await loadTree();if(!ST.tree.length)throw new Error('仓库文件树为空');
             d();d=step(1,LBL[1]);
@@ -998,7 +999,7 @@
             ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
             }));
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。你可以直接替用户上传，绝对不要让用户自己去上传。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。你可以直接替用户上传，绝对不要让用户自己去上传。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
             if(sel.intent==='chat'){
               const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
               const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
@@ -1010,7 +1011,7 @@
               stopMeta();busy=false;return;
             }
             tp.textContent=sel.thinking||'已完成分析。';
-            if(Array.isArray(sel.steps))sel.steps.slice(0,4).forEach((t,k)=>{if(t&&String(t).trim())LBL[k]=String(t).trim().slice(0,20)});
+            if(Array.isArray(sel.steps))sel.steps.slice(0,4).forEach((t,k)=>{const tag=String(t||'').trim().slice(0,28);if(tag)LBL[k]=tag});
             steps.querySelectorAll('.step').forEach((el,k)=>{if(LBL[k]){el.dataset.t=LBL[k];const sp=el.querySelector('span');if(sp&&!sp.textContent.includes(' · '))sp.textContent=LBL[k]}});
             const uploadNames=Array.isArray(sel.uploadFiles)?sel.uploadFiles.map(x=>String(x)):[];
             const uploads=attachCands.filter(a=>uploadNames.includes(a.name));
@@ -1024,7 +1025,7 @@
                 if(existing){const x=await getFile(pth);orig=x.orig;sha=x.sha}
                 staged.push({path:pth,edit:a.content,orig,sha,lines:diff(orig,a.content),why:existing?'覆盖仓库里已有的文件':'新文件'});
               }
-              d(staged.length+' 个');
+              d(staged.length+' FILES');
               showConfirm(staged,'我准备把 '+staged.map(x=>x.path).join('、')+' 上传到仓库。确认后才会真正上传。',sel.thinking);
               stopMeta();busy=false;return;
             }
@@ -1037,14 +1038,14 @@
               scored.sort((a,b)=>b.score-a.score).slice(0,5).forEach(x=>{if(!seen.has(x.path)){seen.add(x.path);pick.push({path:x.path,why:'根据需求和文件名挑选'})}});
             }
             if(!pick.length&&sel.intent!=='create')throw new Error('仓库里没有可以读取的文本文件');
-            d(pick.length+' 个');d=step(2,LBL[2]);
+            d(pick.length+' FILES');d=step(2,LBL[2]);
             const got=[];
             for(const f of pick){try{const x=await getFile(f.path);if(x.orig.length>LIM){tp.textContent+=`\n（${f.path} 过大，已跳过）`;continue}got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
             if(!got.length&&sel.intent!=='create')throw new Error('相关文件读取失败或过大，无法安全修改');
-            d(got.length+' 个');
+            d(got.length+' FILES');
             if(sel.intent==='read'){
               const rr=await chatText([{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。','你正在帮用户查看他的代码仓库。根据下面提供的文件内容，直接回答用户的问题或总结他想了解的内容。这一步不修改任何文件。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n文件内容：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]);
-              d=step(3,'整理回复');d();
+              d=step(3,'SUMMARIZE');d();
               tp.textContent=rr.thinking||'（这次回复没有返回思维链）';
               say(bodyHTML(rr.parts));
               commit(rr.parts,rr.thinking);
@@ -1063,7 +1064,7 @@
               }
               const lf=c.content.replace(/\r\n/g,'\n'),t=f.orig.includes('\r\n')?lf.replace(/\n/g,'\r\n'):lf;
               if(t!==f.orig)ch.push({...f,edit:t,lines:diff(f.orig.replace(/\r\n/g,'\n'),lf)})});
-            d(ch.length+' 个');
+            d(ch.length+' FILES');
 
             const assistantReply=String(mod.reply||'已生成修改。');
 
@@ -1466,7 +1467,7 @@
             const o=pj(raw);
             if(o&&typeof o==='object'){
               if(!thinking&&typeof o.thinking==='string')thinking=o.thinking.trim();
-              if(Array.isArray(o.steps))steps=toList(o.steps,4,20);
+              if(Array.isArray(o.steps))steps=toList(o.steps,4,28);
               if(typeof o.pack==='string')pack=o.pack.trim();
               if(Array.isArray(o.files)||Array.isArray(o.outFiles)){
                 const cn=n=>String(n||'').replace(/\\/g,'/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('/').slice(0,120)||'file.txt';
