@@ -83,7 +83,6 @@
 .archangel-app .fdiff>div {overflow:hidden}
 .archangel-app .diff {margin-top:3px;overflow:auto;border:1px solid #e3e7ee;border-radius:14px;background:#fff;font:12px/1.7 Consolas,monospace}
 .archangel-app .confirm {max-width:calc(100% - 56px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:56px;height:40px;padding:0 24px;border:0;border-radius:99px;color:#4a525c;font-weight:600;background:rgba(255,255,255,.5);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 8px 18px rgba(130,140,155,.18);transition:background .2s}
-.archangel-app .confirm-note {margin:12px 0 8px 56px;max-width:calc(100% - 56px);font-size:12px;line-height:1.55;color:rgba(65,72,82,.76)}
 .archangel-app .confirm:hover {background:rgba(255,255,255,.7)}
 .archangel-app .confirm:disabled {opacity:.6;cursor:default}
 .archangel-app .bottom {padding:16px 20px calc(16px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(220,225,232,.7);background:rgba(255,255,255,.48);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);z-index:10}
@@ -708,3 +707,17 @@
 .archangel-app .steps .step .step-letter:nth-child(9n + 7){opacity:.94}
 .archangel-app .steps .step .step-letter:nth-child(9n + 8){opacity:.60}
 .archangel-app .steps .step .step-letter:nth-child(9n){opacity:.25}
+
+/* ---- 文中代码 / 模块输出：默认折叠，点开查看完整内容 ---- */
+.archangel-app .abody.out-module{display:block;width:min(100%,640px);max-width:calc(100% - 70px);margin:8px 0 10px 70px;padding:0;overflow:hidden;border:1px solid rgba(199,207,218,.78);border-radius:15px;background:rgba(255,255,255,.58);box-shadow:0 7px 20px rgba(105,117,133,.08);white-space:normal}
+.archangel-app .out-module>summary{display:flex;align-items:center;gap:9px;min-height:42px;padding:8px 12px;cursor:pointer;list-style:none;color:#535d69;user-select:none}
+.archangel-app .out-module>summary::-webkit-details-marker{display:none}
+.archangel-app .out-module>summary::after{content:"";width:7px;height:7px;flex:none;margin-left:4px;border-right:1.5px solid #818b98;border-bottom:1.5px solid #818b98;transform:rotate(45deg) translateY(-2px);transition:transform .2s ease}
+.archangel-app .out-module[open]>summary::after{transform:rotate(225deg) translate(-1px,-1px)}
+.archangel-app .out-module-mark{display:grid;place-items:center;width:25px;height:25px;flex:none;border:1px solid rgba(194,202,213,.8);border-radius:8px;background:rgba(255,255,255,.72)}
+.archangel-app .out-module-mark svg{width:15px;height:15px;fill:none;stroke:#7d8794;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.archangel-app .out-module-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}
+.archangel-app .out-module-hint{margin-left:auto;flex:none;color:#a0a8b2;font-size:10px;white-space:nowrap}
+.archangel-app .out-module-content{max-height:52vh;overflow:auto;padding:11px 13px;border-top:1px solid rgba(210,216,225,.7);background:rgba(249,250,252,.68);color:#69727e;font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;overscroll-behavior:contain}
+.archangel-app .out-module[open] .out-module-hint{display:none}
+@media(max-width:600px){.archangel-app .abody.out-module{max-width:calc(100% - 42px);margin-left:42px}.archangel-app .out-module-content{max-height:48vh;font-size:11px}}
