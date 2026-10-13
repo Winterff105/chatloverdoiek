@@ -634,3 +634,6 @@
 .archangel-app .fitem .card b.scrolled,
 .archangel-app .fitem .card em.scrolled{text-overflow:clip}
 
+/* ===== 气泡文字：单独的可编辑小段，小尾巴图片留在外面 ===== */
+.archangel-app .bubble .btxt{display:inline;white-space:pre-wrap}
+

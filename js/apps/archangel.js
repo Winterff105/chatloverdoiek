@@ -306,10 +306,14 @@
             `<div class="fdir"><span class="fdir-tab"></span><button type="button" class="fdir-head" aria-expanded="false"><span class="fdir-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4.2l1.8 2H19a1.5 1.5 0 0 1 1.5 1.5V18A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z"/></svg></span><span class="fdir-name"><b>${esc(dir||'（根目录）')}</b></span><span class="fdir-count">${items.length}</span><span class="fdir-chev" aria-hidden="true"></span></button><div class="fdir-body"><div><ul class="ffiles">${items.map(it=>`<li><span class="fdot"></span><span class="ffname">${esc(it.base)}</span><span class="ffsize">${fmt(it.size)}</span></li>`).join('')}</ul></div></div></div>`
           ).join('');
         }
-        function fileCardHTML(mid,files){
+        function fileCardHTML(mid,files,pack){
           const list=files||[];
           const names=list.slice(0,3).map(f=>esc(f.name)).join('、')+(list.length>3?` 等 ${list.length} 个`:'');
-          return `<div class="fc-wrap"><div class="file-card" data-mid="${escA(mid)}"><span class="fc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4.2l1.8 2H19a1.5 1.5 0 0 1 1.5 1.5V18A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z"/></svg></span><span class="fc-main"><b>保存为文件夹</b><small>${names}</small></span><button type="button" class="fc-alt">逐个下载</button></div><div class="fc-tree">${fileTreeHTML(list)}</div></div>`;
+          const isZip=pack==='zip'||(pack!=='folder'&&!list.some(f=>f.name.includes('/')));
+          if(isZip){
+            return `<div class="fc-wrap"><div class="file-card" data-mid="${escA(mid)}" data-kind="zip"><span class="fc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h14v15H5z"/><path d="M11 4.5v2M11 8.5v2M11 12.5v2M10 16.5h2"/></svg></span><span class="fc-main"><b>下载 zip</b><small>${names}</small></span></div><div class="fc-tree">${fileTreeHTML(list)}</div></div>`;
+          }
+          return `<div class="fc-wrap"><div class="file-card" data-mid="${escA(mid)}" data-kind="folder"><span class="fc-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4.2l1.8 2H19a1.5 1.5 0 0 1 1.5 1.5V18A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z"/></svg></span><span class="fc-main"><b>保存为文件夹</b><small>${names}</small></span><button type="button" class="fc-alt">逐个下载</button></div><div class="fc-tree">${fileTreeHTML(list)}</div></div>`;
         }
         const CRC_T=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
         function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC_T[(c^b[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0}
@@ -623,7 +627,7 @@
           const metaHTML=m?`<div class="ar-meta"><span class="ar-time">${esc(m.sec)}s</span><span class="ar-tk">${m.tk?esc(m.tk)+' tk':'— tk'}</span>${noSteps?heartHTML():''}</div>`:'';
           const thinkHTML=msg.thinking!==undefined?`<details class="think" open><summary>Thinking…</summary><p>${esc(msg.thinking)}</p></details>`:'';
           const parts=msg.parts&&msg.parts.length?msg.parts:[msg.text];
-          const filesHTML=msg.files&&msg.files.length?fileCardHTML(msg.id,msg.files):'';
+          const filesHTML=msg.files&&msg.files.length?fileCardHTML(msg.id,msg.files,msg.pack):'';
           const changes=msg.changes||[];
           const allDone=changes.length>0&&changes.every(c=>c.uploaded);
           const changesHTML=changes.length?`<div class="cards">${changes.map(changeCardHTML).join('')}</div><button type="button" class="confirm confirm-h"${allDone?' disabled':''}>${allDone?'已全部上传':'确认修改，一起上传到 GitHub'}</button>`:'';
@@ -699,14 +703,14 @@
           const last=chat.lastElementChild;
 
           if(last&&last.classList.contains('urow')){
-            last.querySelector('.ubody').insertAdjacentHTML('beforeend',`<div class="bubble more enter" data-mid="${mid}">${TAILIMG}${esc(text)}</div>${attHTML}`);
+            last.querySelector('.ubody').insertAdjacentHTML('beforeend',`<div class="bubble more enter" data-mid="${mid}">${TAILIMG}<span class="btxt">${esc(text)}</span></div>${attHTML}`);
             scroll();
             return;
           }
 
           const r=document.createElement('div');
           r.className=saveMessage?'urow pending enter':'urow enter';
-          r.innerHTML=`<div class="ucol">${head(avatarHtml('me'),meName())}<div class="ubody"><div class="b1"><div class="elbow"></div><div class="bubble first" data-mid="${mid}">${TAILIMG}${esc(text)}</div>${attHTML}</div></div></div>`;
+          r.innerHTML=`<div class="ucol">${head(avatarHtml('me'),meName())}<div class="ubody"><div class="b1"><div class="elbow"></div><div class="bubble first" data-mid="${mid}">${TAILIMG}<span class="btxt">${esc(text)}</span></div>${attHTML}</div></div></div>`;
           chat.appendChild(r);
           if(saveMessage)pending.push(r);
           scroll();
@@ -849,13 +853,14 @@
             '【输出格式】',
             '你必须只输出一个 JSON 对象，不要用 Markdown 代码围栏，也不要输出 JSON 以外的任何文字：',
             short
-              ?'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":["第一条消息","第二条消息"],"files":[]}'
-              :'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":"发给用户的正文","files":[]}',
+              ?'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":["第一条消息","第二条消息"],"files":[],"pack":""}'
+              :'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":"发给用户的正文","files":[],"pack":""}',
             'thinking：用中文写 2 到 4 句思考过程，比如你理解到用户想要什么、此刻的语气或意图、打算怎样回应。它是展示给用户看的思维链，要像真实的内心推理，不要写成对用户说的话。',
             'steps：2 到 4 个短语，每个不超过 10 个字，列出你这一轮实际做的几件事，比如“听懂你的意思”“想好开头的画面”“组织温柔的语气”。',
             short
               ?'reply 必须是数组，模拟真人连发微信：每一条只写一句话，每条不超过 30 个字，通常 1 到 4 条。不要把长段落塞进一条里，也不要使用代码块。'
               :'reply：你真正要发给用户的话，语气遵循上面的角色设定。',
+            'pack：files 里有多个文件时，用户要压缩包（zip）就写 "zip"，要文件夹就写 "folder"；没有文件就写空字符串。',
             'files：如果用户要你做文件夹，就加一项 {"name":"文件夹名/","type":"folder"}，文件夹里的文件用“文件夹名/文件名”作为 name；如果用户要你做文件（代码、文档、笔记、表格内容等），把它们放进 files，格式是 [{"name":"文件名或相对路径","content":"完整的文件内容"}]，每个文件都要写完整；不需要做文件时保持 []。reply 里只写给用户看的话，文件内容不要重复写进 reply。'
           ];
         }
@@ -905,7 +910,7 @@
             s.innerHTML=`<svg class="dot" width="56" height="30" viewBox="0 0 56 30"><line x1="28" y1="0" x2="28" y2="30" pathLength="1"/><circle cx="28" cy="15" r="3"/></svg><svg class="ic" viewBox="0 0 24 24">${IC[i]}</svg><span>${t}</span>`;
             steps.appendChild(s);scroll();return x=>{s.classList.add('done');if(x)s.querySelector('span').textContent=s.dataset.t+' · '+x}};
           const say=h=>{box.insertAdjacentHTML('beforeend',h);scroll()};
-          const commit=(reply,thinking,files)=>{
+          const commit=(reply,thinking,files,pack)=>{
             const mid=newMid();
             box.dataset.mid=mid;
             const parts=(Array.isArray(reply)?reply:[reply]).map(x=>String(x??'')).filter(x=>x.trim());
@@ -915,8 +920,8 @@
               return {t:el.dataset.t||full,x:k>=0?full.slice(k+3):''};
             });
             if(!stepList.length){const mEl=box.querySelector('.ar-meta');if(mEl&&!mEl.querySelector('.ar-heart'))mEl.insertAdjacentHTML('beforeend',heartHTML())}
-            const msg={id:mid,role:'assistant',text:parts.join('\n'),parts,raw:runLog.map(x=>({label:x.label,raw:x.raw})),prompt:text,files:(files||[]).map(f=>({name:f.name,content:f.content})),thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
-            if(files&&files.length)box.insertAdjacentHTML('beforeend',fileCardHTML(mid,files));
+            const msg={id:mid,role:'assistant',text:parts.join('\n'),parts,raw:runLog.map(x=>({label:x.label,raw:x.raw})),prompt:text,files:(files||[]).map(f=>({name:f.name,content:f.content})),pack:pack||'',thinking:thinking||'（这次回复没有返回思维链）',steps:stepList,meta:{sec:((Date.now()-t0)/1000).toFixed(1),tk:runTokens}};
+            if(files&&files.length)box.insertAdjacentHTML('beforeend',fileCardHTML(mid,files,pack));
             if(currentConversation){currentConversation.messages.push(msg);saveCurrentConversation()}
           };
           const showConfirm=(ch,fullReply,thinking)=>{
@@ -948,7 +953,7 @@
               
               tp.textContent=out.thinking||'（这次回复没有返回思维链）';
               say(bodyHTML(out.parts));
-              commit(out.parts,out.thinking,out.files);
+              commit(out.parts,out.thinking,out.files,out.pack);
             }catch(e){
               box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
               toast(e.message);restore();await explainError(e.message);
@@ -974,7 +979,7 @@
               d();
               tp.textContent=sel.thinking||'（这次回复没有返回思维链）';
               say(bodyHTML(parts));
-              commit(parts,sel.thinking,outFs);
+              commit(parts,sel.thinking,outFs,sel.pack);
               stopMeta();busy=false;return;
             }
             tp.textContent=sel.thinking||'已完成分析。';
@@ -1076,7 +1081,7 @@
         }
         function editRow(b){
           const isArow=b.classList.contains('arow');
-          const bs=[...b.querySelectorAll(isArow?'.abody':'.bubble')];
+          const bs=[...b.querySelectorAll(isArow?'.abody':'.bubble .btxt')];
           if(!bs.length)return;
           b.classList.add('editing');
           bs.forEach(x=>x.contentEditable='true');bs[0].focus();
@@ -1089,7 +1094,7 @@
               if(currentConversation)saveCurrentConversation();
               toast('已修改');
             }else{
-              bs.forEach(x=>{const m=msgById(x.dataset.mid);if(m)m.text=bubbleText(x)});
+              bs.forEach(x=>{const m=msgById(x.closest('.bubble').dataset.mid);if(m)m.text=bubbleText(x)});
               if(currentConversation)saveCurrentConversation();
               toast('已修改，点“重回”可按新内容重新回复');
             }
@@ -1252,7 +1257,7 @@
           if(!c)return;
           const m=msgById(c.dataset.mid);
           if(!m||!m.files||!m.files.length)return;
-          if(e.target.closest('.fc-alt'))eachDownload(m.files);else saveFolder(m.files);
+          if(e.target.closest('.fc-alt'))eachDownload(m.files);else if(c.dataset.kind==='zip')downloadZip(m.files);else saveFolder(m.files);
         });
 
         host.querySelector('#ar-tokHelp').addEventListener('click',e=>{e.preventDefault();e.stopPropagation();fadeSheet(host.querySelector('#ar-tokGuide'),true)});
@@ -1428,13 +1433,14 @@
           if(!thinking&&tagged.length)thinking=tagged.join('\n').trim();
 
           const toList=(v,max,len)=>(Array.isArray(v)?v:[v]).map(x=>String(x??'').trim()).filter(Boolean).slice(0,max).map(x=>x.slice(0,len));
-          let steps=[];let files=[];
+          let steps=[];let files=[];let pack='';
           let parts=null;
           try{
             const o=pj(raw);
             if(o&&typeof o==='object'){
               if(!thinking&&typeof o.thinking==='string')thinking=o.thinking.trim();
               if(Array.isArray(o.steps))steps=toList(o.steps,4,20);
+              if(typeof o.pack==='string')pack=o.pack.trim();
               if(Array.isArray(o.files)){
                 const cn=n=>String(n||'').replace(/\\/g,'/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('/').slice(0,120)||'file.txt';
                 files=o.files.filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
@@ -1450,7 +1456,7 @@
             const lines=short?t.split(/\n+/).map(x=>x.trim()).filter(Boolean).slice(0,6):[];
             parts=lines.length>1?lines:[t||'（模型没有返回内容）'];
           }
-          return {thinking,steps,parts,files};
+          return {thinking,steps,parts,files,pack};
         }
 
     };
