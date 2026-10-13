@@ -57,7 +57,7 @@
 <div class="lace-frame"></div>
 <div id="ar-toast"></div>
 <div class="ar-cgroup" id="ar-cgroup" hidden><button type="button" id="ar-console" class="ar-cbtn" aria-label="控制台"></button><button type="button" id="ar-upload" class="ar-cbtn" aria-label="上传文件"></button></div>
-<input type="file" id="ar-file" multiple hidden accept="image/*,.txt,.md,.markdown,.js,.jsx,.ts,.tsx,.json,.html,.htm,.css,.py,.java,.c,.h,.cpp,.hpp,.go,.rs,.rb,.php,.sh,.xml,.yml,.yaml,.ini,.toml,.csv,.sql,.vue,.svg,.log">
+<input type="file" id="ar-file" multiple hidden accept="image/*,.zip,.txt,.md,.markdown,.js,.jsx,.ts,.tsx,.json,.html,.htm,.css,.py,.java,.c,.h,.cpp,.hpp,.go,.rs,.rb,.php,.sh,.xml,.yml,.yaml,.ini,.toml,.csv,.sql,.vue,.svg,.log">
 <div class="ar-sheet ar-cons" id="ar-consoleSheet" hidden>
     <div class="ar-cons-card">
         <div class="ar-cons-top"><span class="ar-cons-led"></span><span class="ar-cons-title">CONSOLE // 对面输出</span><span class="ar-cons-count" id="ar-consCount"></span></div>
@@ -261,7 +261,11 @@
         }
         function meName(){try{return (localStorage.getItem('archangel.me.name')||'').trim()||'我'}catch(e){return '我'}}
         function heartHTML(){return `<svg class="ar-heart" viewBox="0 0 24 24" aria-label="没有步骤">${IC[0]}</svg>`}
-        function attachTextOf(a){return a.type==='image'?`\n\n【图片：${a.name}】`:`\n\n【附件：${a.name}】\n${a.content}`}
+        function attachTextOf(a){
+          if(a.type==='image')return `\n\n【图片：${a.name}】`;
+          if(a.type==='zip')return `\n\n【压缩包：${a.name}，共 ${a.files.length} 个文件】`+a.files.map(f=>`\n\n【${a.name} 里的 ${f.name}】\n${f.content}`).join('');
+          return `\n\n【附件：${a.name}】\n${a.content}`;
+        }
         function histOf(m,withImages){
           if(m.role==='assistant')return {role:'assistant',content:m.text||''};
           let t=(m.role==='system'?'【系统提示】':'')+(m.text||'');
@@ -359,6 +363,34 @@
             btn.textContent='已全部上传';toast('已上传到 GitHub');
             recordSystem('已上传到 GitHub：'+ch.map(f=>f.path).join('、'));
           }catch(e){btn.disabled=false;btn.textContent='重试上传';toast(e.message);explainError('上传失败：'+e.message)}
+        }
+        async function readZip(buf){
+          const u8=new Uint8Array(buf),dv=new DataView(buf);
+          let eocd=-1;
+          for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-65557);i--){if(dv.getUint32(i,true)===0x06054b50){eocd=i;break}}
+          if(eocd<0)throw new Error('不是有效的 zip 文件');
+          const count=dv.getUint16(eocd+10,true),cdOff=dv.getUint32(eocd+16,true);
+          const dec=new TextDecoder('utf-8');
+          const out=[];let p=cdOff;
+          for(let n=0;n<count&&out.length<60;n++){
+            if(dv.getUint32(p,true)!==0x02014b50)break;
+            const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),usize=dv.getUint32(p+24,true);
+            const nlen=dv.getUint16(p+28,true),xlen=dv.getUint16(p+30,true),clen=dv.getUint16(p+32,true),lho=dv.getUint32(p+42,true);
+            const name=dec.decode(u8.subarray(p+46,p+46+nlen));
+            p+=46+nlen+xlen+clen;
+            if(name.endsWith('/')||usize>200*1024)continue;
+            const start=lho+30+dv.getUint16(lho+26,true)+dv.getUint16(lho+28,true);
+            const raw=u8.subarray(start,start+csize);
+            let data;
+            if(method===0)data=raw;
+            else if(method===8){
+              if(typeof DecompressionStream==='undefined')throw new Error('这个浏览器不支持解压');
+              data=new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+            }else continue;
+            if(data.includes(0))continue;
+            out.push({name:name.replace(/\\/g,'/'),content:dec.decode(data)});
+          }
+          return out;
         }
         function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
         function stepsHTML(steps){
@@ -629,7 +661,7 @@
             saveCurrentConversation();
           }
 
-          const attHTML=attach.length?`<div class="att">${attach.map(a=>a.type==='image'?`<img class="pimg" src="${escA(a.dataUrl)}" alt="">`:'附件：'+esc(a.name)).join('<br>')}</div>`:'';
+          const attHTML=attach.length?`<div class="att">${attach.map(a=>a.type==='image'?`<img class="pimg" src="${escA(a.dataUrl)}" alt="">`:a.type==='zip'?`<div class="att">压缩包：${esc(a.name)}（${a.files.length} 个文件）</div><div class="fc-tree">${fileTreeHTML(a.files)}</div>`:'附件：'+esc(a.name)).join('<br>')}</div>`:'';
           const last=chat.lastElementChild;
 
           if(last&&last.classList.contains('urow')){
@@ -884,7 +916,7 @@
               
               tp.textContent=out.thinking||'（这次回复没有返回思维链）';
               say(bodyHTML(out.parts));
-              commit(out.parts,out.thinking,modeCfg().mode==='healer'?[]:out.files);
+              commit(out.parts,out.thinking,out.files);
             }catch(e){
               box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
               toast(e.message);restore();await explainError(e.message);
@@ -897,11 +929,22 @@
             let d=step(0,LBL[0]);
             if(!ST.tree.length||ST.key!==rk(G()))await loadTree();if(!ST.tree.length)throw new Error('仓库文件树为空');
             d();d=step(1,LBL[1]);
+            const recentText=((currentConversation&&currentConversation.messages)||[]).slice(-5).map(m=>`${m.role==='assistant'?'对面':m.role==='system'?'系统':'我'}：${String(m.text||'').slice(0,200)}`).join('\n');
             const attachCands=[];
             ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
             }));
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：用户只是想看、想了解或找东西（比如看看目录、问某个文件是干什么的）就写 read；要你新建一个文件（写一个新文件，然后上传）就写 create；用户明确要改、加、删、修现有文件才写 edit。','uploadFiles：用户想把之前附带的文件上传到仓库时，把文件名放进这里（只能从“用户附带过的文件”里选，没有就空数组）。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"intent":"read、edit 或 create","uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：如果用户只是聊天、问问题、或者要你直接把文件发给他（不需要动仓库），就写 chat：这时直接在 reply 里写给用户的回复，需要给他的文件放进 outFiles。用户想看、想了解仓库里的东西就写 read；要你新建一个文件并上传到仓库就写 create；要改、加、删、修现有文件就写 edit。','uploadFiles：用户想把之前附带的文件上传到仓库时，把文件名放进这里（只能从“用户附带过的文件”里选，没有就空数组）。','只返回 JSON：{"thinking":"用 2-4 句话说明你的分析思路","steps":["四句话，依次说明接下来四步（分析需求、选择文件、查看内容、生成修改），用你自己的语气，每句不超过12个字"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            if(sel.intent==='chat'){
+              const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
+              const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&typeof f.content==='string').map(f=>({name:String(f.name||'file.txt').replace(/\\/g,'/').replace(/^\/+/,'').split('/').filter(x=>x&&x!=='..').join('/')||'file.txt',content:f.content})).slice(0,30);
+              const parts=rp.length?rp:['（这次没有回复内容）'];
+              d();
+              tp.textContent=sel.thinking||'（这次回复没有返回思维链）';
+              say(bodyHTML(parts));
+              commit(parts,sel.thinking,outFs);
+              stopMeta();busy=false;return;
+            }
             tp.textContent=sel.thinking||'已完成分析。';
             if(Array.isArray(sel.steps))sel.steps.slice(0,4).forEach((t,k)=>{if(t&&String(t).trim())LBL[k]=String(t).trim().slice(0,20)});
             steps.querySelectorAll('.step').forEach((el,k)=>{if(LBL[k]){el.dataset.t=LBL[k];const sp=el.querySelector('span');if(sp&&!sp.textContent.includes(' · '))sp.textContent=LBL[k]}});
@@ -1089,6 +1132,12 @@
           for(const f of picked){
             if(pendingAttach.some(a=>a.name===f.name))continue;
             if(pendingAttach.length>=6){toast('一次最多 6 个附件');break}
+            if(/\.zip$/i.test(f.name)){
+              if(f.size>5*1024*1024){toast(`${f.name} 太大了（最大 5MB）`);continue}
+              try{const zf=await readZip(await f.arrayBuffer());if(!zf.length){toast(`${f.name} 里没有可以读的文本文件`);continue}pendingAttach.push({name:f.name,type:'zip',files:zf})}
+              catch(err){toast(`${f.name} 读不了：${err.message}`)}
+              continue;
+            }
             if(f.type.startsWith('image/')){
               try{pendingAttach.push({name:f.name,type:'image',dataUrl:await shrinkImage(f)})}
               catch(err){toast(`${f.name} 读不了`)}
