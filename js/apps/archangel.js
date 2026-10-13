@@ -355,7 +355,7 @@
             need(g);
             for(const f of ch){
               if(f.uploaded)continue;
-              btn.textContent='上传中：'+f.path;
+              btn.textContent='正在上传：'+f.path;
               const r=await req(cu(g,f.path),{method:'PUT',headers:gh(g,true),body:JSON.stringify({message:`Update ${f.path} from Archangel AI`,content:b64(f.edit),branch:g.branch,sha:f.sha})});
               if(!r.ok)throw new Error(`上传 ${f.path} 失败（${r.status}）：${await err(r)}。${ghHint(r.status)}`);
               const j=await r.json();f.sha=(j.content&&j.content.sha)||f.sha;f.uploaded=true;
@@ -367,7 +367,7 @@
             }
             btn.textContent='已全部上传';toast('已上传到 GitHub');
             recordSystem('已上传到 GitHub：'+ch.map(f=>f.path).join('、'));
-          }catch(e){btn.disabled=false;btn.textContent='重试上传';toast(e.message);explainError('上传失败：'+e.message)}
+          }catch(e){btn.disabled=false;btn.textContent='上传失败，点击重试';toast(e.message);explainError('上传失败：'+e.message)}
         }
         async function readZip(buf){
           const u8=new Uint8Array(buf),dv=new DataView(buf);
@@ -375,19 +375,16 @@
           for(let i=buf.byteLength-22;i>=Math.max(0,buf.byteLength-65557);i--){if(dv.getUint32(i,true)===0x06054b50){eocd=i;break}}
           if(eocd<0)throw new Error('不是有效的 zip 文件');
           const count=dv.getUint16(eocd+10,true),cdOff=dv.getUint32(eocd+16,true);
-          if(count>200)throw new Error('压缩包包含超过 200 个条目，请拆分后再发');
           const dec=new TextDecoder('utf-8');
-          const out=[];let p=cdOff,totalUncompressed=0;
-          for(let n=0;n<count;n++){
+          const out=[];let p=cdOff;
+          for(let n=0;n<count&&out.length<60;n++){
             if(dv.getUint32(p,true)!==0x02014b50)break;
             const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),usize=dv.getUint32(p+24,true);
             const nlen=dv.getUint16(p+28,true),xlen=dv.getUint16(p+30,true),clen=dv.getUint16(p+32,true),lho=dv.getUint32(p+42,true);
             const name=dec.decode(u8.subarray(p+46,p+46+nlen));
             p+=46+nlen+xlen+clen;
-            if(name.endsWith('/')){out.push({name:name.replace(/\/+$/,'').replace(/\\/g,'/'),content:'',folder:true});continue}
-            if(usize>5*1024*1024)throw new Error(`${name} 解压后超过 5MB，无法安全读取`);
-            totalUncompressed+=usize;
-            if(totalUncompressed>20*1024*1024)throw new Error('压缩包解压后总量超过 20MB，请拆分后再发');
+            if(name.endsWith('/')){if(out.length<60)out.push({name:name.replace(/\/+$/,'').replace(/\\/g,'/'),content:'',folder:true});continue}
+            if(usize>200*1024)continue;
             const start=lho+30+dv.getUint16(lho+26,true)+dv.getUint16(lho+28,true);
             const raw=u8.subarray(start,start+csize);
             let data;
@@ -461,7 +458,19 @@
           document.body.appendChild(a);a.click();a.remove();
           setTimeout(()=>URL.revokeObjectURL(url),4000);
         }
-        function bodyHTML(parts){return (parts||[]).map(p=>`<div class="abody">${esc(p)}</div>`).join('')}
+        function bodyHTML(parts){
+          return (parts||[]).map(p=>{
+            const text=String(p??'');
+            const lines=text.split('\n');
+            const first=(lines.find(x=>x.trim())||'模块内容').trim().replace(/^#+\s*/, '').replace(/^[*#>\s]+/, '');
+            const moduleLike=/(?:模块|module|文件内容|代码片段|代码模块|```|<script\b|<style\b|\bfunction\s+[$\w]+|\b(?:const|let|class|export)\s+[$\w]+)/i.test(text) && (text.includes('\n')||text.length>180);
+            if(moduleLike){
+              const label=first.length>42?first.slice(0,42)+'…':first;
+              return `<details class="abody out-module"><summary><span class="out-module-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8 8h8M8 11.5h8M8 15h5"/></svg></span><span class="out-module-title">${esc(label||'模块内容')}</span><span class="out-module-hint">展开查看</span></summary><div class="out-module-content">${esc(text)}</div></details>`;
+            }
+            return `<div class="abody">${esc(text)}</div>`;
+          }).join('');
+        }
         const FIXED_STEPS=['PARSE_REQUEST','SELECT_FILES','READ_CONTENT','BUILD_CHANGES'];
         function stepLettersHTML(value){return [...String(value??'')].map(ch=>`<i class="step-letter">${esc(ch)}</i>`).join('')}
         function stepsHTML(steps){
@@ -1227,7 +1236,7 @@
         consoleBtn.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[0]}</svg>`;
         uploadBtn.innerHTML=`<svg viewBox="0 0 24 24" aria-hidden="true">${IC[0].replace('<path ','<path class="hrt" ')}<path d="M12 10v5M9.5 12.5h5"/></svg>`;
         uploadBtn.addEventListener('click',()=>fileInput.click());
-        const ATT_MAX=2*1024*1024;
+        const ATT_MAX=200*1024;
         fileInput.addEventListener('change',async e=>{
           const picked=[...e.target.files];
           e.target.value='';
@@ -1235,7 +1244,7 @@
             if(pendingAttach.some(a=>a.name===f.name))continue;
             if(pendingAttach.length>=6){toast('一次最多 6 个附件');break}
             if(/\.zip$/i.test(f.name)){
-              if(f.size>20*1024*1024){toast(`${f.name} 太大了（最大 20MB）`);continue}
+              if(f.size>5*1024*1024){toast(`${f.name} 太大了（最大 5MB）`);continue}
               try{const zf=await readZip(await f.arrayBuffer());if(!zf.length){toast(`${f.name} 里没有可以读的文本文件`);continue}pendingAttach.push({name:f.name,type:'zip',files:zf})}
               catch(err){toast(`${f.name} 读不了：${err.message}`)}
               continue;
@@ -1245,11 +1254,11 @@
               catch(err){toast(`${f.name} 读不了`)}
               continue;
             }
-            if(f.size>ATT_MAX){toast(`${f.name} 太大了（最大 2MB）`);continue}
+            if(f.size>ATT_MAX){toast(`${f.name} 太大了（最大 200KB）`);continue}
             let text='';
             try{text=await f.text()}catch(err){toast(`${f.name} 读不了`);continue}
             if(text.includes('\u0000')){toast(`${f.name} 不是文本文件，暂不支持`);continue}
-            pendingAttach.push({name:f.name,content:text});
+            pendingAttach.push({name:f.name,content:text.slice(0,60000)});
           }
           if(pendingAttach.length){
             input.placeholder=`已附加 ${pendingAttach.length} 个：${pendingAttach.map(a=>a.name).join('、')}`.slice(0,60);
