@@ -303,7 +303,7 @@
           });
           const fmt=n=>n<1024?n+' B':(n/1024).toFixed(1)+' KB';
           return [...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([dir,items])=>
-            `<div class="fdir"><button type="button" class="fdir-head" aria-expanded="false"><span class="fdir-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4.2l1.8 2H19a1.5 1.5 0 0 1 1.5 1.5V18A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z"/></svg></span><span class="fdir-name"><b>${esc(dir||'（根目录）')}</b></span><span class="fdir-count">${items.length}</span><span class="fdir-chev" aria-hidden="true"></span></button><div class="fdir-body"><div><ul class="ffiles">${items.map(it=>`<li><span class="fdot"></span><span class="ffname">${esc(it.base)}</span><span class="ffsize">${fmt(it.size)}</span></li>`).join('')}</ul></div></div></div>`
+            `<div class="fdir"><span class="fdir-tab"></span><button type="button" class="fdir-head" aria-expanded="false"><span class="fdir-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h4.2l1.8 2H19a1.5 1.5 0 0 1 1.5 1.5V18A1.5 1.5 0 0 1 19 19.5H5A1.5 1.5 0 0 1 3.5 18z"/></svg></span><span class="fdir-name"><b>${esc(dir||'（根目录）')}</b></span><span class="fdir-count">${items.length}</span><span class="fdir-chev" aria-hidden="true"></span></button><div class="fdir-body"><div><ul class="ffiles">${items.map(it=>`<li><span class="fdot"></span><span class="ffname">${esc(it.base)}</span><span class="ffsize">${fmt(it.size)}</span></li>`).join('')}</ul></div></div></div>`
           ).join('');
         }
         function fileCardHTML(mid,files){
@@ -349,7 +349,6 @@
           btn.disabled=true;
           try{
             need(g);
-            if(ST.canPush===false)throw new Error('这个 Token 只有读取权限，无法上传。请在 GitHub 把 Token 的 Contents 权限改为 Read and write，并确认已授权这个仓库');
             for(const f of ch){
               if(f.uploaded)continue;
               btn.textContent='上传中：'+f.path;
@@ -767,9 +766,7 @@
             const rr=await req(base(g),{headers:gh(g)});
             if(rr.ok){const j=await rr.json();if(j.permissions)ST.canPush=!!j.permissions.push}
           }catch(e){}
-          const writeTip=ST.canPush===true?' · 可以写入'
-            :ST.canPush===false?' · 只有读取权限，修改无法上传（请把 Token 的 Contents 权限改为 Read and write）'
-            :'';
+          const writeTip=ST.canPush===true?' · 可以写入':'';
           $('#ar-treeInfo').textContent=`已读取 ${ST.tree.length} 个文件`+(d.truncated?'（仓库过大，部分未显示）':'')+writeTip;
         }
         $('#ar-gTree').onclick=async()=>{const b=$('#ar-gTree');b.disabled=true;try{await loadTree();toast('文件树已读取')}catch(e){toast(e.message)}b.disabled=false};
