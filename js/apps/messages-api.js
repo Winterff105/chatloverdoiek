@@ -162,11 +162,11 @@
       const activeWords = words.filter(w => levels[w] || legacyHigh.includes(w));
       const group = level => activeWords.filter(w => (levels[w] || (legacyHigh.includes(w) ? 'high' : 'medium')) === level);
       if (activeWords.length) styleBlock = [
-        '【表达偏好｜按优先级排列】',
-        group('high').length ? '高优先级（放在规则最前，尽量优先遵循）：' + group('high').join('、') + '。' : '',
-        group('medium').length ? '中优先级（通常避免，必要时根据语境自然处理）：' + group('medium').join('、') + '。' : '',
-        group('low').length ? '低优先级（仅作为风格提醒，优先保持语境自然）：' + group('low').join('、') + '。' : '',
-        '优先采用贴合角色性格、当前情境与说话习惯的具体表达；把注意力放在要表达的意思和自然替代表达上，不围绕词条展开联想，也不复述或解释规则。',
+        '【禁用词｜按优先级排列】',
+        group('high').length ? '高优先级（完全禁止出现）：' + group('high').join('、') + '。' : '',
+        group('medium').length ? '中优先级（禁止出现）：' + group('medium').join('、') + '。' : '',
+        group('low').length ? '低优先级（禁止出现）：' + group('low').join('、') + '。' : '',
+        '禁止使用被禁掉的词语，无论是任何场景下都必须避免，你需要明白并思考*为什么被禁止*然后根据禁止词往禁止词的反向分析后用相近意思代替',
         '角色可以保留自己的复杂、强势、阴郁或有缺点的一面，不强迫角色变得善良、温柔或永远正确。'
       ].filter(Boolean).join('\n');
     }
