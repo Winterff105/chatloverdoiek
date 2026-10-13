@@ -4367,15 +4367,17 @@ function scheduleMomentFetch(p) {
 }
 async function momentFetchFor(p) {
     momentFetchTimer = null;
-    if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) return;   // 没接入 API 时不调取
+    if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('朋友圈没有调取：请先在「设置 → API」保存接口配置'); return; }
     if (momentFetchBusy) { scheduleMomentFetch(p); return; }
+    const who = CONTACTS.filter(x => momentVisibleTo(p, x));
+    if (!who.length) { toast('朋友圈没有调取：没有能看到这条的联系人'); return; }
     momentFetchBusy = true;
     MOMENT_UNSEEN = false;
     refreshChatBadge();
     showMomentLoading();
     const excerpt = (p.text || '').trim().slice(0, 20) || '一张照片';
     const fresh = [];
-    for (const c of CONTACTS.filter(x => momentVisibleTo(p, x))) {
+    for (const c of who) {
         try {
             const r = await window.MessagesAPI.momentWordReply(c, p, (c.msgs || []).slice(-30));
             p.likes = p.likes || []; p.comments = p.comments || [];
@@ -4392,7 +4394,7 @@ async function momentFetchFor(p) {
         } catch (e) { toast((e && e.message) || '朋友圈调取失败'); }
     }
     momentFetchBusy = false;
-    if (!fresh.length) { hideMomentBubble(); refreshChatBadge(); return; }
+    if (!fresh.length) { toast('这次调取没有人评论'); hideMomentBubble(); refreshChatBadge(); return; }
     showMomentDone(fresh);
     if (activeTab === 'moments') {
         setTimeout(() => { if (activeTab === 'moments' && !momentFetchBusy) hideMomentBubble(); }, 2000);
