@@ -2002,7 +2002,7 @@
 }
 .messages-app #chatView .thread{ padding-top: 140px; padding-bottom: 124px; gap: 4px; }
 .messages-app #chatView .composer{
-    position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
+    position: absolute; left: 0; right: 0; bottom: -25px; z-index: 5;
     background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, #FFFFFF 46%);
     border-top: 0;
 }
@@ -4418,3 +4418,189 @@
 /* ---------------- 顶栏 / 输入框：纯白实底，花边下面有填充 ---------------- */
 .messages-app #chatView .chat-head{ background:#FFFFFF !important; }
 .messages-app #chatView .composer{ background:#FFFFFF !important; }
+
+/* ---------------- 弹窗：参考大天使（浅色卡片 / 英文小标题 / 分段按钮 / 灰色胶囊按钮 / 玻璃圆按钮） ---------------- */
+.messages-app .mq-sheet{ position:absolute; inset:0; z-index:350; display:grid; place-items:center; background:rgba(60,66,76,.08); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); opacity:0; transition:opacity .22s ease; }
+.messages-app .mq-sheet.show{ opacity:1; }
+.messages-app .mq-sheet-card{ width:min(330px,88%); max-height:86%; overflow-y:auto; box-sizing:border-box; padding:16px 18px 14px; border-radius:22px; background:rgba(255,255,255,.94); box-shadow:0 18px 40px rgba(60,66,76,.22); display:flex; flex-direction:column; gap:10px; color:#4b535d; scrollbar-width:none; }
+.messages-app .mq-sheet-card::-webkit-scrollbar{ display:none; }
+.messages-app .mq-sheet-title{ font-size:16px; font-weight:600; text-align:center; }
+.messages-app .mq-script{ font-size:10.5px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#8a929c; }
+.messages-app .mq-script.mq-big{ font-size:17px; font-weight:700; letter-spacing:4px; color:#3a414b; padding:2px 0 4px; }
+.messages-app .mq-sec{ font-size:11px; color:#8a929c; letter-spacing:.3px; text-align:center; margin-top:4px; }
+.messages-app .mq-sec em{ font-style:normal; color:#5b636d; margin-left:4px; }
+.messages-app .mq-seg{ display:flex; gap:3px; padding:3px; border-radius:999px; background:#eef1f5; }
+.messages-app .mq-seg button{ flex:1; border:0; background:transparent; padding:7px 0; border-radius:999px; font-size:12px; font-weight:600; color:#8a929c; cursor:pointer; }
+.messages-app .mq-seg button.on{ background:#fff; color:#2b3138; box-shadow:0 1px 4px rgba(0,0,0,.12); }
+.messages-app .mq-foot{ display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+.messages-app .mq-close{ height:40px; border:0; border-radius:999px; background:#eef1f5; color:#4b535d; font-size:14px; cursor:pointer; }
+.messages-app .mq-round-row{ display:flex; gap:14px; justify-content:center; padding:6px 0; }
+.messages-app .mq-round{ display:flex; flex-direction:column; align-items:center; gap:8px; border:0; background:none; cursor:pointer; font-size:12px; color:#5b636d; }
+.messages-app .mq-round-ic{ width:56px; height:56px; border-radius:50%; display:grid; place-items:center; color:#727c87; border:1px solid rgba(255,255,255,.86); background:linear-gradient(145deg,rgba(255,255,255,.88),rgba(218,224,232,.54)); box-shadow:inset 0 1px 0 rgba(255,255,255,.96),0 12px 26px rgba(125,135,149,.22); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); }
+.messages-app .mq-round-ic svg{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+.messages-app .mq-round:active .mq-round-ic{ transform:translateY(1px) scale(.97); }
+.messages-app .mq-nums{ display:flex; gap:8px; justify-content:center; }
+.messages-app .mq-num{ width:86px; height:34px; border:0; border-radius:12px; background:#f3f5f8; text-align:center; font-size:14px; color:#4b535d; }
+.messages-app .mq-range{ width:100%; accent-color:#727c87; }
+.messages-app .mq-color-row{ display:flex; justify-content:center; }
+.messages-app .mq-color{ width:52px; height:30px; border:0; background:none; padding:0; cursor:pointer; }
+
+/* ---------------- 聊天里的旁白：居中，浅灰斜体，比气泡小一号（颜色/大小/斜体来自旁白设置） ---------------- */
+.messages-app .narr-row{ display:flex; justify-content:center; padding:6px 18px; }
+.messages-app .narr-row .narr{ max-width:86%; text-align:center; line-height:1.5; color:#9A9AA0; font-style:italic; font-size:13.5px; }
+
+/* 旁白弹窗：紧凑行布局 */
+.messages-app .mq-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:34px; }
+.messages-app .mq-stack{ display:flex; flex-direction:column; gap:6px; }
+.messages-app .mq-lbl{ font-size:13px; font-weight:500; color:#4b535d; }
+.messages-app .mq-seg-sm{ width:110px; flex:none; }
+.messages-app .mq-nums{ display:flex; align-items:center; gap:6px; }
+.messages-app .mq-num{ width:58px; height:30px; }
+.messages-app .mq-dash{ color:#8a929c; }
+.messages-app .mq-color{ width:44px; height:26px; }
+.messages-app .mq-slide-head{ margin-top:2px; }
+.messages-app .mq-val{ font-size:12px; color:#8a929c; font-variant-numeric:tabular-nums; }
+.messages-app .mq-foot{ margin-top:6px; }
+
+/* 字体大小滑条：白色圆点 + 深色进度 */
+.messages-app .mq-range{ -webkit-appearance:none; appearance:none; width:100%; height:22px; margin:0; background:transparent; cursor:pointer; }
+.messages-app .mq-range:focus{ outline:none; }
+.messages-app .mq-range::-webkit-slider-runnable-track{ height:6px; border-radius:999px; background:linear-gradient(to right, #4b535d 0%, #4b535d var(--p,50%), #e3e7ed var(--p,50%), #e3e7ed 100%); }
+.messages-app .mq-range::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:22px; height:22px; margin-top:-8px; border-radius:50%; background:#fff; border:1px solid rgba(60,66,76,.12); box-shadow:0 2px 8px rgba(60,66,76,.25); }
+.messages-app .mq-range::-moz-range-track{ height:6px; border-radius:999px; background:#e3e7ed; }
+.messages-app .mq-range::-moz-range-progress{ height:6px; border-radius:999px; background:#4b535d; }
+.messages-app .mq-range::-moz-range-thumb{ width:22px; height:22px; border-radius:50%; background:#fff; border:1px solid rgba(60,66,76,.12); box-shadow:0 2px 8px rgba(60,66,76,.25); }
+
+/* 更多弹窗：同输入框菜单的按钮样式 */
+.messages-app .more-grid{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:12px; padding:8px 0 4px; justify-items:center; }
+.messages-app .more-grid .quick-item{ gap:6px; font-size:10.5px; }
+.messages-app .more-grid .quick-item svg{ width:46px; height:46px; padding:13px; }
+.messages-app .more-grid .mq-slot{ opacity:.45; cursor:default; }
+
+/* 输入框菜单：左右距屏幕一样（输入框容器右侧有 36px 留给发送按钮，这里向右延伸 18px） */
+.messages-app .quick-menu{ margin-left:0 !important; margin-right:-18px !important; }
+
+/* 旁白弹窗：人称 / 模式 分段按钮撑满整行 */
+.messages-app .mq-stack{ align-items:stretch; text-align:left; width:100%; }
+.messages-app .mq-stack .mq-seg{ width:100%; box-sizing:border-box; }
+.messages-app .mq-stack .mq-seg button{ white-space:nowrap; padding:7px 4px; }
+
+/* 旁白弹窗：标题居中（在控件左侧的空间里居中，不会压到控件；整行的标题居中） */
+.messages-app .mq-row .mq-lbl{ flex:1 1 0; min-width:0; text-align:center; }
+.messages-app .mq-stack .mq-lbl{ text-align:center; }
+.messages-app .mq-slide-head .mq-lbl{ text-align:center; }
+
+/* 字体大小：标题和数值整体放在中间 */
+.messages-app .mq-slide-head{ justify-content:center; gap:8px; }
+.messages-app .mq-slide-head .mq-lbl{ flex:0 1 auto; }
+.messages-app .mq-slide-head{ position:relative; }
+.messages-app .mq-slide-head .mq-val{ position:absolute; right:4px; top:50%; transform:translateY(-50%); }
+
+
+/* ==================================================================
+   旁白弹窗背景图参数（改这里，保存后重新加载页面即可）
+   ------------------------------------------------------------------
+   --nb-x        图片左右位置（像素）：正数往右移，负数往左移
+   --nb-y        图片上下位置（像素）：正数往下移，负数往上移
+   --nb-w        图片宽度：可以写像素（如 300px）或百分比（如 100%）
+   --nb-h        图片高度：可以写像素（如 500px）或百分比（如 100%）
+   --nb-opacity  图片透明度：0 完全看不见，1 完全显示
+   --nb-overlay  白色遮罩浓度：0 不遮罩，1 全白（数字越大，文字越清楚）
+   ================================================================== */
+.messages-app .mq-sheet-card.mq-narr{
+  --nb-x:0px; --nb-y:0px; --nb-w:100%; --nb-h:100%; --nb-opacity:1; --nb-overlay:0.55;
+  position:relative; isolation:isolate; overflow-x:hidden;
+}
+.messages-app .mq-sheet-card.mq-narr::before{
+  content:""; position:absolute; z-index:0; pointer-events:none;
+  left:var(--nb-x); top:var(--nb-y); width:var(--nb-w); height:var(--nb-h);
+  background:var(--nb-img) center / cover no-repeat;
+  opacity:var(--nb-opacity);
+}
+.messages-app .mq-sheet-card.mq-narr::after{
+  content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
+  background:rgba(255,255,255,var(--nb-overlay));
+}
+.messages-app .mq-sheet-card.mq-narr > *{ position:relative; z-index:1; }
+
+/* 背景图调整面板 */
+.messages-app .mq-nb-toggle{ display:flex; justify-content:center; }
+.messages-app .mq-nb-btn{ height:32px; padding:0 16px; border:0; border-radius:999px; background:#eef1f5; color:#4b535d; font-size:12.5px; font-weight:600; cursor:pointer; }
+.messages-app .mq-nb-panel{ display:flex; flex-direction:column; gap:8px; padding:10px 12px; border-radius:16px; background:rgba(255,255,255,.7); box-shadow:inset 0 0 0 1px rgba(60,66,76,.06); }
+.messages-app .mq-nb-row{ display:flex; flex-direction:column; gap:2px; }
+.messages-app .mq-nb-row.is-off{ opacity:.4; }
+.messages-app .mq-nb-top{ display:flex; justify-content:space-between; align-items:center; }
+.messages-app .mq-nb-actions{ display:flex; justify-content:center; padding-top:4px; }
+
+
+/* 旁白弹窗细节：标题逐项由浅至深，按钮半透明透出背景图 */
+.messages-app .mq-sheet-card.mq-narr .mq-lbl,
+.messages-app .mq-sheet-card.mq-narr .mq-sheet-title,
+.messages-app .mq-sheet-card.mq-narr .mq-sec {
+  background: linear-gradient(180deg, #aeb5bf 0%, #626b78 52%, #303844 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.messages-app .mq-sheet-card.mq-narr .mq-seg {
+  background: rgba(239, 242, 246, .42);
+  border: 1px solid rgba(255,255,255,.34);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+.messages-app .mq-sheet-card.mq-narr .mq-seg button { background: rgba(255,255,255,.20); }
+.messages-app .mq-sheet-card.mq-narr .mq-seg button.on {
+  background: rgba(255,255,255,.68);
+  box-shadow: inset 0 0 0 1px rgba(80,88,100,.18);
+}
+.messages-app .mq-sheet-card.mq-narr .mq-num,
+.messages-app .mq-sheet-card.mq-narr .mq-color,
+.messages-app .mq-sheet-card.mq-narr .mq-close {
+  background-color: rgba(255,255,255,.42);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+
+/* 旁白背景图调整入口：极简横线，密码验证后才显示控制项 */
+.messages-app .mq-nb-toggle{display:flex;justify-content:center;align-items:center;padding:2px 0 0;margin:0;}
+.messages-app .mq-nb-line{display:flex;align-items:center;justify-content:center;width:54px;height:16px;padding:0;border:0;background:transparent;cursor:pointer;opacity:.68;}
+.messages-app .mq-nb-line span{display:block;width:25px;height:2px;border-radius:999px;background:rgba(70,77,87,.78);transition:width .18s ease,opacity .18s ease;}
+.messages-app .mq-nb-line:active span{width:34px;opacity:.75;}
+.messages-app .mq-nb-panel[hidden]{display:none!important;}
+.messages-app .mq-nb-panel{margin-top:7px;max-height:240px;overflow-y:auto;}
+.messages-app .mq-nb-heading{font-size:11px;font-weight:650;color:#68717e;text-align:center;padding-bottom:2px;}
+.messages-app .mq-nb-row{display:flex;flex-direction:column;gap:4px;font-size:11px;color:#68717e;}
+.messages-app .mq-nb-top{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.messages-app .mq-nb-input{width:100%;min-height:29px;box-sizing:border-box;border:1px solid rgba(90,99,112,.15);border-radius:9px;background:rgba(255,255,255,.38);color:#343b45;padding:4px 8px;font:inherit;outline:none;}
+.messages-app .mq-nb-input:focus{border-color:rgba(83,92,106,.42);}
+.messages-app .mq-nb-reset{border:1px solid rgba(90,99,112,.2);border-radius:999px;background:rgba(255,255,255,.36);color:#525c69;padding:7px 14px;font-size:11px;}
+
+
+/* 密码入口：横线展开后在旁白弹窗内输入密码，避免 WebView 禁用 prompt 导致无法打开 */
+.messages-app .mq-nb-password{margin:7px auto 0;width:min(100%,280px);padding:10px 12px;border:1px solid rgba(95,104,117,.16);border-radius:13px;background:rgba(255,255,255,.48);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-sizing:border-box;color:#596372;font-size:11px;text-align:center;}
+.messages-app .mq-nb-password>label{display:block;margin-bottom:7px;}
+.messages-app .mq-nb-password-row{display:flex;gap:6px;align-items:center;}
+.messages-app .mq-nb-password-row input{min-width:0;flex:1;height:30px;padding:0 9px;border:1px solid rgba(90,99,112,.2);border-radius:8px;background:rgba(255,255,255,.52);color:#303743;font:inherit;outline:none;}
+.messages-app .mq-nb-password-row button{height:30px;padding:0 12px;border:1px solid rgba(90,99,112,.18);border-radius:8px;background:rgba(255,255,255,.62);color:#424b58;font:inherit;cursor:pointer;}
+.messages-app .mq-nb-password-error{min-height:0;margin-top:4px;color:#a34d55;font-size:10px;}
+.messages-app .mq-nb-password-error:empty{display:none;}
+
+/* X 位置固定为 29 的只读显示 */
+.messages-app .mq-nb-locked{padding:5px 0 3px;opacity:.82;}
+.messages-app .mq-nb-locked .mq-nb-top{min-height:22px;}
+
+
+/* 旁白弹窗防闪动：内容更新时保持遮罩层与卡片节点稳定，避免重复淡入和背景图重绘。 */
+.messages-app #mqSheet.mq-sheet { transition: opacity .18s ease; }
+.messages-app #mqSheet.mq-sheet .mq-sheet-card.mq-narr {
+  animation: none !important;
+  transition: none !important;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.messages-app #mqSheet.mq-sheet .mq-sheet-card.mq-narr::before,
+.messages-app #mqSheet.mq-sheet .mq-sheet-card.mq-narr::after {
+  animation: none !important;
+  transition: none !important;
+}

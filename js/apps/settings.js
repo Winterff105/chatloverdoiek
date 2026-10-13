@@ -222,20 +222,6 @@ function getSettingsAppHTML() {
                             <div class="ios-switch" id="settingsFullscreenSwitch"></div>
                         </div>
                     </div>
-                    <div class="setting-row" id="settingsFsReturnRow" style="cursor:pointer;" onclick="toggleFsReturn()">
-                        <div class="row-left">
-                            <div class="row-icon-box">
-                                <svg viewBox="0 0 24 24"><path d="M9 14 4 19M4 14v5h5M15 10l5-5M20 10V5h-5"/></svg>
-                            </div>
-                            <div class="row-text-group">
-                                <span class="row-label">退出全屏后点击回到全屏</span>
-                                <span class="row-note mono-font">Return to Fullscreen</span>
-                            </div>
-                        </div>
-                        <div class="row-right">
-                            <div class="ios-switch" id="settingsFsReturnSwitch"></div>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="section-tag mono-font" style="margin-top: 8px;">Section 02 — Advanced Visuals</div>
@@ -558,7 +544,6 @@ async function initSettingsApp() {
 
         // 5. 更新全屏开关状态
         syncFullscreenSwitch();
-        syncFsReturnSwitch();
         applySettingsAvatar(await safeDB.load('settings_avatar', null));
 
         // 6. 加载并应用保存的视口边距
@@ -1184,23 +1169,9 @@ function requestAppFullscreen() {
     const p = req.call(docEl);
     if (p && p.catch) p.catch(() => {});
 }
-// 退出全屏后，任意位置点击回到全屏；可在设置里关闭（默认开启）
-const FS_RETURN_KEY = 'forever_fullscreen_return_v1';
-let fsReturnOn = (() => { try { return localStorage.getItem(FS_RETURN_KEY) !== '0'; } catch (_) { return true; } })();
-function syncFsReturnSwitch() {
-    const sw = document.getElementById('settingsFsReturnSwitch');
-    if (sw) sw.classList.toggle('active', fsReturnOn);
-}
-function toggleFsReturn() {
-    fsReturnOn = !fsReturnOn;
-    try { localStorage.setItem(FS_RETURN_KEY, fsReturnOn ? '1' : '0'); } catch (_) {}
-    syncFsReturnSwitch();
-}
-// 捕获阶段：先于所有控件的点击处理执行。
-// 点击“退出全屏”的那一次发生时仍处于全屏，所以不会被立刻重新进入。
-document.addEventListener('click', (e) => {
-    if (!fsReturnOn || !fullscreenArmed || isFullscreenNow()) return;
-    if (e.target && e.target.closest && e.target.closest('#settingsFsReturnRow')) return;
+// 退出全屏后，点击任意位置回到全屏（默认一直开启，不需要设置；进入过一次全屏之后生效）
+document.addEventListener('click', () => {
+    if (!fullscreenArmed || isFullscreenNow()) return;
     requestAppFullscreen();
 }, true);
 

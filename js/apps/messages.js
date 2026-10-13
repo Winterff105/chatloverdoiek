@@ -1,3 +1,5 @@
+/* 本脚本的地址（在文件最外层读取，供找 assets 用） */
+const MSG_SCRIPT_URL = (document.currentScript && document.currentScript.src) || '';
 window.initMessagesModule = function(root) {
 if (root) root.classList.add('messages-app');
 
@@ -2016,6 +2018,10 @@ function renderThread(opts) {
     const avo = avOptsOf(c);
     let html = '<div class="day">Today</div>';
     c.msgs.forEach((m, i) => {
+        if (m.narr) {
+            html += `<div class="narr-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><div class="narr" style="color:${NARR.color};font-size:${NARR.size}px;font-style:${NARR.italic ? 'italic' : 'normal'}">${esc(m.text)}</div></div>`;
+            return;
+        }
         const prev = c.msgs[i - 1], next = c.msgs[i + 1];
         const newGroup = !prev || prev.me !== m.me;
         const lastInGroup = !next || next.me !== m.me;
@@ -2124,7 +2130,7 @@ function toggleRoomBatch() {
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function deliverMsgs(c, parts) {
     if (chatOptsOf(c).batch) {
-        parts.forEach(t => c.msgs.push({me:false,text:t,t:nowTime(), ts: Date.now()}));
+        parts.forEach(t => c.msgs.push(msgOf(t)));
         c.time = nowTime(); persistContacts();
         if (activeId === c.id) renderThread({noAnim:true});
         renderChats();
@@ -2132,7 +2138,7 @@ async function deliverMsgs(c, parts) {
     }
     for (let i = 0; i < parts.length; i++) {
         if (i > 0) await sleep(650);
-        c.msgs.push({me:false,text:parts[i],t:nowTime(), ts: Date.now()});
+        c.msgs.push(msgOf(parts[i]));
         c.time = nowTime(); persistContacts();
         if (activeId === c.id) renderThread();
         renderChats();
@@ -2157,12 +2163,12 @@ async function pullReply() {
     const cap = document.querySelector('.messages-app').querySelector('.send-capsule'); if (cap) cap.classList.add('pulling');
     showTyping(c);
     try {
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。本次请发送 ${o.min} 到 ${o.max} 条消息。`;
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。本次请发送 ${o.min} 到 ${o.max} 条消息。` + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction, o.max);
         const row = document.getElementById('typingRow'); if (row) row.remove();
-        const parts = replies.map(p => cleanMsgPart(p, c.name)).filter(Boolean);
+        const parts = replies.map(p => narrPart(p, c.name)).filter(Boolean);
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
         await deliverMsgs(c, parts);
         maybeAutoSummary(c);
@@ -2219,6 +2225,248 @@ function updateSend() { document.getElementById('sendBtn').classList.toggle('rea
 /* ---------------- 输入手势 ---------------- */
 let touchStartY = 0;
 let touchStartX = 0;
+
+/* ---------------- 旁白：开启后 AI 会输出动作 / 神态 / 环境，以【旁白】开头单独成条 ---------------- */
+const NARR_KEY = 'forever_messages_narr_v1';
+const NARR_DEFAULT = { on: false, person: '2', min: 10, max: 40, mode: 'free', size: 13.5, italic: true, color: '#9A9AA0' };
+let NARR = (() => { try { return Object.assign({}, NARR_DEFAULT, JSON.parse(localStorage.getItem(NARR_KEY) || '{}')); } catch (_) { return Object.assign({}, NARR_DEFAULT); } })();
+function saveNarr() { try { localStorage.setItem(NARR_KEY, JSON.stringify(NARR)); } catch (_) {} }
+function narrInstruction() {
+    if (!NARR.on) return '';
+    const person = NARR.person === '1' ? '第一人称（用“我”描写用户的动作）' : NARR.person === '2' ? '第二人称（用“你”描写用户的动作）' : `第三人称（用用户的名字“${window.MESSAGES_USER_NAME || '用户'}”描写用户的动作）`;
+    const mode = NARR.mode === 'online' ? '线上聊天时的状态（比如正在打字、看手机、发语音）' : NARR.mode === 'offline' ? '线下面对面的场景和动作（比如靠近、递东西、看向远处）' : '情境相符即可，不限定场景';
+    return ` 本次需要加入旁白：旁白是描写动作、神态或环境的一句话，单独作为一条消息，并以【旁白】开头，每条旁白 ${NARR.min} 到 ${NARR.max} 字。旁白描写${mode}。旁白中提到用户时，使用${person}。`;
+}
+/* 解析单条回复：旁白保留，普通台词照旧清理 */
+function narrPart(p, name) {
+    const s = String(p || '').trim();
+    const m = s.match(/^【旁白】\s*([\s\S]*)$/);
+    if (m) {
+        const t = m[1].trim();
+        if (!t) return null;
+        return NARR.on ? { text: t, narr: true } : { text: t, narr: false };
+    }
+    const t = cleanMsgPart(s, name);
+    return t ? { text: t, narr: false } : null;
+}
+/* 旁白弹窗背景图：相对于本脚本位置（js/apps/messages.js → ../../assets/聊天室设置背景图/旁白弹窗.jpg） */
+const NARR_BG_URL = new URL('../../assets/聊天室设置背景图/旁白弹窗.jpg', MSG_SCRIPT_URL || location.href).href;
+/* 弹窗（参考大天使：浅色卡片 + 英文小标题 + 分段按钮 + 灰色胶囊按钮） */
+function openMqSheet(innerHtml, cardClass, cardStyle) {
+    const root = document.querySelector('.messages-app'); if (!root) return;
+    const existing = document.getElementById('mqSheet');
+    const existingCard = existing && existing.querySelector('.mq-sheet-card');
+    /* 同类型弹窗原位更新：不移除遮罩层，不重复触发淡入；只有内容确实变化时才更新节点。 */
+    if (existing && existingCard && existingCard.classList.contains(cardClass || '')) {
+        const nextClass = `mq-sheet-card ${cardClass || ''}`.trim();
+        if (existingCard.className !== nextClass) existingCard.className = nextClass;
+        const nextStyle = cardStyle || '';
+        if (existingCard.getAttribute('style') !== nextStyle) existingCard.setAttribute('style', nextStyle);
+        if (existingCard.innerHTML !== innerHtml) {
+            const scrollTop = existingCard.scrollTop;
+            existingCard.innerHTML = innerHtml;
+            existingCard.scrollTop = scrollTop;
+        }
+        return;
+    }
+    closeMqSheet();
+    const s = document.createElement('div');
+    s.id = 'mqSheet'; s.className = 'mq-sheet';
+    s.innerHTML = `<div class="mq-sheet-card ${cardClass || ''}" style="${cardStyle || ''}">${innerHtml}</div>`;
+    s.addEventListener('click', ev => { if (ev.target === s) closeMqSheet(); });
+    root.appendChild(s);
+    requestAnimationFrame(() => s.classList.add('show'));
+}
+function closeMqSheet() { const s = document.getElementById('mqSheet'); if (s) s.remove(); }
+function openMoreSheet() {
+    const slot = '<button class="quick-item mq-slot" type="button" disabled><svg viewBox="0 0 24 24"><path d="M12 7v10M7 12h10"/></svg><span>空位</span></button>';
+    openMqSheet(`<div class="mq-sheet-title mq-script">More</div>
+        <div class="more-grid">
+            <button class="quick-item" type="button" onclick="openNarrSheet()"><svg viewBox="0 0 24 24"><path d="M5 6h14M5 12h10M5 18h7"/></svg><span>旁白</span></button>
+            ${slot}${slot}${slot}
+        </div>
+        <div class="mq-foot"><button class="mq-close" type="button" onclick="closeMqSheet()">关闭</button></div>`);
+}
+/* 旁白弹窗背景图：默认采用指定参数；通过密码入口可临时调整并保存 */
+const NB_KEY = 'forever_messages_narr_bg_v5';
+const NB_DEFAULT = Object.freeze({ x: 29, y: -2, w: 350, h: 356, opacity: 0.75, overlay: 0.65 });
+let NB = Object.assign({}, NB_DEFAULT);
+let NB_PANEL = false;
+let NB_UNLOCKED = false;
+let NB_PASSWORD_OPEN = false;
+function loadNB() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(NB_KEY) || 'null');
+        if (saved && typeof saved === 'object') {
+            /* X 位置被锁定为 29，不读取任何旧值；其余参数仍可保存并恢复。 */
+            ['y','w','h','opacity','overlay'].forEach(k => {
+                const n = Number(saved[k]);
+                if (Number.isFinite(n)) NB[k] = n;
+            });
+            NB.x = NB_DEFAULT.x;
+        }
+    } catch (_) {}
+}
+loadNB();
+function saveNB() {
+    try { localStorage.setItem(NB_KEY, JSON.stringify(NB)); } catch (_) {}
+}
+function nbStyle() {
+    return `--nb-img:url('${NARR_BG_URL}');--nb-x:${NB.x}px;--nb-y:${NB.y}px;--nb-w:${NB.w}px;--nb-h:${NB.h}px;--nb-opacity:${NB.opacity};--nb-overlay:${NB.overlay};`;
+}
+function applyNB() {
+    const c = document.querySelector('.mq-narr'); if (!c) return;
+    c.style.setProperty('--nb-x', NB.x + 'px');
+    c.style.setProperty('--nb-y', NB.y + 'px');
+    c.style.setProperty('--nb-w', NB.w + 'px');
+    c.style.setProperty('--nb-h', NB.h + 'px');
+    c.style.setProperty('--nb-opacity', String(NB.opacity));
+    c.style.setProperty('--nb-overlay', String(NB.overlay));
+}
+function nbShown(key) { return key === 'opacity' || key === 'overlay' ? NB[key].toFixed(2) : Math.round(NB[key]); }
+function narrBgSet(key, value) {
+    /* 左右位置 X 固定为 29，不允许控件或旧脚本修改。 */
+    if (key === 'x') { NB.x = NB_DEFAULT.x; applyNB(); return; }
+    if (!['y','w','h','opacity','overlay'].includes(key)) return;
+    let n = Number(value);
+    if (!Number.isFinite(n)) return;
+    if (key === 'w' || key === 'h') n = Math.max(1, Math.min(1200, n));
+    if (key === 'x' || key === 'y') n = Math.max(-1000, Math.min(1000, n));
+    if (key === 'opacity' || key === 'overlay') n = Math.max(0, Math.min(1, n));
+    NB[key] = n;
+    applyNB(); saveNB();
+    const out = document.getElementById('nb-val-' + key);
+    if (out) out.textContent = nbShown(key) + ((key === 'opacity' || key === 'overlay') ? '' : 'px');
+}
+function narrBgFill() { /* 兼容旧调用 */ }
+function narrBgReset() {
+    NB = Object.assign({}, NB_DEFAULT); saveNB(); applyNB();
+    /* 只同步控件数值，不重建旁白弹窗，避免背景图闪动。 */
+    ['y','w','h','opacity','overlay'].forEach(key => {
+        const input = document.querySelector(`#mqNbPanel [oninput="narrBgSet('${key}',this.value)"]`);
+        if (input) input.value = NB[key];
+        const out = document.getElementById('nb-val-' + key);
+        if (out) out.textContent = nbShown(key) + ((key === 'opacity' || key === 'overlay') ? '' : 'px');
+    });
+    const x = document.getElementById('nb-val-x'); if (x) x.textContent = '29px';
+}
+function narrBgPanel() {
+    const panel = document.getElementById('mqNbPanel');
+    if (!panel) return;
+    NB_PANEL = !NB_PANEL;
+    panel.hidden = !NB_PANEL;
+    const btn = document.getElementById('mqNbToggle');
+    if (btn) btn.setAttribute('aria-expanded', String(NB_PANEL));
+}
+function nbRow(key, label, min, max, step) {
+    if (key === 'x') {
+        return `<div class="mq-nb-row mq-nb-locked"><span class="mq-nb-top"><span>${label}（已锁定）</span><span id="nb-val-x">29px</span></span></div>`;
+    }
+    return `<label class="mq-nb-row"><span class="mq-nb-top"><span>${label}</span><span id="nb-val-${key}">${nbShown(key)}${key === 'opacity' || key === 'overlay' ? '' : 'px'}</span></span><input type="number" class="mq-nb-input" value="${NB[key]}" min="${min}" max="${max}" step="${step}" oninput="narrBgSet('${key}',this.value)"></label>`;
+}
+function unlockNarrBg() {
+    if (NB_UNLOCKED) {
+        narrBgPanel();
+        return;
+    }
+    NB_PASSWORD_OPEN = !NB_PASSWORD_OPEN;
+    openNarrSheet();
+}
+function checkNarrBgPassword() {
+    const input = document.getElementById('mqNbPassword');
+    const error = document.getElementById('mqNbPasswordError');
+    if (!input) return;
+    if (input.value === '91235') {
+        NB_UNLOCKED = true;
+        NB_PASSWORD_OPEN = false;
+        NB_PANEL = true;
+        openNarrSheet();
+    } else {
+        if (error) error.textContent = '密码不正确，请重新输入';
+        input.value = '';
+        input.focus();
+    }
+}
+function openNarrSheet() {
+    const seg = (key, opts, cur) => `<div class="mq-seg">${opts.map(([v, t]) => `<button type="button" class="${cur === v ? 'on' : ''}" onclick="narrSet('${key}','${v}',true)">${t}</button>`).join('')}</div>`;
+    const onOff = (key, cur) => `<div class="mq-seg mq-seg-sm"><button type="button" class="${!cur ? 'on' : ''}" onclick="narrSet('${key}',false,true)">关</button><button type="button" class="${cur ? 'on' : ''}" onclick="narrSet('${key}',true,true)">开</button></div>`;
+    const pct = ((NARR.size - 11) / 7 * 100).toFixed(1);
+    const passwordPanel = (!NB_UNLOCKED && NB_PASSWORD_OPEN) ? `<div class="mq-nb-password"><label for="mqNbPassword">输入密码以调整背景图</label><div class="mq-nb-password-row"><input id="mqNbPassword" type="password" inputmode="numeric" autocomplete="off" placeholder="密码" onkeydown="if(event.key==='Enter')checkNarrBgPassword()"><button type="button" onclick="checkNarrBgPassword()">确认</button></div><div id="mqNbPasswordError" class="mq-nb-password-error" aria-live="polite"></div></div>` : '';
+    const bgPanel = NB_UNLOCKED ? `<div class="mq-nb-panel" id="mqNbPanel" ${NB_PANEL ? '' : 'hidden'}>
+        <div class="mq-nb-heading">背景图位置与透明度</div>
+        ${nbRow('x','左右位置 X',-1000,1000,1)}
+        ${nbRow('y','上下位置 Y',-1000,1000,1)}
+        ${nbRow('w','图片宽度',1,1200,1)}
+        ${nbRow('h','图片高度',1,1200,1)}
+        ${nbRow('opacity','图片透明度',0,1,0.05)}
+        ${nbRow('overlay','遮罩浓度',0,1,0.05)}
+        <div class="mq-nb-actions"><button type="button" class="mq-nb-reset" onclick="narrBgReset()">恢复默认数值</button></div>
+    </div>` : '';
+    openMqSheet(`<div class="mq-sheet-title mq-script mq-big">Narration</div>
+        <div class="mq-row"><span class="mq-lbl">旁白模式</span>${onOff('on', NARR.on)}</div>
+        <div class="mq-row"><span class="mq-lbl">字数</span>
+            <div class="mq-nums"><input class="mq-num" type="number" min="1" max="200" value="${NARR.min}" onchange="narrSet('min',this.value,true)"><span class="mq-dash">–</span><input class="mq-num" type="number" min="1" max="200" value="${NARR.max}" onchange="narrSet('max',this.value,true)"></div></div>
+        <div class="mq-row"><span class="mq-lbl">斜体</span>${onOff('italic', NARR.italic)}</div>
+        <div class="mq-row"><span class="mq-lbl">字颜色</span><input class="mq-color" type="color" value="${NARR.color}" onchange="narrSet('color',this.value,true)"></div>
+        <div class="mq-stack"><span class="mq-lbl">用户人称</span>${seg('person', [['1', '第一人称'], ['2', '第二人称'], ['3', '第三人称']], NARR.person)}</div>
+        <div class="mq-stack"><span class="mq-lbl">模式</span>${seg('mode', [['online', '线上'], ['offline', '线下'], ['free', '自由']], NARR.mode)}</div>
+        <div class="mq-row mq-slide-head"><span class="mq-lbl">字体大小</span><span class="mq-val" id="narrSizeTxt">${NARR.size}px</span></div>
+        <input class="mq-range" type="range" min="11" max="18" step="0.5" value="${NARR.size}" style="--p:${pct}%" oninput="narrSet('size',this.value,false)">
+        <div class="mq-nb-toggle"><button id="mqNbToggle" class="mq-nb-line" type="button" aria-label="调整旁白背景图" title="调整旁白背景图" aria-expanded="${NB_PASSWORD_OPEN || NB_PANEL}" onclick="unlockNarrBg()"><span></span></button></div>
+        ${passwordPanel}
+        ${bgPanel}
+        <div class="mq-foot"><button class="mq-close" type="button" onclick="closeMqSheet()">关闭</button></div>`, 'mq-narr', nbStyle());
+}
+
+function narrSet(key, value, rerender) {
+    if (key === 'min' || key === 'max') value = Math.max(1, Math.min(200, parseInt(value, 10) || 1));
+    if (key === 'size') value = Math.max(11, Math.min(18, parseFloat(value) || 13.5));
+    if (key === 'on' || key === 'italic') value = value === true || value === 'true';
+    NARR[key] = value;
+    if (NARR.min > NARR.max) { if (key === 'min') NARR.max = NARR.min; else NARR.min = NARR.max; }
+    saveNarr();
+    /* 原位同步状态，避免 openNarrSheet() 重建整张卡片造成闪屏/背景图重绘。 */
+    const card = document.querySelector('.mq-sheet-card.mq-narr');
+    if (!card) { if (rerender) openNarrSheet(); return; }
+    if (key === 'size') {
+        const o = document.getElementById('narrSizeTxt'); if (o) o.textContent = NARR.size + 'px';
+        const r = card.querySelector('input[type="range"]:not([id])');
+        if (r) { r.value = NARR.size; r.style.setProperty('--p', ((NARR.size - 11) / 7 * 100).toFixed(1) + '%'); }
+        return;
+    }
+    if (key === 'min' || key === 'max') {
+        const nums = card.querySelectorAll('.mq-nums .mq-num');
+        if (nums[0]) nums[0].value = NARR.min;
+        if (nums[1]) nums[1].value = NARR.max;
+    } else if (key === 'color') {
+        const color = card.querySelector('.mq-color'); if (color) color.value = NARR.color;
+    } else if (key === 'on' || key === 'italic') {
+        const rows = card.querySelectorAll('.mq-row');
+        rows.forEach(row => {
+            const label = row.querySelector('.mq-lbl');
+            if (!label || label.textContent.trim() !== (key === 'on' ? '旁白模式' : '斜体')) return;
+            row.querySelectorAll('.mq-seg button').forEach(btn => {
+                const isOn = (btn.textContent.trim() === '开') === !!NARR[key];
+                btn.classList.toggle('on', isOn);
+            });
+        });
+    } else if (key === 'person' || key === 'mode') {
+        const stacks = card.querySelectorAll('.mq-stack');
+        stacks.forEach(stack => {
+            const label = stack.querySelector('.mq-lbl');
+            const target = key === 'person' ? '用户人称' : '模式';
+            if (!label || label.textContent.trim() !== target) return;
+            stack.querySelectorAll('.mq-seg button').forEach(btn => {
+                const match = btn.getAttribute('onclick') || '';
+                btn.classList.toggle('on', match.includes(`narrSet('${key}','${NARR[key]}'`));
+            });
+        });
+    }
+}
+function msgOf(x) {
+    const o = typeof x === 'string' ? { text: x, narr: false } : x;
+    return { me: false, text: o.text, narr: !!o.narr, t: nowTime(), ts: Date.now() };
+}
 
 function toggleQuickMenu(force) {
     const menu = document.getElementById('quickMenu');
@@ -4670,6 +4918,6 @@ markSaveCancelButtons();
 initComposerGesture();
 
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
-Object.assign(__messagesHandlers, {memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
+Object.assign(__messagesHandlers, {openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 };
