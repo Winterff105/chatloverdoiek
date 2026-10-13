@@ -719,5 +719,8 @@
 .archangel-app .out-module-title{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}
 .archangel-app .out-module-hint{margin-left:auto;flex:none;color:#a0a8b2;font-size:10px;white-space:nowrap}
 .archangel-app .out-module-content{max-height:52vh;overflow:auto;padding:11px 13px;border-top:1px solid rgba(210,216,225,.7);background:rgba(249,250,252,.68);color:#69727e;font:12px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;overscroll-behavior:contain}
+
+.archangel-app .out-module-content pre{margin:0;font:inherit;white-space:pre-wrap;overflow-wrap:anywhere}
+.archangel-app .out-module-content code{font:inherit;color:inherit}
 .archangel-app .out-module[open] .out-module-hint{display:none}
 @media(max-width:600px){.archangel-app .abody.out-module{max-width:calc(100% - 42px);margin-left:42px}.archangel-app .out-module-content{max-height:48vh;font-size:11px}}

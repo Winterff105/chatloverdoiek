@@ -365,7 +365,7 @@
               const m=msgById(mid);
               if(m&&m.changes){const c=m.changes.find(x=>x.path===f.path);if(c){c.uploaded=true;c.sha=f.sha}saveCurrentConversation()}
             }
-            btn.textContent='已全部上传';toast('已上传到 GitHub');
+            btn.textContent='已全部上传';toast('GitHub 已确认上传成功');
             recordSystem('已上传到 GitHub：'+ch.map(f=>f.path).join('、'));
           }catch(e){btn.disabled=false;btn.textContent='上传失败，点击重试';toast(e.message);explainError('上传失败：'+e.message)}
         }
@@ -461,14 +461,18 @@
         function bodyHTML(parts){
           return (parts||[]).map(p=>{
             const text=String(p??'');
-            const lines=text.split('\n');
-            const first=(lines.find(x=>x.trim())||'模块内容').trim().replace(/^#+\s*/, '').replace(/^[*#>\s]+/, '');
-            const moduleLike=/(?:模块|module|文件内容|代码片段|代码模块|```|<script\b|<style\b|\bfunction\s+[$\w]+|\b(?:const|let|class|export)\s+[$\w]+)/i.test(text) && (text.includes('\n')||text.length>180);
-            if(moduleLike){
-              const label=first.length>42?first.slice(0,42)+'…':first;
-              return `<details class="abody out-module"><summary><span class="out-module-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8 8h8M8 11.5h8M8 15h5"/></svg></span><span class="out-module-title">${esc(label||'模块内容')}</span><span class="out-module-hint">展开查看</span></summary><div class="out-module-content">${esc(text)}</div></details>`;
+            // Only labeled CSS/HTML/JS code fences collapse. Surrounding prose stays visible.
+            const fence=/```\s*(css|html|js|javascript)\s*\n([\s\S]*?)```/gi;
+            let out='',last=0,m,idx=0;
+            while((m=fence.exec(text))){
+              out+=text.slice(last,m.index)?`<div class="abody">${esc(text.slice(last,m.index))}</div>`:'';
+              const lang=m[1].toLowerCase()==='javascript'?'js':m[1].toLowerCase();
+              const code=m[2].replace(/\n+$/,'');
+              out+=`<details class="out-module"><summary><span class="out-module-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8 8h8M8 11.5h8M8 15h5"/></svg></span><span class="out-module-title">${lang.toUpperCase()} 模块${++idx>1?' '+idx:''}</span><span class="out-module-hint">展开查看</span></summary><div class="out-module-content"><pre><code>${esc(code)}</code></pre></div></details>`;
+              last=fence.lastIndex;
             }
-            return `<div class="abody">${esc(text)}</div>`;
+            out+=text.slice(last)?`<div class="abody">${esc(text.slice(last))}</div>`:'';
+            return out||`<div class="abody">${esc(text)}</div>`;
           }).join('');
         }
         const FIXED_STEPS=['PARSE_REQUEST','SELECT_FILES','READ_CONTENT','BUILD_CHANGES'];
@@ -1044,7 +1048,18 @@
             ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
             }));
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。你可以直接替用户上传，绝对不要让用户自己去上传。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。上传到 GitHub 必须先生成待确认修改卡片，等待用户点击“确认修改，一起上传到 GitHub”后才能真正 PUT 上传；在收到上传成功的 GitHub 响应之前，绝对不能说已经上传、已经提交或已经完成。用户明确要求上传附件/新文件时，优先把附件或 outFiles 放入 uploadFiles，确保出现确认卡片。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            const wantsRepoUpload=/(上传|推送|提交|传到仓库|放进仓库|push\s*(?:到|to)?\s*(?:github|仓库)?|upload\s*(?:to|into)?\s*(?:github|repo|repository)?)/i.test(text);
+            if(wantsRepoUpload){
+              // A request to upload must never be answered as a plain chat message.
+              sel.intent='create';
+              const generated=Array.isArray(sel.outFiles)?sel.outFiles:[];
+              generated.filter(f=>f&&typeof f.content==='string').forEach(f=>{
+                const name=String(f.name||'').replace(/^\/+/, '');
+                if(name&&!attachCands.some(a=>a.name===name))attachCands.push({name,content:f.content,type:'text'});
+              });
+              if(!Array.isArray(sel.uploadFiles)||!sel.uploadFiles.length)sel.uploadFiles=attachCands.filter(a=>a.type!=='image'&&typeof a.content==='string').map(a=>a.name);
+            }
             if(sel.intent==='chat'){
               const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
               const outFs=(Array.isArray(sel.outFiles)?sel.outFiles:[]).filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
