@@ -4330,3 +4330,16 @@
 .messages-app .mq-cbadge.on{display:block;animation:mq-pop .3s ease}
 @keyframes mq-pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
 @media (prefers-reduced-motion:reduce){.messages-app .mq-ld svg{animation-duration:2.4s}}
+
+/* ---------------- 评论名字胶囊：缩小、变淡 ---------------- */
+.messages-app .mf-cmt-name{ display:inline-block !important; font-size:9.5px !important; font-weight:600 !important; line-height:1 !important; padding:2px 6px !important; margin-right:4px !important; border:none !important; border-radius:999px !important; background:rgba(17,17,17,0.06) !important; color:#9A9AA0 !important; backdrop-filter:none !important; -webkit-backdrop-filter:none !important; }
+.messages-app .mf-cmt-row .mf-cmt-name{ background:rgba(255,255,255,0.10) !important; color:rgba(255,255,255,0.55) !important; }
+.messages-app .mf-cmt-to{ font-size:9.5px; color:#B4B4BA; margin-right:4px; }
+.messages-app .mf-cmt-row .mf-cmt-to{ color:rgba(255,255,255,0.35); }
+
+/* ---------------- 记忆条目：等级 / 分区下拉框缩小 ---------------- */
+.messages-app #memPage .mem-tags .mem-select{ height:24px !important; padding:0 6px !important; font-size:11px !important; border-radius:8px !important; max-width:none !important; }
+
+/* ---------------- 评论区：展开动画只在刚展开时播放，重绘不再重放 ---------------- */
+.messages-app .mf-cmts-open{ animation:none !important; }
+.messages-app .mf-cmts-open.mf-cmts-enter{ animation:mfExpand .3s ease !important; }

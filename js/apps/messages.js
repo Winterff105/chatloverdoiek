@@ -13,6 +13,9 @@ let IDENTITIES = loadStoredIdentities();
 let pendingPersonaAvatar = null;
 const ACTIVE_KEY = 'forever_messages_active_identity_v1';
 let ACTIVE_ID = 'self';
+const MOMENT_REPLY = {};   // 朋友圈 id -> 正在回复的那条评论 { by, t, text }
+const MOMENT_CARD_HTML = new Map();   // 朋友圈 id -> 上一次渲染的卡片 html（没变就不重建）
+const MOMENT_CMT_ENTER = {};          // 刚展开的评论区，只在这一刻播放展开动画
 try { ACTIVE_ID = localStorage.getItem(ACTIVE_KEY) || 'self'; } catch (_) {}
 function setActiveIdentity(id) { ACTIVE_ID = id || 'self'; try { localStorage.setItem(ACTIVE_KEY, ACTIVE_ID); } catch (_) {} }
 function activeIdentity() { return ACTIVE_ID === 'self' ? null : (IDENTITIES.find(x => x.id === ACTIVE_ID) || null); }
@@ -678,7 +681,7 @@ function memSecOptions(sel) {
         .map(s => `<option value="${s.k}" ${sel === s.k ? 'selected' : ''}>${MEM_SEC_NAME[s.k]}</option>`).join('');
 }
 function memLvlOptions(sel) {
-    return ['high', 'mid', 'low'].map(l => `<option value="${l}" ${sel === l ? 'selected' : ''}>${MEM_LVL_NAME[l]}级</option>`).join('');
+    return ['high', 'mid', 'low'].map(l => `<option value="${l}" ${sel === l ? 'selected' : ''}>${MEM_LVL_NAME[l]}</option>`).join('');
 }
 function memPageEl() { return document.getElementById('memPage'); }
 
@@ -833,7 +836,7 @@ function memRenderBody() {
                 ${arr.map(memItemHtml).join('') || '<div class="mem-empty">这一级还没有记忆</div>'}
             </details>`;
         }).join('');
-        list = `<div class="mem-sec">按高中低级展开（高级在提示词里排在最前）</div>` + list;
+        list = `<div class="mem-sec">按高中低展开（高在提示词里排在最前）</div>` + list;
     } else {
         const hint = MEM_SEC === 'common'
             ? '还没有共同记忆。对方点赞、评论你的朋友圈，会直接出现在这里。'
@@ -3972,17 +3975,50 @@ function toggleMomentLike(id) {
 function revealMomentCover(el) {
     if (el) el.classList.add('tip-on');
 }
+/* 评论回复：单击展开区里的一条评论即可回复；再点同一条取消 */
+function startMomentReply(pid, ci) {
+    const p = POSTS.find(x => x.id === pid); const cm = p && p.comments && p.comments[ci]; if (!cm) return;
+    const cur = MOMENT_REPLY[pid];
+    if (cur && cur.by === cm.by && cur.t === cm.t) delete MOMENT_REPLY[pid];
+    else MOMENT_REPLY[pid] = { by: cm.by, t: cm.t, text: cm.text };
+    renderMoments();
+    setTimeout(() => { const el = document.getElementById('mfInl-' + pid); if (el) el.focus(); }, 0);
+}
+function momentInlinePh(pid) {
+    const rt = MOMENT_REPLY[pid];
+    return rt ? `回复 ${momentAuthor(rt.by).name}` : '写评论…';
+}
+/* 角色收到用户在评论区的回复后，单独私聊回复用户（聊天列表里出现新消息） */
+async function charPrivateReply(cid, p, userText, quoteText) {
+    const c = CONTACTS.find(x => x.id === cid);
+    if (!c || !window.MessagesAPI || !window.MessagesAPI.isConfigured()) return;
+    await sleep(2000 + Math.random() * 2000);
+    try {
+        const r = await window.MessagesAPI.momentDmReply(c, p, userText, quoteText, (c.msgs || []).slice(-30));
+        if (!r || !r.send || !r.text) return;
+        if (activeId !== c.id) c.unread = (c.unread || 0) + 1;
+        deliverMsgs(c, [r.text]);
+    } catch (e) { toast((e && e.message) || '私聊回复失败'); }
+}
+
 /* 长按评论：删除（确认后） */
 function bindCommentLongPress() {
     const root = document.querySelector('.messages-app'); if (!root || root.dataset.cmtBound) return;
     root.dataset.cmtBound = '1';
     let timer = null, sx = 0, sy = 0;
     const cancel = () => { clearTimeout(timer); timer = null; };
+    let suppressTap = false;
     root.addEventListener('pointerdown', e => {
+        suppressTap = false;
         const line = e.target.closest && e.target.closest('.mf-cmt-line[data-pid]');
         if (!line) return;
         sx = e.clientX; sy = e.clientY; cancel();
-        timer = setTimeout(() => { timer = null; deleteCommentAt(line.dataset.pid, Number(line.dataset.ci)); }, 500);
+        timer = setTimeout(() => { timer = null; suppressTap = true; deleteCommentAt(line.dataset.pid, Number(line.dataset.ci)); }, 500);
+    });
+    root.addEventListener('click', e => {
+        if (suppressTap) { suppressTap = false; return; }
+        const line = e.target.closest && e.target.closest('.mf-cmts-open .mf-cmt-line[data-pid]');
+        if (line) startMomentReply(line.dataset.pid, Number(line.dataset.ci));
     });
     root.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - sx, e.clientY - sy) > 10) cancel(); });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => root.addEventListener(t, cancel));
@@ -4035,6 +4071,7 @@ function toggleMomentCmt(id) {
     const pp = POSTS.find(x => x.id === id);
     const curOpen = MOMENT_CMT_OPEN[id] !== undefined ? MOMENT_CMT_OPEN[id] : !!(pp && pp.comments && pp.comments.length);
     MOMENT_CMT_OPEN[id] = !curOpen;
+    if (!curOpen) { MOMENT_CMT_ENTER[id] = true; setTimeout(() => { delete MOMENT_CMT_ENTER[id]; }, 400); }
     renderMoments();
 }
 function sendMomentCommentInline(id) {
@@ -4043,15 +4080,18 @@ function sendMomentCommentInline(id) {
     const text = input ? input.value.trim() : '';
     if (!text) { toast('写点什么再发送吧'); return; }
     p.comments = p.comments || [];
-    p.comments.push({ by: ACTIVE_ID, text, t: Date.now() });
+    const rt = MOMENT_REPLY[id]; delete MOMENT_REPLY[id];
+    const box = document.getElementById('mfInl-' + id); if (box) box.value = '';
+    p.comments.push({ by: ACTIVE_ID, text, t: Date.now(), ...(rt ? { to: rt.by } : {}) });
     MOMENT_CMT_OPEN[id] = true;
     persistMoments(); renderMoments();
+    if (rt && rt.by !== ACTIVE_ID) charPrivateReply(rt.by, p, text, rt.text);
 }
 function openMomentComments(id) {
     const p = POSTS.find(x => x.id === id); if (!p) return;
     const list = (p.comments || []).map(c => {
         const a = momentAuthor(c.by);
-        return `<div class="mf-cmt-row">${momentAvatarHtml(a, 'sm')}<div><b>${esc(a.name)}</b><p>${esc(c.text)}</p></div></div>`;
+        return `<div class="mf-cmt-row">${momentAvatarHtml(a, 'sm')}<div>${cmtNameHtml(c)}<p>${esc(c.text)}</p></div></div>`;
     }).join('') || '<div class="mf-cmt-empty">还没有评论，来说第一句吧</div>';
     openSheet(`<div class="sheet-title">评论</div>
         <div class="mf-cmt-list">${list}</div>
@@ -4256,6 +4296,12 @@ function hydrateMomentImages() {
     });
 }
 
+/* 评论名字胶囊；有回复关系时显示“名字 回复 名字” */
+function cmtNameHtml(c) {
+    const a = momentAuthor(c.by).name;
+    if (!c.to) return `<b class="mf-cmt-name">${esc(a)}</b>`;
+    return `<b class="mf-cmt-name">${esc(a)}</b><span class="mf-cmt-to">回复</span><b class="mf-cmt-name">${esc(momentAuthor(c.to).name)}</b>`;
+}
 function renderMoments() {
     const frame = document.getElementById('momentsFrame');
     if (!frame) return;
@@ -4267,13 +4313,13 @@ function renderMoments() {
         const cmts = p.comments || [];
         const imgs = p.imgs || [];
         const liked = likes.indexOf(ACTIVE_ID) >= 0;
-        const preview = cmts.slice(0, 2).map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}"><b class="mf-cmt-name">${esc(momentAuthor(c.by).name)}</b><span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('');
+        const preview = cmts.slice(0, 2).map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}">${cmtNameHtml(c)}<span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('');
         const photos = imgs.length ? `<div class="mf-imgs n${Math.min(imgs.length, 3)}">${imgs.map(k => `<img class="mf-img" data-mkey="${k}" alt="">`).join('')}</div>` : '';
         const cmtOpen = MOMENT_CMT_OPEN[p.id] !== undefined ? MOMENT_CMT_OPEN[p.id] : cmts.length > 0;
         const cmtBlock = cmtOpen
-            ? `<div class="mf-cmts mf-cmts-open">${cmts.map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}"><b class="mf-cmt-name">${esc(momentAuthor(c.by).name)}</b><span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('') || '<div class="mf-cmt-none">还没有评论，来说第一句吧</div>'}<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="写评论…"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div></div>`
+            ? `<div class="mf-cmts mf-cmts-open${MOMENT_CMT_ENTER[p.id] ? ' mf-cmts-enter' : ''}">${cmts.map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}">${cmtNameHtml(c)}<span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('') || '<div class="mf-cmt-none">还没有评论，来说第一句吧</div>'}<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="${esc(momentInlinePh(p.id))}"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div></div>`
             : (cmts.length ? `<div class="mf-cmts" onclick="toggleMomentCmt('${p.id}')">${preview}${cmts.length > 2 ? `<span class="mf-cmt-more">查看全部 ${cmts.length} 条评论</span>` : ''}</div>` : '');
-        return `<div class="mf-card">
+        return `<!--mf:${p.id}--><div class="mf-card" data-pid="${p.id}">
             <div class="mf-card-head">${momentAvatarHtml(a, 'sm')}
                 <div class="mf-card-who"><b>${esc(a.name)}</b><span>${fmtMoment(p.t)}${momentVisText(p) ? ' · ' + momentVisText(p) : ''}</span></div>
                 <button class="mf-del" type="button" onclick="deleteMoment('${p.id}')">删除</button>
@@ -4287,10 +4333,44 @@ function renderMoments() {
             ${cmtBlock}
         </div>`;
     }).join('');
-    frame.innerHTML = `
+    const head = `
         <div class="mf-cover" style="${bgStyle}" onclick="openMomentPick('cover')"></div>
-        <div class="mf-me"><div class="mf-avatar" onclick="openMomentPick('avatar')">${momentAvatarHtml(who, 'lg')}</div><div class="mf-name">${esc(who.name)}</div></div>
-        <div class="mf-posts">${cards || '<div class="mf-empty">还没有朋友圈，点右上角的加号发一条吧</div>'}</div>`;
+        <div class="mf-me"><div class="mf-avatar" onclick="openMomentPick('avatar')">${momentAvatarHtml(who, 'lg')}</div><div class="mf-name">${esc(who.name)}</div></div>`;
+    if (frame.__mfHead !== head || !frame.querySelector('.mf-posts')) {
+        frame.innerHTML = head + '<div class="mf-posts"></div>';
+        frame.__mfHead = head;
+        MOMENT_CARD_HTML.clear();
+    }
+    const posts = frame.querySelector('.mf-posts');
+    const items = cards ? cards.split('<!--mf:').filter(Boolean).map(seg => {
+        const i = seg.indexOf('-->');
+        return { id: seg.slice(0, i), html: seg.slice(i + 3) };
+    }) : [];
+    if (!items.length) {
+        posts.innerHTML = '<div class="mf-empty">还没有朋友圈，点右上角的加号发一条吧</div>';
+        MOMENT_CARD_HTML.clear();
+        return;
+    }
+    // 正在输入的评论先记下来，重建后再放回去
+    const typed = {};
+    posts.querySelectorAll('.mf-inline-input').forEach(i => { typed[i.id] = { v: i.value, focus: document.activeElement === i }; });
+    const oldEls = new Map([...posts.children].filter(el => el.dataset && el.dataset.pid).map(el => [el.dataset.pid, el]));
+    const keep = [];
+    const liveIds = new Set(items.map(x => x.id));
+    [...MOMENT_CARD_HTML.keys()].forEach(id => { if (!liveIds.has(id)) MOMENT_CARD_HTML.delete(id); });
+    items.forEach(({ id, html }) => {
+        const prev = oldEls.get(id);
+        if (prev && MOMENT_CARD_HTML.get(id) === html) { keep.push(prev); return; }
+        const t = document.createElement('div');
+        t.innerHTML = html.trim();
+        if (t.firstElementChild) keep.push(t.firstElementChild);
+        MOMENT_CARD_HTML.set(id, html);
+    });
+    posts.replaceChildren(...keep);
+    Object.entries(typed).forEach(([id, st]) => {
+        const el = document.getElementById(id);
+        if (el) { el.value = st.v; if (st.focus) el.focus(); }
+    });
     hydrateMomentImages();
 }
 
@@ -4382,16 +4462,18 @@ async function momentFetchFor(p) {
     const fresh = [];
     for (const c of who) {
         try {
-            const r = await window.MessagesAPI.momentWordReply(c, p, (c.msgs || []).slice(-30));
+            const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: cm.text }));
+            const r = await window.MessagesAPI.momentWordReply(c, p, (c.msgs || []).slice(-30), existing);
             p.likes = p.likes || []; p.comments = p.comments || [];
             if (r.like && !p.likes.includes(c.id)) {
                 p.likes.push(c.id);
-                addCommonMemory(c, `${c.name}点赞了你的朋友圈（${excerpt}）`);
+                addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下点赞`);
             }
             if (r.comment) {
-                p.comments.push({ by: c.id, text: r.comment, t: Date.now() });
+                const hit = r.to ? existing.find(e => e.name === r.to && e.id !== c.id) : null;
+                p.comments.push({ by: c.id, text: r.comment, t: Date.now(), to: hit ? hit.id : undefined });
                 fresh.push(c);
-                addCommonMemory(c, `${c.name}在你的朋友圈（${excerpt}）下评论：${r.comment}`);
+                addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下评论：${r.comment}`);
             }
             persistContacts(); persistMoments(); renderMoments();
         } catch (e) { toast((e && e.message) || '朋友圈调取失败'); }
