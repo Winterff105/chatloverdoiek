@@ -144,12 +144,13 @@
     const memCount = (contact.mem && contact.mem.ctx) || 30;
     const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
     const memBlock = buildMemBlock(contact.memories || [], fillU);
+    const getPromptText = k => (typeof window.getChatPromptText === 'function' ? window.getChatPromptText(k) : '');
     const PROMPT_OPT_TEXT = {
         ai: '避免八股套话和模板化的客套句式，说话要具体、自然。',
         greasy: '语气自然不油腻，不用过度亲昵的称呼和暧昧措辞。' + '\n' + '请把user视为独立的人类，不要刻意矮化，幼化user' + '\n' + 'Avoid greasy, cringeworthy, or overly patronizing terms of endearment (e.g., "小丫头", "小没良心的", "小野猫"). Such expressions can make your character feel artificial, clichéd, or insincere.',
-        threat: '不威胁、不施压、不用情绪勒索，尊重对方的选择。',
-        fake: '不说空洞的安慰套话（比如“我一直都在”），安慰要具体、真诚、有分寸。',
-        macho: '不要刻意硬汉、逞强或摆姿态（比如动不动就“老子”“少废话”），语气真实平和。'
+        threat: getPromptText('threat'),
+        fake: getPromptText('fake'),
+        macho: getPromptText('macho')
     };
     const promptExtra = (contact.promptOpts || []).map(k => PROMPT_OPT_TEXT[k]).filter(Boolean);
     let styleSettings = null;

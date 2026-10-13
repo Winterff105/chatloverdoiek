@@ -4604,3 +4604,93 @@
   animation: none !important;
   transition: none !important;
 }
+
+/* ===== 提示词弹窗（独立）：不依赖大天使根容器 ===== */
+.cd-pt-root{position:fixed;inset:0;z-index:2147483000;background:transparent;font:15px/1.6 Inter,"Segoe UI","Microsoft YaHei",Arial,sans-serif;color:#3e454e}
+.cd-pt-root, .cd-pt-root *{box-sizing:border-box}
+.cd-pt-root .ar-sheet{
+  position:absolute; inset:0; z-index:200; display:grid; place-items:center;
+  background:rgba(60,66,76,.28); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); opacity:0; transition:opacity .22s ease;
+}
+.cd-pt-root .ar-sheet-card{
+  width:min(330px,88%); padding:18px 18px 16px; border-radius:22px; background:rgba(255,255,255,.94);
+  box-shadow:0 18px 40px rgba(60,66,76,.22); display:flex; flex-direction:column; gap:12px; color:#4b535d;
+}
+.cd-pt-root .ar-sheet-title{font-size:16px; font-weight:600; text-align:center}
+.cd-pt-root .ar-sec{font-size:11px; color:#8a929c; letter-spacing:.3px; text-align:center}
+.cd-pt-root .ar-close{height:40px; border:0; border-radius:999px; background:#eef1f5; color:#4b535d; font-size:14px; cursor:pointer}
+.cd-pt-root .ar-sheet.show{opacity:1}
+.cd-pt-root .ar-foot{display:flex; flex-direction:column; gap:6px; margin-top:10px}
+.cd-pt-root .ar-mode-text{
+  width:100%; box-sizing:border-box; resize:none; border:0; border-radius:14px; padding:10px 12px;
+  background:#f1f4f8; color:#3e454e; font-size:12px; line-height:1.6; font-family:inherit; outline:none;
+}
+.cd-pt-root .ar-mode-text[readonly]{color:#7d8792; background:#eef1f5}
+.cd-pt-root .ar-save{
+  height:40px; border:0; border-radius:999px; background:#2b3138; color:#fff; font-size:14px; font-weight:600; cursor:pointer;
+}
+.cd-pt-root .ar-save:disabled{background:#c8ced6; color:#f5f7fa; cursor:not-allowed}
+.cd-pt-root .ar-mode-text.locked{cursor:not-allowed; color:#8b939d; background:#e9edf2; opacity:.9}
+.cd-pt-root .ar-sheet{background:rgba(60,66,76,.12) !important}
+.cd-pt-root .ar-sheet-card{background:rgba(255,255,255,.7) !important}
+.cd-pt-root .ar-sheet{background:rgba(60,66,76,.05) !important; backdrop-filter:blur(1px) !important; -webkit-backdrop-filter:blur(1px) !important}
+.cd-pt-root .ar-sheet-title.ar-script{font-size:10.5px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#8a929c}
+.cd-pt-root .ar-stamp{
+  position:relative; padding:14px 16px 12px; background:#fbfaf6; border-radius:4px;
+  box-shadow:0 6px 16px rgba(120,130,145,.14);
+  -webkit-mask:
+    radial-gradient(circle 4px at 6px 0, #0000 98%, #000) 0 0 / 12px 100% repeat-x,
+    radial-gradient(circle 4px at 6px 100%, #0000 98%, #000) 0 0 / 12px 100% repeat-x,
+    radial-gradient(circle 4px at 0 6px, #0000 98%, #000) 0 0 / 100% 12px repeat-y,
+    radial-gradient(circle 4px at 100% 6px, #0000 98%, #000) 0 0 / 100% 12px repeat-y;
+          mask:
+    radial-gradient(circle 4px at 6px 0, #0000 98%, #000) 0 0 / 12px 100% repeat-x,
+    radial-gradient(circle 4px at 6px 100%, #0000 98%, #000) 0 0 / 12px 100% repeat-x,
+    radial-gradient(circle 4px at 0 6px, #0000 98%, #000) 0 0 / 100% 12px repeat-y,
+    radial-gradient(circle 4px at 100% 6px, #0000 98%, #000) 0 0 / 100% 12px repeat-y;
+  -webkit-mask-composite: source-in; mask-composite: intersect;
+}
+.cd-pt-root .ar-stamp-label{font-size:10.5px; font-weight:600; letter-spacing:3px; text-transform:uppercase; color:#8a929c; text-align:center; margin-bottom:4px}
+.cd-pt-root .ar-stamp .ar-mode-text{background:transparent; text-align:center; padding:8px 4px; border:0; color:#3e454e}
+.cd-pt-root .ar-stamp .ar-mode-text[readonly]{background:transparent; color:#7d8792}
+.cd-pt-root .ar-stamp .ar-sec{text-align:center}
+.cd-pt-root .ar-stamp{background:#ffffff !important; padding:10px 16px 8px}
+.cd-pt-root .ar-stamp .ar-mode-text{height:80px !important; min-height:0; max-height:80px}
+
+/* 恢复默认：白色圆形图标，放在保存按钮内右侧；保存延伸占满 */
+.cd-pt-root .cd-pt-row{position:relative;display:block}
+.cd-pt-root .cd-pt-row .ar-save{width:100%;padding:0 44px;box-sizing:border-box}
+.cd-pt-root .ar-reset{position:absolute;right:5px;top:50%;transform:translateY(-50%);width:30px;height:30px;padding:0;display:grid;place-items:center;border:0;border-radius:50%;background:#fff;color:#4b535d;box-shadow:0 2px 6px rgba(0,0,0,.14);cursor:pointer}
+.cd-pt-root .ar-reset svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ===== 禁用词弹窗：背景换成大天使弹窗底色；收起框纵向缩短 ===== */
+#cdPromptSettings.cd-settings-overlay{position:fixed !important;inset:0 !important;background:rgba(60,66,76,.05) !important;backdrop-filter:blur(1px) !important;-webkit-backdrop-filter:blur(1px) !important;padding:12px !important}
+#cdPromptSettings .cd-settings{background:rgba(255,255,255,.94) !important;border-color:transparent !important;border-radius:22px !important;box-shadow:0 18px 40px rgba(60,66,76,.22) !important}
+#cdPromptSettings .cd-word-group > summary{min-height:40px !important;padding:8px 12px !important}
+
+/* ===== 禁用词弹窗缩小 ===== */
+#cdPromptSettings .cd-settings{width:min(340px,88%) !important;max-width:340px !important;max-height:min(70vh,540px) !important;padding:16px 14px 14px !important;border-radius:20px !important}
+#cdPromptSettings .cd-settings header strong{font-size:17px !important}
+#cdPromptSettings .cd-settings-section{margin-top:12px !important}
+#cdPromptSettings .cd-settings footer{margin-top:12px !important}
+
+/* ===== 禁用词弹窗纵向缩短（最终覆盖） ===== */
+#cdPromptSettings .cd-settings{max-height:min(66vh,460px) !important;padding-top:12px !important;padding-bottom:12px !important}
+#cdPromptSettings .cd-settings header{padding-bottom:10px !important;margin-bottom:10px !important}
+#cdPromptSettings .cd-master{padding:8px 10px 8px 40px !important}
+#cdPromptSettings .cd-settings .cd-settings-section{margin-top:10px !important}
+#cdPromptSettings .cd-settings .cd-settings-label{margin-bottom:6px !important}
+#cdPromptSettings .cd-settings .cd-word-list{max-height:180px !important;overflow-y:auto !important;gap:5px !important}
+#cdPromptSettings .cd-settings .cd-word-row{min-height:0 !important;height:auto !important;padding:6px 9px !important}
+#cdPromptSettings .cd-word-group-items .cd-word-row{padding:5px 8px !important}
+#cdPromptSettings .cd-word-group > summary{min-height:34px !important;padding:6px 10px !important}
+#cdPromptSettings .cd-settings .cd-add-custom-trigger{min-height:34px !important;padding:6px 10px !important}
+#cdPromptSettings .cd-settings-hint{padding:6px 9px !important;margin-top:8px !important}
+#cdPromptSettings .cd-settings footer{margin-top:10px !important}
+#cdPromptSettings .cd-settings footer button{min-height:36px !important}
+
+/* ===== 禁用词：只留一个滚动区域（展开分组后可看全部词条）；输入框焦点不被左右裁切 ===== */
+#cdPromptSettings .cd-settings{display:flex !important;flex-direction:column !important;overflow:hidden !important}
+#cdPromptSettings .cd-settings-main{overflow-y:auto !important;overflow-x:visible !important;padding-left:6px !important;padding-right:6px !important;margin-left:-6px !important;margin-right:-6px !important}
+#cdPromptSettings .cd-settings .cd-word-list{max-height:none !important;overflow:visible !important}
+
