@@ -13,6 +13,9 @@ let IDENTITIES = loadStoredIdentities();
 let pendingPersonaAvatar = null;
 const ACTIVE_KEY = 'forever_messages_active_identity_v1';
 let ACTIVE_ID = 'self';
+const DELETED_NAMES_KEY = 'forever_messages_deleted_names_v1';
+let DELETED_NAMES = (() => { try { return JSON.parse(localStorage.getItem(DELETED_NAMES_KEY) || '{}') || {}; } catch (_) { return {}; } })();
+function saveDeletedNames() { try { localStorage.setItem(DELETED_NAMES_KEY, JSON.stringify(DELETED_NAMES)); } catch (_) {} }
 const MOMENT_REPLY = {};   // 朋友圈 id -> 正在回复的那条评论 { by, t, text }
 const MOMENT_CARD_HTML = new Map();   // 朋友圈 id -> 上一次渲染的卡片 html（没变就不重建）
 const MOMENT_CMT_ENTER = {};          // 刚展开的评论区，只在这一刻播放展开动画
@@ -522,6 +525,8 @@ function saveContact() {
 
 function deleteContact() {
     if (!editingContactId) return;
+    const gone = CONTACTS.find(c => c.id === editingContactId);
+    if (gone) { DELETED_NAMES[gone.id] = gone.name; saveDeletedNames(); }
     CONTACTS = CONTACTS.filter(c => c.id !== editingContactId);
     persistContacts();
     toast('联系人已删除');
@@ -631,7 +636,7 @@ async function runSummary(c, from, to) {
         persistContacts(); renderMemoryPage();
         toast('已生成记忆');
         return true;
-    } catch (err) { toast((err && err.message) || '总结失败'); return false; }
+    } catch (err) { showApiError(err); return false; }
 }
 function maybeAutoSummary(c) {
     const m = memOf(c);
@@ -905,6 +910,7 @@ async function memSummarizeRange() {
     const b = Math.min(c.msgs.length, parseInt(document.getElementById('memTo').value, 10) || c.msgs.length);
     if (b < a) { toast('结束条数不能小于开始条数'); return; }
     window.MESSAGES_USER_NAME = ME.name;
+        window.MESSAGES_USER_PERSONA = ME.persona || '';
     await runSummary(c, a - 1, b);
 }
 function memSaveInstr() { const c = curMemContact(); if (!c) return; memOf(c).instr = document.getElementById('memInstr').value; persistContacts(); toast('已保存总结指令'); }
@@ -2153,13 +2159,14 @@ async function pullReply() {
     try {
         const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。本次请发送 ${o.min} 到 ${o.max} 条消息。`;
         window.MESSAGES_USER_NAME = ME.name;
+        window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction, o.max);
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const parts = replies.map(p => cleanMsgPart(p, c.name)).filter(Boolean);
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
         await deliverMsgs(c, parts);
         maybeAutoSummary(c);
-    } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); toast(e.message || 'API 请求失败'); }
+    } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
     finally { c._busy=false; if(cap) cap.classList.remove('pulling'); }
 }
 
@@ -3795,6 +3802,7 @@ const DEFAULT_MOMENT_AVATAR = 'assets/朋友圈/朋友圈头像.jpg';
 function momentAuthor(by) {
     if (by && by !== 'self') { const c = IDENTITIES.find(x => x.id === by); if (c) return { name: c.name, avatar: c.avatar }; }
     const ct = CONTACTS.find(x => x.id === by); if (ct) return { name: ct.name, avatar: ct.avatar };
+    if (by && DELETED_NAMES[by]) return { name: `${DELETED_NAMES[by]}（已删除）`, avatar: '' };
     return { name: ME.name, avatar: MOMENT_AVATAR || DEFAULT_MOMENT_AVATAR };
 }
 function momentAvatarHtml(a, size) {
@@ -3993,12 +4001,14 @@ async function charPrivateReply(cid, p, userText, quoteText) {
     const c = CONTACTS.find(x => x.id === cid);
     if (!c || !window.MessagesAPI || !window.MessagesAPI.isConfigured()) return;
     await sleep(2000 + Math.random() * 2000);
+    const o = chatOptsOf(c);
+    const ctxN = (c.mem && c.mem.ctx) || 30;   // 上下文条数跟聊天一样
     try {
-        const r = await window.MessagesAPI.momentDmReply(c, p, userText, quoteText, (c.msgs || []).slice(-30));
-        if (!r || !r.send || !r.text) return;
+        const r = await window.MessagesAPI.momentDmReply(c, p, userText, quoteText, (c.msgs || []).slice(-ctxN), { min: o.min, max: o.max });
+        if (!r || !r.send || !r.texts.length) return;
         if (activeId !== c.id) c.unread = (c.unread || 0) + 1;
-        deliverMsgs(c, [r.text]);
-    } catch (e) { toast((e && e.message) || '私聊回复失败'); }
+        deliverMsgs(c, r.texts);
+    } catch (e) { showApiError(e); }
 }
 
 /* 长按评论：删除（确认后） */
@@ -4296,6 +4306,19 @@ function hydrateMomentImages() {
     });
 }
 
+/* API 报错弹窗：显示接口返回的原始内容 */
+function showApiError(e) {
+    const msg = String((e && e.message) || e || '未知错误');
+    const root = document.querySelector('.messages-app');
+    if (!root) { toast(msg); return; }
+    const old = document.getElementById('apiErrMask'); if (old) old.remove();
+    const m = document.createElement('div');
+    m.id = 'apiErrMask'; m.className = 'api-err-mask';
+    m.innerHTML = `<div class="api-err-box"><button class="api-err-title" type="button">API 报错</button><div class="api-err-stamp"><pre class="api-err-raw">${esc(msg)}</pre></div></div>`;
+    m.addEventListener('click', ev => { if (ev.target === m || ev.target.classList.contains('api-err-title')) m.remove(); });
+    root.appendChild(m);
+}
+
 /* 评论名字胶囊；有回复关系时显示“名字 回复 名字” */
 function cmtNameHtml(c) {
     const a = momentAuthor(c.by).name;
@@ -4476,7 +4499,7 @@ async function momentFetchFor(p) {
                 addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下评论：${r.comment}`);
             }
             persistContacts(); persistMoments(); renderMoments();
-        } catch (e) { toast((e && e.message) || '朋友圈调取失败'); }
+        } catch (e) { showApiError(e); }
     }
     momentFetchBusy = false;
     if (!fresh.length) { toast('这次调取没有人评论'); hideMomentBubble(); refreshChatBadge(); return; }
@@ -4491,27 +4514,39 @@ async function momentFetchFor(p) {
 
 /* 底栏朋友圈图标上的调取气泡 */
 function momentBubbleEl() {
-    let t = document.getElementById('mcThought');
+    const root = document.querySelector('.messages-app');
     const tab = document.querySelector('#tabbar .tab[data-tab="moments"]');
-    if (!tab) return null;
-    if (t && t.parentNode === tab) return t;
+    if (!root || !tab) return null;
+    let t = document.getElementById('mcThought');
+    if (t && t.parentNode === root) return t;
     t = document.createElement('div');
     t.id = 'mcThought'; t.className = 'mq-thought';
     t.innerHTML = `<div class="mq-pill">
         <span class="mq-wait"><span class="mq-ld"><svg viewBox="0 0 24 24"><circle class="trk" cx="12" cy="12" r="9"/><circle class="arc" cx="12" cy="12" r="9"/></svg></span><span>调取中</span></span>
         <span class="mq-rest"><span class="mq-stack" id="mcStack"></span><span class="mq-nmsg" id="mcNmsg"></span></span>
       </div><i class="mq-dot"></i>`;
-    tab.appendChild(t);
+    root.appendChild(t);
     return t;
+}
+/* 把气泡对齐到朋友圈图标正上方（气泡在应用根层，不受底栏层级限制） */
+function placeMomentBubble(t) {
+    const root = document.querySelector('.messages-app');
+    const tab = document.querySelector('#tabbar .tab[data-tab="moments"]');
+    if (!root || !tab || !t) return;
+    const rr = root.getBoundingClientRect(), tr = tab.getBoundingClientRect();
+    t.style.left = (tr.left + tr.width / 2 - rr.left) + 'px';
+    t.style.bottom = (rr.bottom - tr.top + 4) + 'px';
 }
 function showMomentLoading() {
     const t = momentBubbleEl(); if (!t) return;
+    placeMomentBubble(t);
     clearTimeout(momentHideTimer);
     t.classList.remove('mq-fade', 'mq-done');
     t.classList.add('mq-on');
 }
 function showMomentDone(list) {
     const t = momentBubbleEl(); if (!t) return;
+    placeMomentBubble(t);
     const TILT = ['-7deg', '5deg', '-3deg'], MASK = [0, .6, .35];
     document.getElementById('mcStack').innerHTML = list.slice(0, 3).map((c, i) =>
         `<span class="mq-sa ${i === 0 ? 'mq-lead' : 'mq-bk'}" style="--r:${TILT[i]};--m:${MASK[i]};z-index:${3 - i}">${avatar(c, 'sm')}</span>`

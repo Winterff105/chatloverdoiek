@@ -4343,3 +4343,25 @@
 /* ---------------- 评论区：展开动画只在刚展开时播放，重绘不再重放 ---------------- */
 .messages-app .mf-cmts-open{ animation:none !important; }
 .messages-app .mf-cmts-open.mf-cmts-enter{ animation:mfExpand .3s ease !important; }
+
+/* ---------------- 朋友圈调取气泡：放在身份切换胶囊上层；进入聊天室时隐藏 ---------------- */
+.messages-app .mq-thought{ z-index:130 !important; }
+.messages-app:has(.tabbar.hide) .mq-thought{ opacity:0 !important; }
+
+/* ---------------- API 报错弹窗：半透明白遮罩 + 浅灰标题 + 白色邮票边内容 ---------------- */
+@keyframes mqFadeIn { from { opacity:0; } to { opacity:1; } }
+.messages-app .api-err-mask{ position:absolute; inset:0; z-index:400; display:flex; align-items:center; justify-content:center; padding:24px; box-sizing:border-box; background:rgba(255,255,255,0.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); animation:mqFadeIn .2s ease; }
+.messages-app .api-err-box{ width:100%; max-width:320px; display:flex; flex-direction:column; align-items:center; gap:12px; }
+.messages-app .api-err-title{ border:0; border-radius:999px; background:#E9E9EC; color:#111; font-size:13px; font-weight:600; line-height:1; padding:9px 22px; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.messages-app .api-err-stamp{
+  --n:6px; width:100%; box-sizing:border-box; padding:16px; background:#FFFFFF;
+  -webkit-mask-image: radial-gradient(circle var(--n) at 50% 0, #0000 98%, #000), radial-gradient(circle var(--n) at 50% 100%, #0000 98%, #000), radial-gradient(circle var(--n) at 0 50%, #0000 98%, #000), radial-gradient(circle var(--n) at 100% 50%, #0000 98%, #000);
+  -webkit-mask-size: calc(var(--n) * 2) 100%, calc(var(--n) * 2) 100%, 100% calc(var(--n) * 2), 100% calc(var(--n) * 2);
+  -webkit-mask-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  -webkit-mask-composite: source-in;
+          mask-image: radial-gradient(circle var(--n) at 50% 0, #0000 98%, #000), radial-gradient(circle var(--n) at 50% 100%, #0000 98%, #000), radial-gradient(circle var(--n) at 0 50%, #0000 98%, #000), radial-gradient(circle var(--n) at 100% 50%, #0000 98%, #000);
+          mask-size: calc(var(--n) * 2) 100%, calc(var(--n) * 2) 100%, 100% calc(var(--n) * 2), 100% calc(var(--n) * 2);
+          mask-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+          mask-composite: intersect;
+}
+.messages-app .api-err-raw{ margin:0; max-height:260px; overflow:auto; white-space:pre-wrap; word-break:break-all; font:12px/1.55 ui-monospace,Menlo,Consolas,monospace; color:#222; user-select:text; -webkit-user-select:text; }

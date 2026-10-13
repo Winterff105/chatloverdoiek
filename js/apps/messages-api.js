@@ -181,7 +181,8 @@
       greasyBlock,
       styleBlock,
       contact.name ? `你的名字：${contact.name}` : '',
-      contact.persona ? `联系人设定：${contact.persona}` : '',
+      contact.persona ? `${fillU('{char}设定')}：${contact.persona}` : '',
+      window.MESSAGES_USER_PERSONA ? `${fillU('{user}设定')}：${window.MESSAGES_USER_PERSONA}` : '',
       contact.sig ? `签名：${contact.sig}` : '',
       contact.speech ? `说话风格：${contact.speech}` : '',
       contact.backstory ? `背景经历：${contact.backstory}` : '',
@@ -192,9 +193,10 @@
     for (const m of (contact.msgs || []).slice(-memCount)) messages.push({ role: m.me ? 'user' : 'assistant', content: String(m.text || '') });
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages }, 0.8)) }); }
-    catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);
+    catch (e) { throw new Error(String((e && e.message) || e)); }
+    const rawTxt = await response.text().catch(() => '');
+    if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
+    let data = {}; try { data = JSON.parse(rawTxt); } catch (_) {}
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     const answer = Array.isArray(content) ? content.map(x => x.text || '').join('') : content;
     if (!answer || !String(answer).trim()) throw new Error('API 返回内容为空，请检查所选模型和接口兼容性');
@@ -217,7 +219,8 @@
       ROLEPLAY_PROMPT,
       memBlock,
       contact.name ? `你的名字：${contact.name}` : '',
-      contact.persona ? `联系人设定：${contact.persona}` : '',
+      contact.persona ? `${fillU('{char}设定')}：${contact.persona}` : '',
+      window.MESSAGES_USER_PERSONA ? `${fillU('{user}设定')}：${window.MESSAGES_USER_PERSONA}` : '',
       contact.relation ? `与用户的关系：${contact.relation}` : '',
       MOMENT_RULE
     ].filter(Boolean).join('\n');
@@ -225,9 +228,10 @@
     const user = `这是用户刚发的朋友圈（${when.getHours()}时${when.getMinutes()}分）：\n${String(post && post.text || '').trim() || '（只发了照片）'}`;
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
-    catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);
+    catch (e) { throw new Error(String((e && e.message) || e)); }
+    const rawTxt = await response.text().catch(() => '');
+    if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
+    let data = {}; try { data = JSON.parse(rawTxt); } catch (_) {}
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     const raw = Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content || '');
     const t = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -250,7 +254,8 @@
       ROLEPLAY_PROMPT,
       memBlock,
       contact.name ? `你的名字：${contact.name}` : '',
-      contact.persona ? `联系人设定：${contact.persona}` : '',
+      contact.persona ? `${fillU('{char}设定')}：${contact.persona}` : '',
+      window.MESSAGES_USER_PERSONA ? `${fillU('{user}设定')}：${window.MESSAGES_USER_PERSONA}` : '',
       contact.relation ? `与用户的关系：${contact.relation}` : '',
       '【朋友圈评论】',
       '你正在看用户刚发的一条朋友圈，像真人一样自然地说几句话。长短由你自己决定，可以只说一句，也可以多说几句，想怎么说就怎么说。',
@@ -262,9 +267,10 @@
     const user = `你们最近的聊天：\n${ctx}\n\n用户刚发的朋友圈（${when.getHours()}时${when.getMinutes()}分）：\n${String(post && post.text || '').trim() || '（只发了照片）'}\n\n评论区现在的内容：\n${cur}\n\n可以回复的人：${names.join('、') || '无'}`;
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
-    catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);
+    catch (e) { throw new Error(String((e && e.message) || e)); }
+    const rawTxt = await response.text().catch(() => '');
+    if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
+    let data = {}; try { data = JSON.parse(rawTxt); } catch (_) {}
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     const raw = Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content || '');
     const t = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
@@ -275,37 +281,40 @@
     return { like: o.like === true || o.like === 'true', comment: String(o.comment || '').trim(), to: to && to !== contact.name ? to : '' };
   }
 
-  /* 朋友圈评论被用户回复后，角色单独私聊回复用户 */
-  async function momentDmReply(contact, post, userText, quoteText, recentMsgs) {
+  /* 朋友圈评论被用户回复后，角色单独私聊回复用户：顺便发几条由角色决定，条数范围用聊天室设置 */
+  async function momentDmReply(contact, post, userText, quoteText, recentMsgs, limits) {
     const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
     const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
     const memBlock = buildMemBlock(contact.memories || [], fillU);
     const userName = window.MESSAGES_USER_NAME || 'user';
     const ctx = (recentMsgs || []).map(m => `${m.me ? userName : contact.name}：${m.text}`).join('\n') || '（暂无聊天记录）';
+    const lo = Math.max(1, (limits && limits.min) || 1), hi = Math.max(lo, (limits && limits.max) || 4);
     const system = [
       ROLEPLAY_PROMPT,
       memBlock,
       contact.name ? `你的名字：${contact.name}` : '',
-      contact.persona ? `联系人设定：${contact.persona}` : '',
+      contact.persona ? `${fillU('{char}设定')}：${contact.persona}` : '',
+      window.MESSAGES_USER_PERSONA ? `${fillU('{user}设定')}：${window.MESSAGES_USER_PERSONA}` : '',
       contact.relation ? `与用户的关系：${contact.relation}` : '',
       '【朋友圈私聊】',
-      '用户刚在朋友圈里回复了你的评论。你可以顺便私聊他一句，也可以不发，由你自己决定；要发的话像平时聊天一样自然地说一两句。',
-      '只输出一个 JSON 对象，不要输出其他文字，也不要使用代码块，格式固定为：{"send":true或false,"text":"要私聊发给用户的内容，不发就写空字符串"}'
+      `用户刚在朋友圈里回复了你的评论。你可以顺便私聊他，也可以不发，由你自己决定。要发的话，像平时聊天一样分成 ${lo} 到 ${hi} 条消息。`,
+      '只输出一个 JSON 对象，不要输出其他文字，也不要使用代码块，格式固定为：{"send":true或false,"texts":["消息1","消息2"]}；不发就 send 为 false，texts 为空数组。'
     ].filter(Boolean).join('\n');
     const user = `你们最近的聊天：\n${ctx}\n\n朋友圈内容：${String(post && post.text || '').trim() || '（只发了照片）'}\n你在评论区说的话：${quoteText || ''}\n用户在评论区回复你：${userText}`;
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
-    catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);
+    catch (e) { throw new Error(String((e && e.message) || e)); }
+    const rawTxt = await response.text().catch(() => '');
+    if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
+    let data = {}; try { data = JSON.parse(rawTxt); } catch (_) {}
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     const raw = Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content || '');
-    let o = null;
     const t = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    let o = null;
     try { o = JSON.parse(t); } catch (_) { const x = t.indexOf('{'), y = t.lastIndexOf('}'); if (x >= 0 && y > x) { try { o = JSON.parse(t.slice(x, y + 1)); } catch (_) {} } }
-    if (!o || typeof o !== 'object') return { send: false, text: '' };
-    const text = String(o.text || '').trim();
-    return { send: (o.send === true || o.send === 'true') && !!text, text };
+    if (!o || typeof o !== 'object') return { send: false, texts: [] };
+    const texts = (Array.isArray(o.texts) ? o.texts : []).map(x => String(x || '').trim()).filter(Boolean).slice(0, hi);
+    return { send: (o.send === true || o.send === 'true') && texts.length > 0, texts };
   }
 
   /* 记忆总结：单次请求，返回模型原文 */
@@ -313,9 +322,10 @@
     const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: systemText }, { role: 'user', content: userText }] }, 0.4)) }); }
-    catch (_) { throw new Error('连接 API 失败：请检查网络、接口地址和跨域（CORS）设置'); }
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error((data.error && data.error.message) || `API 请求失败 (${response.status})`);
+    catch (e) { throw new Error(String((e && e.message) || e)); }
+    const rawTxt = await response.text().catch(() => '');
+    if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
+    let data = {}; try { data = JSON.parse(rawTxt); } catch (_) {}
     const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
     if (!content) throw new Error('API 返回内容为空');
     return Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content);
