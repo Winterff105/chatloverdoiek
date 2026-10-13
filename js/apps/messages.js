@@ -217,7 +217,7 @@ function switchTab(name) {
     fab.title = { chats: '写消息', contacts: '添加联系人', moments: '发布动态', settings: '设置' }[name];
     if (name === 'contacts') renderContacts();
     if (name === 'chats') renderChats();
-    if (name === 'moments') renderMoments();
+    if (name === 'moments') { renderMoments(); MOMENT_UNSEEN = false; refreshChatBadge(); if (!momentFetchBusy) hideMomentBubble(); }
 }
 function fabAction() {
     if (activeTab === 'chats') { openContactIdModal(); return; }
@@ -547,12 +547,14 @@ function openChat(id) {
     renderThread();
     applyRoomBeauty(c);
     document.getElementById('chatView').classList.add('open');
+    refreshChatBadge();
     document.getElementById('tabbar').classList.add('hide');
     renderChats();
 }
 function closeChat() {
     clearTimeout(typingTimer);
     document.getElementById('chatView').classList.remove('open');
+    refreshChatBadge();
     document.getElementById('tabbar').classList.remove('hide');
     activeId = null;
     renderChats();
@@ -3789,6 +3791,7 @@ function loadMomentAvatar() { try { return localStorage.getItem(MOMENT_AVATAR_KE
 const DEFAULT_MOMENT_AVATAR = 'assets/朋友圈/朋友圈头像.jpg';
 function momentAuthor(by) {
     if (by && by !== 'self') { const c = IDENTITIES.find(x => x.id === by); if (c) return { name: c.name, avatar: c.avatar }; }
+    const ct = CONTACTS.find(x => x.id === by); if (ct) return { name: ct.name, avatar: ct.avatar };
     return { name: ME.name, avatar: MOMENT_AVATAR || DEFAULT_MOMENT_AVATAR };
 }
 function momentAvatarHtml(a, size) {
@@ -4336,7 +4339,7 @@ async function publishMoment() {
     POSTS.unshift(post);
     PENDING_IMGS = [];
     persistMoments(); closeFullMask(); renderMoments(); toast('已发布');
-    momentRepliesFor(post);   // 能看到这条动态的联系人会自己决定要不要点赞、评论
+    scheduleMomentFetch(post);   // 发完 3 秒后开始调取，能看到的联系人各回一个词
 }
 
 /* ---------------- 朋友圈回复逻辑：点赞 / 评论 → 直接进入共同记忆 ---------------- */
@@ -4477,6 +4480,7 @@ bindCommentLongPress();
 bindMsgMenu();
 bindChatDrop();
 bindChatDropSwipe();
+ensureChatBadge();
 bindChatDropOutside();
 applyTheme(THEME);
 /* ---------------- 聊天里的保存 / 取消按钮：英文 Save / Cancel，SF Mono 字体（记忆页不处理） ---------------- */
