@@ -2148,6 +2148,7 @@ function renderThread(opts) {
     const shownCount = (opts && opts.noAnim) || box.dataset.chat !== c.id ? c.msgs.length : Number(box.dataset.count || 0);
     const avo = avOptsOf(c);
     const latestHid = latestHeartId(c);
+    const fsInline = (c.beauty && Number(c.beauty.fontSize)) ? ` style="font-size:${Number(c.beauty.fontSize)}px !important"` : '';
     let html = '<div class="day">Today</div>';
     c.msgs.forEach((m, i) => {
         if (m.narr) {
@@ -2163,11 +2164,11 @@ function renderThread(opts) {
         const meta = lastInGroup ? `<span class="mt">${esc(m.t)}</span>` : '';
         const showAv = avo.scope === 'all' || newGroup;
         const hv = (!m.me && m.hid && m.hid === latestHid) ? `<span class="hv-stack"><span class="hv-line"></span>${HEART_SVG}</span>` : '';
-        const sp = m.me ? '' : (avo.them && showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span>${hv}</div>` : '<div class="sp"></div>');
-        const spR = (m.me && avo.me) ? (showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${selfAvatarHtml('sm')}</span></div>` : '<div style="width:32px;flex-shrink:0"></div>') : '';
+        const sp = m.me ? '' : (avo.them && showAv ? `<div class="av-col"><span class="avf">${avatar(c, 'sm')}</span>${hv}</div>` : '<div class="sp"></div>');
+        const spR = (m.me && avo.me) ? (showAv ? `<div class="av-col"><span class="avf">${selfAvatarHtml('sm')}</span></div>` : '<div style="width:32px;flex-shrink:0"></div>') : '';
         const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
         const grp = (pos === 'g-head') ? 'grp-head' : '';
-        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}">${esc(m.text)}</div>${meta}</div>`;
+        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}"${fsInline}>${esc(m.text)}</div>${meta}</div>`;
     });
     box.innerHTML = html;
     box.dataset.chat = c.id;
@@ -2179,7 +2180,7 @@ function showTyping(c) {
     const box = document.getElementById('thread');
     const el = document.createElement('div');
     el.className = 'mrow typing mrow-new'; el.id = 'typingRow';
-    el.innerHTML = `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div><div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>`;
+    el.innerHTML = `<div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div><div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>`;
     box.appendChild(el); box.scrollTop = box.scrollHeight;
 }
 const MSG_SEP = '|||';
@@ -4063,6 +4064,9 @@ function avOptsHtml(c) {
             <div class="rp-opt-row"><div><div class="rp-opt-t">每条消息都显示</div><div class="rp-opt-s">${o.scope === 'all' ? '当前：每条消息都显示头像' : '当前：每组第一条显示头像'}</div></div><button class="rp-switch ${o.scope === 'all' ? 'on' : ''}" type="button" onclick="setAvOpt('scope', '${o.scope === 'all' ? 'group' : 'all'}')" aria-label="每条消息都显示"></button></div>
         </div>`;
 }
+function setBubbleFontNow(fs) {
+    document.querySelectorAll('#chatView .bubble').forEach(b => b.style.setProperty('font-size', fs + 'px', 'important'));
+}
 function onRoomFontSize(v) {
     const fs = parseFloat(v) || 14;
     const c = CONTACTS.find(x => x.id === activeId);
@@ -4070,6 +4074,7 @@ function onRoomFontSize(v) {
         c.beauty = Object.assign({}, c.beauty || {}, { fontSize: fs });
         persistContacts();
         applyRoomBeauty(c);
+        setBubbleFontNow(fs);
     }
     const valEl = document.getElementById('roomFsVal');
     if (valEl) valEl.textContent = fs + 'px';
@@ -4134,8 +4139,10 @@ function openCssPreview() {
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c) return;
     const bg = c.beauty && c.beauty.bg ? `background-image:url("${c.beauty.bg}");` : '';
+    const fsv = c.beauty && c.beauty.fontSize;
+    const fsStyle = fsv ? `--bubble-fs:${fsv}px;` : '';
     openSheet(`<div class="sheet-title sheet-title-plane">${PLANE_SVG}<span>预览效果</span></div>
-        <div class="css-preview-box" id="cssPreviewScope" style="${bg}">
+        <div class="css-preview-box" id="cssPreviewScope" style="${bg}${fsStyle}">
             <div class="mrow"><div class="bubble g-single">你今天想吃什么？</div></div>
             <div class="mrow me"><div class="bubble g-single">都可以，你来决定吧</div></div>
             <div class="mrow"><div class="bubble g-single">那就火锅吧！</div></div>
@@ -5154,7 +5161,7 @@ markSaveCancelButtons();
 initComposerGesture();
 
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
-Object.assign(__messagesHandlers, {openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
+Object.assign(__messagesHandlers, {onRoomFontSize, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 
 /* ---------------- 心声：头像下的爱心 · 心声弹窗 · 波浪线切换 · 收藏柜 · 设置 ---------------- */
@@ -5286,7 +5293,7 @@ function renderHeartPop(){
     hpPhoto('hpEnv', '环境', r ? r.env : '');
     hpPhoto('hpMood', '心情', r ? r.mood : '');
     hpPhoto('hpOutfit', '穿着', r ? r.outfit : '');
-    hpPhoto('hpAff', '好感度', r ? `<b>${r.aff}</b>对你挺在意` : '', true);
+    hpPhoto('hpAff', '好感度', r ? `<b>${String(r.aff).replace(/%$/, '')}%</b>` : '', true);
     document.getElementById('hpWaveLabel').textContent = h.length ? `第 ${i + 1} / ${h.length} 轮` : '没有心声了';
     document.getElementById('hpLike').classList.toggle('on', !!(r && r.liked));
     drawHeartWave();
