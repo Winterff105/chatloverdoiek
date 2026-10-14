@@ -106,7 +106,7 @@ function loadStoredContacts() {
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
 }
 function normalizeContact(c) {
-    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0), avOpts: (c.avOpts && typeof c.avOpts === 'object') ? c.avOpts : null, promptOpts: Array.isArray(c.promptOpts) ? c.promptOpts : defaultPromptOpts(), greasyEntries: Array.isArray(c.greasyEntries) ? c.greasyEntries : [] };
+    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', remark: c.remark || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0), avOpts: (c.avOpts && typeof c.avOpts === 'object') ? c.avOpts : null, promptOpts: Array.isArray(c.promptOpts) ? c.promptOpts : defaultPromptOpts(), greasyEntries: Array.isArray(c.greasyEntries) ? c.greasyEntries : [], hearts: Array.isArray(c.hearts) ? c.hearts : [] };
 }
 
 
@@ -160,7 +160,7 @@ function previewContactById(raw) {
     if (!preview || !status || !start) return;
     if (!id) { preview.innerHTML = '<div class="contact-id-preview-empty">输入 ID 后会在这里显示联系人资料</div>'; status.textContent='仅能添加已创建并保存在本项目中的联系人'; start.disabled=true; return; }
     if (!c) { preview.innerHTML = '<div class="contact-id-preview-empty"><span class="contact-id-not-found">?</span><span>暂未找到这个 ID</span></div>'; status.textContent='请核对 ID，或先在「联系人」里创建该联系人'; start.disabled=true; return; }
-    preview.innerHTML = `<div class="contact-id-person">${avatar(c, 'md')}<div class="contact-id-preview-info"><strong>${esc(c.name)}</strong><span>${esc(c.status || '联系人')}</span><code>ID · ${esc(c.id)}</code></div><span class="contact-id-found">已匹配</span></div>`;
+    preview.innerHTML = `<div class="contact-id-person">${avatar(c, 'md')}<div class="contact-id-preview-info"><strong>${esc(dispName(c))}</strong><span>${esc(c.status || '联系人')}</span><code>ID · ${esc(c.id)}</code></div><span class="contact-id-found">已匹配</span></div>`;
     const already = CHAT_IDS.includes(c.id);
     status.textContent = already ? '这个联系人已经在 Chats 列表里了' : '请确认头像、名称和 ID 无误后添加';
     start.disabled = already;
@@ -255,7 +255,7 @@ function renderChats() {
     const storyHtml = THEME === 'tabs'
         ? krHead() + profileCard()
         : chatContacts.map(c =>
-            `<button class="story ${c.unread ? 'unread' : ''}" title="${esc(c.name)}" onclick="openChat('${c.id}')">${avatar(c, 'lg')}</button>`).join('');
+            `<button class="story ${c.unread ? 'unread' : ''}" title="${esc(dispName(c))}" onclick="openChat('${c.id}')">${avatar(c, 'lg')}</button>`).join('');
     if (storyEl.dataset.html !== storyHtml) { storyEl.innerHTML = storyHtml; storyEl.dataset.html = storyHtml; }
     const q = document.getElementById('searchInput').value.trim().toLowerCase();
     const list = chatContacts.filter(c => !q || c.name.toLowerCase().includes(q) || String(c.id).toLowerCase().includes(q) || c.msgs.some(m => m.text.toLowerCase().includes(q)));
@@ -271,7 +271,7 @@ function renderChats() {
         <div class="row ${c.unread ? 'unread' : ''}" onclick="openChat('${c.id}')">
             ${avatar(c, 'lg')}
             <div class="info">
-                <div class="top"><span class="name">${esc(c.name)}</span><span class="time">${esc(c.time)}</span></div>
+                <div class="top"><span class="name">${esc(dispName(c))}</span><span class="time">${esc(c.time)}</span></div>
                 <div class="bottom">
                     <span class="preview">${m.me ? 'You: ' : ''}${esc(m.text)}</span>
                     ${c.unread ? `<span class="badge">${c.unread}</span>` : ''}
@@ -329,7 +329,7 @@ function cardHtml(c, i) {
                     ${c.unread > 0 ? `<span class="cc-badge env-badge">${c.unread}</span>` : ''}
                     <div class="env-info">
                         <span class="cc-status"><span class="cc-dot ${c.online ? '' : 'offline'}"></span>${esc(c.status)}</span>
-                        <div class="cc-name">${esc(c.name)}</div>
+                        <div class="cc-name">${esc(dispName(c))}</div>
                         ${preview ? `<div class="cc-preview">${esc(preview)}</div>` : ''}
                     </div>
                 </div>
@@ -353,8 +353,19 @@ function addCardHtml() {
 
 
 
+/* 界面显示用的名字：有备注用备注，没有就用设定的名字（设定的名字才是发给 AI 的名字） */
+function dispName(c) { return (c && (c.remark || c.name)) || ''; }
+/* 编辑联系人页：原来的「名字」改成「备注」（只改标签文字，不动结构） */
+function relabelRemarkField() {
+    const ed = document.getElementById('contactEditor'); if (!ed) return;
+    ed.querySelectorAll('label, span, div, p, small, strong').forEach(el => {
+        if (el.children.length === 0 && /^(名字|名称|姓名)$/.test(el.textContent.trim())) el.textContent = '备注';
+    });
+    const input = document.getElementById('editName'); if (input) input.placeholder = '备注（留空则显示设定的名字）';
+}
 function openContactEditor(id) {
     editingContactId = id || null;
+    relabelRemarkField();
     pendingCover = null;
     pendingAvatar = null;
     
@@ -368,7 +379,7 @@ function openContactEditor(id) {
         title.innerText = '编辑联系人';
         deleteBtn.style.display = 'block';
         
-        document.getElementById('editName').value = c.name;
+        document.getElementById('editName').value = c.remark || '';
         document.getElementById('editStatus').value = c.status;
         document.getElementById('editId').value = c.id;
         
@@ -484,11 +495,9 @@ function loadImage(input, imgId, placeholderId) {
 }
 
 function saveContact() {
-    const name = document.getElementById('editName').value.trim();
-    if (!name) {
-        toast('姓名不能为空');
-        return;
-    }
+    const remark = document.getElementById('editName').value.trim();
+    if (!remark && !editingContactId) { toast('备注不能为空'); return; }
+    const name = remark;   // 新建时备注和设定名字先用同一个值，之后在「人设与信息」里改设定的名字
     const status = document.getElementById('editStatus').value.trim() || '未知状态';
     let id = document.getElementById('editId').value.trim();
     if (!id) { id = makeContactId(); document.getElementById('editId').value = id; }
@@ -503,9 +512,9 @@ function saveContact() {
             const oldId = c.id;
             c.id = id;
             migrateContactId(oldId, id);
-            c.name = name;
+            c.remark = remark;
             c.status = status;
-            c.ini = name[0].toUpperCase();
+            c.ini = ((c.name || remark || '?')[0]).toUpperCase();
             if (pendingCover) c.cover = pendingCover;
             if (pendingAvatar) c.avatar = pendingAvatar;
         }
@@ -515,6 +524,7 @@ function saveContact() {
         const newContact = {
             id: id,
             name: name,
+            remark: name,
             status: status,
             ini: name[0].toUpperCase(),
             g: 'g' + (Math.floor(Math.random() * 4) + 1),
@@ -565,7 +575,7 @@ function openChat(id) {
     c.unread = 0;
     persistContacts();
     document.getElementById('headAv').outerHTML = avatar(c, 'md').replace('class="av ', 'id="headAv" class="av ');
-    document.getElementById('headName').textContent = c.name;
+    document.getElementById('headName').textContent = dispName(c);
     document.getElementById('headStatus').textContent = c.online ? '在线' : c.status;
     renderThread();
     applyRoomBeauty(c);
@@ -600,7 +610,7 @@ const DEFAULT_SUMMARY_INSTR = [
     '你是聊天记录的记忆整理员。请阅读下面的对话，写出这段时间里发生的事情经过。',
     '【格式必须遵守】',
     '1. 用户消息里会给出“时间范围”，形如 [年月日时分—年月日时分]。summary 必须以这个时间范围原样开头，方括号一起保留，之后紧跟事情经过。',
-    '2. 事情经过用第三人称、直白客观地叙述，直接写角色名 {{char}} 和用户名 {{user}}，不要用“他、她、我、你”指代他们。',
+    '2. 事情经过用第三人称、直白客观地叙述。角色一律写 {{char}}，用户一律写 {{user}}，原样输出这两个占位符，不要换成任何名字，不要用“他、她、我、你”指代他们。',
     '3. points：挑出 2 到 5 句最关键的原话或要点。',
     '4. relation：写清关系与感情的变化；如有多人，逐一写出每个人的变化；没有变化就写“无明显变化”。',
     '5. priority：1 到 10 的整数，越大越重要。keys：3 到 6 个关键词。',
@@ -630,17 +640,35 @@ async function runSummary(c, from, to) {
     if (!part.length) { toast('这段没有消息'); return false; }
     if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('请先在「设置 → API」保存接口配置'); return false; }
     const label = memLabelFor(part);
-    const transcript = '时间范围：' + label + '\n' + part.map(x => `${x.me ? ME.name : c.name}：${x.text}`).join('\n');
+    // 说话人统一用占位符标注，模型不接触真名，避免名字与角色对不上导致人物错乱
+    const transcript = '时间范围：' + label + '\n' + part.map(x => `${x.me ? '{{user}}' : '{{char}}'}：${x.text}`).join('\n');
     toast('正在总结…');
     try {
-        const raw = await window.MessagesAPI.complete(fillMemInstr(m.instr || DEFAULT_SUMMARY_INSTR, c), transcript);
-        const o = parseSummaryJson(raw) || {};
+        const raw = await window.MessagesAPI.complete(m.instr || DEFAULT_SUMMARY_INSTR, transcript);
+        const o0 = parseSummaryJson(raw) || {};
+        // 默认指令（占位符版）下，总结里不允许出现真名：统一换成 {{char}} / {{user}}。
+        // 用户自定义了指令（要求写真名）时则原样保存。
+        const usePlaceholder = (m.instr || DEFAULT_SUMMARY_INSTR).includes('{{char}}');
+        const fix = s => {
+            let t = String(s == null ? '' : s);
+            if (!usePlaceholder) return t;
+            if (c.name) t = t.split(c.name).join('{{char}}');
+            if (ME.name) t = t.split(ME.name).join('{{user}}');
+            return t;
+        };
+        const o = {
+            summary: fix(o0.summary),
+            priority: o0.priority,
+            points: Array.isArray(o0.points) ? o0.points.map(fix) : o0.points,
+            relation: fix(o0.relation),
+            keys: Array.isArray(o0.keys) ? o0.keys.map(fix) : o0.keys
+        };
         const pr = Math.max(1, Math.min(10, parseInt(o.priority, 10) || 5));
         c.memories = c.memories || [];
         c.memories.unshift({
             id: 'm' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
             label,
-            text: String(o.summary || raw || '').trim().replace(/^\s*\[[^\]]*\]\s*/, ''),
+            text: fix(o.summary || raw || '').trim().replace(/^\s*\[[^\]]*\]\s*/, ''),
             points: Array.isArray(o.points) ? o.points.map(String).slice(0, 6) : [],
             relation: String(o.relation || '').trim(),
             keys: Array.isArray(o.keys) ? o.keys.map(String).slice(0, 8) : [],
@@ -1914,8 +1942,8 @@ function openChatPromptSettings(k) {
     const v = readChatPromptSettings();
     const modal = document.createElement('div'); modal.id = 'cdPromptSettings'; modal.className = 'cd-settings-overlay';
     modal.innerHTML = `<section class="cd-settings" role="dialog" aria-modal="true" aria-label="防八股设置">
-      <div class="cd-settings-main"><header><div><span class="cd-settings-kicker">CHAT STYLE / 01</span><strong>表达偏好</strong><small>词条优先级决定它们在提示词中的排列位置。</small></div><button class="cd-settings-close" type="button" aria-label="关闭">×</button></header>
-      <label class="cd-master"><input id="cdBanEnabled" type="checkbox" ${v.enabled?'checked':''}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10.2 3.8 3.7L16 5.8"/></svg><span><b>启用表达偏好</b><small>保留人设特点，优先选择自然、具体的表达</small></span></label>
+      <div class="cd-settings-main"><header><div><span class="cd-settings-kicker">CHAT STYLE / 01</span><strong>禁用词</strong><small>词条优先级决定它们在提示词中的排列位置。</small></div><button class="cd-settings-close" type="button" aria-label="关闭">×</button></header>
+      <label class="cd-master"><input id="cdBanEnabled" type="checkbox" ${v.enabled?'checked':''}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m4 10.2 3.8 3.7L16 5.8"/></svg><span><b>启用禁用词</b><small>保留人设特点，优先选择自然、具体的表达</small></span></label>
       <div class="cd-settings-section"><div class="cd-settings-label">表达词条 <span>勾选启用 · 高 / 中 / 低控制提示词位置</span></div><div class="cd-word-list">${cdWordListHtml(v.words,v.disabledWords,v.priorityLevels,v.customWords,v.customReasons)}</div></div>
       <div class="cd-settings-section cd-add-section"><button class="cd-add-custom-trigger" type="button" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>添加自定义词条</span></button><textarea id="cdWordAdd" class="cd-word-add" placeholder="输入表达词条，每行一个；可写成 词条|原因" aria-label="自定义词条，每行一个"></textarea></div>
       <div class="cd-settings-hint"><span class="cd-hint-mark">✳</span><p>优先采用贴合角色性格、情境与说话习惯的具体表达。角色可以保留自己的复杂、强势或阴郁，不强迫角色变得善良或温柔。</p></div>
@@ -2098,6 +2126,10 @@ function bindChatDropOutside() {
     document.addEventListener('pointerdown', e => {
         const p = document.getElementById('chatDrop');
         if (!p || !p.classList.contains('show')) return;
+        // 目标节点已被重绘移走，或点在下拉框范围内：都不算外部点击
+        if (e.target && e.target.isConnected === false) return;
+        const r = p.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) return;
         if (e.target.closest && (e.target.closest('#chatDrop') || e.target.closest('.chat-head') || e.target.closest('#cdPromptSettings') || e.target.closest('#cdWordEdit') || e.target.closest('#gpPanOverlay') || e.target.closest('#gpPanOverlay') || e.target.closest('.cd-pt-root'))) return;
         p.classList.remove('show');
     });
@@ -2115,6 +2147,7 @@ function renderThread(opts) {
     // 只有本次新增的消息播放进场动画；重绘已有消息时不闪
     const shownCount = (opts && opts.noAnim) || box.dataset.chat !== c.id ? c.msgs.length : Number(box.dataset.count || 0);
     const avo = avOptsOf(c);
+    const latestHid = latestHeartId(c);
     let html = '<div class="day">Today</div>';
     c.msgs.forEach((m, i) => {
         if (m.narr) {
@@ -2129,7 +2162,8 @@ function renderThread(opts) {
         const lastInGroup = !next || next.narr || next.me !== m.me;
         const meta = lastInGroup ? `<span class="mt">${esc(m.t)}</span>` : '';
         const showAv = avo.scope === 'all' || newGroup;
-        const sp = m.me ? '' : (avo.them && showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div>` : '<div class="sp"></div>');
+        const hv = (!m.me && m.hid && m.hid === latestHid) ? `<span class="hv-stack"><span class="hv-line"></span>${HEART_SVG}</span>` : '';
+        const sp = m.me ? '' : (avo.them && showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span>${hv}</div>` : '<div class="sp"></div>');
         const spR = (m.me && avo.me) ? (showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${selfAvatarHtml('sm')}</span></div>` : '<div style="width:32px;flex-shrink:0"></div>') : '';
         const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
         const grp = (pos === 'g-head') ? 'grp-head' : '';
@@ -2274,10 +2308,13 @@ async function pullReply() {
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction, o.max);
+        const heart = replies.heart || null;
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const parts = replies.map(p => narrPart(p, c.name)).filter(Boolean);
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
         await deliverMsgs(c, parts);
+        attachHeart(c, heart); persistContacts();
+        if (activeId === c.id) renderThread({noAnim:true});
         maybeAutoSummary(c);
     } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
     finally { c._busy=false; if(cap) cap.classList.remove('pulling'); }
@@ -2596,6 +2633,15 @@ function setNarrInputMode(on) {
     composer.classList.toggle('narr-mode', narrInputMode);
     const cap = composer.querySelector('.send-capsule'); if (cap) cap.classList.remove('nb-swiped');
 }
+/* 底栏上方提示：每隔几个字带一个极浅灰，形成深浅不一的效果 */
+const NM_GRAY_EVERY = 4;
+function nbHintHtml(text) {
+    let out = '';
+    [...text].forEach((ch, i) => {
+        out += (i % NM_GRAY_EVERY === NM_GRAY_EVERY - 1) ? `<span class="nm-g">${ch}</span>` : ch;
+    });
+    return out;
+}
 function ensureNarrInputUI() {
     const composer = document.getElementById('composer');
     const cap = composer && composer.querySelector('.send-capsule');
@@ -2613,7 +2659,7 @@ function ensureNarrInputUI() {
     else cap.insertBefore(entry, cap.firstChild);
     if (pull) cap.insertBefore(tog, pull); else cap.appendChild(tog);
     const hint = document.createElement('div');
-    hint.className = 'nb-hint'; hint.textContent = '旁白模式：你写的内容会以旁白发出';
+    hint.className = 'nb-hint'; hint.innerHTML = nbHintHtml('旁白模式：你写的内容会以旁白发出');
     composer.insertBefore(hint, composer.firstChild);
     document.addEventListener('click', e => {
         const c = document.querySelector('#composer .send-capsule');
@@ -2781,7 +2827,7 @@ function renderFolderPicker() {
         return `
             <div class="fp-row ${on ? 'on' : ''}" onclick="toggleFolderMember('${c.id}')">
                 ${avatar(c, 'md')}
-                <div class="fp-info"><div class="fp-name">${esc(c.name)}</div><div class="fp-sub">${esc(other)}</div></div>
+                <div class="fp-info"><div class="fp-name">${esc(dispName(c))}</div><div class="fp-sub">${esc(other)}</div></div>
                 <div class="fp-check">${on ? '✓' : ''}</div>
             </div>`;
     }).join('') || '<div class="fp-empty">还没有联系人</div>';
@@ -3366,7 +3412,7 @@ function showContactIdEntry() {
     setTimeout(() => document.getElementById('contactIdInput')?.focus(), 100);
 }
 function showDirectContactList() {
-    const list = CONTACTS.length ? CONTACTS.map(c => `<button class="contact-id-direct-row" type="button" onclick="directAddContact('${esc(c.id).replace(/'/g, '&#39;')}')">${avatar(c, 'md')}<span class="contact-id-direct-info"><strong>${esc(c.name)}</strong><small>${esc(c.status || '联系人')}</small><code>${esc(c.id)}</code></span><span class="cid-option-arrow">${CHAT_IDS.includes(c.id) ? '已添加' : '＋'}</span></button>`).join('') : '<div class="contact-id-preview-empty">还没有联系人，请先到「联系人」页面创建</div>';
+    const list = CONTACTS.length ? CONTACTS.map(c => `<button class="contact-id-direct-row" type="button" onclick="directAddContact('${esc(c.id).replace(/'/g, '&#39;')}')">${avatar(c, 'md')}<span class="contact-id-direct-info"><strong>${esc(dispName(c))}</strong><small>${esc(c.status || '联系人')}</small><code>${esc(c.id)}</code></span><span class="cid-option-arrow">${CHAT_IDS.includes(c.id) ? '已添加' : '＋'}</span></button>`).join('') : '<div class="contact-id-preview-empty">还没有联系人，请先到「联系人」页面创建</div>';
     contactIdShell('Direct Add', '直接添加', `
         <p class="cid-desc">选择联系人即可加入 Chats</p>
         <div class="contact-id-direct-list">${list}</div>
@@ -3437,7 +3483,7 @@ function hideLoginMask() {
 
 function renderStrip() {
     document.getElementById('stripAccounts').innerHTML = CONTACTS.map(c => `
-        <button class="strip-acc ${SIDE.pickedId === c.id ? 'sel' : ''} ${SIDE.liveId === c.id ? 'live' : ''}" title="${esc(c.name)}" onclick="event.stopPropagation(); pickAccount('${c.id}')">${avatar(c, 'md')}</button>`).join('');
+        <button class="strip-acc ${SIDE.pickedId === c.id ? 'sel' : ''} ${SIDE.liveId === c.id ? 'live' : ''}" title="${esc(dispName(c))}" onclick="event.stopPropagation(); pickAccount('${c.id}')">${avatar(c, 'md')}</button>`).join('');
 }
 
 function pickAccount(id) {
@@ -3514,7 +3560,7 @@ function renderAccountList() {
         <div class="acct-row" onclick="openIdentityEditor('${c.id}')">
             ${avatar(c, 'lg')}
             <div class="acct-info">
-                <div class="acct-name">${esc(c.name)}</div>
+                <div class="acct-name">${esc(dispName(c))}</div>
                 <div class="acct-id">ID · ${esc(c.id)}</div>
                 <div class="acct-persona ${c.persona ? '' : 'is-none'}">${esc(c.persona || '还没有人设，点击填写')}</div>
             </div>
@@ -3960,7 +4006,7 @@ function setRoomTab(i) {
 function renderRoomHero(c) {
     document.getElementById('roomHero').innerHTML =
         avatar(c, 'lg') +
-        `<div class="room-name">${esc(c.name)}</div><div class="room-id">ID · ${esc(c.id)}</div>` +
+        `<div class="room-name">${esc(dispName(c))}</div><div class="room-id">ID · ${esc(c.id)}</div>` +
         (c.status ? `<div class="room-status">${esc(c.status)}</div>` : '');
 }
 function rpRow(title, sub, action, danger) {
@@ -4657,7 +4703,7 @@ function mvListHtml() {
     if (!list.length) return '<div class="mv-empty">No records found.</div>';
     return list.map(c => {
         const on = MOMENT_VIS_TO.indexOf(c.id) >= 0;
-        return `<div class="mv-row ${on ? 'on' : ''}" onclick="toggleMomentVisTo('${c.id}')">${avatar(c, 'sm')}<div class="mv-info"><div class="mv-name">${esc(c.name)}</div><div class="mv-sub">${esc(c.id)}</div></div><div class="mv-chk">${on ? '×' : ''}</div></div>`;
+        return `<div class="mv-row ${on ? 'on' : ''}" onclick="toggleMomentVisTo('${c.id}')">${avatar(c, 'sm')}<div class="mv-info"><div class="mv-name">${esc(dispName(c))}</div><div class="mv-sub">${esc(c.id)}</div></div><div class="mv-chk">${on ? '×' : ''}</div></div>`;
     }).join('');
 }
 function renderMomentVisPanel() {
@@ -5143,3 +5189,227 @@ function playSfx(name) {
         playSfx('tap');
     }, true);
 })();
+
+/* ---------------- 心声：头像下的爱心 · 心声弹窗 · 波浪线切换 · 收藏柜 · 设置 ---------------- */
+const HEART_SET_KEY = 'heart_popup_settings_v1';
+const HEART_SVG = '<svg class="hv-heart" viewBox="0 0 24 24" aria-label="心声"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+const HP_ICON = {
+    close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    like: '<svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.4-7.5-9.5A4.2 4.2 0 0 1 12 8.3a4.2 4.2 0 0 1 7.5 2.7c0 5.1-7.5 9.5-7.5 9.5z"/></svg>',
+    set: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+    back: '<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>'
+};
+function heartSettings(){ try { return JSON.parse(localStorage.getItem(HEART_SET_KEY) || '{}') || {}; } catch (_) { return {}; } }
+function saveHeartSettings(v){ try { localStorage.setItem(HEART_SET_KEY, JSON.stringify(v)); } catch (_) {} }
+function applyHeartCss(){
+    let st = document.getElementById('hpUserCss');
+    if (!st) { st = document.createElement('style'); st.id = 'hpUserCss'; document.head.appendChild(st); }
+    st.textContent = heartSettings().css || '';
+}
+function heartRoundsOf(c){ return Array.isArray(c.hearts) ? c.hearts : []; }
+function latestHeartId(c){ const h = heartRoundsOf(c); return h.length ? h[h.length - 1].id : null; }
+/* 这一轮回复的心声：挂在这一轮最后一条对方消息上（头像下面的爱心跟着最新一轮走） */
+function attachHeart(c, heart){
+    if (!heart) return;
+    c.hearts = heartRoundsOf(c);
+    const last = [...c.msgs].reverse().find(m => !m.me && !m.narr);
+    if (!last) return;
+    const id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    c.hearts.push(Object.assign({ id, ts: Date.now(), t: nowTime(), liked: false }, heart));
+    last.hid = id;
+}
+
+/* 心声弹窗结构 */
+function ensureHeartPop(){
+    if (document.getElementById('hpMask')) return;
+    const root = document.querySelector('.messages-app') || document.body;
+    const mask = document.createElement('div');
+    mask.id = 'hpMask'; mask.className = 'hp-mask';
+    mask.innerHTML = `
+    <div class="hp-pop" id="hpPop">
+      <div class="hp-view hp-voice">
+        <div class="hp-card" id="hpCard">
+          <div class="hp-script">HEART VOICE</div>
+          <div class="hp-title" id="hpTitle"></div>
+          <div class="hp-stamp"><div class="hp-stamp-label">心声</div><div class="hp-said" id="hpSaid"></div></div>
+        </div>
+        <div class="hp-shot hp-s1"><div class="hp-ph" id="hpEnv"></div><div class="hp-tt">当前环境</div></div>
+        <div class="hp-shot hp-s2"><div class="hp-ph" id="hpMood"></div><div class="hp-tt">心情</div></div>
+        <div class="hp-shot hp-s3"><div class="hp-ph" id="hpOutfit"></div><div class="hp-tt">穿着</div></div>
+        <div class="hp-shot hp-s4"><div class="hp-ph" id="hpAff"></div><div class="hp-tt">好感度</div></div>
+        <div class="hp-foot">
+          <button class="hp-qbtn" type="button" id="hpClose" aria-label="关闭">${HP_ICON.close}</button>
+          <button class="hp-qbtn hp-like" type="button" id="hpLike" aria-label="点赞">${HP_ICON.like}</button>
+          <button class="hp-qbtn" type="button" id="hpSet" aria-label="设置">${HP_ICON.set}</button>
+        </div>
+        <div class="hp-wave" id="hpWave">
+          <svg viewBox="0 0 300 44" preserveAspectRatio="none"><path id="hpW1" d=""/><path id="hpW2" d=""/></svg>
+          <div class="hp-wave-label" id="hpWaveLabel"></div>
+        </div>
+        <button class="hp-wave-del" type="button" id="hpWaveDel">删除这一轮</button>
+      </div>
+      <div class="hp-view hp-set-view">
+        <div class="hp-card">
+          <div class="hp-script">SETTINGS</div>
+          <div class="hp-title">心声设置</div>
+          <label class="hp-label">弹窗样式（CSS，类名：.hp-card 卡片 · .hp-stamp 邮票框 · .hp-shot 拍立得 · .hp-said 心声正文 · .hp-foot 底部按钮）</label>
+          <textarea class="hp-ta" id="hpCssBox" placeholder=".hp-card{border-radius:28px}"></textarea>
+          <label class="hp-label">给 AI 的输出格式（说明它怎样输出匹配内容的 HTML，填了之后 AI 会额外返回 html，弹窗里用它代替心声正文）</label>
+          <textarea class="hp-ta" id="hpFmtBox" placeholder='例如：心声正文放进 <div class="said">，每句话用 <p> 包起来'></textarea>
+        </div>
+        <div class="hp-set-foot">
+          <button class="hp-qbtn" type="button" id="hpBack" aria-label="返回">${HP_ICON.back}</button>
+          <button class="hp-save" type="button" id="hpApply">保存</button>
+        </div>
+      </div>
+      <div class="hp-view hp-fav-view">
+        <div class="hp-card">
+          <div class="hp-script">COLLECTION</div>
+          <div class="hp-title">收藏柜</div>
+          <div class="hp-fav-list" id="hpFavList"></div>
+        </div>
+        <div class="hp-set-foot"><button class="hp-qbtn" type="button" id="hpFavBack" aria-label="返回">${HP_ICON.back}</button></div>
+      </div>
+    </div>`;
+    root.appendChild(mask);
+    applyHeartCss();
+
+    mask.addEventListener('click', e => { if (e.target === mask) mask.classList.remove('show'); });
+    document.getElementById('hpClose').onclick = () => mask.classList.remove('show');
+    document.getElementById('hpSet').onclick = () => {
+        const s = heartSettings();
+        document.getElementById('hpCssBox').value = s.css || '';
+        document.getElementById('hpFmtBox').value = s.fmt || '';
+        document.getElementById('hpPop').classList.add('is-set');
+    };
+    document.getElementById('hpBack').onclick = () => document.getElementById('hpPop').classList.remove('is-set');
+    document.getElementById('hpApply').onclick = () => {
+        saveHeartSettings({ css: document.getElementById('hpCssBox').value, fmt: document.getElementById('hpFmtBox').value.trim() });
+        applyHeartCss();
+        document.getElementById('hpPop').classList.remove('is-set');
+        toast('心声设置已保存');
+    };
+    document.getElementById('hpFavBack').onclick = () => document.getElementById('hpPop').classList.remove('is-fav');
+    document.getElementById('hpFavList').addEventListener('click', e => {
+        const item = e.target.closest('.hp-fav-item'); if (!item) return;
+        const [cid, rid] = item.dataset.key.split('|');
+        document.getElementById('hpPop').classList.remove('is-fav');
+        openHeart(cid, rid);
+    });
+    bindHeartWave();
+    bindHeartLike();
+}
+
+let HP = { cid: null, rid: null };
+function hpContact(){ return CONTACTS.find(x => x.id === HP.cid) || null; }
+function hpRoundIndex(){ const c = hpContact(); if (!c) return -1; const h = heartRoundsOf(c); const i = h.findIndex(r => r.id === HP.rid); return i >= 0 ? i : h.length - 1; }
+function hpRound(){ const c = hpContact(); if (!c) return null; const h = heartRoundsOf(c); return h[hpRoundIndex()] || null; }
+
+/* 照片：读取 assets/心声/<名字>.jpg，加载失败时只显示文字 */
+function hpPhoto(id, name, text, raw){
+    const el = document.getElementById(id);
+    el.innerHTML = `<img src="assets/心声/${name}.jpg" alt="" onerror="this.remove()"><span class="hp-cap">${raw ? text : esc(text || '—')}</span>`;
+}
+function renderHeartPop(){
+    const c = hpContact(); const h = c ? heartRoundsOf(c) : []; const r = hpRound(); const i = hpRoundIndex();
+    document.getElementById('hpTitle').textContent = `${c ? dispName(c) : ''}的心声`;
+    const said = document.getElementById('hpSaid');
+    if (r && r.html) said.innerHTML = r.html; else said.textContent = r ? (r.said || '') : '暂无心声';
+    hpPhoto('hpEnv', '环境', r ? r.env : '');
+    hpPhoto('hpMood', '心情', r ? r.mood : '');
+    hpPhoto('hpOutfit', '穿着', r ? r.outfit : '');
+    hpPhoto('hpAff', '好感度', r ? `<b>${r.aff}</b>对你挺在意` : '', true);
+    document.getElementById('hpWaveLabel').textContent = h.length ? `第 ${i + 1} / ${h.length} 轮` : '没有心声了';
+    document.getElementById('hpLike').classList.toggle('on', !!(r && r.liked));
+    drawHeartWave();
+}
+function drawHeartWave(){
+    const W = 300, period = 30, amp = 5;
+    const mk = (phase, cy) => { let d = `M0 ${cy}`; for (let x = 0; x <= W; x += 2) d += ` L${x} ${(cy + Math.sin((x / period) * Math.PI * 2 + phase) * amp).toFixed(2)}`; return d; };
+    document.getElementById('hpW1').setAttribute('d', mk(0, 16));
+    document.getElementById('hpW2').setAttribute('d', mk(Math.PI * 0.6, 28));
+}
+function openHeart(cid, rid){
+    ensureHeartPop();
+    const c = CONTACTS.find(x => x.id === cid); if (!c) return;
+    HP.cid = cid; HP.rid = rid || latestHeartId(c);
+    const pop = document.getElementById('hpPop');
+    pop.classList.remove('is-set', 'is-fav');
+    renderHeartPop();
+    document.getElementById('hpMask').classList.add('show');
+}
+/* 切换上一轮 / 下一轮 */
+function hpGo(delta){
+    const c = hpContact(); if (!c) return;
+    const h = heartRoundsOf(c); if (!h.length) return;
+    const next = Math.min(h.length - 1, Math.max(0, hpRoundIndex() + delta));
+    if (next === hpRoundIndex()) return;
+    HP.rid = h[next].id;
+    const card = document.getElementById('hpCard');
+    card.classList.add('fade');
+    setTimeout(() => { renderHeartPop(); card.classList.remove('fade'); }, 200);
+}
+function bindHeartWave(){
+    const wave = document.getElementById('hpWave'), del = document.getElementById('hpWaveDel');
+    let x0 = 0, dragging = false, moved = false, timer = null, longed = false;
+    wave.addEventListener('pointerdown', e => {
+        dragging = true; moved = false; longed = false; x0 = e.clientX;
+        wave.setPointerCapture(e.pointerId);
+        timer = setTimeout(() => { if (!moved && heartRoundsOf(hpContact() || {}).length) { longed = true; del.classList.add('show'); } }, 550);
+    });
+    wave.addEventListener('pointermove', e => { if (dragging && Math.abs(e.clientX - x0) > 6) { moved = true; clearTimeout(timer); } });
+    const end = e => {
+        if (!dragging) return;
+        dragging = false; clearTimeout(timer);
+        if (longed) return;
+        const dx = e.clientX - x0;
+        if (dx < -36) hpGo(1); else if (dx > 36) hpGo(-1);
+    };
+    wave.addEventListener('pointerup', end);
+    wave.addEventListener('pointercancel', () => { dragging = false; clearTimeout(timer); });
+    del.addEventListener('click', () => {
+        del.classList.remove('show');
+        const c = hpContact(); const r = hpRound(); if (!c || !r) return;
+        c.hearts = heartRoundsOf(c).filter(x => x.id !== r.id);
+        const m = c.msgs.find(x => x.hid === r.id); if (m) delete m.hid;
+        HP.rid = null;
+        persistContacts();
+        if (activeId === c.id) renderThread({ noAnim: true });
+        renderHeartPop();
+    });
+    document.addEventListener('pointerdown', e => {
+        if (!e.target.closest || (!e.target.closest('#hpWave') && !e.target.closest('#hpWaveDel'))) del.classList.remove('show');
+    });
+}
+/* 点赞：短按切换并收藏这一轮；长按打开收藏柜 */
+function bindHeartLike(){
+    const btn = document.getElementById('hpLike');
+    let timer = null, longed = false;
+    btn.addEventListener('pointerdown', () => { longed = false; timer = setTimeout(() => { longed = true; openHeartCabinet(); }, 500); });
+    btn.addEventListener('pointerup', () => {
+        clearTimeout(timer);
+        if (longed) return;
+        const c = hpContact(), r = hpRound(); if (!c || !r) return;
+        r.liked = !r.liked;
+        persistContacts(); renderHeartPop();
+    });
+    btn.addEventListener('pointerleave', () => clearTimeout(timer));
+    btn.addEventListener('pointercancel', () => clearTimeout(timer));
+}
+/* 收藏柜：所有联系人里点过赞的心声 */
+function openHeartCabinet(){
+    const items = [];
+    CONTACTS.forEach(c => heartRoundsOf(c).forEach((r, i) => { if (r.liked) items.push({ c, r, i }); }));
+    const list = document.getElementById('hpFavList');
+    list.innerHTML = items.length
+        ? items.map(x => `<div class="hp-fav-item" data-key="${esc(x.c.id)}|${esc(x.r.id)}"><b>${esc(dispName(x.c))} · 第 ${x.i + 1} 轮 · 好感 ${x.r.aff}</b><span>${esc(x.r.said || '')}</span></div>`).join('')
+        : '<div class="hp-fav-empty">还没有收藏的心声</div>';
+    document.getElementById('hpPop').classList.remove('is-set');
+    document.getElementById('hpPop').classList.add('is-fav');
+    document.getElementById('hpMask').classList.add('show');
+}
+/* 点头像下的爱心打开心声 */
+document.addEventListener('click', e => {
+    const hv = e.target.closest && e.target.closest('.hv-heart');
+    if (hv && activeId) openHeart(activeId);
+});

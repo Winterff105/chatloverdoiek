@@ -88,7 +88,7 @@
   const FORMAT_PROMPT = [
     '【输出格式：优先级最高，高于以上所有角色要求】',
     '1. 只输出一个 JSON 对象，不要输出任何其他文字、解释、标题、Markdown 或代码块。',
-    '2. 格式固定为：{"messages":["第一条消息","第二条消息"]}',
+    '2. 格式固定为：{"messages":["第一条消息","第二条消息"],"heart":{"env":"","mood":"","outfit":"","aff":0,"said":""}}',
     '3. 数组里的每个元素是一条独立的聊天消息，对应聊天里的一个气泡。条数以本次指示中的范围为准。',
     '4. 每条消息只写角色要说出口的话。不要写角色名或"XX："这样的前缀，不要写时间，不要写括号或星号包裹的动作、神态、心理描写。',
     '5. 一条消息内部需要换行时，在 JSON 字符串里用 \\n 表示；不要把多条消息合并进同一个字符串。'
@@ -144,7 +144,15 @@
     return out;
   }
 
-  /* 解析模型输出：优先 JSON 数组；解析失败时兜底按 ||| 拆分 */
+  /* 心声：只保留需要的字段；好感度夹到 0-100 的整数；全部为空则视为没有心声 */
+  function normHeart(h) {
+    if (!h || typeof h !== 'object') return null;
+    const str = v => String(v == null ? '' : v).trim();
+    const aff = Math.max(0, Math.min(100, Math.round(Number(h.aff)) || 0));
+    const out = { env: str(h.env), mood: str(h.mood), outfit: str(h.outfit), aff, said: str(h.said), html: str(h.html) };
+    return (out.env || out.mood || out.outfit || out.said || out.html) ? out : null;
+  }
+  /* 解析模型输出：优先 JSON 数组；解析失败时兜底按 ||| 拆分；心声挂在返回数组的 heart 属性上 */
   function parseMessages(raw, name, limit) {
     let t = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     let obj = tryJson(t);
@@ -155,7 +163,9 @@
     }
     let list = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.messages) ? obj.messages : null);
     if (!list) list = t.split('|||');
-    return list.map(x => cleanOne(x, name)).filter(Boolean).slice(0, limit || MAX_MESSAGES);
+    const out = list.map(x => cleanOne(x, name)).filter(Boolean).slice(0, limit || MAX_MESSAGES);
+    out.heart = normHeart(obj && !Array.isArray(obj) ? obj.heart : null);
+    return out;
   }
 
   /* 时间感知：实时时间，以及房间里设置的自定义计时（有设置就读，不论当前选的是哪个模式） */
@@ -172,6 +182,17 @@
       const days = Math.floor(s / 86400), hh = Math.floor((s % 86400) / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
       lines.push(`【自定义计时】从 ${tsFmt(t.start)} 开始计数，${diff < 0 ? '还有' : '已过去'} ${days}天 ${tsPad(hh)}:${tsPad(mm)}:${tsPad(ss)}。`);
     }
+    return lines.join('\n');
+  }
+  /* 心声：每次回复都要写 heart；用户在心声设置里填了 HTML 格式说明，就让 AI 额外输出 html */
+  function heartBlockOf() {
+    let fmt = '';
+    try { fmt = String((JSON.parse(localStorage.getItem('heart_popup_settings_v1') || '{}') || {}).fmt || '').trim(); } catch (_) {}
+    const lines = [
+      '【心声】每次回复的同时，写出此刻角色没有说出口的内心，放在 heart 字段里：',
+      'env 是她此刻所在的环境（一句话）；mood 是心情（一句话）；outfit 是她的穿着（一句话）；aff 是她对用户的好感度，0 到 100 的整数，随对话自然变化；said 是心声正文，第一人称，一到两句，写她真实的想法，可以和嘴上说的不一样。'
+    ];
+    if (fmt) lines.push('另外在 heart 里再写一个 html 字段：按下面的说明，把心声内容排版成一段 HTML（只用普通标签和 class，不要 script，不要外链）。', fmt);
     return lines.join('\n');
   }
   /* 每条消息的时间：优先用精确时间戳，老数据只有 HH:MM 就用它 */
@@ -230,6 +251,7 @@
       contact.relation ? `与你的关系：${contact.relation}` : '',
       hasNarr ? '以【旁白】开头的内容是旁白，描写动作、神态或环境，不是对话，也不是对方说的话。' : '',
       timeBlockOf(contact),
+      heartBlockOf(),
       (contact.msgs || []).length ? '【时间感知】每条消息开头方括号里是这条消息的发送时间，只用来理解时间流逝和时段（比如深夜、隔了几天）。你的回复不要写时间或方括号。' : '',
       instruction || ''
     ].filter(Boolean).join('\n');
