@@ -3942,6 +3942,11 @@ function applyRoomBeauty(c) {
     const b = c.beauty || {};
     if (b.bg) { v.dataset.bg = '1'; v.style.backgroundImage = `url("${b.bg}")`; }
     else { delete v.dataset.bg; v.style.backgroundImage = ''; }
+    if (b.fontSize) {
+        v.style.setProperty('--bubble-fs', b.fontSize + 'px');
+    } else {
+        v.style.removeProperty('--bubble-fs');
+    }
     applyChatCss(chatCssOf(c));
 }
 
@@ -4058,8 +4063,26 @@ function avOptsHtml(c) {
             <div class="rp-opt-row"><div><div class="rp-opt-t">每条消息都显示</div><div class="rp-opt-s">${o.scope === 'all' ? '当前：每条消息都显示头像' : '当前：每组第一条显示头像'}</div></div><button class="rp-switch ${o.scope === 'all' ? 'on' : ''}" type="button" onclick="setAvOpt('scope', '${o.scope === 'all' ? 'group' : 'all'}')" aria-label="每条消息都显示"></button></div>
         </div>`;
 }
+function onRoomFontSize(v) {
+    const fs = parseFloat(v) || 14;
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (c) {
+        c.beauty = Object.assign({}, c.beauty || {}, { fontSize: fs });
+        persistContacts();
+        applyRoomBeauty(c);
+    }
+    const valEl = document.getElementById('roomFsVal');
+    if (valEl) valEl.textContent = fs + 'px';
+    const range = document.querySelector('.css-fs-range');
+    if (range) {
+        const pct = ((fs - 11) / (20 - 11) * 100).toFixed(1);
+        range.style.setProperty('--p', pct + '%');
+    }
+}
 function roomBeautyPaneInner(c) {
     const hasBg = !!(c.beauty && c.beauty.bg);
+    const fs = (c.beauty && c.beauty.fontSize) || 14;
+    const pct = ((fs - 11) / (20 - 11) * 100).toFixed(1);
     return `
         <div class="rp-label">预览</div>
         ${rpRow('预览效果', '点开看看这段聊天的样子', 'openCssPreview()')}
@@ -4071,6 +4094,10 @@ function roomBeautyPaneInner(c) {
             <div class="css-hint">写在这里的样式只作用于这个聊天，例如 <code>.bubble{border-radius:4px}</code></div>
             <textarea id="roomCssInput" class="css-input" spellcheck="false" autocapitalize="off" placeholder="例如 .mrow.me .bubble{background:#111;color:#fff}" oninput="previewRoomCss(this.value)"></textarea>
             <div class="css-tpl">${Object.keys(CSS_TEMPLATES).map(k => `<button class="css-tpl-btn" type="button" onclick="fillRoomCss('${k}')">${CSS_TEMPLATE_LABELS[k]}</button>`).join('')}</div>
+            <div class="css-fs-row">
+                <div class="css-fs-head"><span class="css-fs-lbl">气泡字号</span><span class="css-fs-val" id="roomFsVal">${fs}px</span></div>
+                <input class="mq-range css-fs-range" type="range" min="11" max="20" step="0.5" value="${fs}" style="--p:${pct}%" oninput="onRoomFontSize(this.value)">
+            </div>
         </div>
         <div class="css-actions"><button class="css-clear" type="button" onclick="clearRoomCss()">清空</button><button class="css-save" type="button" onclick="saveRoomCss()">保存样式</button></div>`)}
         `;

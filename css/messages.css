@@ -1366,6 +1366,51 @@
 .messages-app .css-input:focus{ box-shadow:0 0 0 1px rgba(255,255,255,.35); }
 .messages-app .css-tpl{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:10px; }
 .messages-app .css-tpl-btn{ border:0; padding:8px 14px; border-radius:999px; background:rgba(255,255,255,.1); color:#fff; font-size:12px; cursor:pointer; }
+.messages-app .css-fs-row{ margin-top: 14px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.12); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.messages-app .css-fs-head{ width: 80%; display: flex; justify-content: space-between; align-items: center; }
+.messages-app .css-fs-lbl{ font-size: 12px; font-weight: 600; color: rgba(255,255,255,.85); }
+.messages-app .css-fs-val{ font-size: 12px; font-family: "SF Mono", Menlo, monospace; color: rgba(255,255,255,.6); }
+.messages-app .css-fs-range{ width: 80% !important; height: 18px !important; }
+.messages-app .css-fs-range::-webkit-slider-runnable-track{
+    height: 6px !important;
+    border-radius: 999px !important;
+    background-color: rgba(255,255,255,.12) !important;
+    background-image:
+        radial-gradient(circle, rgba(255,255,255,.85) 1.5px, transparent 1.6px),
+        linear-gradient(to right, rgba(255,255,255,.35) 0%, rgba(255,255,255,.35) var(--p, 33.3%), rgba(255,255,255,.08) var(--p, 33.3%), rgba(255,255,255,.08) 100%) !important;
+    background-size: 8px 6px, 100% 100% !important;
+    background-repeat: repeat-x, no-repeat !important;
+}
+.messages-app .css-fs-range::-webkit-slider-thumb{
+    width: 14px !important;
+    height: 14px !important;
+    margin-top: -4px !important;
+    border-radius: 50% !important;
+    background: radial-gradient(circle at center, #111111 2px, #FFFFFF 2.5px) !important;
+    border: 1px solid rgba(255,255,255,.9) !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,.4) !important;
+}
+.messages-app .css-fs-range::-moz-range-track{
+    height: 6px !important;
+    border-radius: 999px !important;
+    background-color: rgba(255,255,255,.12) !important;
+    background-image: radial-gradient(circle, rgba(255,255,255,.85) 1.5px, transparent 1.6px) !important;
+    background-size: 8px 6px !important;
+    background-repeat: repeat-x !important;
+}
+.messages-app .css-fs-range::-moz-range-progress{
+    height: 6px !important;
+    border-radius: 999px !important;
+    background: rgba(255,255,255,.35) !important;
+}
+.messages-app .css-fs-range::-moz-range-thumb{
+    width: 14px !important;
+    height: 14px !important;
+    border-radius: 50% !important;
+    background: radial-gradient(circle at center, #111111 2px, #FFFFFF 2.5px) !important;
+    border: 1px solid rgba(255,255,255,.9) !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,.4) !important;
+}
 .messages-app .css-actions{ display:flex; gap:10px; margin-top:14px; }
 .messages-app .css-actions button{ flex:1; height:46px; border:0; border-radius:16px; font-size:13px; font-weight:700; cursor:pointer; }
 .messages-app .css-clear{ background:rgba(255,255,255,.1); color:#fff; }
@@ -2011,7 +2056,7 @@
 .messages-app .thread{ gap: 4px; }
 .messages-app .mrow.gap{ margin-top: 0; }
 .messages-app .mrow.grp-head{ margin-bottom: 0; }
-.messages-app .bubble{ font-size: 13px; }
+.messages-app .bubble{ font-size: var(--bubble-fs, 13px); }
 
 /* ===== 朋友圈：边框顶部完整显示；背景图收紧并渐隐；头像白框无阴影 ===== */
 .messages-app .mf-frame{ margin-top: 30px; overflow: visible; }
@@ -2587,7 +2632,7 @@
 .messages-app .mrow.gap{ margin-top: 12px; }
 
 /* 气泡整体缩小一点；我和对方之间的间距加长；同一个人连续说话的间距不变 */
-.messages-app .bubble{ padding: 7px 12px; font-size: 14px; }
+.messages-app .bubble{ padding: 7px 12px; font-size: var(--bubble-fs, 14px) !important; }
 .messages-app .mrow.gap{ margin-top: 18px; }
 
 /* ===================== 聊天室顶栏下滑面板（与顶栏胶囊同款质感） ===================== */
