@@ -5128,67 +5128,6 @@ initComposerGesture();
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
 Object.assign(__messagesHandlers, {openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
-};
-
-/* ---------------- 音效：点击 / 发送 / 收到消息 / 开启旁白 / 关闭旁白（Web Audio 合成，音量已调低） ---------------- */
-var SFX_AC = null;
-function sfxCtx() {
-    const C = window.AudioContext || window.webkitAudioContext;
-    if (!C) return null;
-    SFX_AC = SFX_AC || new C();
-    if (SFX_AC.state === 'suspended') SFX_AC.resume();
-    return SFX_AC;
-}
-function sfxTone(ac, t, freq, toFreq, dur, peak, type) {
-    const o = ac.createOscillator(), g = ac.createGain();
-    o.type = type || 'sine';
-    o.frequency.setValueAtTime(freq, t);
-    if (toFreq) o.frequency.exponentialRampToValueAtTime(toFreq, t + dur);
-    g.gain.setValueAtTime(0.0001, t);
-    g.gain.exponentialRampToValueAtTime(peak, t + Math.min(0.01, dur * 0.2));
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(ac.destination);
-    o.start(t); o.stop(t + dur + 0.02);
-}
-function sfxSweep(ac, t, from, to, dur, peak) {
-    const len = Math.floor(ac.sampleRate * dur);
-    const buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-    const src = ac.createBufferSource(); src.buffer = buf;
-    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2;
-    f.frequency.setValueAtTime(from, t); f.frequency.exponentialRampToValueAtTime(to, t + dur);
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f); f.connect(g); g.connect(ac.destination);
-    src.start(t); src.stop(t + dur + 0.02);
-}
-var SFX_LIB = {
-    tap(ac, t) { sfxTone(ac, t, 1100, 420, 0.07, 0.025); },
-    send(ac, t) { sfxTone(ac, t, 620, 900, 0.07, 0.05, 'triangle'); sfxTone(ac, t + 0.06, 900, 1300, 0.08, 0.045, 'triangle'); },
-    recv(ac, t) { sfxTone(ac, t, 880, 880, 0.30, 0.06); sfxTone(ac, t + 0.09, 1320, 1320, 0.35, 0.045); },
-    narrOn(ac, t) { sfxSweep(ac, t, 300, 2200, 0.22, 0.05); },
-    narrOff(ac, t) { sfxSweep(ac, t, 2200, 300, 0.22, 0.05); }
-};
-function playSfx(name) {
-    try { const ac = sfxCtx(); if (!ac || !SFX_LIB[name]) return; SFX_LIB[name](ac, ac.currentTime + 0.01); } catch (_) {}
-}
-(function initTapFeedback() {
-    if (window.__msgTapFeedback) return;
-    window.__msgTapFeedback = true;
-    let lastAt = 0;
-    document.addEventListener('pointerdown', e => {
-        const t = e.target;
-        if (!t || !t.closest) return;
-        if (t.closest('textarea, input, select')) return;
-        if (!t.closest('.messages-app')) return;
-        if (!t.closest('.nb-entry, .nb-toggle, .pull, .mm-item, #tabbar .tab, #tabbar .fab')) return;   // 只有这几处有点击音（含主界面底栏）
-        const now = Date.now();
-        if (now - lastAt < 60) return;
-        lastAt = now;
-        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) {} }
-        playSfx('tap');
-    }, true);
-})();
 
 /* ---------------- 心声：头像下的爱心 · 心声弹窗 · 波浪线切换 · 收藏柜 · 设置 ---------------- */
 const HEART_SET_KEY = 'heart_popup_settings_v1';
@@ -5413,3 +5352,65 @@ document.addEventListener('click', e => {
     const hv = e.target.closest && e.target.closest('.hv-heart');
     if (hv && activeId) openHeart(activeId);
 });
+};
+
+/* ---------------- 音效：点击 / 发送 / 收到消息 / 开启旁白 / 关闭旁白（Web Audio 合成，音量已调低） ---------------- */
+var SFX_AC = null;
+function sfxCtx() {
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return null;
+    SFX_AC = SFX_AC || new C();
+    if (SFX_AC.state === 'suspended') SFX_AC.resume();
+    return SFX_AC;
+}
+function sfxTone(ac, t, freq, toFreq, dur, peak, type) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if (toFreq) o.frequency.exponentialRampToValueAtTime(toFreq, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + Math.min(0.01, dur * 0.2));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(ac.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+}
+function sfxSweep(ac, t, from, to, dur, peak) {
+    const len = Math.floor(ac.sampleRate * dur);
+    const buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2;
+    f.frequency.setValueAtTime(from, t); f.frequency.exponentialRampToValueAtTime(to, t + dur);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(ac.destination);
+    src.start(t); src.stop(t + dur + 0.02);
+}
+var SFX_LIB = {
+    tap(ac, t) { sfxTone(ac, t, 1100, 420, 0.07, 0.025); },
+    send(ac, t) { sfxTone(ac, t, 620, 900, 0.07, 0.05, 'triangle'); sfxTone(ac, t + 0.06, 900, 1300, 0.08, 0.045, 'triangle'); },
+    recv(ac, t) { sfxTone(ac, t, 880, 880, 0.30, 0.06); sfxTone(ac, t + 0.09, 1320, 1320, 0.35, 0.045); },
+    narrOn(ac, t) { sfxSweep(ac, t, 300, 2200, 0.22, 0.05); },
+    narrOff(ac, t) { sfxSweep(ac, t, 2200, 300, 0.22, 0.05); }
+};
+function playSfx(name) {
+    try { const ac = sfxCtx(); if (!ac || !SFX_LIB[name]) return; SFX_LIB[name](ac, ac.currentTime + 0.01); } catch (_) {}
+}
+(function initTapFeedback() {
+    if (window.__msgTapFeedback) return;
+    window.__msgTapFeedback = true;
+    let lastAt = 0;
+    document.addEventListener('pointerdown', e => {
+        const t = e.target;
+        if (!t || !t.closest) return;
+        if (t.closest('textarea, input, select')) return;
+        if (!t.closest('.messages-app')) return;
+        if (!t.closest('.nb-entry, .nb-toggle, .pull, .mm-item, #tabbar .tab, #tabbar .fab')) return;   // 只有这几处有点击音（含主界面底栏）
+        const now = Date.now();
+        if (now - lastAt < 60) return;
+        lastAt = now;
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) {} }
+        playSfx('tap');
+    }, true);
+
+})();
