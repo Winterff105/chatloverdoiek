@@ -91,7 +91,7 @@ function loadStoredContacts() {
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
 }
 function normalizeContact(c) {
-    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0), avOpts: (c.avOpts && typeof c.avOpts === 'object') ? c.avOpts : null, promptOpts: Array.isArray(c.promptOpts) ? c.promptOpts : ['greasy'], greasyEntries: Array.isArray(c.greasyEntries) ? c.greasyEntries : [] };
+    return { id: String(c.id || ('contact-' + Date.now() + '-' + Math.random().toString(36).slice(2,8))), name: String(c.name || '未命名联系人'), avatar: c.avatar || '', ini: String(c.ini || c.name || '?').slice(0,1).toUpperCase(), g: c.g || 'g1', cover: c.cover || '', online: false, unread: Number(c.unread || 0), time: c.time || '', status: c.status || '联系人', beauty: (c.beauty && typeof c.beauty === 'object') ? c.beauty : {}, msgs: [], threads: (c.threads && typeof c.threads === 'object') ? c.threads : (Array.isArray(c.msgs) && c.msgs.length ? { self: c.msgs } : {}), replies: Array.isArray(c.replies) ? c.replies.map(String).filter(Boolean) : [], phone: c.phone || '', email: c.email || '', folder: c.folder || null, persona: c.persona || '', sig: c.sig || '', speech: c.speech || '', relation: c.relation || '', backstory: c.backstory || '', chatOpts: (c.chatOpts && typeof c.chatOpts === 'object') ? c.chatOpts : null, fresh: !!c.fresh, mem: (c.mem && typeof c.mem === 'object') ? c.mem : null, memories: Array.isArray(c.memories) ? c.memories : [], memCursor: Number(c.memCursor || 0), avOpts: (c.avOpts && typeof c.avOpts === 'object') ? c.avOpts : null, promptOpts: Array.isArray(c.promptOpts) ? c.promptOpts : ['greasy'], greasyEntries: Array.isArray(c.greasyEntries) ? c.greasyEntries : [], hearts: Array.isArray(c.hearts) ? c.hearts : [] };
 }
 
 
@@ -2014,7 +2014,7 @@ function renderThread(opts) {
     // 只有本次新增的消息播放进场动画；重绘已有消息时不闪
     const shownCount = (opts && opts.noAnim) || box.dataset.chat !== c.id ? c.msgs.length : Number(box.dataset.count || 0);
     const avo = avOptsOf(c);
-    const latestHid = typeof latestHeartId === 'function' ? latestHeartId(c) : null;
+    const latestHid = latestHeartId(c);
     let html = '<div class="day">Today</div>';
     c.msgs.forEach((m, i) => {
         if (m.narr) {
@@ -2029,7 +2029,7 @@ function renderThread(opts) {
         const lastInGroup = !next || next.narr || next.me !== m.me;
         const meta = lastInGroup ? `<span class="mt">${esc(m.t)}</span>` : '';
         const showAv = avo.scope === 'all' || newGroup;
-        const hv = (!m.me && m.hid && m.hid === latestHid && typeof HEART_SVG !== 'undefined') ? `<span class="hv-stack"><span class="hv-line"></span>${HEART_SVG}</span>` : '';
+        const hv = (!m.me && m.hid && m.hid === latestHid) ? `<span class="hv-stack"><span class="hv-line"></span>${HEART_SVG}</span>` : '';
         const sp = m.me ? '' : (avo.them && showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span>${hv}</div>` : '<div class="sp"></div>');
         const spR = (m.me && avo.me) ? (showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${selfAvatarHtml('sm')}</span></div>` : '<div style="width:32px;flex-shrink:0"></div>') : '';
         const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
@@ -2170,10 +2170,14 @@ async function pullReply() {
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction, o.max);
+        const heart = replies.heart || null;
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const parts = replies.map(p => narrPart(p, c.name)).filter(Boolean);
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
+        const startLen = c.msgs.length;
         await deliverMsgs(c, parts);
+        attachHeart(c, heart, startLen); persistContacts();
+        if (activeId === c.id) renderThread({noAnim:true});
         maybeAutoSummary(c);
     } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
     finally { c._busy=false; if(cap) cap.classList.remove('pulling'); }
@@ -2217,7 +2221,7 @@ async function sendMessage() {
     if (!text || !activeId) return;
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c || c._busy) return;
-    c.msgs.push(Object.assign({me:true,text,t:nowTime(), ts: Date.now()}, (typeof narrInputMode !== 'undefined' && narrInputMode) ? {narr:true} : {})); c.time=nowTime();
+    c.msgs.push({me:true,text,t:nowTime(), ts: Date.now()}); c.time=nowTime();
     input.value=''; autoGrow(); updateSend(); persistContacts(); renderThread(); renderChats();
 }
 function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
@@ -4789,4 +4793,229 @@ initComposerGesture();
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop, onRoomFontSize:onRoomFontSize};
 Object.assign(__messagesHandlers, {openMoreSheet, openNarrSheet, narrSet, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
+
+/* ---------------- 心声：头像下的爱心 · 心声弹窗 · 波浪线切换 · 收藏柜 · 设置 ---------------- */
+const HEART_SET_KEY = 'heart_popup_settings_v1';
+const HEART_SVG = '<svg class="hv-heart" viewBox="0 0 24 24" aria-label="心声"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
+const HP_ICON = {
+    close: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    like: '<svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.4-7.5-9.5A4.2 4.2 0 0 1 12 8.3a4.2 4.2 0 0 1 7.5 2.7c0 5.1-7.5 9.5-7.5 9.5z"/></svg>',
+    set: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
+    back: '<svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>'
+};
+function heartSettings(){ try { return JSON.parse(localStorage.getItem(HEART_SET_KEY) || '{}') || {}; } catch (_) { return {}; } }
+function saveHeartSettings(v){ try { localStorage.setItem(HEART_SET_KEY, JSON.stringify(v)); } catch (_) {} }
+function applyHeartCss(){
+    let st = document.getElementById('hpUserCss');
+    if (!st) { st = document.createElement('style'); st.id = 'hpUserCss'; document.head.appendChild(st); }
+    st.textContent = heartSettings().css || '';
+}
+function heartRoundsOf(c){ return Array.isArray(c.hearts) ? c.hearts : []; }
+function latestHeartId(c){ const h = heartRoundsOf(c); return h.length ? h[h.length - 1].id : null; }
+/* 这一轮回复的心声：挂在这一轮最后一条对方消息上（头像下面的爱心跟着最新一轮走） */
+function attachHeart(c, heart, fromIdx){
+    if (!heart) return;
+    c.hearts = heartRoundsOf(c);
+    // 挂在这一轮的第一条对方消息上：它前面是我发的消息，一定是气泡组的第一条，头像才会显示
+    const first = c.msgs.slice(fromIdx || 0).find(m => !m.me && !m.narr);
+    if (!first) return;
+    const id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    c.hearts.push(Object.assign({ id, ts: Date.now(), t: nowTime(), liked: false }, heart));
+    first.hid = id;
+}
+
+/* 心声弹窗结构 */
+function ensureHeartPop(){
+    if (document.getElementById('hpMask')) return;
+    const root = document.querySelector('.messages-app') || document.body;
+    const mask = document.createElement('div');
+    mask.id = 'hpMask'; mask.className = 'hp-mask';
+    mask.innerHTML = `
+    <div class="hp-pop" id="hpPop">
+      <div class="hp-view hp-voice">
+        <div class="hp-card" id="hpCard">
+          <div class="hp-script">HEART VOICE</div>
+          <div class="hp-title" id="hpTitle"></div>
+          <div class="hp-stamp"><div class="hp-stamp-label">心声</div><div class="hp-said" id="hpSaid"></div></div>
+        </div>
+        <div class="hp-shot hp-s1"><div class="hp-ph" id="hpEnv"></div><div class="hp-tt">当前环境</div></div>
+        <div class="hp-shot hp-s2"><div class="hp-ph" id="hpMood"></div><div class="hp-tt">心情</div></div>
+        <div class="hp-shot hp-s3"><div class="hp-ph" id="hpOutfit"></div><div class="hp-tt">穿着</div></div>
+        <div class="hp-shot hp-s4"><div class="hp-ph" id="hpAff"></div><div class="hp-tt">好感度</div></div>
+        <div class="hp-foot">
+          <button class="hp-qbtn" type="button" id="hpClose" aria-label="关闭">${HP_ICON.close}</button>
+          <button class="hp-qbtn hp-like" type="button" id="hpLike" aria-label="点赞">${HP_ICON.like}</button>
+          <button class="hp-qbtn" type="button" id="hpSet" aria-label="设置">${HP_ICON.set}</button>
+        </div>
+        <div class="hp-wave" id="hpWave">
+          <svg viewBox="0 0 300 44" preserveAspectRatio="none"><path id="hpW1" d=""/><path id="hpW2" d=""/></svg>
+          <div class="hp-wave-label" id="hpWaveLabel"></div>
+        </div>
+        <button class="hp-wave-del" type="button" id="hpWaveDel">删除这一轮</button>
+      </div>
+      <div class="hp-view hp-set-view">
+        <div class="hp-card">
+          <div class="hp-script">SETTINGS</div>
+          <div class="hp-title">心声设置</div>
+          <label class="hp-label">弹窗样式（CSS，类名：.hp-card 卡片 · .hp-stamp 邮票框 · .hp-shot 拍立得 · .hp-said 心声正文 · .hp-foot 底部按钮）</label>
+          <textarea class="hp-ta" id="hpCssBox" placeholder=".hp-card{border-radius:28px}"></textarea>
+          <label class="hp-label">给 AI 的输出格式（说明它怎样输出匹配内容的 HTML，填了之后 AI 会额外返回 html，弹窗里用它代替心声正文）</label>
+          <textarea class="hp-ta" id="hpFmtBox" placeholder='例如：心声正文放进 <div class="said">，每句话用 <p> 包起来'></textarea>
+        </div>
+        <div class="hp-set-foot">
+          <button class="hp-qbtn" type="button" id="hpBack" aria-label="返回">${HP_ICON.back}</button>
+          <button class="hp-save" type="button" id="hpApply">保存</button>
+        </div>
+      </div>
+      <div class="hp-view hp-fav-view">
+        <div class="hp-card">
+          <div class="hp-script">COLLECTION</div>
+          <div class="hp-title">收藏柜</div>
+          <div class="hp-fav-list" id="hpFavList"></div>
+        </div>
+        <div class="hp-set-foot"><button class="hp-qbtn" type="button" id="hpFavBack" aria-label="返回">${HP_ICON.back}</button></div>
+      </div>
+    </div>`;
+    root.appendChild(mask);
+    applyHeartCss();
+
+    mask.addEventListener('click', e => { if (e.target === mask) mask.classList.remove('show'); });
+    document.getElementById('hpClose').onclick = () => mask.classList.remove('show');
+    document.getElementById('hpSet').onclick = () => {
+        const s = heartSettings();
+        document.getElementById('hpCssBox').value = s.css || '';
+        document.getElementById('hpFmtBox').value = s.fmt || '';
+        document.getElementById('hpPop').classList.add('is-set');
+    };
+    document.getElementById('hpBack').onclick = () => document.getElementById('hpPop').classList.remove('is-set');
+    document.getElementById('hpApply').onclick = () => {
+        saveHeartSettings({ css: document.getElementById('hpCssBox').value, fmt: document.getElementById('hpFmtBox').value.trim() });
+        applyHeartCss();
+        document.getElementById('hpPop').classList.remove('is-set');
+        toast('心声设置已保存');
+    };
+    document.getElementById('hpFavBack').onclick = () => document.getElementById('hpPop').classList.remove('is-fav');
+    document.getElementById('hpFavList').addEventListener('click', e => {
+        const item = e.target.closest('.hp-fav-item'); if (!item) return;
+        const [cid, rid] = item.dataset.key.split('|');
+        document.getElementById('hpPop').classList.remove('is-fav');
+        openHeart(cid, rid);
+    });
+    bindHeartWave();
+    bindHeartLike();
+}
+
+let HP = { cid: null, rid: null };
+function hpContact(){ return CONTACTS.find(x => x.id === HP.cid) || null; }
+function hpRoundIndex(){ const c = hpContact(); if (!c) return -1; const h = heartRoundsOf(c); const i = h.findIndex(r => r.id === HP.rid); return i >= 0 ? i : h.length - 1; }
+function hpRound(){ const c = hpContact(); if (!c) return null; const h = heartRoundsOf(c); return h[hpRoundIndex()] || null; }
+
+/* 照片：读取 assets/心声/<名字>.jpg，加载失败时只显示文字 */
+function hpPhoto(id, name, text, raw){
+    const el = document.getElementById(id);
+    el.innerHTML = `<img src="assets/心声/${name}.jpg" alt="" onerror="this.remove()"><span class="hp-cap">${raw ? text : esc(text || '—')}</span>`;
+}
+function renderHeartPop(){
+    const c = hpContact(); const h = c ? heartRoundsOf(c) : []; const r = hpRound(); const i = hpRoundIndex();
+    document.getElementById('hpTitle').textContent = `${c ? c.name : ''}的心声`;
+    const said = document.getElementById('hpSaid');
+    if (r && r.html) said.innerHTML = r.html; else said.textContent = r ? (r.said || '') : '暂无心声';
+    hpPhoto('hpEnv', '环境', r ? r.env : '');
+    hpPhoto('hpMood', '心情', r ? r.mood : '');
+    hpPhoto('hpOutfit', '穿着', r ? r.outfit : '');
+    hpPhoto('hpAff', '好感度', r ? `<b>${r.aff}</b>对你挺在意` : '', true);
+    document.getElementById('hpWaveLabel').textContent = h.length ? `第 ${i + 1} / ${h.length} 轮` : '没有心声了';
+    document.getElementById('hpLike').classList.toggle('on', !!(r && r.liked));
+    drawHeartWave();
+}
+function drawHeartWave(){
+    const W = 300, period = 30, amp = 5;
+    const mk = (phase, cy) => { let d = `M0 ${cy}`; for (let x = 0; x <= W; x += 2) d += ` L${x} ${(cy + Math.sin((x / period) * Math.PI * 2 + phase) * amp).toFixed(2)}`; return d; };
+    document.getElementById('hpW1').setAttribute('d', mk(0, 16));
+    document.getElementById('hpW2').setAttribute('d', mk(Math.PI * 0.6, 28));
+}
+function openHeart(cid, rid){
+    ensureHeartPop();
+    const c = CONTACTS.find(x => x.id === cid); if (!c) return;
+    HP.cid = cid; HP.rid = rid || latestHeartId(c);
+    const pop = document.getElementById('hpPop');
+    pop.classList.remove('is-set', 'is-fav');
+    renderHeartPop();
+    document.getElementById('hpMask').classList.add('show');
+}
+/* 切换上一轮 / 下一轮 */
+function hpGo(delta){
+    const c = hpContact(); if (!c) return;
+    const h = heartRoundsOf(c); if (!h.length) return;
+    const next = Math.min(h.length - 1, Math.max(0, hpRoundIndex() + delta));
+    if (next === hpRoundIndex()) return;
+    HP.rid = h[next].id;
+    const card = document.getElementById('hpCard');
+    card.classList.add('fade');
+    setTimeout(() => { renderHeartPop(); card.classList.remove('fade'); }, 200);
+}
+function bindHeartWave(){
+    const wave = document.getElementById('hpWave'), del = document.getElementById('hpWaveDel');
+    let x0 = 0, dragging = false, moved = false, timer = null, longed = false;
+    wave.addEventListener('pointerdown', e => {
+        dragging = true; moved = false; longed = false; x0 = e.clientX;
+        wave.setPointerCapture(e.pointerId);
+        timer = setTimeout(() => { if (!moved && heartRoundsOf(hpContact() || {}).length) { longed = true; del.classList.add('show'); } }, 550);
+    });
+    wave.addEventListener('pointermove', e => { if (dragging && Math.abs(e.clientX - x0) > 6) { moved = true; clearTimeout(timer); } });
+    const end = e => {
+        if (!dragging) return;
+        dragging = false; clearTimeout(timer);
+        if (longed) return;
+        const dx = e.clientX - x0;
+        if (dx < -36) hpGo(1); else if (dx > 36) hpGo(-1);
+    };
+    wave.addEventListener('pointerup', end);
+    wave.addEventListener('pointercancel', () => { dragging = false; clearTimeout(timer); });
+    del.addEventListener('click', () => {
+        del.classList.remove('show');
+        const c = hpContact(); const r = hpRound(); if (!c || !r) return;
+        c.hearts = heartRoundsOf(c).filter(x => x.id !== r.id);
+        const m = c.msgs.find(x => x.hid === r.id); if (m) delete m.hid;
+        HP.rid = null;
+        persistContacts();
+        if (activeId === c.id) renderThread({ noAnim: true });
+        renderHeartPop();
+    });
+    document.addEventListener('pointerdown', e => {
+        if (!e.target.closest || (!e.target.closest('#hpWave') && !e.target.closest('#hpWaveDel'))) del.classList.remove('show');
+    });
+}
+/* 点赞：短按切换并收藏这一轮；长按打开收藏柜 */
+function bindHeartLike(){
+    const btn = document.getElementById('hpLike');
+    let timer = null, longed = false;
+    btn.addEventListener('pointerdown', () => { longed = false; timer = setTimeout(() => { longed = true; openHeartCabinet(); }, 500); });
+    btn.addEventListener('pointerup', () => {
+        clearTimeout(timer);
+        if (longed) return;
+        const c = hpContact(), r = hpRound(); if (!c || !r) return;
+        r.liked = !r.liked;
+        persistContacts(); renderHeartPop();
+    });
+    btn.addEventListener('pointerleave', () => clearTimeout(timer));
+    btn.addEventListener('pointercancel', () => clearTimeout(timer));
+}
+/* 收藏柜：所有联系人里点过赞的心声 */
+function openHeartCabinet(){
+    const items = [];
+    CONTACTS.forEach(c => heartRoundsOf(c).forEach((r, i) => { if (r.liked) items.push({ c, r, i }); }));
+    const list = document.getElementById('hpFavList');
+    list.innerHTML = items.length
+        ? items.map(x => `<div class="hp-fav-item" data-key="${esc(x.c.id)}|${esc(x.r.id)}"><b>${esc(x.c.name)} · 第 ${x.i + 1} 轮 · 好感 ${x.r.aff}</b><span>${esc(x.r.said || '')}</span></div>`)
+        : '<div class="hp-fav-empty">还没有收藏的心声</div>';
+    document.getElementById('hpPop').classList.remove('is-set');
+    document.getElementById('hpPop').classList.add('is-fav');
+    document.getElementById('hpMask').classList.add('show');
+}
+/* 点头像下的爱心打开心声 */
+document.addEventListener('click', e => {
+    const hv = e.target.closest && e.target.closest('.hv-heart');
+    if (hv && activeId) openHeart(activeId);
+});
 };
