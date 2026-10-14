@@ -4475,9 +4475,18 @@ function bindCommentLongPress() {
 function deleteCommentAt(pid, ci) {
     const p = POSTS.find(x => x.id === pid); if (!p || !p.comments || !p.comments[ci]) return;
     askConfirm('删除这条评论？', '删除后无法恢复', '删除', () => {
+        removeCommentMemory(p, p.comments[ci]);
         p.comments.splice(ci, 1);
-        persistMoments(); renderMoments();
+        persistContacts(); persistMoments(); renderMoments();
     });
+}
+/* 删除 AI 评论时，同时删掉它生成的那条共同记忆（朋友圈 id + 评论内容匹配，只删这一条；用户自己的评论没有对应记忆，自动跳过） */
+function removeCommentMemory(p, cm) {
+    const c = CONTACTS.find(x => x.id === cm.by);
+    if (!c || !c.memories) return;
+    const tail = `下评论：${cm.text}`;
+    const i = c.memories.findIndex(m => m.src === p.id && (m.text || '').endsWith(tail));
+    if (i >= 0) c.memories.splice(i, 1);
 }
 /* 朋友圈头像 / 背景：点击弹出玻璃框（恢复内置 / 本地上传） */
 let MOMENT_PICK_KIND = null;
