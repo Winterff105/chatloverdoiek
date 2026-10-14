@@ -46,6 +46,7 @@ let POSTS = loadStoredMoments();
 let MOMENT_BG = loadMomentBg();
 let MOMENT_AVATAR = loadMomentAvatar();
 let MOMENT_CMT_OPEN = {};
+let MOMENT_INPUT_OPEN = {};   // 输入框与发送按钮是否显示（默认隐藏）
 const DEFAULT_CHAT_AVATAR = 'assets/聊天默认头像/morentouxiang.jpg';
 const DEFAULT_POLAROID = 'assets/聊天默认头像/pailide.jpg';
 const DEFAULT_CHAR_AVATAR = 'assets/聊天默认头像/chartouxiang.jpg';
@@ -1010,7 +1011,7 @@ function showMsgMenu(row) {
     mmBuildMenu(el);
     const ov = document.getElementById('mmOverlay');
     ov.querySelectorAll('.mm-hl').forEach(n => n.remove());
-    const bubble = row.querySelector('.bubble');
+    const bubble = row.querySelector('.bubble') || row.querySelector('.narr');
     if (bubble) {
         // 被长按的消息：在遮罩上方复制一份，位置、颜色、字体、边框与原气泡一致
         const hr = ov.getBoundingClientRect(), br = bubble.getBoundingClientRect();
@@ -1091,7 +1092,7 @@ function mmExitMulti() {
     mmRefreshSel();
 }
 function mmRefreshSel() {
-    document.querySelectorAll('#thread .mrow').forEach(r => r.classList.toggle('sel', MM.sel.has(Number(r.dataset.i))));
+    document.querySelectorAll('#thread .mrow, #thread .narr-row').forEach(r => r.classList.toggle('sel', MM.sel.has(Number(r.dataset.i))));
 }
 function mmBarEl() {
     let b = document.getElementById('mmBar');
@@ -1131,7 +1132,7 @@ function bindMsgMenu() {
     box.addEventListener('pointerdown', e => {
         hideMsgMenu();
         if (MM.mode === 'multi') return;
-        const row = e.target.closest && e.target.closest('.mrow');
+        const row = e.target.closest && e.target.closest('.mrow, .narr-row');
         if (!row || row.classList.contains('typing')) return;
         MM.sx = e.clientX; MM.sy = e.clientY;
         cancel();
@@ -1141,17 +1142,17 @@ function bindMsgMenu() {
         if (MM.timer && Math.hypot(e.clientX - MM.sx, e.clientY - MM.sy) > 8) cancel();
     });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => box.addEventListener(t, cancel));
-    box.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.mrow')) e.preventDefault(); });
+    box.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.mrow, .narr-row')) e.preventDefault(); });
     box.addEventListener('click', e => {
         if (MM.mode !== 'multi') return;
-        const row = e.target.closest && e.target.closest('.mrow');
+        const row = e.target.closest && e.target.closest('.mrow, .narr-row');
         if (!row) return;
         const i = Number(row.dataset.i);
         if (MM.sel.has(i)) MM.sel.delete(i); else MM.sel.add(i);
         mmRefreshSel(); mmBarUpdate();
     });
     document.addEventListener('pointerdown', e => {
-        if (!e.target.closest('.mm-menu') && !e.target.closest('.mrow')) hideMsgMenu();
+        if (!e.target.closest('.mm-menu') && !e.target.closest('.mrow, .narr-row')) hideMsgMenu();
     });
 }
 /* ---------------- 聊天室顶栏下滑面板：内置提示词 + 条数 + 大时间 ---------------- */
@@ -2236,6 +2237,7 @@ function toggleRoomBatch() {
 /* 把联系人的一组消息发出来：一次性发出 = 一起出现、无动画；否则一条一条出现 */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function deliverMsgs(c, parts) {
+    if (parts && parts.length) playSfx('recv');
     if (chatOptsOf(c).batch) {
         parts.forEach(t => c.msgs.push(msgOf(t)));
         c.time = nowTime(); persistContacts();
@@ -2321,7 +2323,7 @@ async function sendMessage() {
     if (!text || !activeId) return;
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c || c._busy) return;
-    c.msgs.push({me:true,text,t:nowTime(), ts: Date.now()}); c.time=nowTime();
+    c.msgs.push(Object.assign({me:true,text,t:nowTime(), ts: Date.now()}, narrInputMode ? {narr:true} : {})); c.time=nowTime(); playSfx('send');
     input.value=''; autoGrow(); updateSend(); persistContacts(); renderThread(); renderChats();
 }
 function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
@@ -2332,6 +2334,7 @@ function updateSend() { document.getElementById('sendBtn').classList.toggle('rea
 /* ---------------- 输入手势 ---------------- */
 let touchStartY = 0;
 let touchStartX = 0;
+let touchStartInCap = false;
 
 /* ---------------- 旁白：开启后 AI 会输出动作 / 神态 / 环境，以【旁白】开头单独成条 ---------------- */
 const NARR_KEY = 'forever_messages_narr_v1';
@@ -2583,20 +2586,65 @@ function toggleQuickMenu(force) {
     menu.classList.toggle('show', show);
 }
 
+/* ---------------- 旁白输入：左滑发送键出「输出旁白」；旁白模式下发出的内容以旁白显示 ---------------- */
+let narrInputMode = false;
+const NB_OFF_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h10M5 18h7"/></svg>';
+const NB_ON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h10M5 18h7"/></svg>';
+function setNarrInputMode(on) {
+    const was = narrInputMode;
+    narrInputMode = !!on;
+    if (was !== narrInputMode) playSfx(narrInputMode ? 'narrOn' : 'narrOff');
+    const composer = document.getElementById('composer'); if (!composer) return;
+    composer.classList.toggle('narr-mode', narrInputMode);
+    const cap = composer.querySelector('.send-capsule'); if (cap) cap.classList.remove('nb-swiped');
+}
+function ensureNarrInputUI() {
+    const composer = document.getElementById('composer');
+    const cap = composer && composer.querySelector('.send-capsule');
+    if (!cap || cap.querySelector('.nb-entry')) return;
+    const send = cap.querySelector('#sendBtn') || cap.querySelector('.send');
+    const pull = cap.querySelector('.pull');
+    const entry = document.createElement('button');
+    entry.type = 'button'; entry.className = 'nb-entry'; entry.title = '输出旁白'; entry.innerHTML = NB_OFF_SVG;
+    entry.addEventListener('click', e => { e.stopPropagation(); setNarrInputMode(true); });
+    const sep = document.createElement('span'); sep.className = 'nb-sep';
+    const tog = document.createElement('button');
+    tog.type = 'button'; tog.className = 'nb-toggle'; tog.title = '退出旁白模式'; tog.innerHTML = NB_ON_SVG;
+    tog.addEventListener('click', e => { e.stopPropagation(); setNarrInputMode(false); });
+    if (send) { cap.insertBefore(entry, send); cap.insertBefore(sep, send); }
+    else cap.insertBefore(entry, cap.firstChild);
+    if (pull) cap.insertBefore(tog, pull); else cap.appendChild(tog);
+    const hint = document.createElement('div');
+    hint.className = 'nb-hint'; hint.textContent = '旁白模式：你写的内容会以旁白发出';
+    composer.insertBefore(hint, composer.firstChild);
+    document.addEventListener('click', e => {
+        const c = document.querySelector('#composer .send-capsule');
+        if (c && !c.contains(e.target)) c.classList.remove('nb-swiped');
+    });
+}
 function initComposerGesture() {
     const composer = document.getElementById('composer');
     if (!composer) return;
+    ensureNarrInputUI();
 
     composer.addEventListener('touchstart', e => {
         const t = e.touches[0];
         touchStartY = t.clientY;
         touchStartX = t.clientX;
+        touchStartInCap = !!(e.target.closest && e.target.closest('.send-capsule'));
     }, { passive: true });
 
     composer.addEventListener('touchend', e => {
         const t = e.changedTouches[0];
         const dy = touchStartY - t.clientY;
         const dx = Math.abs(t.clientX - touchStartX);
+        const cap = composer.querySelector('.send-capsule');
+        const dxs = t.clientX - touchStartX;
+        if (cap && touchStartInCap && Math.abs(touchStartY - t.clientY) < 28) {
+            if (dxs < -40 && !narrInputMode) cap.classList.add('nb-swiped');
+            else if (dxs > 30) cap.classList.remove('nb-swiped');
+            return;
+        }
         if (dy > 28 && dx < 70) toggleQuickMenu(true);
         else if (dy < -28 && dx < 70) toggleQuickMenu(false);
     }, { passive: true });
@@ -4344,6 +4392,7 @@ function startMomentReply(pid, ci) {
     const cur = MOMENT_REPLY[pid];
     if (cur && cur.by === cm.by && cur.t === cm.t) delete MOMENT_REPLY[pid];
     else MOMENT_REPLY[pid] = { by: cm.by, t: cm.t, text: cm.text };
+    MOMENT_INPUT_OPEN[pid] = true;
     renderMoments();
     setTimeout(() => { const el = document.getElementById('mfInl-' + pid); if (el) el.focus(); }, 0);
 }
@@ -4467,10 +4516,8 @@ function momentUpload() {
     input.click();
 }
 function toggleMomentCmt(id) {
-    const pp = POSTS.find(x => x.id === id);
-    const curOpen = MOMENT_CMT_OPEN[id] !== undefined ? MOMENT_CMT_OPEN[id] : !!(pp && pp.comments && pp.comments.length);
-    MOMENT_CMT_OPEN[id] = !curOpen;
-    if (!curOpen) { MOMENT_CMT_ENTER[id] = true; setTimeout(() => { delete MOMENT_CMT_ENTER[id]; }, 400); }
+    MOMENT_INPUT_OPEN[id] = !MOMENT_INPUT_OPEN[id];   // 点评论图标：显示 / 隐藏输入框
+    MOMENT_CMT_OPEN[id] = true;                       // 评论列表保持展开
     renderMoments();
 }
 function sendMomentCommentInline(id) {
@@ -4728,8 +4775,9 @@ function renderMoments() {
         const preview = cmts.slice(0, 2).map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}">${cmtNameHtml(c)}<span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('');
         const photos = imgs.length ? `<div class="mf-imgs n${Math.min(imgs.length, 3)}">${imgs.map(k => `<img class="mf-img" data-mkey="${k}" alt="">`).join('')}</div>` : '';
         const cmtOpen = MOMENT_CMT_OPEN[p.id] !== undefined ? MOMENT_CMT_OPEN[p.id] : cmts.length > 0;
+        const inlineBar = MOMENT_INPUT_OPEN[p.id] ? `<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="${esc(momentInlinePh(p.id))}"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div>` : '';
         const cmtBlock = cmtOpen
-            ? `<div class="mf-cmts mf-cmts-open${MOMENT_CMT_ENTER[p.id] ? ' mf-cmts-enter' : ''}">${cmts.map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}">${cmtNameHtml(c)}<span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('') || '<div class="mf-cmt-none">还没有评论，来说第一句吧</div>'}<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="${esc(momentInlinePh(p.id))}"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div></div>`
+            ? `<div class="mf-cmts mf-cmts-open${MOMENT_CMT_ENTER[p.id] ? ' mf-cmts-enter' : ''}">${cmts.map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}">${cmtNameHtml(c)}<span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('') || '<div class="mf-cmt-none">还没有评论，来说第一句吧</div>'}${inlineBar}</div>`
             : (cmts.length ? `<div class="mf-cmts" onclick="toggleMomentCmt('${p.id}')">${preview}${cmts.length > 2 ? `<span class="mf-cmt-more">查看全部 ${cmts.length} 条评论</span>` : ''}</div>` : '');
         return `<!--mf:${p.id}--><div class="mf-card" data-pid="${p.id}">
             <div class="mf-card-head">${momentAvatarHtml(a, 'sm')}
@@ -5028,3 +5076,63 @@ const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:swit
 Object.assign(__messagesHandlers, {openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 };
+
+/* ---------------- 音效：点击 / 发送 / 收到消息 / 开启旁白 / 关闭旁白（Web Audio 合成，音量已调低） ---------------- */
+var SFX_AC = null;
+function sfxCtx() {
+    const C = window.AudioContext || window.webkitAudioContext;
+    if (!C) return null;
+    SFX_AC = SFX_AC || new C();
+    if (SFX_AC.state === 'suspended') SFX_AC.resume();
+    return SFX_AC;
+}
+function sfxTone(ac, t, freq, toFreq, dur, peak, type) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = type || 'sine';
+    o.frequency.setValueAtTime(freq, t);
+    if (toFreq) o.frequency.exponentialRampToValueAtTime(toFreq, t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(peak, t + Math.min(0.01, dur * 0.2));
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(ac.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+}
+function sfxSweep(ac, t, from, to, dur, peak) {
+    const len = Math.floor(ac.sampleRate * dur);
+    const buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.2;
+    f.frequency.setValueAtTime(from, t); f.frequency.exponentialRampToValueAtTime(to, t + dur);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + dur * 0.3); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(ac.destination);
+    src.start(t); src.stop(t + dur + 0.02);
+}
+var SFX_LIB = {
+    tap(ac, t) { sfxTone(ac, t, 1100, 420, 0.07, 0.025); },
+    send(ac, t) { sfxTone(ac, t, 620, 900, 0.07, 0.05, 'triangle'); sfxTone(ac, t + 0.06, 900, 1300, 0.08, 0.045, 'triangle'); },
+    recv(ac, t) { sfxTone(ac, t, 880, 880, 0.30, 0.06); sfxTone(ac, t + 0.09, 1320, 1320, 0.35, 0.045); },
+    narrOn(ac, t) { sfxSweep(ac, t, 300, 2200, 0.22, 0.05); },
+    narrOff(ac, t) { sfxSweep(ac, t, 2200, 300, 0.22, 0.05); }
+};
+function playSfx(name) {
+    try { const ac = sfxCtx(); if (!ac || !SFX_LIB[name]) return; SFX_LIB[name](ac, ac.currentTime + 0.01); } catch (_) {}
+}
+(function initTapFeedback() {
+    if (window.__msgTapFeedback) return;
+    window.__msgTapFeedback = true;
+    let lastAt = 0;
+    document.addEventListener('pointerdown', e => {
+        const t = e.target;
+        if (!t || !t.closest) return;
+        if (t.closest('textarea, input, select')) return;
+        if (!t.closest('.messages-app')) return;
+        if (!t.closest('.nb-entry, .nb-toggle, .pull, .mm-item, #tabbar .tab, #tabbar .fab')) return;   // 只有这几处有点击音（含主界面底栏）
+        const now = Date.now();
+        if (now - lastAt < 60) return;
+        lastAt = now;
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) {} }
+        playSfx('tap');
+    }, true);
+})();

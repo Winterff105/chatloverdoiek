@@ -164,6 +164,7 @@
     const memCount = (contact.mem && contact.mem.ctx) || 30;
     const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
     const memBlock = buildMemBlock(contact.memories || [], fillU);
+    const hasNarr = (contact.msgs || []).slice(-memCount).some(m => m.narr);
     const getPromptText = k => (typeof window.getChatPromptText === 'function' ? window.getChatPromptText(k) : '');
     const PROMPT_OPT_TEXT = {
         ai: '避免八股套话和模板化的客套句式，说话要具体、自然。',
@@ -208,10 +209,11 @@
       contact.speech ? `说话风格：${contact.speech}` : '',
       contact.backstory ? `背景经历：${contact.backstory}` : '',
       contact.relation ? `与你的关系：${contact.relation}` : '',
+      hasNarr ? '以【旁白】开头的内容是旁白，描写动作、神态或环境，不是对话，也不是对方说的话。' : '',
       instruction || ''
     ].filter(Boolean).join('\n');
     const messages = [{ role: 'system', content: system }];
-    for (const m of (contact.msgs || []).slice(-memCount)) messages.push({ role: m.me ? 'user' : 'assistant', content: String(m.text || '') });
+    for (const m of (contact.msgs || []).slice(-memCount)) messages.push({ role: m.me ? 'user' : 'assistant', content: (m.narr ? '【旁白】' : '') + String(m.text || '') });
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages }, 0.8)) }); }
     catch (e) { throw new Error(String((e && e.message) || e)); }

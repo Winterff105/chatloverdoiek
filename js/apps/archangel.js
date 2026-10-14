@@ -127,8 +127,150 @@
 </div>
 `;
 
+
+    /* ---------------- 音效：进入时轻柔钢琴曲（音色更亮、音量减半）；点击时空灵铃音 ---------------- */
+    let archAC = null;
+    function archCtx(){
+        const C = window.AudioContext || window.webkitAudioContext; if (!C) return null;
+        archAC = archAC || new C(); if (archAC.state === 'suspended') archAC.resume(); return archAC;
+    }
+    function archReverb(ac, seconds, decay){
+        const len = Math.floor(ac.sampleRate * seconds);
+        const buf = ac.createBuffer(2, len, ac.sampleRate);
+        for (let ch = 0; ch < 2; ch++){
+            const d = buf.getChannelData(ch);
+            for (let i = 0; i < len; i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, decay);
+        }
+        const conv = ac.createConvolver(); conv.buffer = buf; return conv;
+    }
+    /* 钢琴音：高次泛音更强、衰减更慢 → 声音更亮、更尖 */
+    function archPianoNote(ac, dest, t, freq, dur, peak){
+        const partials = [[1,1.0,1.0],[2,0.75,0.8],[3,0.5,0.55],[4,0.3,0.4],[5,0.2,0.3],[6,0.1,0.2]];
+        partials.forEach(([mult, amp, tau]) => {
+            const o = ac.createOscillator(), g = ac.createGain();
+            o.type = 'sine'; o.frequency.value = freq * mult;
+            g.gain.setValueAtTime(0.0001, t);
+            g.gain.exponentialRampToValueAtTime(peak * amp, t + 0.006);
+            g.gain.setTargetAtTime(0.0001, t + 0.006, tau * dur);
+            o.connect(g); g.connect(dest);
+            o.start(t); o.stop(t + dur + 0.2);
+        });
+    }
+    /* 鸟叫：三到四声短促的啁啾，音高起伏 */
+    function archBirdChirp(ac, dest, t, vol){
+        const pitches = [2700, 2950, 2600, 3100];
+        pitches.forEach((f0, i) => {
+            const tt = t + i * 0.11;
+            const o = ac.createOscillator(), g = ac.createGain();
+            o.type = 'sine';
+            o.frequency.setValueAtTime(f0, tt);
+            o.frequency.exponentialRampToValueAtTime(f0 * 1.35, tt + 0.05);
+            o.frequency.exponentialRampToValueAtTime(f0 * 1.1, tt + 0.085);
+            g.gain.setValueAtTime(0.0001, tt);
+            g.gain.exponentialRampToValueAtTime(vol, tt + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.0001, tt + 0.09);
+            o.connect(g); g.connect(dest);
+            o.start(tt); o.stop(tt + 0.1);
+        });
+    }
+    /* 钢琴曲：约 66 BPM 的旋律加左手和弦，混响较轻、尾音较短，穿插五次鸟叫 */
+    function archPlayEnter(ac){
+        const beat = 60 / 66, t0 = ac.currentTime + 0.05;
+        const master = ac.createGain(); master.gain.value = 0.225;
+        const rev = archReverb(ac, 2.4, 2.4); const wet = ac.createGain(); wet.gain.value = 0.22;
+        master.connect(ac.destination); master.connect(rev); rev.connect(wet); wet.connect(ac.destination);
+        const N = { C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99 };
+        const melody = [
+            ['E5',.5],['D5',.5],['C5',.5],['D5',.5],['E5',.5],['E5',.5],['E5',1],
+            ['D5',.5],['D5',.5],['D5',1],
+            ['E5',.5],['G5',.5],['G5',1],
+            ['E5',.5],['D5',.5],['C5',.5],['D5',.5],['E5',.5],['E5',.5],['E5',.5],['E5',.5],
+            ['D5',.5],['D5',.5],['E5',.5],['D5',.5],['C5',2]
+        ];
+        const bass = [130.81, 110.0, 87.31, 98.0];
+        const chordLen = 4;
+        const total = melody.reduce((s,[,b]) => s + b, 0);
+        for (let b = 0; b < total; b += chordLen){
+            const root = bass[(b / chordLen) % 4];
+            const tt = t0 + b * beat;
+            archPianoNote(ac, master, tt, root, chordLen * beat * 1.6, 0.030);
+            archPianoNote(ac, master, tt, root * 2, chordLen * beat * 1.6, 0.012);
+        }
+        let t = t0;
+        melody.forEach(([name, beats]) => {
+            archPianoNote(ac, master, t, N[name], beats * beat * 1.3, 0.036);
+            t += beats * beat;
+        });
+        [5, 9, 13, 17, 24].forEach(k => archBirdChirp(ac, master, t0 + k * beat, 0.02));
+        return function stopEnter(){
+            const now = ac.currentTime;
+            try { master.gain.cancelScheduledValues(now); master.gain.setTargetAtTime(0, now, 0.06); } catch (_) {}
+            setTimeout(() => { try { master.disconnect(); } catch (_) {} }, 500);
+        };
+    }
+    /* 点击 A：空灵铃（高频铃音 + 八度泛音，长回声） */
+    function archTapA(ac){
+        const t0 = ac.currentTime + 0.01;
+        const master = ac.createGain(); master.gain.value = 0.6;
+        const delay = ac.createDelay(1.0); delay.delayTime.value = 0.28;
+        const fb = ac.createGain(); fb.gain.value = 0.38;
+        master.connect(ac.destination); master.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(ac.destination);
+        [[1318.5, 0.030, 1.1], [1977.0, 0.012, 0.8]].forEach(([f, peak, dur]) => {
+            const o = ac.createOscillator(), g = ac.createGain();
+            o.type = 'sine'; o.frequency.value = f;
+            g.gain.setValueAtTime(0.0001, t0);
+            g.gain.exponentialRampToValueAtTime(peak, t0 + 0.004);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+            o.connect(g); g.connect(master);
+            o.start(t0); o.stop(t0 + dur + 0.05);
+        });
+    }
+    /* 点击 B：泛音滑落（短回声） */
+    function archTapB(ac){
+        const t0 = ac.currentTime + 0.01;
+        const master = ac.createGain(); master.gain.value = 0.5;
+        const delay = ac.createDelay(1.0); delay.delayTime.value = 0.16;
+        const fb = ac.createGain(); fb.gain.value = 0.25;
+        master.connect(ac.destination); master.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(ac.destination);
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(1760, t0);
+        o.frequency.exponentialRampToValueAtTime(1174.7, t0 + 0.35);
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.exponentialRampToValueAtTime(0.025, t0 + 0.006);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+        o.connect(g); g.connect(master);
+        o.start(t0); o.stop(t0 + 0.5);
+    }
+    function archPlayTap(kind){ try { const ac = archCtx(); if (!ac) return; (kind === 'B' ? archTapB : archTapA)(ac); } catch (_) {} }
+    const ARCH_ENTER_KEY = 'archangel_enter_music_played';
+    let archEnterStop = null;
+    function archStopEnterMusic(){ if (archEnterStop) { try { archEnterStop(); } catch (_) {} archEnterStop = null; } }
+    function archPlayEnterSound(){
+        try { if (sessionStorage.getItem(ARCH_ENTER_KEY)) return; sessionStorage.setItem(ARCH_ENTER_KEY, '1'); } catch (_) {}
+        try { const ac = archCtx(); if (!ac) return; archEnterStop = archPlayEnter(ac); } catch (_) {}
+    }
+    function archBindSfx(host){
+        if (host.__archSfx) return; host.__archSfx = true;
+        let lastAt = 0;
+        host.addEventListener('pointerdown', e => {
+            const t = e.target;
+            if (!t || !t.closest || t.closest('input, textarea, select')) return;
+            const hit = t.closest('#ar-send, #ar-fetch, #ar-menu');   // 只有发送、调取与左上角菜单按钮有点击音
+            if (!hit) return;
+            const now = Date.now(); if (now - lastAt < 60) return; lastAt = now;
+            archPlayTap(hit.id === 'ar-send' ? 'B' : 'A');   // 发送用泛音 B，调取与菜单用空灵铃 A
+        }, true);
+    }
+
     window.initArchangelApp = function (host) {
         host.innerHTML = ARCHANGEL_MARKUP;
+        archBindSfx(host);
+        archPlayEnterSound();
+        const exitBtn = host.querySelector('#ar-exit');
+        if (exitBtn) exitBtn.addEventListener('click', archStopEnterMusic);
+        const exitWatch = new MutationObserver(() => { if (!host.isConnected) { archStopEnterMusic(); exitWatch.disconnect(); } });
+        exitWatch.observe(document.body, { childList: true, subtree: true });
 
         const $=s=>host.querySelector(s), chat=$('#ar-chat'), input=$('#ar-prompt');
         const sleep=ms=>new Promise(r=>setTimeout(r,ms));

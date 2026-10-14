@@ -4694,3 +4694,33 @@
 #cdPromptSettings .cd-settings-main{overflow-y:auto !important;overflow-x:visible !important;padding-left:6px !important;padding-right:6px !important;margin-left:-6px !important;margin-right:-6px !important}
 #cdPromptSettings .cd-settings .cd-word-list{max-height:none !important;overflow:visible !important}
 
+/* ===== 旁白输入：左滑发送键出「输出旁白」按钮（关闭图标）；旁白模式（开启图标 + 粉色斜体提示） ===== */
+.messages-app .nb-entry, .messages-app .nb-toggle{ display:none; width:29px; height:34px; border:none; background:none; cursor:pointer; align-items:center; justify-content:center; padding:0; flex-shrink:0; }
+.messages-app .nb-entry svg{ width:14px; height:14px; fill:none; stroke:#fff; stroke-width:2.1; stroke-linecap:round; stroke-linejoin:round; }
+.messages-app .nb-toggle{ width:26px; height:26px; background:#fff; border-radius:50%; }
+.messages-app .nb-toggle svg{ width:13px; height:13px; fill:none; stroke:#e0649a; stroke-width:2.1; stroke-linecap:round; stroke-linejoin:round; }
+.messages-app .nb-sep{ display:none; width:1px; height:14px; background:rgba(255,255,255,.35); flex-shrink:0; }
+.messages-app .send-capsule.nb-swiped{ width:132px !important; display:grid !important; grid-template-columns:1fr auto 29px; align-items:center; justify-items:center; column-gap:0; padding:0 6px 0 0; justify-content:normal !important; }
+.messages-app .send-capsule.nb-swiped .nb-entry{ justify-self:center; }
+.messages-app .send-capsule.nb-swiped .nb-entry{ display:flex; justify-self:center; animation:nbPop .3s cubic-bezier(.22,1,.36,1); }
+.messages-app .send-capsule.nb-swiped .nb-sep{ display:block; }
+.messages-app .send-capsule.nb-swiped .pull, .messages-app .send-capsule.nb-swiped .cap-split{ display:none; }
+.messages-app .composer.narr-mode .pull{ width:0 !important; opacity:0; padding:0; pointer-events:none; }
+.messages-app .composer.narr-mode .nb-toggle{ display:flex; animation:nbPop .38s cubic-bezier(.22,1,.36,1); }
+.messages-app .composer.narr-mode textarea{ color:#c7689a; font-style:italic; }
+.messages-app .composer.narr-mode .send-capsule{ width:70px !important; justify-content:center !important; gap:3px; padding:0 4px; }
+.messages-app .nb-hint{ display:block; position:absolute; left:0; right:0; top:-22px; text-align:center; font-style:italic; font-size:12px; color:#e0649a; pointer-events:none; opacity:0; visibility:hidden; transform:translateY(6px); transition:opacity .3s ease, transform .35s cubic-bezier(.22,1,.36,1), visibility .3s; }
+.messages-app .composer.narr-mode .nb-hint{ opacity:1; visibility:visible; transform:none; }
+
+/* ===== 朋友圈头像 / 背景选择弹窗：只渐显，不做上滑 ===== */
+@keyframes mpPickFade { from { opacity: 0; } to { opacity: 1; } }
+.messages-app .mp-pick{ animation: mpPickFade .6s cubic-bezier(.22,1,.36,1) both !important; }
+
+/* ===== 发送键旁边的旁白模式：胶囊宽度过渡、调取按钮淡出、开关图标弹出、提示淡入 ===== */
+@keyframes nbPop { from { opacity:0; transform:scale(.5); } to { opacity:1; transform:none; } }
+.messages-app .send-capsule .pull{ transition:width .35s cubic-bezier(.22,1,.36,1), opacity .25s ease, padding .35s ease; overflow:hidden; }
+.messages-app .composer textarea{ transition:color .3s ease; }
+
+/* 旁白模式下，发送键与开关之间的竖线固定显示 */
+.messages-app .composer.narr-mode .cap-split{ display:block !important; width:1px !important; height:14px; flex:0 0 1px; opacity:1 !important; background:rgba(255,255,255,.35); }
+
