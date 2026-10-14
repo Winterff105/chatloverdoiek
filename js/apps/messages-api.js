@@ -124,14 +124,34 @@
     return t.trim();
   }
   function tryJson(s) { try { return JSON.parse(s); } catch (_) { return null; } }
+  /* 模型常在 JSON 字符串里直接换行（非法 JSON）：把字符串内部的裸换行 / 回车 / 制表符转义后再解析 */
+  function fixRawNewlines(s) {
+    let out = '', inStr = false, esc = false;
+    for (const ch of s) {
+      if (inStr) {
+        if (esc) { out += ch; esc = false; continue; }
+        if (ch === '\\') { out += ch; esc = true; continue; }
+        if (ch === '"') { inStr = false; out += ch; continue; }
+        if (ch === '\n') { out += '\\n'; continue; }
+        if (ch === '\r') { out += '\\r'; continue; }
+        if (ch === '\t') { out += '\\t'; continue; }
+        out += ch;
+      } else {
+        if (ch === '"') inStr = true;
+        out += ch;
+      }
+    }
+    return out;
+  }
 
   /* 解析模型输出：优先 JSON 数组；解析失败时兜底按 ||| 拆分 */
   function parseMessages(raw, name, limit) {
     let t = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     let obj = tryJson(t);
+    if (obj == null) obj = tryJson(fixRawNewlines(t));
     if (obj == null) {
       const a = t.indexOf('{'), b = t.lastIndexOf('}');
-      if (a >= 0 && b > a) obj = tryJson(t.slice(a, b + 1));
+      if (a >= 0 && b > a) obj = tryJson(fixRawNewlines(t.slice(a, b + 1)));
     }
     let list = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.messages) ? obj.messages : null);
     if (!list) list = t.split('|||');
