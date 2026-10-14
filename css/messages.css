@@ -4305,7 +4305,7 @@
 .messages-app .mq-thought.mq-on{opacity:1}
 .messages-app .mq-thought.mq-fade{opacity:0}
 .messages-app .mq-pill{position:relative;flex-shrink:0;width:72px;height:30px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 12px rgba(0,0,0,.05);font-size:12px;font-weight:600;color:#161616;white-space:nowrap;transition:width .55s cubic-bezier(.2,.8,.2,1),height .55s cubic-bezier(.2,.8,.2,1),transform .55s cubic-bezier(.2,.8,.2,1),background .3s ease,color .3s ease,box-shadow .3s ease,border-color .3s ease}
-.messages-app .mq-thought.mq-done .mq-pill{width:222px;height:40px;transform:translateX(-61px);background:#FCEAF1;color:#A3345E;border-color:transparent;box-shadow:none}
+.messages-app .mq-thought.mq-done .mq-pill{width:218px;height:40px;transform:translateX(-59px);background:#FCEAF1;color:#A3345E;border-color:transparent;box-shadow:none}
 .messages-app .mq-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .2s ease}
 .messages-app .mq-rest{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-start;padding-left:27px;gap:10px;opacity:0;transition:opacity .25s ease .35s}
 .messages-app .mq-thought.mq-done .mq-wait{opacity:0}
@@ -4347,9 +4347,11 @@
 /* ---------------- 朋友圈调取气泡：放在身份切换胶囊上层；进入聊天室时隐藏 ---------------- */
 .messages-app .mq-thought{ z-index:130 !important; }
 .messages-app:has(.tabbar.hide) .mq-thought{ opacity:0 !important; }
-/* 朋友圈调取气泡（完成态）：头像上移 3px；新消息胶囊左移，贴近头像 */
-.messages-app .mq-thought.mq-done .mq-stack{ transform: translateY(-3px); }
-.messages-app .mq-thought.mq-done .mq-nmsg{ margin-left: -6px; }
+/* 朋友圈调取气泡：头像组保持横排，不受其他面板 .mq-stack（竖排 / 宽度100%）影响 */
+.messages-app .mq-thought .mq-stack{ display:flex; flex-direction:row; align-items:center; gap:0; width:auto; text-align:initial; }
+/* 完成态：头像上移 3px；新消息胶囊紧贴头像，间距 5px */
+.messages-app .mq-thought.mq-done .mq-stack{ transform: translateY(-1px); }
+.messages-app .mq-thought.mq-done .mq-nmsg{ margin-left: 5px; }
 
 /* ---------------- API 报错弹窗：半透明白遮罩 + 浅灰标题 + 白色邮票边内容 ---------------- */
 @keyframes mqFadeIn { from { opacity:0; } to { opacity:1; } }

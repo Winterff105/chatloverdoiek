@@ -2121,18 +2121,12 @@ function renderThread(opts) {
             html += `<div class="narr-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><div class="narr" style="color:${NARR.color};font-size:${NARR.size}px;font-style:${NARR.italic ? 'italic' : 'normal'}">${esc(m.text)}</div></div>`;
             return;
         }
-        // 旁白是独立的说明行，不参与普通气泡的连续分组判断。
-        // 查找前后最近的普通消息，避免旁白把同一发送方的气泡组拆开，
-        // 也避免旁白被误判成一个不同发送方而导致头像/气泡形状跳变。
-        let prev = null, next = null;
-        for (let j = i - 1; j >= 0; j--) {
-            if (!c.msgs[j].narr) { prev = c.msgs[j]; break; }
-        }
-        for (let j = i + 1; j < c.msgs.length; j++) {
-            if (!c.msgs[j].narr) { next = c.msgs[j]; break; }
-        }
-        const newGroup = !prev || prev.me !== m.me;
-        const lastInGroup = !next || next.me !== m.me;
+        // 只看紧邻的前后一条消息。旁白也算分隔：旁白前后的气泡各自开始新的一轮样式，
+        // 不会接着上一轮的形状继续连在一起。
+        const prev = c.msgs[i - 1] || null;
+        const next = c.msgs[i + 1] || null;
+        const newGroup = !prev || prev.narr || prev.me !== m.me;
+        const lastInGroup = !next || next.narr || next.me !== m.me;
         const meta = lastInGroup ? `<span class="mt">${esc(m.t)}</span>` : '';
         const showAv = avo.scope === 'all' || newGroup;
         const sp = m.me ? '' : (avo.them && showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div>` : '<div class="sp"></div>');
@@ -2237,9 +2231,12 @@ function toggleRoomBatch() {
 /* 把联系人的一组消息发出来：一次性发出 = 一起出现、无动画；否则一条一条出现 */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function deliverMsgs(c, parts) {
-    if (parts && parts.length) playSfx('recv');
     if (chatOptsOf(c).batch) {
-        parts.forEach(t => c.msgs.push(msgOf(t)));
+        // 一次性发出：每一句都响一声，错开 150ms 免得叠在一起听不清
+        parts.forEach((t, i) => {
+            c.msgs.push(msgOf(t));
+            setTimeout(() => playSfx('recv'), i * 150);
+        });
         c.time = nowTime(); persistContacts();
         if (activeId === c.id) renderThread({noAnim:true});
         renderChats();
@@ -2247,6 +2244,7 @@ async function deliverMsgs(c, parts) {
     }
     for (let i = 0; i < parts.length; i++) {
         if (i > 0) await sleep(650);
+        playSfx('recv');   // 每一句出现时都响一声
         c.msgs.push(msgOf(parts[i]));
         c.time = nowTime(); persistContacts();
         if (activeId === c.id) renderThread();

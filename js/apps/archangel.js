@@ -945,7 +945,7 @@
           input.placeholder=DEFAULT_PLACEHOLDER;renderUpPanel();
           addUser(value||'（见附件）',true,newMid(),att);
         }
-        const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'},LIM=60000;
+        const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'};
         const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}};
         const G=()=>({token:$('#ar-gToken').value.trim(),owner:$('#ar-gOwner').value.trim(),repo:$('#ar-gRepo').value.trim(),branch:$('#ar-gBranch').value.trim()||'main'});
         const A=()=>{if(localStorage.getItem('archangel.api.source')==='inherit'){const f=ld0('forever_settings_active_api_v1');return {base:String(f.url||'').replace(/\/+$/,''),key:String(f.key||'').trim(),model:localStorage.getItem('archangel.api.inheritModel')||String(f.model||'')}}return {base:$('#ar-aBase').value.trim().replace(/\/+$/,''),key:$('#ar-aKey').value.trim(),model:$('#ar-aModel').value}};
@@ -1236,7 +1236,7 @@
             if(!pick.length&&sel.intent!=='create')throw new Error('仓库里没有可以读取的文本文件');
             d(pick.length+' FILES');d=step(2,LBL[2]);
             const got=[];
-            for(const f of pick){try{const x=await getFile(f.path);if(x.orig.length>LIM){tp.textContent+=`\n（${f.path} 过大，已跳过）`;continue}got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
+            for(const f of pick){try{const x=await getFile(f.path);got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
             if(!got.length&&sel.intent!=='create')throw new Error('相关文件读取失败或过大，无法安全修改');
             d(got.length+' FILES');
             if(sel.intent==='read'){

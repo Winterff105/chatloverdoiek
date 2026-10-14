@@ -158,6 +158,25 @@
     return list.map(x => cleanOne(x, name)).filter(Boolean).slice(0, limit || MAX_MESSAGES);
   }
 
+  /* 时间感知：实时时间，以及房间里设置的自定义计时（有设置就读，不论当前选的是哪个模式） */
+  function tsPad(n) { return String(n).padStart(2, '0'); }
+  function tsFmt(ms) { const d = new Date(ms); return `${d.getFullYear()}-${tsPad(d.getMonth() + 1)}-${tsPad(d.getDate())} ${tsPad(d.getHours())}:${tsPad(d.getMinutes())}`; }
+  function timeBlockOf(contact) {
+    const now = Date.now();
+    const d = new Date(now);
+    const lines = [`【时间】当前时间：${tsFmt(now)} 星期${'日一二三四五六'[d.getDay()]}`];
+    const t = contact.timer || {};
+    if (t.start) {
+      const diff = now - t.start;
+      const s = Math.floor(Math.abs(diff) / 1000);
+      const days = Math.floor(s / 86400), hh = Math.floor((s % 86400) / 3600), mm = Math.floor((s % 3600) / 60), ss = s % 60;
+      lines.push(`【自定义计时】从 ${tsFmt(t.start)} 开始计数，${diff < 0 ? '还有' : '已过去'} ${days}天 ${tsPad(hh)}:${tsPad(mm)}:${tsPad(ss)}。`);
+    }
+    return lines.join('\n');
+  }
+  /* 每条消息的时间：优先用精确时间戳，老数据只有 HH:MM 就用它 */
+  function msgTimeLabel(m) { return m.ts ? tsFmt(m.ts) : (m.t || ''); }
+
   /* 返回值：消息字符串数组，每一项对应一个气泡 */
   async function replyFor(contact, instruction, limit) {
     const c = config(); if (!isConfigured()) throw new Error('请先返回主界面，在「设置 → API」里保存接口地址、密钥和模型');
@@ -210,10 +229,15 @@
       contact.backstory ? `背景经历：${contact.backstory}` : '',
       contact.relation ? `与你的关系：${contact.relation}` : '',
       hasNarr ? '以【旁白】开头的内容是旁白，描写动作、神态或环境，不是对话，也不是对方说的话。' : '',
+      timeBlockOf(contact),
+      (contact.msgs || []).length ? '【时间感知】每条消息开头方括号里是这条消息的发送时间，只用来理解时间流逝和时段（比如深夜、隔了几天）。你的回复不要写时间或方括号。' : '',
       instruction || ''
     ].filter(Boolean).join('\n');
     const messages = [{ role: 'system', content: system }];
-    for (const m of (contact.msgs || []).slice(-memCount)) messages.push({ role: m.me ? 'user' : 'assistant', content: (m.narr ? '【旁白】' : '') + String(m.text || '') });
+    for (const m of (contact.msgs || []).slice(-memCount)) {
+      const tl = msgTimeLabel(m);
+      messages.push({ role: m.me ? 'user' : 'assistant', content: (tl ? `[${tl}] ` : '') + (m.narr ? '【旁白】' : '') + String(m.text || '') });
+    }
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages }, 0.8)) }); }
     catch (e) { throw new Error(String((e && e.message) || e)); }
