@@ -4826,7 +4826,7 @@
 .messages-app .hp-s2 .hp-cap{ max-width:70%; }
 .messages-app .hp-s3{ left:14px; top:216px; width:118px; transform:rotate(4deg); }
 .messages-app .hp-s3 .hp-ph{ height:92px; clip-path:polygon(0 0,100% 0,100% 84%,94% 92%,88% 84%,82% 92%,76% 84%,70% 92%,64% 84%,58% 92%,52% 84%,46% 92%,40% 84%,34% 92%,28% 84%,22% 92%,16% 84%,10% 92%,4% 84%,0 92%); }
-.messages-app .hp-s4{ right:14px; top:256px; width:98px; transform:rotate(-5deg); text-align:center; }
+.messages-app .hp-s4{ right:14px; top:228px; width:98px; transform:rotate(-5deg); text-align:center; }
 .messages-app .hp-s4 .hp-ph{ height:118px; border-radius:10px; }
 
 /* 底部圆按钮：对齐输入框菜单的圆按钮（46px 圆形白底） */
