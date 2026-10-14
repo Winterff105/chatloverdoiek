@@ -2312,8 +2312,9 @@ async function pullReply() {
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const parts = replies.map(p => narrPart(p, c.name)).filter(Boolean);
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
+        const startLen = c.msgs.length;
         await deliverMsgs(c, parts);
-        attachHeart(c, heart); persistContacts();
+        attachHeart(c, heart, startLen); persistContacts();
         if (activeId === c.id) renderThread({noAnim:true});
         maybeAutoSummary(c);
     } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
@@ -5148,14 +5149,15 @@ function applyHeartCss(){
 function heartRoundsOf(c){ return Array.isArray(c.hearts) ? c.hearts : []; }
 function latestHeartId(c){ const h = heartRoundsOf(c); return h.length ? h[h.length - 1].id : null; }
 /* 这一轮回复的心声：挂在这一轮最后一条对方消息上（头像下面的爱心跟着最新一轮走） */
-function attachHeart(c, heart){
+function attachHeart(c, heart, fromIdx){
     if (!heart) return;
     c.hearts = heartRoundsOf(c);
-    const last = [...c.msgs].reverse().find(m => !m.me && !m.narr);
-    if (!last) return;
+    // 挂在这一轮的第一条对方消息上：它前面是我发的消息，一定是气泡组的第一条，头像才会显示
+    const first = c.msgs.slice(fromIdx || 0).find(m => !m.me && !m.narr);
+    if (!first) return;
     const id = 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     c.hearts.push(Object.assign({ id, ts: Date.now(), t: nowTime(), liked: false }, heart));
-    last.hid = id;
+    first.hid = id;
 }
 
 /* 心声弹窗结构 */
