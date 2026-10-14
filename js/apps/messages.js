@@ -2014,18 +2014,23 @@ function renderThread(opts) {
     // 只有本次新增的消息播放进场动画；重绘已有消息时不闪
     const shownCount = (opts && opts.noAnim) || box.dataset.chat !== c.id ? c.msgs.length : Number(box.dataset.count || 0);
     const avo = avOptsOf(c);
+    const latestHid = typeof latestHeartId === 'function' ? latestHeartId(c) : null;
     let html = '<div class="day">Today</div>';
     c.msgs.forEach((m, i) => {
         if (m.narr) {
             html += `<div class="narr-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><div class="narr" style="color:${NARR.color};font-size:${NARR.size}px;font-style:${NARR.italic ? 'italic' : 'normal'}">${esc(m.text)}</div></div>`;
             return;
         }
-        const prev = c.msgs[i - 1], next = c.msgs[i + 1];
-        const newGroup = !prev || prev.me !== m.me;
-        const lastInGroup = !next || next.me !== m.me;
+        // 只看紧邻的前后一条消息。旁白也算分隔：旁白前后的气泡各自开始新的一轮样式，
+        // 不会接着上一轮的形状继续连在一起。
+        const prev = c.msgs[i - 1] || null;
+        const next = c.msgs[i + 1] || null;
+        const newGroup = !prev || prev.narr || prev.me !== m.me;
+        const lastInGroup = !next || next.narr || next.me !== m.me;
         const meta = lastInGroup ? `<span class="mt">${esc(m.t)}</span>` : '';
         const showAv = avo.scope === 'all' || newGroup;
-        const sp = m.me ? '' : (avo.them && showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span></div>` : '<div class="sp"></div>');
+        const hv = (!m.me && m.hid && m.hid === latestHid && typeof HEART_SVG !== 'undefined') ? `<span class="hv-stack"><span class="hv-line"></span>${HEART_SVG}</span>` : '';
+        const sp = m.me ? '' : (avo.them && showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${avatar(c, 'sm')}</span>${hv}</div>` : '<div class="sp"></div>');
         const spR = (m.me && avo.me) ? (showAv ? `<div style="width:32px;flex-shrink:0"><span class="avf">${selfAvatarHtml('sm')}</span></div>` : '<div style="width:32px;flex-shrink:0"></div>') : '';
         const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
         const grp = (pos === 'g-head') ? 'grp-head' : '';
@@ -2212,7 +2217,7 @@ async function sendMessage() {
     if (!text || !activeId) return;
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c || c._busy) return;
-    c.msgs.push({me:true,text,t:nowTime(), ts: Date.now()}); c.time=nowTime();
+    c.msgs.push(Object.assign({me:true,text,t:nowTime(), ts: Date.now()}, (typeof narrInputMode !== 'undefined' && narrInputMode) ? {narr:true} : {})); c.time=nowTime();
     input.value=''; autoGrow(); updateSend(); persistContacts(); renderThread(); renderChats();
 }
 function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
