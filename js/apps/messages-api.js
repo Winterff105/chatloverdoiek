@@ -89,7 +89,7 @@
     '【输出格式：优先级最高，高于以上所有角色要求】',
     '1. 只输出一个 JSON 对象，不要输出任何其他文字、解释、标题、Markdown 或代码块。',
     '2. 格式固定为：{"messages":["第一条消息","第二条消息"],"heart":{"env":"","mood":"","outfit":"","aff":0,"said":""}}',
-    '3. 数组里的每个元素是一条独立的聊天消息，对应聊天里的一个气泡。条数以本次指示中的范围为准。',
+    '3. 【气泡条数硬性限制】数组里的每个元素是一条独立的聊天消息，对应聊天里的一个气泡。必须严格遵循后续指示所规定的气泡条数限制：如果要求了固定条数则必须精确输出该条数；如果指定了范围则必须落在范围内且不得偷懒少发；严禁将多句话合并进一个气泡，messages 数组的长度必须严格符合条数要求。',
     '4. 每条消息只写角色要说出口的话。不要写角色名或"XX："这样的前缀，不要写时间，不要写括号或星号包裹的动作、神态、心理描写。',
     '5. 一条消息内部需要换行时，在 JSON 字符串里用 \\n 表示；不要把多条消息合并进同一个字符串。'
   ].join('\n');
@@ -367,6 +367,7 @@
     const userName = window.MESSAGES_USER_NAME || 'user';
     const ctx = (recentMsgs || []).map(m => `${m.me ? userName : contact.name}：${m.text}`).join('\n') || '（暂无聊天记录）';
     const lo = Math.max(1, (limits && limits.min) || 1), hi = Math.max(lo, (limits && limits.max) || 4);
+    const countReq = lo === hi ? `必须精确输出 ${lo} 条独立消息气泡` : `必须严格输出 ${lo} 到 ${hi} 条独立消息气泡，不得偷懒少发`;
     const system = [
       ROLEPLAY_PROMPT,
       memBlock,
@@ -375,7 +376,7 @@
       window.MESSAGES_USER_PERSONA ? `${fillU('{user}设定')}：${window.MESSAGES_USER_PERSONA}` : '',
       contact.relation ? `与用户的关系：${contact.relation}` : '',
       '【朋友圈私聊】',
-      `用户刚在朋友圈里回复了你的评论。你可以顺便私聊他，也可以不发，由你自己决定。要发的话，像平时聊天一样分成 ${lo} 到 ${hi} 条消息。`,
+      `用户刚在朋友圈里回复了你的评论。你可以顺便私聊他，也可以不发，由你自己决定。要发的话，texts 数组${countReq}。`,
       '只输出一个 JSON 对象，不要输出其他文字，也不要使用代码块，格式固定为：{"send":true或false,"texts":["消息1","消息2"]}；不发就 send 为 false，texts 为空数组。'
     ].filter(Boolean).join('\n');
     const user = `你们最近的聊天：\n${ctx}\n\n朋友圈内容：${String(post && post.text || '').trim() || '（只发了照片）'}\n你在评论区说的话：${quoteText || ''}\n用户在评论区回复你：${userText}`;
