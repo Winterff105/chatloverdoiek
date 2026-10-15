@@ -5,11 +5,28 @@
     /* AI 接口超时（毫秒）。非流式接口要等模型把整段回复生成完才返回，改文件时输出较长，需要留足时间。停止按钮仍可随时中断。 */
     const AI_TIMEOUT = 600000;
 
+    /* 并发执行：最多 n 个同时进行 */
+    async function pool(items,n,fn){let i=0;await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{while(i<items.length){const x=items[i++];await fn(x)}}))}
+    /* 从需求里提取可用于代码搜索的关键词（英文标识符 + 中文片段） */
+    function searchTerms(text){
+        const STOP=new Set(['the','and','for','with','this','that','make','add','fix','change','file','code','please','page','button','function','want','need','update','modify']);
+        const out=[];const push=w=>{w=String(w||'').trim();if(w.length>=2&&!STOP.has(w.toLowerCase())&&!out.includes(w))out.push(w)};
+        const t=String(text||'');
+        (t.match(/[A-Za-z_][A-Za-z0-9_]{2,}/g)||[]).forEach(push);
+        (t.match(/[\u4e00-\u9fa5]{2,6}/g)||[]).forEach(push);
+        return out.slice(0,6);
+    }
     /* 读取模型响应：流式（SSE）时边收边拼；若接口直接返回普通 JSON 则照常解析。统一返回 OpenAI 的 JSON 结构。 */
     async function readAiResponse(r){
         const ct=(r.headers&&r.headers.get&&r.headers.get('content-type'))||'';
         if(!ct.includes('event-stream'))return await r.json();
         const reader=r.body.getReader(), dec=new TextDecoder();
+        /* 空闲超时：连续 AI_TIMEOUT 毫秒没有收到任何新数据就报错断开，避免无限等待。 */
+        const withIdle=(p,rd)=>new Promise((res,rej)=>{
+            const t=setTimeout(()=>{try{rd.cancel()}catch(e){}rej(new Error('AI 回复中断：超过 '+Math.round(AI_TIMEOUT/60000)+' 分钟没有新内容'))},AI_TIMEOUT);
+            p.then(v=>{clearTimeout(t);res(v)},e=>{clearTimeout(t);rej(e)});
+        });
+
         let buf='', content='', reasoning='', usage=null;
         const handle=line=>{
             if(!line.startsWith('data:'))return;
@@ -22,7 +39,7 @@
             if(typeof dl.reasoning_content==='string')reasoning+=dl.reasoning_content;
         };
         for(;;){
-            const {done,value}=await reader.read();
+            const {done,value}=await withIdle(reader.read(),reader);
             if(done)break;
             buf+=dec.decode(value,{stream:true});
             let i;while((i=buf.indexOf('\n'))>=0){handle(buf.slice(0,i).replace(/\r$/,''));buf=buf.slice(i+1)}
@@ -1049,14 +1066,30 @@
           const outText=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):m.content||'';runLog.push({label:'仓库调用 '+(runLog.length+1),raw:String(outText)});return outText;
         }
         function pj(t){const c=String(t||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');try{return JSON.parse(c)}catch{const i=c.indexOf('{'),j=c.lastIndexOf('}');if(i<0||j<=i)throw new Error('AI 返回的不是有效 JSON');return JSON.parse(c.slice(i,j+1))}}
+        async function codeSearch(text){
+          let g;try{g=G();need(g)}catch(e){return []}
+          const valid=new Set(ST.tree.map(f=>f.path));
+          const terms=searchTerms(text);const out=[];
+          await pool(terms,2,async t=>{
+            try{
+              const r=await req(`https://api.github.com/search/code?q=${encodeURIComponent(t)}+repo:${g.owner}/${g.repo}&per_page=10`,{headers:gh(g)},10000);
+              if(!r.ok)return;
+              const d=await r.json();
+              const paths=(d.items||[]).map(x=>x.path).filter(p=>valid.has(p));
+              if(paths.length)out.push({term:t,paths});
+            }catch(e){}
+          });
+          out.sort((a,b)=>terms.indexOf(a.term)-terms.indexOf(b.term));
+          return out;
+        }
         async function getFile(path){
           const g=G();need(g);if(ST.key!==rk(g))throw new Error('仓库设置已改变，请重新读取文件树');
           if(ST.files[path])return ST.files[path];
-          let r=await req(cu(g,path)+'?ref='+encodeURIComponent(g.branch),{headers:gh(g)});
+          let r=await req(cu(g,path)+'?ref='+encodeURIComponent(g.branch),{headers:gh(g)},15000);
           if(!r.ok)throw new Error(`读取 ${path} 失败：`+await err(r));
           let d=await r.json();if(Array.isArray(d)||(d.type&&d.type!='file'))throw new Error(path+' 不是普通文件');
           if(!(d.encoding=='base64'&&typeof d.content=='string')){
-            r=await req(`${base(g)}/git/blobs/${d.sha}`,{headers:gh(g)},60000);
+            r=await req(`${base(g)}/git/blobs/${d.sha}`,{headers:gh(g)},30000);
             if(!r.ok)throw new Error(`读取 ${path} 失败：`+await err(r));d=Object.assign({},d,await r.json())}
           return ST.files[path]={path,sha:d.sha,orig:unb64(d.content,path)};
         }
@@ -1222,7 +1255,9 @@
             ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
             }));
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。只负责生成待上传方案，绝不能声称已经上传；只要用户要求改动或上传仓库文件，就必须返回 edit 或 create，不能返回 chat，也绝不能叫用户再次点击底栏调取。上传必须等用户点击确认卡片。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}`}]));
+            const hitMap=await codeSearch(text);
+            const hitSection=hitMap.length?`\n\n代码搜索命中（以下文件的内容包含需求里的关键词，优先从中选择）：\n${hitMap.map(h=>`${h.term} → ${h.paths.slice(0,12).join('、')}`).join('\n')}`:'';
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。只负责生成待上传方案，绝不能声称已经上传；只要用户要求改动或上传仓库文件，就必须返回 edit 或 create，不能返回 chat，也绝不能叫用户再次点击底栏调取。上传必须等用户点击确认卡片。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}${hitSection}`}]));
             if(wantsRepoChange && ['chat','read'].includes(sel.intent)) sel.intent=/(新建|新增|添加文件|上传新文件|创建文件夹)/.test(text)?'create':'edit';
             if(sel.intent==='chat'){
               const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
@@ -1256,6 +1291,7 @@
             const valid=new Set(ST.tree.map(f=>f.path)),seen=new Set(),pick=[];
             (sel.files||[]).forEach(f=>{const p=String(f&&f.path||'').trim().replace(/^\/+/,'');if(valid.has(p)&&!seen.has(p)){seen.add(p);pick.push({path:p,why:String(f.reason||'与需求相关')})}});
             if(!pick.length&&sel.intent!=='create'){
+              hitMap.forEach(h=>h.paths.forEach(p=>{if(!seen.has(p)&&pick.length<8){seen.add(p);pick.push({path:p,why:'代码内容包含关键词「'+h.term+'」'})}}));
               const textFiles=ST.tree.filter(f=>/\.(js|jsx|ts|tsx|mjs|json|md|txt|html|htm|css|py|java|go|rs|rb|php|c|h|cpp|hpp|sh|sql|xml|yml|yaml|toml|ini|csv|vue|svelte)$/i.test(f.path));
               const words=String(text).toLowerCase().split(/[^a-z0-9_\u4e00-\u9fa5]+/).filter(w=>w.length>=2);
               const scored=textFiles.map(f=>{const p=f.path.toLowerCase();return {path:f.path,score:words.reduce((n,w)=>n+(p.includes(w)?1:0),0)+(/readme|index|main|app/.test(p)?0.5:0)-f.path.split('/').length*0.05}});
@@ -1264,7 +1300,9 @@
             if(!pick.length&&sel.intent!=='create')throw new Error('仓库里没有可以读取的文本文件');
             d(pick.length+' FILES');d=step(2,LBL[2]);
             const got=[];
-            for(const f of pick){try{const x=await getFile(f.path);got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}}
+            let doneN=0;const total=pick.length;
+            await pool(pick,4,async f=>{try{const x=await getFile(f.path);got.push({...x,why:f.why})}catch(e){tp.textContent+=`\n（跳过 ${f.path}：${e.message}）`}finally{doneN++;d(doneN+'/'+total)}});
+            got.sort((a,b)=>pick.findIndex(p=>p.path===a.path)-pick.findIndex(p=>p.path===b.path));
             if(!got.length&&sel.intent!=='create')throw new Error('相关文件读取失败或过大，无法安全修改');
             d(got.length+' FILES');
             if(sel.intent==='read'){
@@ -1276,18 +1314,37 @@
               stopMeta();busy=false;return;
             }
             d=step(3,LBL[3]);
-            const mod=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是一个专业代码修改助手。','根据用户需求修改提供的文件；如果用户要求新建文件或文件夹，就在 files 里给出每一个文件的路径和完整内容（路径不存在也没关系；文件夹用路径里的 / 表示，比如 notes/todo.md），要多少个都可以全部放进 files。只修改真正需要修改的文件。','必须保留原文件的完整内容，不能用省略号、占位符或说明文字代替代码。','不要返回 Markdown 代码围栏，只返回 JSON：{"reply":"修改说明","files":[{"path":"真实文件路径","content":"修改后的完整文件内容"}]}','files 只放发生修改的文件，content 必须是完整可直接保存的内容。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
-            const ch=[];
-            (mod.files||[]).forEach(c=>{const p=String(c&&c.path||'').trim().replace(/^\/+/,'').replace(/\.\.\//g,''),f=got.find(x=>x.path==p);
-              if(typeof c.content!='string'||!c.content||!p)return;
+            const mod=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是一个专业代码修改助手。',
+'根据用户需求修改提供的文件。修改已有文件时优先使用 edits（查找替换）：每个 edit 的 old 必须从原文件里逐字复制（包括缩进和空格），取一段足够长的原文（通常 3 到 10 行）以保证它在该文件中只出现一次；new 是替换后的内容；同一文件可以有多个 edit，按顺序应用。只改真正需要改的地方，不要动无关代码。',
+'如果是新建文件或文件夹，就在 files 里给出每一个文件的路径和完整 content（路径不存在也没关系；文件夹用路径里的 / 表示，比如 notes/todo.md），要多少个都可以全部放进 files。',
+'只返回 JSON：{"reply":"修改说明","files":[{"path":"真实文件路径","edits":[{"old":"原文中逐字复制的一段","new":"替换后的内容"}]},{"path":"新文件路径","content":"完整文件内容"}]}',
+'不要返回 Markdown 代码围栏。files 只放发生修改的文件。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
+            const ch=[];const failed=[];
+            const pushChange=(f,lf)=>{const t=f.orig.includes('\r\n')?lf.replace(/\n/g,'\r\n'):lf;if(t!==f.orig)ch.push({...f,edit:t,lines:diff(f.orig.replace(/\r\n/g,'\n'),lf)})};
+            const applyEdits=(orig,edits)=>{let t=orig;for(const e of edits){const o=String(e&&e.old!=null?e.old:'').replace(/\r\n/g,'\n'),n=String(e&&e.new!=null?e.new:'').replace(/\r\n/g,'\n');if(!o)return null;if(t.split(o).length!==2)return null;t=t.replace(o,()=>n)}return t};
+            const handleMod=(c,fromRetry)=>{
+              const p=String(c&&c.path||'').trim().replace(/^\/+/,'').replace(/\.\.\//g,''),f=got.find(x=>x.path==p);
+              if(!p)return;
               if(!f){
+                if(fromRetry||typeof c.content!='string'||!c.content)return;
                 if(ST.tree.some(x=>x.path===p))return;
                 const nl=c.content.replace(/\r\n/g,'\n');
                 ch.push({path:p,edit:nl,orig:'',sha:undefined,lines:diff('',nl),why:'新文件'});
                 return;
               }
-              const lf=c.content.replace(/\r\n/g,'\n'),t=f.orig.includes('\r\n')?lf.replace(/\n/g,'\r\n'):lf;
-              if(t!==f.orig)ch.push({...f,edit:t,lines:diff(f.orig.replace(/\r\n/g,'\n'),lf)})});
+              if(!fromRetry&&Array.isArray(c.edits)&&c.edits.length){
+                const r2=applyEdits(f.orig.replace(/\r\n/g,'\n'),c.edits);
+                if(r2===null){failed.push(p);return}
+                pushChange(f,r2);return;
+              }
+              if(typeof c.content=='string'&&c.content)pushChange(f,c.content.replace(/\r\n/g,'\n'));
+            };
+            (mod.files||[]).forEach(c=>handleMod(c,false));
+            if(failed.length){
+              d('补救 '+failed.length+' 个文件');
+              const fix=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是代码修改助手。上一次用查找替换的方式没能套用到部分文件，现在请直接给出这些文件修改后的完整内容。','必须保留原文件的完整内容，不能用省略号、占位符或说明文字代替代码。','只返回 JSON：{"files":[{"path":"真实文件路径","content":"修改后的完整文件内容"}]}，不要返回 Markdown 代码围栏。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n修改说明：${mod.reply||''}\n\n需要修改的文件：\n${got.filter(f=>failed.includes(f.path)).map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
+              (fix.files||[]).forEach(c=>handleMod(c,true));
+            }
             d(ch.length+' FILES');
 
             const assistantReply=String(mod.reply||'已生成修改。');
