@@ -2309,7 +2309,8 @@ async function pullReply() {
     const cap = document.querySelector('.messages-app').querySelector('.send-capsule'); if (cap) cap.classList.add('pulling');
     showTyping(c);
     try {
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。本次请发送 ${o.min} 到 ${o.max} 条消息。` + narrInstruction();
+        const countDesc = o.min === o.max ? `本次回复必须精确输出 ${o.min} 条独立消息气泡（messages 数组长度必须严格等于 ${o.min}，不多不少）` : `本次回复必须输出 ${o.min} 到 ${o.max} 条独立消息气泡（messages 数组长度必须在 ${o.min} 到 ${o.max} 之间，绝不可偷懒少发）`;
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【气泡条数硬性限制】：${countDesc}，严禁将多句话合并进同一个气泡。` + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction, o.max);
