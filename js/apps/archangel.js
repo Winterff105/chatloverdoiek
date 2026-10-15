@@ -1154,7 +1154,7 @@
           const a=A();
           if(!a.base||!a.key||!a.model)return;
           try{
-            const hist=currentConversation.messages.slice(-20).filter((m,i,a)=>m.role!=='system'||i>=a.length-2).map(m=>histOf(m,false));
+            const hist=currentConversation.messages.map(m=>histOf(m,false));
             const hint='刚才系统执行时出了错，见上面的“报错”。请用角色的语气告诉用户：发生了什么、可能的原因、用户可以怎么做。不要假装操作已经完成。如果是找文件的问题，不要让用户去提供文件名，只需要用户描述想改的功能即可。';
             const msgs=[{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。',hint].join('\n')},...hist];
             const out=await chatText(msgs);
@@ -1229,7 +1229,7 @@
             const dC=()=>{};
             try{
               const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
-              const hist=((currentConversation&&currentConversation.messages)||[]).slice(-20).filter((m,i,a)=>m.role!=='system'||i>=a.length-2).map(m=>histOf(m,pendingIds.has(m.id)));
+              const hist=((currentConversation&&currentConversation.messages)||[]).map(m=>histOf(m,pendingIds.has(m.id)));
               const msgs=[{role:'system',content:[...modeSystemLines(),...chatFormatLines(),'用中文回复。'].join('\n')},...hist];
               if(!hist.length)msgs.push({role:'user',content:text});
               const out=await chatText(msgs);
@@ -1250,7 +1250,7 @@
             let d=step(0,LBL[0]);
             if(!ST.tree.length||ST.key!==rk(G()))await loadTree();if(!ST.tree.length)throw new Error('仓库文件树为空');
             d();d=step(1,LBL[1]);
-            const recentText=((currentConversation&&currentConversation.messages)||[]).slice(-5).map(m=>`${m.role==='assistant'?'对面':m.role==='system'?'系统':'我'}：${String(m.text||'').slice(0,200)}`).join('\n');
+            const recentText=((currentConversation&&currentConversation.messages)||[]).map(m=>`${m.role==='assistant'?'对面':m.role==='system'?'系统':'我'}：${String(m.text||'')}`).join('\n');
             const attachCands=[];
             ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
@@ -1318,7 +1318,7 @@
 '根据用户需求修改提供的文件。修改已有文件时优先使用 edits（查找替换）：每个 edit 的 old 必须从原文件里逐字复制（包括缩进和空格），取一段足够长的原文（通常 3 到 10 行）以保证它在该文件中只出现一次；new 是替换后的内容；同一文件可以有多个 edit，按顺序应用。只改真正需要改的地方，不要动无关代码。',
 '如果是新建文件或文件夹，就在 files 里给出每一个文件的路径和完整 content（路径不存在也没关系；文件夹用路径里的 / 表示，比如 notes/todo.md），要多少个都可以全部放进 files。',
 '只返回 JSON：{"reply":"修改说明","files":[{"path":"真实文件路径","edits":[{"old":"原文中逐字复制的一段","new":"替换后的内容"}]},{"path":"新文件路径","content":"完整文件内容"}]}',
-'不要返回 Markdown 代码围栏。files 只放发生修改的文件。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
+'不要返回 Markdown 代码围栏。files 只放发生修改的文件。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话（全部）：\n${recentText}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
             const ch=[];const failed=[];
             const pushChange=(f,lf)=>{const t=f.orig.includes('\r\n')?lf.replace(/\n/g,'\r\n'):lf;if(t!==f.orig)ch.push({...f,edit:t,lines:diff(f.orig.replace(/\r\n/g,'\n'),lf)})};
             const applyEdits=(orig,edits)=>{let t=orig;for(const e of edits){const o=String(e&&e.old!=null?e.old:'').replace(/\r\n/g,'\n'),n=String(e&&e.new!=null?e.new:'').replace(/\r\n/g,'\n');if(!o)return null;if(t.split(o).length!==2)return null;t=t.replace(o,()=>n)}return t};
