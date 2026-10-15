@@ -2,6 +2,8 @@
    挂载：window.initArchangelApp(容器)；容器需要 class="archangel-app"，样式在 css/archangel.css。
    所有查询都限定在容器里，不使用 document 全局选择器。 */
 (function () {
+    /* AI 接口超时（毫秒）。非流式接口要等模型把整段回复生成完才返回，改文件时输出较长，需要留足时间。停止按钮仍可随时中断。 */
+    const AI_TIMEOUT = 600000;
     const ARCHANGEL_MARKUP = `
 <div class="app">
   <div class="sidebar-backdrop closed" id="ar-sideBackdrop"></div>
@@ -1014,7 +1016,7 @@
           if(a.model)$('#ar-aModel').innerHTML=`<option>${esc(a.model)}</option>`;})();
         async function ai(msgs){
           const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
-          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},120000);
+          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
           let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败：'+await err(r));
           const d=await r.json();runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
@@ -1644,7 +1646,7 @@
         async function chatText(msgs){
           const a=A();
           const short=uiCfg().short==='on';
-          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,messages:msgs,temperature:.8,...(j?{response_format:{type:'json_object'}}:{})})},120000);
+          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,messages:msgs,temperature:.8,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
           let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败：'+await err(r));
           const d=await r.json();runTokens+=(d.usage&&d.usage.total_tokens)||0;

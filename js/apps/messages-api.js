@@ -252,13 +252,15 @@
       hasNarr ? '以【旁白】开头的内容是旁白，描写动作、神态或环境，不是对话，也不是对方说的话。' : '',
       timeBlockOf(contact),
       heartBlockOf(),
+      QUOTE_RULE,
       (contact.msgs || []).length ? '【时间感知】每条消息开头方括号里是这条消息的发送时间，只用来理解时间流逝和时段（比如深夜、隔了几天）。你的回复不要写时间或方括号。' : '',
       instruction || ''
     ].filter(Boolean).join('\n');
     const messages = [{ role: 'system', content: system }];
     for (const m of (contact.msgs || []).slice(-memCount)) {
       const tl = msgTimeLabel(m);
-      messages.push({ role: m.me ? 'user' : 'assistant', content: (tl ? `[${tl}] ` : '') + (m.narr ? '【旁白】' : '') + String(m.text || '') });
+      const qp = m.quote && m.quote.text ? `(引用${m.quote.me ? '{{user}}' : '{{char}}'}的消息「${String(m.quote.text).slice(0, 80)}」) ` : '';
+      messages.push({ role: m.me ? 'user' : 'assistant', content: (tl ? `[${tl}] ` : '') + qp + (m.narr ? '【旁白】' : '') + String(m.text || '') });
     }
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages }, 0.8)) }); }
@@ -273,6 +275,13 @@
     if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
     return parts;
   }
+  /* 引用规则：我方引用前缀用 {{user}} / {{char}}，不写真名；AI 也可以引用聊天中的消息 */
+  const QUOTE_RULE = [
+    '【引用】',
+    '消息前面带有「(引用{{user}}的消息「…」)」时，表示这条消息是在回应{{user}}说的那句话。{{user}}指用户，{{char}}指你自己。',
+    '你也可以引用聊天中的消息：需要针对某一句具体的话回应时，在那条回复开头写 <quote who="user">被引用的原话</quote>，之后紧接正文。who="user" 表示引用{{user}}的消息，who="char" 表示引用你自己说过的话。引用原话必须和聊天记录里的一致。',
+    '大多数消息不需要引用，只有确实要针对某句话回应时才引用。'
+  ].join('\n');
   /* 朋友圈回复：判断这个联系人看到用户的朋友圈后，是否点赞、是否评论 */
   const MOMENT_RULE = [
     '【朋友圈回复】',

@@ -4813,7 +4813,7 @@
 
 /* 拍立得：形状各异，都在舞台宽度内；文字在照片中间，标题紧贴照片下面 */
 .messages-app .hp-shot{ position:absolute; z-index:1; filter:drop-shadow(0 6px 10px rgba(60,66,76,.2)); }
-.messages-app .hp-ph{ position:relative; background:#000; color:#fff; font-size:11px; line-height:1.5; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:0; }
+.messages-app .hp-ph{ position:relative; background:transparent; color:#fff; font-size:11px; line-height:1.5; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:0; }
 .messages-app .hp-ph img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
 .messages-app .hp-cap{ position:relative; max-width:88%; padding:6px 10px; border-radius:10px; background:rgba(0,0,0,.42); color:#fff; text-align:center; word-break:break-all; }
 .messages-app .hp-cap b{ font-size:18px; font-weight:700; letter-spacing:1px; margin-right:4px; }
@@ -4910,3 +4910,28 @@
 
 /* ===================== 聊天室设置：输入时固定页面，底部滑轮不被顶起 ===================== */
 .messages-app #roomView.typing{ position:fixed; inset:0; height:100%; }
+
+/* ===================== 引用：输入框上方引用条；底栏花边随之上拉 ===================== */
+.messages-app #chatView .composer.quoting{ padding-top:58px; }
+.messages-app #chatView .quote-bar{ position:absolute; left:18px; right:36px; top:10px; height:36px; box-sizing:border-box; display:flex; align-items:center; gap:8px; padding:0 8px 0 12px; border-radius:16px; background:#F4F4F6; z-index:1; }
+.messages-app .quote-bar .qb-who{ font-size:11px; font-weight:600; color:#6B6B73; white-space:nowrap; }
+.messages-app .quote-bar .qb-txt{ flex:1; min-width:0; font-size:12px; color:#8E8E8E; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.messages-app .quote-bar .qb-x{ width:22px; height:22px; border:0; border-radius:50%; background:rgba(0,0,0,.08); color:#444; font-size:14px; line-height:1; cursor:pointer; flex-shrink:0; padding:0; }
+/* 气泡里的引用块 */
+.messages-app .qt-in{ border-left:2px solid rgba(0,0,0,.2); padding:2px 8px; margin-bottom:4px; font-size:11.5px; color:#8E8E8E; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.messages-app .qt-in b{ font-weight:600; margin-right:4px; color:#6B6B73; }
+
+/* ===================== 消息区：只允许上下滚动，横向拖动交给「滑动引用」 ===================== */
+.messages-app #thread, .messages-app #chatView .thread{ touch-action:pan-y; }
+.messages-app #thread .mrow{ touch-action:pan-y; }
+
+/* ===================== 引用条里面：底部虚线 ===================== */
+.messages-app #chatView .quote-bar{
+  background-image: repeating-linear-gradient(to right, rgba(0,0,0,.28) 0 4px, transparent 4px 8px);
+  background-size: calc(100% - 24px) 1px;
+  background-repeat: no-repeat;
+  background-position: 12px calc(100% - 4px);
+}
+
+/* ===================== 心声照片：透明底直接透出背后内容 ===================== */
+.messages-app .hp-ph img{ background:transparent; }

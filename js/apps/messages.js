@@ -572,6 +572,7 @@ function openChat(id) {
     const c = CONTACTS.find(x => x.id === id);
     if (!c) return;
     activeId = id;
+    clearQuote(true); bindSwipeQuote();
     c.unread = 0;
     persistContacts();
     document.getElementById('headAv').outerHTML = avatar(c, 'md').replace('class="av ', 'id="headAv" class="av ');
@@ -2170,7 +2171,8 @@ function renderThread(opts) {
         const spR = (m.me && avo.me) ? (showAv ? `<div class="av-col"><span class="avf">${selfAvatarHtml('sm')}</span></div>` : '<div style="width:32px;flex-shrink:0"></div>') : '';
         const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
         const grp = (pos === 'g-head') ? 'grp-head' : '';
-        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}"${fsInline}>${esc(m.text)}</div>${meta}</div>`;
+        const qHtml = m.quote && m.quote.text ? `<div class="qt-in"><b>${esc(m.quote.me ? (ME.name || '我') : c.name)}</b>${esc(m.quote.text)}</div>` : '';
+        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}"${fsInline}>${qHtml}${esc(m.text)}</div>${meta}</div>`;
     });
     box.innerHTML = html;
     box.dataset.chat = c.id;
@@ -2314,6 +2316,7 @@ async function pullReply() {
         const heart = replies.heart || null;
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const parts = replies.map(p => narrPart(p, c.name)).filter(Boolean);
+        parts.forEach(pt => { if (pt.quoteRaw) { pt.quote = resolveQuote(c, pt.quoteRaw); delete pt.quoteRaw; } });
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
         const startLen = c.msgs.length;
         await deliverMsgs(c, parts);
@@ -2362,7 +2365,9 @@ async function sendMessage() {
     if (!text || !activeId) return;
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c || c._busy) return;
-    c.msgs.push(Object.assign({me:true,text,t:nowTime(), ts: Date.now()}, narrInputMode ? {narr:true} : {})); c.time=nowTime(); playSfx('send');
+    const q = quoteDraft;
+    c.msgs.push(Object.assign({me:true,text,t:nowTime(), ts: Date.now()}, narrInputMode ? {narr:true} : {}, q ? { quote: { me: q.me, text: q.text } } : {})); c.time=nowTime(); playSfx('send');
+    clearQuote(true);
     input.value=''; autoGrow(); updateSend(); persistContacts(); renderThread(); renderChats();
 }
 function onKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
@@ -2387,7 +2392,7 @@ function narrInstruction() {
     return ` 本次需要加入旁白：旁白是描写动作、神态或环境的一句话，单独作为一条消息，并以【旁白】开头，每条旁白 ${NARR.min} 到 ${NARR.max} 字。旁白描写${mode}。旁白中提到用户时，使用${person}。`;
 }
 /* 解析单条回复：旁白保留，普通台词照旧清理 */
-function narrPart(p, name) {
+function narrPartBase(p, name) {
     const s = String(p || '').trim();
     const m = s.match(/^【旁白】\s*([\s\S]*)$/);
     if (m) {
@@ -2397,6 +2402,21 @@ function narrPart(p, name) {
     }
     const t = cleanMsgPart(s, name);
     return t ? { text: t, narr: false } : null;
+}
+/* 解析单条回复：先剥离开头的 <quote who="user|char">原话</quote>，再按旁白 / 普通台词处理 */
+function narrPart(p, name) {
+    const s = String(p || '').trim();
+    const qm = s.match(/^<quote\s+who="(user|char)">([\s\S]*?)<\/quote>\s*([\s\S]*)$/);
+    const r = narrPartBase(qm ? qm[3] : s, name);
+    if (r && qm && qm[2].trim()) r.quoteRaw = { me: qm[1] === 'user', text: qm[2].trim() };
+    return r;
+}
+/* 把模型给的引用原话对回聊天记录，存下原文快照 */
+function resolveQuote(c, q) {
+    const snip = String((q && q.text) || '').trim();
+    if (!snip) return null;
+    const hit = [...c.msgs].reverse().find(m => !m.narr && !!m.me === !!q.me && String(m.text || '').includes(snip));
+    return { me: !!q.me, text: hit ? String(hit.text) : snip };
 }
 /* 旁白弹窗背景图：相对于本脚本位置（js/apps/messages.js → ../../assets/聊天室设置背景图/旁白弹窗.jpg） */
 const NARR_BG_URL = new URL('../../assets/聊天室设置背景图/旁白弹窗.jpg', MSG_SCRIPT_URL || location.href).href;
@@ -2614,9 +2634,66 @@ function narrSet(key, value, rerender) {
 }
 function msgOf(x) {
     const o = typeof x === 'string' ? { text: x, narr: false } : x;
-    return { me: false, text: o.text, narr: !!o.narr, t: nowTime(), ts: Date.now() };
+    const out = { me: false, text: o.text, narr: !!o.narr, t: nowTime(), ts: Date.now() };
+    if (o.quote && o.quote.text) out.quote = { me: !!o.quote.me, text: String(o.quote.text) };
+    return out;
 }
 
+/* ---------------- 引用：消息向右滑动即可引用 ---------------- */
+let quoteDraft = null;
+function quoteMessage(i) {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
+    const m = c.msgs[i]; if (!m || m.narr) return;
+    quoteDraft = { me: !!m.me, text: String(m.text || '') };
+    showQuoteBar();
+}
+function showQuoteBar() {
+    const composer = document.getElementById('composer'); if (!composer || !quoteDraft) return;
+    let bar = composer.querySelector('.quote-bar');
+    if (!bar) { bar = document.createElement('div'); bar.className = 'quote-bar'; composer.insertBefore(bar, composer.firstChild); }
+    const c = CONTACTS.find(x => x.id === activeId);
+    const who = quoteDraft.me ? (ME.name || '我') : (c ? c.name : '');
+    bar.innerHTML = `<span class="qb-who">${esc(who)}</span><span class="qb-txt">${esc(quoteDraft.text)}</span><button class="qb-x" type="button" onclick="clearQuote()" aria-label="取消引用">×</button>`;
+    composer.classList.add('quoting');
+}
+function clearQuote(silent) {
+    quoteDraft = null;
+    const composer = document.getElementById('composer'); if (!composer) return;
+    const bar = composer.querySelector('.quote-bar'); if (bar) bar.remove();
+    composer.classList.remove('quoting');
+}
+function bindSwipeQuote() {
+    const box = document.getElementById('thread'); if (!box || box.dataset.swipeQuote) return;
+    box.dataset.swipeQuote = '1';
+    let row = null, sx = 0, sy = 0, dx = 0, active = false;
+    box.addEventListener('pointerdown', e => {
+        if (MM && MM.mode === 'multi') return;
+        const r = e.target.closest && e.target.closest('.mrow');
+        if (!r || r.dataset.i === undefined) return;
+        row = r; sx = e.clientX; sy = e.clientY; dx = 0; active = false;
+    });
+    box.addEventListener('pointermove', e => {
+        if (!row) return;
+        const ddx = e.clientX - sx, ddy = e.clientY - sy;
+        if (!active) {
+            if (Math.abs(ddy) > 12) { row = null; return; }
+            if (ddx > 10) active = true;
+            else return;
+        }
+        dx = Math.max(0, Math.min(ddx, 90));
+        row.style.transition = 'none';
+        row.style.transform = `translateX(${dx}px)`;
+    });
+    const end = () => {
+        if (!row) return;
+        const r = row; row = null;
+        r.style.transition = ''; r.style.transform = '';
+        if (active && dx >= 50) { quoteMessage(Number(r.dataset.i)); if (navigator.vibrate) { try { navigator.vibrate(8); } catch (_) {} } }
+        active = false; dx = 0;
+    };
+    box.addEventListener('pointerup', end);
+    box.addEventListener('pointercancel', end);
+}
 function toggleQuickMenu(force) {
     const menu = document.getElementById('quickMenu');
     if (!menu) return;
@@ -5308,7 +5385,7 @@ markSaveCancelButtons();
 initComposerGesture();
 
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
-Object.assign(__messagesHandlers, {onRoomFontSize, openCssHelp, copyCssHelp, closeHeartPop, addPresetFromInput, presetNameKey, togglePresetPick, pickCssPreset, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
+Object.assign(__messagesHandlers, {clearQuote, onRoomFontSize, openCssHelp, copyCssHelp, closeHeartPop, addPresetFromInput, presetNameKey, togglePresetPick, pickCssPreset, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 
 /* ---------------- 心声：头像下的爱心 · 心声弹窗 · 波浪线切换 · 收藏柜 · 设置 ---------------- */
