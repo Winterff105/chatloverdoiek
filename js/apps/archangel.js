@@ -19,7 +19,13 @@
     /* 读取模型响应：流式（SSE）时边收边拼；若接口直接返回普通 JSON 则照常解析。统一返回 OpenAI 的 JSON 结构。 */
     async function readAiResponse(r){
         const ct=(r.headers&&r.headers.get&&r.headers.get('content-type'))||'';
-        if(!ct.includes('event-stream'))return await r.json();
+        if(!ct.includes('event-stream')){
+            try{
+                return await r.json();
+            }catch(e){
+                throw new Error('AI 返回的内容不是有效 JSON 响应，可能是网关错误页');
+            }
+        }
         const reader=r.body.getReader(), dec=new TextDecoder();
         /* 空闲超时：连续 AI_TIMEOUT 毫秒没有收到任何新数据就报错断开，避免无限等待。 */
         const withIdle=(p,rd)=>new Promise((res,rej)=>{
@@ -38,13 +44,17 @@
             if(typeof dl.content==='string')content+=dl.content;
             if(typeof dl.reasoning_content==='string')reasoning+=dl.reasoning_content;
         };
-        for(;;){
-            const {done,value}=await withIdle(reader.read(),reader);
-            if(done)break;
-            buf+=dec.decode(value,{stream:true});
-            let i;while((i=buf.indexOf('\n'))>=0){handle(buf.slice(0,i).replace(/\r$/,''));buf=buf.slice(i+1)}
+        try{
+            for(;;){
+                const {done,value}=await withIdle(reader.read(),reader);
+                if(done)break;
+                buf+=dec.decode(value,{stream:true});
+                let i;while((i=buf.indexOf('\n'))>=0){handle(buf.slice(0,i).replace(/\r$/,''));buf=buf.slice(i+1)}
+            }
+            buf+=dec.decode();if(buf)handle(buf.replace(/\r$/,''));
+        }catch(streamErr){
+            if(!content&&!reasoning)throw streamErr;
         }
-        buf+=dec.decode();if(buf)handle(buf.replace(/\r$/,''));
         return {choices:[{message:{content,reasoning_content:reasoning}}],usage};
     }
     const ARCHANGEL_MARKUP = `
@@ -993,7 +1003,8 @@
         const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'};
         const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}};
         const G=()=>({token:$('#ar-gToken').value.trim(),owner:$('#ar-gOwner').value.trim(),repo:$('#ar-gRepo').value.trim(),branch:$('#ar-gBranch').value.trim()||'main'});
-        const A=()=>{if(localStorage.getItem('archangel.api.source')==='inherit'){const f=ld0('forever_settings_active_api_v1');return {base:String(f.url||'').replace(/\/+$/,''),key:String(f.key||'').trim(),model:localStorage.getItem('archangel.api.inheritModel')||String(f.model||'')}}return {base:$('#ar-aBase').value.trim().replace(/\/+$/,''),key:$('#ar-aKey').value.trim(),model:$('#ar-aModel').value}};
+        const cleanApiBase=u=>String(u||'').trim().replace(/\/chat\/completions\/?$/i,'').replace(/\/+$/,'');
+        const A=()=>{if(localStorage.getItem('archangel.api.source')==='inherit'){const f=ld0('forever_settings_active_api_v1');return {base:cleanApiBase(f.url),key:String(f.key||'').trim(),model:localStorage.getItem('archangel.api.inheritModel')||String(f.model||'')}}return {base:cleanApiBase($('#ar-aBase').value),key:$('#ar-aKey').value.trim(),model:$('#ar-aModel').value}};
         const ld0=k=>{try{return JSON.parse(localStorage.getItem(k))||{}}catch(e){return {}}};
         const ST={tree:[],key:'',files:{}};
         const rk=g=>`${g.owner}/${g.repo}@${g.branch}`;
@@ -1007,8 +1018,62 @@
         const base=g=>`https://api.github.com/repos/${encodeURIComponent(g.owner)}/${encodeURIComponent(g.repo)}`;
         const cu=(g,p)=>`${base(g)}/contents/${p.split('/').filter(Boolean).map(encodeURIComponent).join('/')}`;
         let stopCtl=null;
-        async function req(url,o,ms){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms||30000);if(stopCtl)stopCtl.signal.addEventListener('abort',()=>c.abort(),{once:true});try{return await fetch(url,{...o,signal:c.signal})}catch(e){if(stopCtl&&stopCtl.signal.aborted){const x=new Error('已停止');x.name='StopError';throw x}throw new Error(e.name=='AbortError'?'请求超时，请检查网络或设置':e.message)}finally{clearTimeout(t)}}
-        async function err(r){const t=await r.text();try{return JSON.parse(t).message||t}catch{return t||r.status}}
+        async function req(url,o,ms){
+          const c=new AbortController(),t=setTimeout(()=>c.abort(),ms||30000);
+          if(stopCtl)stopCtl.signal.addEventListener('abort',()=>c.abort(),{once:true});
+          try{
+            return await fetch(url,{...o,signal:c.signal});
+          }catch(e){
+            if(stopCtl&&stopCtl.signal.aborted){const x=new Error('已停止');x.name='StopError';throw x}
+            if(e.name==='AbortError')throw new Error('请求超时，请检查网络或设置');
+            const msg=String(e&&e.message||e);
+            if(msg.includes('Failed to fetch')||msg.includes('NetworkError')||msg.includes('Load failed')){
+              throw new Error('网络连接失败 (Failed to fetch)：可能是跨域(CORS)限制、网关超时(524)未回传头部，或接口地址不可达');
+            }
+            throw new Error(msg);
+          }finally{
+            clearTimeout(t);
+          }
+        }
+        async function err(r){
+          if(r.status===524)return 'Cloudflare 网关超时 (HTTP 524)：上游服务器或中转站响应超过 100 秒未返回流数据，请更换响应较快的模型或稍后重试。';
+          if(r.status===502||r.status===504)return `网关未响应 (HTTP ${r.status})：上游服务器连接超时或故障`;
+          let t='';try{t=await r.text()}catch(_){}
+          try{
+            const j=JSON.parse(t);
+            return (j.error&&j.error.message)||j.message||t;
+          }catch(_){
+            if(t.includes('<html')||t.includes('<!DOCTYPE'))return `HTTP ${r.status} ${r.statusText||'服务器响应错误'}`;
+            return t||r.status;
+          }
+        }
+        async function requestAiChat(a,payload,timeout){
+          const url=a.base+'/chat/completions';
+          const headers={
+            'Authorization':'Bearer '+a.key,
+            'Content-Type':'application/json',
+            'Accept':'text/event-stream, application/json'
+          };
+          let r=null,lastErr=null;
+          for(let attempt=0;attempt<2;attempt++){
+            try{
+              r=await req(url,{method:'POST',headers,body:JSON.stringify(payload)},timeout);
+              if(r.ok)break;
+              if(r.status===524||r.status===502||r.status===504||r.status===429){
+                if(attempt===0){await sleep(1500);continue}
+              }
+              break;
+            }catch(e){
+              lastErr=e;
+              if(stopCtl&&stopCtl.signal.aborted)throw e;
+              if(attempt===0){await sleep(1500);continue}
+            }
+          }
+          if(!r&&lastErr)throw lastErr;
+          if(!r)throw new Error('AI 请求无响应');
+          if(!r.ok)throw new Error('AI 请求失败（HTTP '+r.status+'）：'+await err(r));
+          return r;
+        }
         function b64(t){let s='';new TextEncoder().encode(t).forEach(b=>s+=String.fromCharCode(b));return btoa(s)}
         function unb64(v,p){try{const t=new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(String(v).replace(/\s/g,'')),c=>c.charCodeAt(0)));if(t.includes('\0'))throw 0;return t}catch{throw new Error(p+' 不是 UTF-8 文本文件')}}
         $('#ar-gSave').onclick=()=>{localStorage.setItem(K.g,JSON.stringify(G()));toast('GitHub 设置已保存')};
@@ -1059,9 +1124,7 @@
           if(a.model)$('#ar-aModel').innerHTML=`<option>${esc(a.model)}</option>`;})();
         async function ai(msgs){
           const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
-          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
-          let r=await go(true);if(!r.ok)r=await go(false);
-          if(!r.ok)throw new Error('AI 请求失败（HTTP '+r.status+'）：'+await err(r));
+          const r=await requestAiChat(a,{model:a.model,stream:true,messages:msgs,temperature:.15},AI_TIMEOUT);
           const d=await readAiResponse(r);runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
           const outText=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):m.content||'';runLog.push({label:'仓库调用 '+(runLog.length+1),raw:String(outText)});return outText;
         }
@@ -1729,9 +1792,7 @@
         async function chatText(msgs){
           const a=A();
           const short=uiCfg().short==='on';
-          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,messages:msgs,temperature:.8,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
-          let r=await go(true);if(!r.ok)r=await go(false);
-          if(!r.ok)throw new Error('AI 请求失败（HTTP '+r.status+'）：'+await err(r));
+          const r=await requestAiChat(a,{model:a.model,stream:true,messages:msgs,temperature:.8},AI_TIMEOUT);
           const d=await readAiResponse(r);runTokens+=(d.usage&&d.usage.total_tokens)||0;
           const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
           const rawOut=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');runLog.push({label:'聊天输出',raw:String(rawOut)});
