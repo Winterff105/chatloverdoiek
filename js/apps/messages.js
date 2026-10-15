@@ -2310,7 +2310,7 @@ async function pullReply() {
     showTyping(c);
     try {
         const countDesc = o.min === o.max ? `本次回复必须精确输出 ${o.min} 条独立消息气泡（messages 数组长度必须严格等于 ${o.min}，不多不少）` : `本次回复必须输出 ${o.min} 到 ${o.max} 条独立消息气泡（messages 数组长度必须在 ${o.min} 到 ${o.max} 之间，绝不可偷懒少发）`;
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【气泡条数硬性限制】：${countDesc}，严禁将多句话合并进同一个气泡。` + narrInstruction();
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【气泡条数硬性限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction, o.max);
