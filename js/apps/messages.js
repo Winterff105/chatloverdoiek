@@ -2148,6 +2148,8 @@ function renderThread(opts) {
     const shownCount = (opts && opts.noAnim) || box.dataset.chat !== c.id ? c.msgs.length : Number(box.dataset.count || 0);
     const avo = avOptsOf(c);
     const latestHid = latestHeartId(c);
+    let heartIdx = -1;
+    if (latestHid) c.msgs.forEach((m, i) => { if (!m.me && !m.narr && m.hid === latestHid) heartIdx = i; });
     const fsInline = (c.beauty && Number(c.beauty.fontSize)) ? ` style="font-size:${Number(c.beauty.fontSize)}px !important"` : '';
     let html = '<div class="day">Today</div>';
     c.msgs.forEach((m, i) => {
@@ -2163,7 +2165,7 @@ function renderThread(opts) {
         const lastInGroup = !next || next.narr || next.me !== m.me;
         const meta = lastInGroup ? `<span class="mt">${esc(m.t)}</span>` : '';
         const showAv = avo.scope === 'all' || newGroup;
-        const hv = (!m.me && m.hid && m.hid === latestHid) ? `<span class="hv-stack"><span class="hv-line"></span>${HEART_SVG}</span>` : '';
+        const hv = (i === heartIdx) ? `<span class="hv-stack"><span class="hv-line"></span>${HEART_SVG}</span>` : '';
         const sp = m.me ? '' : (avo.them && showAv ? `<div class="av-col"><span class="avf">${avatar(c, 'sm')}</span>${hv}</div>` : '<div class="sp"></div>');
         const spR = (m.me && avo.me) ? (showAv ? `<div class="av-col"><span class="avf">${selfAvatarHtml('sm')}</span></div>` : '<div style="width:32px;flex-shrink:0"></div>') : '';
         const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
@@ -3832,6 +3834,7 @@ function dropIdentityData(id) {
 function openSheet(innerHtml, bottom) {
     POP = { ok: null, cancel: null };
     const b = ensureSheet();
+    b.classList.remove('fade-only');
     b.classList.toggle('bottom', !!bottom);
     const box = b.querySelector('.identity-sheet');
     box.innerHTML = innerHtml;
@@ -3893,10 +3896,12 @@ const CSS_TEMPLATES = {
     ink:   '.mrow.me .bubble{background:#111111;color:#ffffff}',
     mist:  '.mrow.me .bubble{background:#dcdce2;color:#111111}',
     paper: '.mrow.me .bubble{background:#fff5e6;color:#3a2e22}',
-    round: '.bubble{border-radius:4px !important}'
+    round: '.bubble{border-radius:4px !important}',
+    roundOther: '.mrow:not(.me) .bubble{border-radius:20px !important}'
 };
-const CSS_TEMPLATE_LABELS = { ink: '墨黑', mist: '雾灰', paper: '奶白', round: '方角' };
+const CSS_TEMPLATE_LABELS = { ink: '墨黑', mist: '雾灰', paper: '奶白', round: '方角', roundOther: '对面圆角' };
 let ROOM_TAB = 0;
+let ROOM_SCROLL = 0;   // 设置页上次退出时的滚动位置
 
 /* 给用户写的 CSS 每条选择器加上前缀，只影响当前聊天，不会改到别的页面 */
 function scopeCss(css, scope) {
@@ -3928,7 +3933,7 @@ function scopeCss(css, scope) {
 function applyChatCss(css) {
     let st = document.getElementById('chatCustomCss');
     if (!st) { st = document.createElement('style'); st.id = 'chatCustomCss'; document.head.appendChild(st); }
-    st.textContent = scopeCss(css, '#chatView');
+    st.textContent = scopeCss(css, '.messages-app #chatView#chatView');
 }
 function chatCssOf(c) {
     const b = (c && c.beauty) || {};
@@ -4068,7 +4073,7 @@ function setBubbleFontNow(fs) {
     document.querySelectorAll('#chatView .bubble').forEach(b => b.style.setProperty('font-size', fs + 'px', 'important'));
 }
 function onRoomFontSize(v) {
-    const fs = parseFloat(v) || 14;
+    const fs = parseFloat(v) || 13;
     const c = CONTACTS.find(x => x.id === activeId);
     if (c) {
         c.beauty = Object.assign({}, c.beauty || {}, { fontSize: fs });
@@ -4086,7 +4091,7 @@ function onRoomFontSize(v) {
 }
 function roomBeautyPaneInner(c) {
     const hasBg = !!(c.beauty && c.beauty.bg);
-    const fs = (c.beauty && c.beauty.fontSize) || 14;
+    const fs = (c.beauty && c.beauty.fontSize) || 13;
     const pct = ((fs - 11) / (20 - 11) * 100).toFixed(1);
     return `
         <div class="rp-label">预览</div>
@@ -4096,9 +4101,9 @@ function roomBeautyPaneInner(c) {
         ${hasBg ? rpRow('恢复默认背景', '去掉这个聊天的背景图', 'clearRoomBg()', true) : ''}
         ${cfoldHtml('css', 'CSS 样式', `
         <div class="css-box">
-            <div class="css-hint">写在这里的样式只作用于这个聊天，例如 <code>.bubble{border-radius:4px}</code></div>
+            <div class="css-hint"><button class="css-help-btn" type="button" onclick="openCssHelp()" aria-label="查看可控制的样式">!</button><span class="css-hint-l1">写在这里的样式只作用于这个聊天，</span><span class="css-hint-l2">例如 <code>.bubble{border-radius:4px}</code></span></div>
             <textarea id="roomCssInput" class="css-input" spellcheck="false" autocapitalize="off" placeholder="例如 .mrow.me .bubble{background:#111;color:#fff}" oninput="previewRoomCss(this.value)"></textarea>
-            <div class="css-tpl">${Object.keys(CSS_TEMPLATES).map(k => `<button class="css-tpl-btn" type="button" onclick="fillRoomCss('${k}')">${CSS_TEMPLATE_LABELS[k]}</button>`).join('')}</div>
+            <div class="css-tpl"><button class="css-tpl-add" type="button" onclick="addPresetFromInput()" aria-label="添加预设"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button><div class="preset-pick" id="presetPick"><button class="css-tpl-btn" type="button" onclick="togglePresetPick()">选择预设</button><div class="preset-list" id="presetList"></div></div><input id="presetNameInput" class="css-tpl-name" type="text" maxlength="20" aria-label="预设名字" onkeydown="presetNameKey(event)">${['round', 'roundOther'].map(k => `<button class="css-tpl-btn" type="button" onclick="fillRoomCss('${k}')">${CSS_TEMPLATE_LABELS[k]}</button>`).join('')}</div>
             <div class="css-fs-row">
                 <div class="css-fs-head"><span class="css-fs-lbl">气泡字号</span><span class="css-fs-val" id="roomFsVal">${fs}px</span></div>
                 <input class="mq-range css-fs-range" type="range" min="11" max="20" step="0.5" value="${fs}" style="--p:${pct}%" oninput="onRoomFontSize(this.value)">
@@ -4106,6 +4111,95 @@ function roomBeautyPaneInner(c) {
         </div>
         <div class="css-actions"><button class="css-clear" type="button" onclick="clearRoomCss()">清空</button><button class="css-save" type="button" onclick="saveRoomCss()">保存样式</button></div>`)}
         `;
+}
+const CSS_HELP_ITEMS = [
+    ['#chatView', '整个聊天室页面'],
+    ['.chat-head', '顶部栏'],
+    ['.glass-btn', '顶部圆形按钮'],
+    ['.gear-btn', '设置按钮'],
+    ['.thread', '消息区域（gap 控制消息之间的间距）'],
+    ['.mrow', '每一行消息（头像 + 气泡）'],
+    ['.mrow.me', '我发的消息行'],
+    ['.mrow:not(.me)', '对方的消息行'],
+    ['.mrow.gap', '换人说话时的间距'],
+    ['.bubble', '所有气泡'],
+    ['.mrow.me .bubble', '我的气泡'],
+    ['.mrow:not(.me) .bubble', '对方的气泡'],
+    ['.bubble.g-single / .g-head / .g-mid / .g-tail', '同一人连续说话时，气泡在组里的位置'],
+    ['.narr', '旁白'],
+    ['.day', '日期'],
+    ['.mt', '消息时间'],
+    ['.avf', '头像外框'],
+    ['.av', '头像'],
+    ['.hv-stack', '心声爱心（含连接线）'],
+    ['.hv-heart', '心声爱心图标'],
+    ['.composer', '底部输入栏'],
+];
+function cssHelpText() {
+    return '/* 可以控制的选择器（写在这里的样式只作用于这个聊天室） */\n'
+        + CSS_HELP_ITEMS.map(([sel, desc]) => `${sel} { }   /* ${desc} */`).join('\n')
+        + '\n\n/* 示例：对面圆角气泡 */\n.mrow:not(.me) .bubble { border-radius: 20px !important; }\n'
+        + '/* 样式不生效时，请在末尾加 !important */';
+}
+function openCssHelp() {
+    openSheet(`<div class="sheet-title"><span>可控制的样式</span></div>
+        <textarea id="cssHelpText" class="css-input" readonly spellcheck="false" style="height:300px;width:100%;box-sizing:border-box"></textarea>
+        <button class="identity-cancel" type="button" onclick="copyCssHelp()">复制全部</button>`);
+    document.getElementById('cssHelpText').value = cssHelpText();
+    ensureSheet().classList.add('fade-only');
+}
+function copyCssHelp() {
+    const t = document.getElementById('cssHelpText'); if (!t) return;
+    const text = t.value;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => toast('已复制'), () => fallbackCopy(t));
+    } else fallbackCopy(t);
+}
+function fallbackCopy(t) {
+    t.focus(); t.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (_) {}
+    toast(ok ? '已复制' : '复制失败，请手动全选复制');
+}
+/* ---------------- CSS 预设（直接在按钮行里操作，不用弹窗） ---------------- */
+const CSS_PRESET_KEY = 'forever_messages_css_presets_v1';
+function loadCssPresets() { try { const v = JSON.parse(localStorage.getItem(CSS_PRESET_KEY) || '[]'); return Array.isArray(v) ? v.filter(x => x && x.name) : []; } catch (_) { return []; } }
+function saveCssPresets(list) { try { localStorage.setItem(CSS_PRESET_KEY, JSON.stringify(list)); } catch (e) { toast('保存失败：存储空间可能不足'); } }
+/* 添加预设：名字取输入框，CSS 取上面的输入框，点一下就保存 */
+function addPresetFromInput() {
+    const nameEl = document.getElementById('presetNameInput');
+    const ta = document.getElementById('roomCssInput');
+    const name = nameEl ? nameEl.value.trim() : '';
+    const css = ta ? ta.value : '';
+    if (!name) { toast('先在输入框写一个名字'); return; }
+    if (!css.trim()) { toast('先在上面写一些 CSS'); return; }
+    const list = loadCssPresets().filter(x => x.name !== name);
+    list.unshift({ name, css });
+    saveCssPresets(list);
+    nameEl.value = '';
+    refreshPresetList();
+    toast('已添加预设「' + name + '」');
+}
+function presetNameKey(e) { if (e.key === 'Enter') { e.preventDefault(); addPresetFromInput(); } }
+/* 选择预设：按钮展开成一个框，框里列出预设 */
+function togglePresetPick() {
+    const box = document.getElementById('presetPick'); if (!box) return;
+    const open = !box.classList.contains('open');
+    box.classList.toggle('open', open);
+    if (open) refreshPresetList();
+}
+function refreshPresetList() {
+    const el = document.getElementById('presetList'); if (!el) return;
+    const list = loadCssPresets();
+    el.innerHTML = list.length
+        ? list.map((p, i) => `<button class="preset-item" type="button" onclick="pickCssPreset(${i})">${esc(p.name)}</button>`).join('')
+        : '<div class="preset-empty">还没有预设</div>';
+}
+function pickCssPreset(i) {
+    const p = loadCssPresets()[i]; if (!p) return;
+    const ta = document.getElementById('roomCssInput');
+    if (ta) { ta.value = p.css; previewRoomCss(p.css); }
+    const box = document.getElementById('presetPick'); if (box) box.classList.remove('open');
+    toast('已套用「' + p.name + '」，记得点保存样式');
 }
 function fillRoomCss(key) {
     const ta = document.getElementById('roomCssInput');
@@ -4149,7 +4243,7 @@ function openCssPreview() {
             <div class="mrow me"><div class="bubble g-single">好，我去订位</div></div>
         </div>
         <button class="identity-cancel" type="button" onclick="closeSheet()">关闭</button>`);
-    ensurePreviewStyle().textContent = scopeCss(chatCssOf(c), '#cssPreviewScope');
+    ensurePreviewStyle().textContent = scopeCss(chatCssOf(c), '.messages-app #cssPreviewScope#cssPreviewScope');
 }
 function clearRoomBg() {
     const c = CONTACTS.find(x => x.id === activeId);
@@ -4201,8 +4295,10 @@ function openRoomSettings() {
     if (!c) return;
     ensureRoomView();
     renderRoomHero(c);
-    setRoomTab(0);
+    setRoomTab(ROOM_TAB);
     roomEl.classList.add('open');
+    const body = roomEl.querySelector('.room-body');
+    if (body) body.scrollTop = ROOM_SCROLL;
 }
 function roomAction(kind) {
     const c = CONTACTS.find(x => x.id === activeId);
@@ -4241,6 +4337,8 @@ function renderRoomPane() {
 
 function closeRoomView() {
     stopRoomTicker();
+    const body = roomEl && roomEl.querySelector('.room-body');
+    if (body) ROOM_SCROLL = body.scrollTop;
     if (roomEl) roomEl.classList.remove('open');
 }
 
@@ -5115,6 +5213,55 @@ function deleteMoment(id) {
     });
 }
 
+/* 输入时防止整个应用容器被浏览器滚动（overflow:hidden 的容器仍会被滚动，导致底部滑轮被顶上去） */
+function resetHiddenScroll(from) {
+    let n = from;
+    while (n && n !== document.body) {
+        if (n.scrollTop || n.scrollLeft) {
+            const ov = getComputedStyle(n).overflow + getComputedStyle(n).overflowY;
+            if (/hidden/.test(ov)) { n.scrollTop = 0; n.scrollLeft = 0; }
+        }
+        n = n.parentElement;
+    }
+}
+function freezeRoomForTyping() {
+    const rv = document.getElementById('roomView'); if (!rv) return;
+    rv.classList.add('typing');
+    window.scrollTo(0, 0);
+    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+}
+document.addEventListener('focusin', e => {
+    const t = e.target;
+    if (!t || !t.closest || !t.closest('.messages-app')) return;
+    if (!/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+    const app = document.querySelector('.messages-app');
+    const inRoom = !!t.closest('#roomView');
+    if (inRoom) freezeRoomForTyping();
+    [0, 120, 300, 600].forEach(ms => setTimeout(() => {
+        if (app) resetHiddenScroll(app);
+        resetHiddenScroll(t);
+        if (inRoom) { window.scrollTo(0, 0); if (document.scrollingElement) document.scrollingElement.scrollTop = 0; }
+    }, ms));
+});
+document.addEventListener('focusout', e => {
+    const t = e.target;
+    if (!t || !t.closest || !t.closest('#roomView')) return;
+    setTimeout(() => {
+        const a = document.activeElement;
+        if (!a || !a.closest || !a.closest('#roomView')) {
+            const rv = document.getElementById('roomView'); if (rv) rv.classList.remove('typing');
+        }
+    }, 300);
+});
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('scroll', () => {
+        const a = document.activeElement;
+        if (a && a.closest && a.closest('.messages-app') && /^(INPUT|TEXTAREA)$/.test(a.tagName)) {
+            const app = document.querySelector('.messages-app'); if (app) resetHiddenScroll(app);
+            if (a.closest('#roomView')) { window.scrollTo(0, 0); if (document.scrollingElement) document.scrollingElement.scrollTop = 0; }
+        }
+    });
+}
 /* ---------------- 初始化 ---------------- */
 CONTACTS = CONTACTS.map(normalizeContact);
 applyActiveThreads();
@@ -5161,7 +5308,7 @@ markSaveCancelButtons();
 initComposerGesture();
 
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
-Object.assign(__messagesHandlers, {onRoomFontSize, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
+Object.assign(__messagesHandlers, {onRoomFontSize, openCssHelp, copyCssHelp, closeHeartPop, addPresetFromInput, presetNameKey, togglePresetPick, pickCssPreset, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 
 /* ---------------- 心声：头像下的爱心 · 心声弹窗 · 波浪线切换 · 收藏柜 · 设置 ---------------- */
@@ -5250,7 +5397,7 @@ function ensureHeartPop(){
     applyHeartCss();
 
     mask.addEventListener('click', e => { if (e.target === mask) mask.classList.remove('show'); });
-    document.getElementById('hpClose').onclick = () => mask.classList.remove('show');
+    document.getElementById('hpClose').onclick = () => closeHeartPop();
     document.getElementById('hpSet').onclick = () => {
         const s = heartSettings();
         document.getElementById('hpCssBox').value = s.css || '';
@@ -5311,7 +5458,13 @@ function openHeart(cid, rid){
     const pop = document.getElementById('hpPop');
     pop.classList.remove('is-set', 'is-fav');
     renderHeartPop();
-    document.getElementById('hpMask').classList.add('show');
+    const mk = document.getElementById('hpMask'); clearTimeout(mk._closeT); mk.classList.remove('closing'); mk.classList.add('show');
+}
+function closeHeartPop(){
+    const mask = document.getElementById('hpMask'); if (!mask || !mask.classList.contains('show')) return;
+    mask.classList.add('closing');
+    clearTimeout(mask._closeT);
+    mask._closeT = setTimeout(() => { mask.classList.remove('show', 'closing'); }, 250);
 }
 /* 切换上一轮 / 下一轮 */
 function hpGo(delta){

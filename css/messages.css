@@ -2632,7 +2632,7 @@
 .messages-app .mrow.gap{ margin-top: 12px; }
 
 /* 气泡整体缩小一点；我和对方之间的间距加长；同一个人连续说话的间距不变 */
-.messages-app .bubble{ padding: 7px 12px; font-size: var(--bubble-fs, 14px) !important; }
+.messages-app .bubble{ padding: 7px 12px; font-size: var(--bubble-fs, 13px) !important; }
 .messages-app .mrow.gap{ margin-top: 18px; }
 
 /* ===================== 聊天室顶栏下滑面板（与顶栏胶囊同款质感） ===================== */
@@ -4863,10 +4863,50 @@
 .messages-app .av-col .avf{ display:flex; }
 /* 爱心挂在头像下方，绝对定位，不参与布局，所以不会把头像推离气泡 */
 .messages-app .av-col .hv-stack{ position:absolute; left:0; right:0; top:100%; margin-top:0; }
-/* 带爱心的那一行，底部留出空间，爱心不压到后面的消息 */
-.messages-app .mrow.has-hv{ margin-bottom:24px; }
+/* 带爱心的那一行不改变间距：爱心挂在头像下方，伸进间距里，不影响下一条消息的位置 */
 
 /* ===================== 心声弹窗 / 心声设置：渐显 ===================== */
 @keyframes hpFadeIn{ from{ opacity:0; } to{ opacity:1; } }
 .messages-app .hp-mask.show .hp-pop{ animation:hpFadeIn .35s ease both; }
 .messages-app .hp-pop.is-set .hp-set-view{ animation:hpFadeIn .35s ease both; }
+
+/* ===================== 心声弹窗关闭：淡出 ===================== */
+@keyframes hpFadeOut{ from{ opacity:1; } to{ opacity:0; } }
+.messages-app .hp-mask.closing{ animation:hpFadeOut .25s ease both; }
+
+/* ===================== CSS 样式：「!」帮助按钮 ===================== */
+.messages-app .css-help-btn{ float:right; display:flex; align-items:center; justify-content:center; width:18px; height:18px; margin:1px 0 0 10px; padding:0; border-radius:50%; border:1px solid rgba(255,255,255,.55); background:rgba(255,255,255,.12); color:#fff; font-size:12px; font-weight:700; line-height:1; cursor:pointer; }
+
+/* ===================== CSS 样式「!」弹窗：只渐显，不从下往上滑出 ===================== */
+.messages-app .identity-sheet-backdrop.fade-only .identity-sheet{ transform:none !important; opacity:0; transition:opacity .3s ease !important; }
+.messages-app .identity-sheet-backdrop.fade-only.show .identity-sheet{ opacity:1; }
+
+/* ===================== 提示文字：第一行居中，第二行右缩进 ===================== */
+.messages-app .css-hint-l1{ display:block; text-align:center; }
+.messages-app .css-hint-l2{ display:block; text-align:left; padding-left:22px; }
+
+/* ===================== 预设按钮：白色圆形加号 ===================== */
+.messages-app .css-tpl-add{ width:26px; height:26px; padding:0; border:0; border-radius:50%; background:#FFFFFF; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,.18); }
+.messages-app .css-tpl-add svg{ width:13px; height:13px; stroke:#111; stroke-width:2; fill:none; stroke-linecap:round; }
+
+/* ===================== 所有弹窗：只渐显，不从下往上滑出 ===================== */
+.messages-app .identity-sheet-backdrop .identity-sheet{ transform:none !important; opacity:0; transition:opacity .3s ease !important; }
+.messages-app .identity-sheet-backdrop.show .identity-sheet{ opacity:1; }
+
+/* ===================== 预设：选择预设展开框 / 名字输入框 ===================== */
+.messages-app .preset-pick{ display:flex; flex-direction:column; border-radius:18px; background:rgba(255,255,255,.1); overflow:hidden; transition:background .3s ease; }
+.messages-app .preset-pick > .css-tpl-btn{ background:transparent; border-radius:18px; }
+.messages-app .preset-pick.open{ flex-basis:100%; background:rgba(255,255,255,.08); }
+.messages-app .preset-list{ display:flex; flex-direction:column; gap:6px; max-height:0; opacity:0; padding:0 10px; overflow:hidden; transition:max-height .3s ease, opacity .3s ease, padding .3s ease; }
+.messages-app .preset-pick.open .preset-list{ max-height:260px; opacity:1; padding:4px 10px 10px; overflow-y:auto; }
+.messages-app .preset-item{ border:0; border-radius:12px; padding:8px 12px; background:rgba(255,255,255,.1); color:#fff; font-size:12px; text-align:left; cursor:pointer; }
+.messages-app .preset-empty{ font-size:12px; color:rgba(255,255,255,.5); text-align:center; padding:6px 0; }
+.messages-app .css-tpl-name{ width:70px; height:28px; border:0; border-radius:999px; padding:0 10px; box-sizing:border-box; background:rgba(255,255,255,.1); color:#fff; font-size:11px; outline:none; }
+
+/* ===================== 选择预设 / 方角 / 对面圆角：三个按钮同样大小 ===================== */
+.messages-app .css-tpl > .css-tpl-btn,
+.messages-app .preset-pick > .css-tpl-btn{ box-sizing:border-box; width:80px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size:11px; line-height:1; white-space:nowrap; }
+.messages-app .preset-pick:not(.open){ flex:0 0 auto; width:80px; }
+
+/* ===================== 聊天室设置：输入时固定页面，底部滑轮不被顶起 ===================== */
+.messages-app #roomView.typing{ position:fixed; inset:0; height:100%; }
