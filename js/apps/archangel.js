@@ -4,6 +4,32 @@
 (function () {
     /* AI 接口超时（毫秒）。非流式接口要等模型把整段回复生成完才返回，改文件时输出较长，需要留足时间。停止按钮仍可随时中断。 */
     const AI_TIMEOUT = 600000;
+
+    /* 读取模型响应：流式（SSE）时边收边拼；若接口直接返回普通 JSON 则照常解析。统一返回 OpenAI 的 JSON 结构。 */
+    async function readAiResponse(r){
+        const ct=(r.headers&&r.headers.get&&r.headers.get('content-type'))||'';
+        if(!ct.includes('event-stream'))return await r.json();
+        const reader=r.body.getReader(), dec=new TextDecoder();
+        let buf='', content='', reasoning='', usage=null;
+        const handle=line=>{
+            if(!line.startsWith('data:'))return;
+            const data=line.slice(5).trim();
+            if(!data||data==='[DONE]')return;
+            let j;try{j=JSON.parse(data)}catch(e){return}
+            if(j.usage)usage=j.usage;
+            const dl=(j.choices&&j.choices[0]&&j.choices[0].delta)||{};
+            if(typeof dl.content==='string')content+=dl.content;
+            if(typeof dl.reasoning_content==='string')reasoning+=dl.reasoning_content;
+        };
+        for(;;){
+            const {done,value}=await reader.read();
+            if(done)break;
+            buf+=dec.decode(value,{stream:true});
+            let i;while((i=buf.indexOf('\n'))>=0){handle(buf.slice(0,i).replace(/\r$/,''));buf=buf.slice(i+1)}
+        }
+        buf+=dec.decode();if(buf)handle(buf.replace(/\r$/,''));
+        return {choices:[{message:{content,reasoning_content:reasoning}}],usage};
+    }
     const ARCHANGEL_MARKUP = `
 <div class="app">
   <div class="sidebar-backdrop closed" id="ar-sideBackdrop"></div>
@@ -1016,10 +1042,10 @@
           if(a.model)$('#ar-aModel').innerHTML=`<option>${esc(a.model)}</option>`;})();
         async function ai(msgs){
           const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
-          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
+          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
           let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败：'+await err(r));
-          const d=await r.json();runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
+          const d=await readAiResponse(r);runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
           const outText=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):m.content||'';runLog.push({label:'仓库调用 '+(runLog.length+1),raw:String(outText)});return outText;
         }
         function pj(t){const c=String(t||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');try{return JSON.parse(c)}catch{const i=c.indexOf('{'),j=c.lastIndexOf('}');if(i<0||j<=i)throw new Error('AI 返回的不是有效 JSON');return JSON.parse(c.slice(i,j+1))}}
@@ -1646,10 +1672,10 @@
         async function chatText(msgs){
           const a=A();
           const short=uiCfg().short==='on';
-          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,messages:msgs,temperature:.8,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
+          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,messages:msgs,temperature:.8,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
           let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败：'+await err(r));
-          const d=await r.json();runTokens+=(d.usage&&d.usage.total_tokens)||0;
+          const d=await readAiResponse(r);runTokens+=(d.usage&&d.usage.total_tokens)||0;
           const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
           const rawOut=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');runLog.push({label:'聊天输出',raw:String(rawOut)});
 
