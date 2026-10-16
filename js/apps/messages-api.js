@@ -207,12 +207,34 @@
   /* 每条消息的时间：优先用精确时间戳，老数据只有 HH:MM 就用它 */
   function msgTimeLabel(m) { return m.ts ? tsFmt(m.ts) : (m.t || ''); }
 
+  /* 世界书：根据当前联系人与最近聊天文本匹配词条设定 */
+  function worldBookBlockOf(contact, recentMsgs, fillU) {
+    try {
+      if (window.WorldBook) {
+        if (typeof window.WorldBook.getChatPrompt === 'function') {
+          const p = window.WorldBook.getChatPrompt(contact, recentMsgs);
+          if (p) return fillU ? fillU(p) : p;
+        }
+        if (typeof window.WorldBook.getPrompt === 'function') {
+          const p = window.WorldBook.getPrompt(contact, recentMsgs);
+          if (p) return fillU ? fillU(p) : p;
+        }
+      }
+      if (typeof window.getWorldBookPrompt === 'function') {
+        const p = window.getWorldBookPrompt(contact, recentMsgs);
+        if (p) return fillU ? fillU(p) : p;
+      }
+    } catch (_) {}
+    return '';
+  }
+
   /* 返回值：消息字符串数组，每一项对应一个气泡 */
   async function replyFor(contact, instruction, limit) {
     const c = config(); if (!isConfigured()) throw new Error('请先返回主界面，在「设置 → API」里保存接口地址、密钥和模型');
     const memCount = (contact.mem && contact.mem.ctx) || 30;
     const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
     const memBlock = buildMemBlock(contact.memories || [], fillU);
+    const wbBlock = worldBookBlockOf(contact, (contact.msgs || []).slice(-memCount), fillU);
     const hasNarr = (contact.msgs || []).slice(-memCount).some(m => m.narr);
     const getPromptText = k => (typeof window.getChatPromptText === 'function' ? window.getChatPromptText(k) : '');
     const PROMPT_OPT_TEXT = {
@@ -247,6 +269,7 @@
     const greasyBlock = greasyItems.length ? ['【防油腻条目】'].concat(greasyItems.map(t => '- ' + t)).join('\n') : '';
     const system = [
       c.systemPrompt,
+      wbBlock,
       memBlock,
       promptBlock,
       greasyBlock,
