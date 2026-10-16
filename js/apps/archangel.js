@@ -1020,7 +1020,7 @@
         const base=g=>`https://api.github.com/repos/${encodeURIComponent(g.owner)}/${encodeURIComponent(g.repo)}`;
         const cu=(g,p)=>`${base(g)}/contents/${p.split('/').filter(Boolean).map(encodeURIComponent).join('/')}`;
         let stopCtl=null;
-        async function req(url,o,ms){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms||30000);if(stopCtl)stopCtl.signal.addEventListener('abort',()=>c.abort(),{once:true});try{return await fetch(url,{...o,signal:c.signal})}catch(e){if(stopCtl&&stopCtl.signal.aborted){const x=new Error('已停止');x.name='StopError';throw x}throw new Error(e.name=='AbortError'?'请求超时，请检查网络或设置':e.message)}finally{clearTimeout(t)}}
+        async function req(url,o,ms){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms||30000);if(stopCtl)stopCtl.signal.addEventListener('abort',()=>c.abort(),{once:true});try{return await fetch(url,{...o,signal:c.signal})}catch(e){if(stopCtl&&stopCtl.signal.aborted){const x=new Error('已停止');x.name='StopError';throw x}throw new Error(e.name=='AbortError'?'请求超时，请检查网络或设置':(e instanceof TypeError?'网络请求失败（'+e.message+'）：连接被中断、跨域被拒绝，或网关超时（524），请检查 API 地址后重试':e.message))}finally{clearTimeout(t)}}
         async function err(r){const t=await r.text();try{return JSON.parse(t).message||t}catch{return t||r.status}}
         function b64(t){let s='';new TextEncoder().encode(t).forEach(b=>s+=String.fromCharCode(b));return btoa(s)}
         function unb64(v,p){try{const t=new TextDecoder('utf-8',{fatal:true}).decode(Uint8Array.from(atob(String(v).replace(/\s/g,'')),c=>c.charCodeAt(0)));if(t.includes('\0'))throw 0;return t}catch{throw new Error(p+' 不是 UTF-8 文本文件')}}
@@ -1070,9 +1070,9 @@
           $('#ar-gToken').value=g.token||'';$('#ar-gOwner').value=g.owner||'';$('#ar-gRepo').value=g.repo||'';$('#ar-gBranch').value=g.branch||'main';
           $('#ar-aBase').value=a.base||'https://api.openai.com/v1';$('#ar-aKey').value=a.key||'';
           if(a.model)$('#ar-aModel').innerHTML=`<option>${esc(a.model)}</option>`;})();
-        async function ai(msgs,onProgress){
+        async function ai(msgs,onProgress,maxTokens){
           const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
-          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json','Accept':'text/event-stream','Cache-Control':'no-cache','Pragma':'no-cache'},body:JSON.stringify({model:a.model,stream:true,max_tokens:8192,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
+          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json','Accept':'text/event-stream'},body:JSON.stringify({model:a.model,stream:true,max_tokens:maxTokens||4096,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
           let r=await go(false);if(!r.ok&&(r.status===400||r.status===422))r=await go(true);
           if(!r.ok){
             const msg=await err(r);
@@ -1464,7 +1464,7 @@
                 const f=got.find(x=>x.path===fpath);
                 if(!f)continue;
                 try{
-                  const fix=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是代码修改助手。请直接给出该文件修改后的完整内容。','必须保留原文件的完整内容，不要用省略号代替。','只返回 JSON：{"files":[{"path":"'+f.path+'","content":"完整内容"}]}，不要 Markdown 围栏。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n需要修改的文件：\n===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`}]));
+                  const fix=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是代码修改助手。请直接给出该文件修改后的完整内容。','必须保留原文件的完整内容，不要用省略号代替。','只返回 JSON：{"files":[{"path":"'+f.path+'","content":"完整内容"}]}，不要 Markdown 围栏。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n需要修改的文件：\n===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`}],null,8192));
                   (getF(fix)).forEach(c=>handleMod(c,true));
                 }catch(e){}
               }
