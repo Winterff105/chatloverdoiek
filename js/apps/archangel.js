@@ -1602,7 +1602,7 @@
         function consoleDetailHTML(r,i){
           const raws=r.msg.raw||[];
           const rawHTML=raws.length
-            ?raws.map(x=>`<div class="ar-cd-raw"><div class="ar-cd-rl">${esc(x.label)}</div><pre>${esc(x.raw)}</pre></div>`).join('')
+            ?raws.map(x=>`<div class="ar-cd-raw"><div class="ar-cd-rl" style="display:flex;justify-content:space-between;align-items:center;"><span>${esc(x.label)}</span><button type="button" class="ar-cd-copy" style="padding:2px 8px;font-size:12px;border-radius:4px;background:var(--bg-3,#eee);color:var(--fg-1,#333);border:none;cursor:pointer;">复制</button></div><pre>${esc(x.raw)}</pre></div>`).join('')
             :'<div class="ar-cd-none">（这一轮没有保存原始输出，可能是旧记录）</div>';
           return `<section class="ar-cd-sec"><h4>RAW OUTPUT · 原始输出</h4>${rawHTML}</section>`;
         }
@@ -1619,7 +1619,11 @@
         function openConsole(){renderConsole();fadeSheet(consoleSheet,true)}
         consoleBtn.addEventListener('click',openConsole);
         host.querySelector('#ar-consClose').addEventListener('click',()=>fadeSheet(consoleSheet,false));
-        consoleSheet.addEventListener('click',e=>{if(e.target.id==='ar-consoleSheet')fadeSheet(consoleSheet,false)});
+        consoleSheet.addEventListener('click',e=>{
+          if(e.target.id==='ar-consoleSheet')fadeSheet(consoleSheet,false);
+          const cp=e.target.closest&&e.target.closest('.ar-cd-copy');
+          if(cp){const pre=cp.closest('.ar-cd-raw').querySelector('pre');if(pre)copyText(pre.textContent);}
+        });
         const bottomBar=host.querySelector('.bottom');
         /* ---- 待确认卡片：横向滑动文字时，才去掉省略号露出完整内容 ---- */
         host.addEventListener('scroll',e=>{
