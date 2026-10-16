@@ -88,7 +88,7 @@
 .archangel-app .confirm:disabled {opacity:.6;cursor:default}
 .archangel-app .bottom {padding:16px 20px calc(16px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(220,225,232,.7);background:rgba(255,255,255,.48);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);z-index:10}
 .archangel-app .comp {--w:52px;position:relative;height:40px}
-.archangel-app #ar-prompt {width:calc(100% - var(--w));height:40px;padding:0 calc(var(--w) + 14px) 0 18px;border:0;outline:0;border-radius:99px;color:#414951;background:rgba(255,255,255,.74);box-shadow:0 6px 16px rgba(130,140,155,.1)}
+.archangel-app #ar-prompt {width:calc(100% - var(--w));height:40px;padding:0 calc(var(--w) + 14px) 0 18px;border:0;outline:0;border-radius:99px;color:#414951;background:rgba(255,255,255,.74);box-shadow:0 6px 16px rgba(130,140,155,.1);overflow-x:auto;white-space:nowrap;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
 .archangel-app .act {position:absolute;top:0;right:0;height:40px;display:flex;overflow:hidden;border-radius:99px;background:rgba(255,255,255,.42);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 8px 18px rgba(130,140,155,.18)}
 .archangel-app .act button {white-space:nowrap;width:var(--w);border:0;background:transparent;color:#5d6670;font-size:13px;font-weight:600;letter-spacing:.06em;transition:background .2s}
 .archangel-app .act button:hover {background:rgba(255,255,255,.55)}
