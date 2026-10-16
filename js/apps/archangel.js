@@ -1315,7 +1315,9 @@
                 scroll();
               }
             };
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是高效的代码修改助手。根据需求匹配要改的文件（最多选 4 个，只能选列表中有的真实路径）。','intent：纯问答选 chat；查阅选 read；改动或上传仓库选 edit 或 create。','只返回极简 JSON：{"thinking":"简短思路","steps":["PARSE_REQUEST","SELECT_FILES","READ_CONTENT","BUILD_CHANGES"],"intent":"chat、read、edit 或 create","reply":"","outFiles":[],"uploadFiles":[],"files":[{"path":"真实路径","reason":"原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近对话：\n${recentText}\n\n仓库文件：\n${compactTree}${hitSection}`}],onStreamStep1));
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是高效的代码修改助手。根据需求匹配要改的文件（最多选 4 个，只能选列表中有的真实路径）。','intent 规则：只要用户要修改样式、调整界面、改代码、修复Bug或新增功能，即便需要先阅读文件，intent 也必须直接选 edit（严禁选 read，选 read 会导致无法生成修改卡片！只有在用户明确表示“只看不改/帮我看看代码/解释代码”等纯查看时才选 read；纯闲聊选 chat）。','只返回极简 JSON：{"thinking":"简短思路","steps":["PARSE_REQUEST","SELECT_FILES","READ_CONTENT","BUILD_CHANGES"],"intent":"chat、read、edit 或 create","reply":"","outFiles":[],"uploadFiles":[],"files":[{"path":"真实路径","reason":"原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近对话：\n${recentText}\n\n仓库文件：\n${compactTree}${hitSection}`}],onStreamStep1));
+            const isPureRead=/^(?:查看|查一下|帮我看|看下|看看|解释|分析|为什么|讲讲|读一下|查阅|介绍)/.test(text.trim()) || /(?:只看|不改|不需要改|不用改)/.test(text);
+            if(sel.intent==='read' && !isPureRead) sel.intent='edit';
             if(wantsRepoChange && ['chat','read'].includes(sel.intent)) sel.intent=/(新建|新增|添加文件|上传新文件|创建文件夹)/.test(text)?'create':'edit';
             if(sel.intent==='chat'){
               const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
