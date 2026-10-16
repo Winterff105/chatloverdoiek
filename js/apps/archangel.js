@@ -1072,7 +1072,7 @@
           if(a.model)$('#ar-aModel').innerHTML=`<option>${esc(a.model)}</option>`;})();
         async function ai(msgs,onProgress){
           const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
-          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,max_tokens:8192,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
+          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json','Accept':'text/event-stream','Cache-Control':'no-cache','Pragma':'no-cache'},body:JSON.stringify({model:a.model,stream:true,max_tokens:8192,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
           let r=await go(false);if(!r.ok&&(r.status===400||r.status===422))r=await go(true);
           if(!r.ok){
             const msg=await err(r);
