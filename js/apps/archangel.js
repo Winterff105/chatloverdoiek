@@ -1006,7 +1006,7 @@
         const K={g:'archangel.github.settings.v3',a:'archangel.api.settings.v3'};
         const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))||d}catch{return d}};
         const G=()=>({token:$('#ar-gToken').value.trim(),owner:$('#ar-gOwner').value.trim(),repo:$('#ar-gRepo').value.trim(),branch:$('#ar-gBranch').value.trim()||'main'});
-        const A=()=>{if(localStorage.getItem('archangel.api.source')==='inherit'){const f=ld0('forever_settings_active_api_v1');return {base:String(f.url||'').replace(/\/+$/,''),key:String(f.key||'').trim(),model:localStorage.getItem('archangel.api.inheritModel')||String(f.model||'')}}return {base:$('#ar-aBase').value.trim().replace(/\/+$/,''),key:$('#ar-aKey').value.trim(),model:$('#ar-aModel').value}};
+        const A=()=>{if(localStorage.getItem('archangel.api.source')==='inherit'){const f=ld0('whatever_settings_active_api_v1');return {base:String(f.url||'').replace(/\/+$/,''),key:String(f.key||'').trim(),model:localStorage.getItem('archangel.api.inheritModel')||String(f.model||'')}}return {base:$('#ar-aBase').value.trim().replace(/\/+$/,''),key:$('#ar-aKey').value.trim(),model:$('#ar-aModel').value}};
         const ld0=k=>{try{return JSON.parse(localStorage.getItem(k))||{}}catch(e){return {}}};
         const ST={tree:[],key:'',files:{}};
         const rk=g=>`${g.owner}/${g.repo}@${g.branch}`;
@@ -1866,7 +1866,7 @@
 
         /* ---- AI 接口：继承设置 API / 单独设置 API ---- */
         const API_SRC_KEY='archangel.api.source';
-        const inheritApi=()=>{try{const v=JSON.parse(localStorage.getItem('forever_settings_active_api_v1'))||{};return {base:String(v.url||'').replace(/\/+$/,''),key:String(v.key||''),model:String(v.model||'')}}catch(e){return {base:'',key:'',model:''}}};
+        const inheritApi=()=>{try{const v=JSON.parse(localStorage.getItem('whatever_settings_active_api_v1'))||{};return {base:String(v.url||'').replace(/\/+$/,''),key:String(v.key||''),model:String(v.model||'')}}catch(e){return {base:'',key:'',model:''}}};
         function applyApiSource(){
           const src=localStorage.getItem(API_SRC_KEY)==='inherit'?'inherit':'own', inh=inheritApi(), own=ld(K.a,{});
           host.querySelectorAll('#ar-apiSrc button').forEach(b=>b.classList.toggle('on',b.dataset.src===src));

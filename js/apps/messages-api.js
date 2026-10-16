@@ -1,6 +1,6 @@
-/* Messages uses the active API preset configured in the main Forever Settings app. */
+/* Messages uses the active API preset configured in the main whatever Settings app. */
 (function () {
-  const SETTINGS_KEY = 'forever_settings_active_api_v1';
+  const SETTINGS_KEY = 'whatever_settings_active_api_v1';
   const MAX_MESSAGES = 8;
   const ROLEPLAY_PROMPT = `[ROLEPLAY IDENTITY]
 
@@ -228,6 +228,20 @@
     return '';
   }
 
+  /* 读取当前在预设工坊中选用的生效预设 */
+  function loadActivePresetConfig() {
+    try {
+      const list = JSON.parse(localStorage.getItem('whatever_preset_custom_list_v2') || '[]');
+      const activeId = localStorage.getItem('whatever_preset_active_id_v2') || 'default';
+      if (Array.isArray(list) && list.length) {
+        const found = list.find(p => p.id === activeId);
+        if (found) return found;
+        return list[0];
+      }
+    } catch (_) {}
+    return null;
+  }
+
   /* 返回值：消息字符串数组，每一项对应一个气泡 */
   async function replyFor(contact, instruction, limit) {
     const c = config(); if (!isConfigured()) throw new Error('请先返回主界面，在「设置 → API」里保存接口地址、密钥和模型');
@@ -246,7 +260,7 @@
     };
     const promptExtra = (contact.promptOpts || []).map(k => PROMPT_OPT_TEXT[k]).filter(Boolean);
     let styleSettings = null;
-    try { styleSettings = JSON.parse(localStorage.getItem('forever_chat_prompt_settings_v1') || 'null'); } catch (_) {}
+    try { styleSettings = JSON.parse(localStorage.getItem('whatever_chat_prompt_settings_v1') || 'null'); } catch (_) {}
     let styleBlock = '';
     if (styleSettings && styleSettings.enabled !== false) {
       const words = Array.isArray(styleSettings.words) ? styleSettings.words.map(String).filter(Boolean) : [];
@@ -267,8 +281,10 @@
     const greasyItems = ((contact.promptOpts || []).includes('greasy') && Array.isArray(contact.greasyEntries))
       ? contact.greasyEntries.map(x => x && String(x.text || '').trim()).filter(Boolean) : [];
     const greasyBlock = greasyItems.length ? ['【防油腻条目】'].concat(greasyItems.map(t => '- ' + t)).join('\n') : '';
-    const system = [
-      c.systemPrompt,
+
+    // 系统核心底层人设与对话环境
+    const systemCoreText = [
+      ROLEPLAY_PROMPT,
       wbBlock,
       memBlock,
       promptBlock,
@@ -283,17 +299,85 @@
       contact.relation ? `与你的关系：${contact.relation}` : '',
       hasNarr ? '以【旁白】开头的内容是旁白，描写动作、神态或环境，不是对话，也不是对方说的话。' : '',
       timeBlockOf(contact),
-      heartBlockOf(),
       QUOTE_RULE,
       (contact.msgs || []).length ? '【时间感知】每条消息开头方括号里是这条消息的发送时间，只用来理解时间流逝和时段（比如深夜、隔了几天）。你的回复不要写时间或方括号。' : '',
       instruction || ''
     ].filter(Boolean).join('\n');
-    const messages = [{ role: 'system', content: system }];
-    for (const m of (contact.msgs || []).slice(-memCount)) {
-      const tl = msgTimeLabel(m);
-      const qp = m.quote && m.quote.text ? `(引用${m.quote.me ? '{{user}}' : '{{char}}'}的消息「${String(m.quote.text).slice(0, 80)}」) ` : '';
-      messages.push({ role: m.me ? 'user' : 'assistant', content: (tl ? `[${tl}] ` : '') + qp + (m.narr ? '【旁白】' : '') + String(m.text || '') });
+
+    // 格式与心声输出协议
+    const protocolFormatText = [
+      FORMAT_PROMPT,
+      heartBlockOf()
+    ].filter(Boolean).join('\n');
+
+    // 上下文历史流消息装配
+    function buildHistoryMessages() {
+      const history = [];
+      for (const m of (contact.msgs || []).slice(-memCount)) {
+        const tl = msgTimeLabel(m);
+        const qp = m.quote && m.quote.text ? `(引用${m.quote.me ? '{{user}}' : '{{char}}'}的消息「${String(m.quote.text).slice(0, 80)}」) ` : '';
+        history.push({ role: m.me ? 'user' : 'assistant', content: (tl ? `[${tl}] ` : '') + qp + (m.narr ? '【旁白】' : '') + String(m.text || '') });
+      }
+      return history;
     }
+
+    const activePreset = loadActivePresetConfig();
+    const messages = [];
+
+    // 根据预设中的积木堆叠顺序精准注入各模块
+    if (!activePreset || !Array.isArray(activePreset.blocks) || !activePreset.blocks.length) {
+      const fullSystem = [systemCoreText, protocolFormatText].filter(Boolean).join('\n\n');
+      messages.push({ role: 'system', content: fullSystem });
+      messages.push(...buildHistoryMessages());
+    } else {
+      let pendingSystem = [];
+      let historyPushed = false;
+      let corePushed = false;
+      let formatPushed = false;
+
+      const flushSystem = () => {
+        if (pendingSystem.length) {
+          messages.push({ role: 'system', content: pendingSystem.join('\n\n') });
+          pendingSystem = [];
+        }
+      };
+
+      for (const b of activePreset.blocks) {
+        if (!b) continue;
+        if (b.type === 'anchor') {
+          flushSystem();
+          messages.push(...buildHistoryMessages());
+          historyPushed = true;
+        } else if (b.type === 'system') {
+          const title = String(b.title || '');
+          if (title.includes('协议') || title.includes('Protocol') || title.includes('格式')) {
+            pendingSystem.push(protocolFormatText);
+            formatPushed = true;
+          } else {
+            pendingSystem.push(systemCoreText);
+            corePushed = true;
+          }
+        } else if (b.type === 'custom') {
+          if (b.enabled !== false && b.text && String(b.text).trim()) {
+            pendingSystem.push(fillU(String(b.text).trim()));
+          }
+        }
+      }
+
+      // 确保核心必要模块均已到位
+      if (!corePushed) {
+        pendingSystem.unshift(systemCoreText);
+      }
+      if (!historyPushed) {
+        flushSystem();
+        messages.push(...buildHistoryMessages());
+      }
+      if (!formatPushed) {
+        pendingSystem.push(protocolFormatText);
+      }
+      flushSystem();
+    }
+
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages }, 0.8)) }); }
     catch (e) { throw new Error(String((e && e.message) || e)); }

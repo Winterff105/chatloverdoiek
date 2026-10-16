@@ -155,7 +155,7 @@ const APPS = {
         </svg>`
     },
     'todo': {
-        name: '清单',
+        name: '预设',
         svg: `<svg viewBox="0 0 40 40">
             <circle class="stroke-primary" cx="14" cy="15" r="4"/>
             <path class="stroke-primary" d="M12.2 15l1.3 1.3 2.3-2.6"/>
