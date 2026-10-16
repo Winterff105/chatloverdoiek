@@ -14,6 +14,7 @@
     <link rel="manifest" href="manifest.json">
     <link rel="icon" href="assets/IMG_20261008_161846.jpg">
     <link rel="apple-touch-icon" href="assets/IMG_20261008_161846.jpg">
+    <link rel="preload" as="image" href="assets/ovo.png">
     
     <!-- 引入 CSS 样式 -->
     <link rel="stylesheet" href="css/variables.css">
@@ -37,10 +38,13 @@
     </script>
 </head>
 <body>
-    <!-- 开场加载：背景 ovo.png + 灰框文字 + 进度条；照片列表写在下面（可选） -->
+    <!-- 开场加载：背景 ovo.png + 灰框文字 + 进度条；支持配置照片及从存储中自动读取真实照片 -->
     <script>
-        // 要等待加载的照片，例如 ['assets/照片/1.jpg', 'assets/照片/2.jpg']
-        window.PHOTO_LIST = [];
+        // 要等待加载的照片列表，自动包含预设与存储中的相册照片
+        window.PHOTO_LIST = window.PHOTO_LIST || [
+            'assets/ovo.png',
+            'assets/IMG_20261008_161846.jpg'
+        ];
     </script>
     <script src="js/photo-loader.js"></script>
 
