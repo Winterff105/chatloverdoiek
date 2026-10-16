@@ -56,6 +56,13 @@
 .messages-app .row .bottom{ display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 3px; }
 .messages-app .row .preview{ font-size: 13.5px; color: #8E8E8E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .messages-app .row.unread .preview{ color: #000; font-weight: 500; }
+.messages-app .ct-svg{ display:block; overflow:visible; }
+.messages-app .ct-svg .ct-shape{ fill:#fff; stroke:#C4C4C4; stroke-width:2.2; stroke-linejoin:round; }
+.messages-app .ct-svg .ct-tail{ fill:#fff; stroke:#C4C4C4; stroke-width:2.2; }
+.messages-app .ct-svg .ct-dot{ fill:#9A9A9A; }
+.messages-app .ct-chat{ width:44px; height:auto; }
+.messages-app .ct-list{ width:26px; height:auto; margin-top:1px; }
+.messages-app .ct-bubble{ display:inline-block; vertical-align:bottom; }
 .messages-app .badge{ min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #000; color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .messages-app .dot-mute{ width: 8px; height: 8px; border-radius: 50%; background: #000; flex-shrink: 0; }
 .messages-app .section-label{ padding: 14px 16px 6px; font-size: 12px; font-weight: 600; color: #8E8E8E; letter-spacing: 0.3px; text-transform: uppercase; }
@@ -298,10 +305,12 @@
 }
 .messages-app .settings-profile .big-avatar{ position: relative; flex-shrink: 0; }
 .messages-app .settings-profile .big-avatar img{
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
-    
+    z-index: 1;
 }
 .messages-app .settings-profile .profile-name{
     margin-top: 13px;
@@ -370,7 +379,7 @@
 .messages-app .identity-pill:active{ transform: scale(.96); }
 .messages-app .identity-pill::before{ content: ""; position: absolute; left: 18px; right: 18px; top: 4px; height: 12px; border-radius: 999px; background: rgba(255,255,255,.48); filter: blur(7px); pointer-events: none; }
 .messages-app .identity-pill .pill-avatar{ width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: #111; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; position: relative; }
-.messages-app .identity-pill .pill-avatar img{ width: 100%; height: 100%; object-fit: cover;  }
+.messages-app .identity-pill .pill-avatar img{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
 .messages-app .identity-pill .pill-name{ font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .messages-app .identity-pill .pill-chevron{ margin-left: auto; display: flex; align-items: center; flex-shrink: 0; }
 .messages-app .identity-pill .pill-chevron svg{ width: 18px; height: 18px; fill: none; stroke: #111; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -384,8 +393,8 @@
 .messages-app .identity-option{ width: 100%; min-height: 62px; padding: 8px 12px; border: 0; border-radius: 18px; background: transparent; display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer; }
 .messages-app .identity-option:active{ background: #EAEAEA; }
 .messages-app .identity-option.active{ background: #E9E9E9; }
-.messages-app .identity-option .io-avatar{ width: 42px; height: 42px; border-radius: 50%; overflow: hidden; background: #111; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
-.messages-app .identity-option .io-avatar img{ width: 100%; height: 100%; object-fit: cover;  }
+.messages-app .identity-option .io-avatar{ position: relative; width: 42px; height: 42px; border-radius: 50%; overflow: hidden; background: #111; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+.messages-app .identity-option .io-avatar img{ position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
 .messages-app .identity-option .io-info{ flex: 1; }
 .messages-app .identity-option .io-name{ font-size: 15px; font-weight: 650; }
 .messages-app .identity-option .io-sub{ font-size: 11px; color: #8E8E8E; margin-top: 2px; }
@@ -1360,14 +1369,11 @@
 .messages-app .room-thumb{ top:5px; width:46px; height:46px; left:calc(4px + (100% - 8px) / 3 * var(--i) + (100% - 8px) / 6 - 23px); background:none; box-shadow:none; filter:drop-shadow(0 4px 10px rgba(0,0,0,.45)); display:grid; place-items:center; }
 .messages-app .room-thumb svg{ width:46px; height:46px; }
 .messages-app .css-box{ border-radius:20px; background:rgba(255,255,255,.05); padding:12px; text-align:left; }
-.messages-app .css-hint{ display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:11px; line-height:1.5; color:rgba(255,255,255,.6); margin-bottom:8px; padding:0 2px; }
-.messages-app .css-hint-text{ flex:1; min-width:0; text-align:left; }
-.messages-app .css-hint-l1{ display:inline; text-align:left; }
-.messages-app .css-hint-l2{ display:block; text-align:left; padding-left:0; margin-top:2px; }
+.messages-app .css-hint{ font-size:11px; line-height:1.6; color:rgba(255,255,255,.5); margin-bottom:8px; }
 .messages-app .css-hint code{ font:11px "SF Mono",Menlo,monospace; color:rgba(255,255,255,.85); }
 .messages-app .css-input{ width:100%; min-height:150px; box-sizing:border-box; border:0; outline:none; resize:vertical; border-radius:14px; padding:12px; background:rgba(0,0,0,.45); color:#f2f2f5; font:12px/1.6 "SF Mono",Menlo,monospace; text-align:left; }
 .messages-app .css-input:focus{ box-shadow:0 0 0 1px rgba(255,255,255,.35); }
-.messages-app .css-tpl{ display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px; margin-top:10px; }
+.messages-app .css-tpl{ display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-top:10px; }
 .messages-app .css-tpl-btn{ border:0; padding:8px 14px; border-radius:999px; background:rgba(255,255,255,.1); color:#fff; font-size:12px; cursor:pointer; }
 .messages-app .css-fs-row{ margin-top: 14px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.12); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .messages-app .css-fs-head{ width: 80%; display: flex; justify-content: space-between; align-items: center; }
@@ -2647,7 +2653,7 @@
 .messages-app .mrow.gap{ margin-top: 12px; }
 
 /* 气泡整体缩小一点；我和对方之间的间距加长；同一个人连续说话的间距不变 */
-.messages-app .bubble{ padding: 7px 12px; font-size: var(--bubble-fs, 14px) !important; }
+.messages-app .bubble{ padding: 7px 12px; font-size: var(--bubble-fs, 13px) !important; }
 .messages-app .mrow.gap{ margin-top: 18px; }
 
 /* ===================== 聊天室顶栏下滑面板（与顶栏胶囊同款质感） ===================== */
@@ -4811,7 +4817,7 @@
 .messages-app .hp-pop.is-set .hp-set-view{ display:block; padding:40px 0 110px; position:relative; }
 .messages-app .hp-pop.is-fav .hp-fav-view{ display:block; padding:40px 0 110px; position:relative; }
 .messages-app .hp-voice{ position:relative; height:586px; margin-top:40px; }
-.messages-app .hp-card{ position:absolute; left:40px; right:40px; top:50px; z-index:3; padding:18px 18px 16px; border-radius:22px; background:rgba(255,255,255,.7); box-shadow:0 18px 40px rgba(60,66,76,.22); display:flex; flex-direction:column; gap:12px; color:#4b535d; transition:opacity .2s ease; }
+.messages-app .hp-card{ position:absolute; left:40px; right:40px; top:74px; z-index:3; padding:18px 18px 16px; border-radius:22px; background:rgba(255,255,255,.7); box-shadow:0 18px 40px rgba(60,66,76,.22); display:flex; flex-direction:column; gap:12px; color:#4b535d; transition:opacity .2s ease; }
 .messages-app .hp-set-view .hp-card,
 .messages-app .hp-fav-view .hp-card{ position:relative; left:auto; right:auto; top:auto; width:100%; }
 .messages-app .hp-card.fade{ opacity:0; }
@@ -4828,20 +4834,20 @@
 
 /* 拍立得：形状各异，都在舞台宽度内；文字在照片中间，标题紧贴照片下面 */
 .messages-app .hp-shot{ position:absolute; z-index:1; filter:drop-shadow(0 6px 10px rgba(60,66,76,.2)); }
-.messages-app .hp-ph{ position:relative; background:#000; color:#fff; font-size:11px; line-height:1.5; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:0; }
+.messages-app .hp-ph{ position:relative; background:transparent; color:#fff; font-size:11px; line-height:1.5; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:0; }
 .messages-app .hp-ph img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
 .messages-app .hp-cap{ position:relative; max-width:88%; padding:6px 10px; border-radius:10px; background:rgba(0,0,0,.42); color:#fff; text-align:center; word-break:break-all; }
 .messages-app .hp-cap b{ font-size:18px; font-weight:700; letter-spacing:1px; margin-right:4px; }
 .messages-app .hp-tt{ font-size:11px; font-weight:600; color:#3e454e; text-align:center; letter-spacing:.5px; margin-top:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.messages-app .hp-s1{ left:14px; top:24px; width:112px; background:#fff; padding:7px 7px 4px; border-radius:3px; transform:rotate(-6deg); }
+.messages-app .hp-s1{ left:14px; top:48px; width:112px; background:#fff; padding:7px 7px 4px; border-radius:3px; transform:rotate(-6deg); }
 .messages-app .hp-s1 .hp-ph{ height:86px; border-radius:2px; }
 .messages-app .hp-s1::before{ content:""; position:absolute; top:-9px; left:50%; width:44px; height:14px; transform:translateX(-50%) rotate(-3deg); background:rgba(255,255,255,.6); box-shadow:0 1px 2px rgba(0,0,0,.06); }
-.messages-app .hp-s2{ right:14px; top:38px; width:98px; transform:rotate(5deg); text-align:center; }
+.messages-app .hp-s2{ right:14px; top:62px; width:98px; transform:rotate(5deg); text-align:center; }
 .messages-app .hp-s2 .hp-ph{ width:98px; height:98px; border-radius:50%; font-size:10.5px; }
 .messages-app .hp-s2 .hp-cap{ max-width:70%; }
-.messages-app .hp-s3{ left:14px; top:216px; width:118px; transform:rotate(4deg); }
+.messages-app .hp-s3{ left:14px; top:270px; width:118px; transform:rotate(4deg); }
 .messages-app .hp-s3 .hp-ph{ height:92px; clip-path:polygon(0 0,100% 0,100% 84%,94% 92%,88% 84%,82% 92%,76% 84%,70% 92%,64% 84%,58% 92%,52% 84%,46% 92%,40% 84%,34% 92%,28% 84%,22% 92%,16% 84%,10% 92%,4% 84%,0 92%); }
-.messages-app .hp-s4{ right:14px; top:256px; width:98px; transform:rotate(-5deg); text-align:center; }
+.messages-app .hp-s4{ right:14px; top:252px; width:98px; transform:rotate(-5deg); text-align:center; }
 .messages-app .hp-s4 .hp-ph{ height:118px; border-radius:10px; }
 
 /* 底部圆按钮：对齐输入框菜单的圆按钮（46px 圆形白底） */
@@ -4873,16 +4879,150 @@
 .messages-app .hp-fav-item span{ font-size:12.5px; line-height:1.55; color:#3e454e; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
 .messages-app .hp-fav-empty{ font-size:12.5px; color:#9aa1ab; text-align:center; padding:24px 0; }
 
+
+/* ===================== 修复：头像与气泡对齐；心声爱心不再撑高消息行 ===================== */
+/* 头像列固定 32px、高度只等于头像本身，和气泡按底部对齐（与没有心声时一致） */
+.messages-app .av-col{ position:relative; width:32px; flex-shrink:0; align-self:flex-end; cursor:pointer; }
+.messages-app .av-col .avf{ display:flex; }
+/* 爱心挂在头像下方，绝对定位，不参与布局，所以不会把头像推离气泡 */
+.messages-app .av-col .hv-stack{ position:absolute; left:0; right:0; top:100%; margin-top:0; }
+/* 带爱心的那一行不改变间距：爱心挂在头像下方，伸进间距里，不影响下一条消息的位置 */
+
+/* ===================== 心声弹窗 / 心声设置：渐显 ===================== */
+@keyframes hpFadeIn{ from{ opacity:0; } to{ opacity:1; } }
+.messages-app .hp-mask.show .hp-pop{ animation:hpFadeIn .35s ease both; }
+.messages-app .hp-pop.is-set .hp-set-view{ animation:hpFadeIn .35s ease both; }
+
+/* ===================== 心声弹窗关闭：淡出 ===================== */
+@keyframes hpFadeOut{ from{ opacity:1; } to{ opacity:0; } }
+.messages-app .hp-mask.closing{ animation:hpFadeOut .25s ease both; }
+
 /* ===================== CSS 样式：「!」帮助按钮 ===================== */
-.messages-app .css-help-btn{ flex:0 0 22px; width:22px; height:22px; min-width:22px; min-height:22px; margin:0; padding:0; border-radius:50%; border:1px solid rgba(255,255,255,.45); background:rgba(255,255,255,.12); color:#FFFFFF; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; font-size:12px; font-weight:700; line-height:20px; display:flex; align-items:center; justify-content:center; text-align:center; box-sizing:border-box; cursor:pointer; transition:transform .15s ease, background .2s ease; }
-.messages-app .css-help-btn:active{ transform:scale(.92); background:rgba(255,255,255,.25); }
+.messages-app .css-help-btn{ float:right; display:flex; align-items:center; justify-content:center; width:18px; height:18px; margin:1px 0 0 10px; padding:0; border-radius:50%; border:1px solid rgba(255,255,255,.55); background:rgba(255,255,255,.12); color:#fff; font-size:12px; font-weight:700; line-height:1; cursor:pointer; }
 
 /* ===================== CSS 样式「!」弹窗：只渐显，不从下往上滑出 ===================== */
 .messages-app .identity-sheet-backdrop.fade-only .identity-sheet{ transform:none !important; opacity:0; transition:opacity .3s ease !important; }
 .messages-app .identity-sheet-backdrop.fade-only.show .identity-sheet{ opacity:1; }
 
+/* ===================== 提示文字：第一行居中，第二行右缩进 ===================== */
+.messages-app .css-hint-l1{ display:block; text-align:center; }
+.messages-app .css-hint-l2{ display:block; text-align:left; padding-left:22px; }
+
 /* ===================== 预设按钮：白色圆形加号 ===================== */
-.messages-app .css-tpl-add{ flex:0 0 28px; width:28px; height:28px; min-width:28px; min-height:28px; padding:0; margin:0; border:0; border-radius:50%; background:#FFFFFF; color:#111111; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-sizing:border-box; box-shadow:0 2px 6px rgba(0,0,0,.22); transition:transform .15s ease, opacity .15s ease; }
-.messages-app .css-tpl-add:active{ transform:scale(.92); opacity:.88; }
-.messages-app .css-tpl-add svg{ display:block; width:14px; height:14px; stroke:#111111; stroke-width:2.2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
-.messages-app #chatView .mrow:not(.me) .av-col{ cursor:pointer; }
+.messages-app .css-tpl-add{ width:26px; height:26px; padding:0; border:0; border-radius:50%; background:#FFFFFF; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 2px 6px rgba(0,0,0,.18); }
+.messages-app .css-tpl-add svg{ width:13px; height:13px; stroke:#111; stroke-width:2; fill:none; stroke-linecap:round; }
+
+/* ===================== 所有弹窗：只渐显，不从下往上滑出 ===================== */
+.messages-app .identity-sheet-backdrop .identity-sheet{ transform:none !important; opacity:0; transition:opacity .3s ease !important; }
+.messages-app .identity-sheet-backdrop.show .identity-sheet{ opacity:1; }
+
+/* ===================== 预设：选择预设展开框 / 名字输入框 ===================== */
+.messages-app .preset-pick{ display:flex; flex-direction:column; border-radius:18px; background:rgba(255,255,255,.1); overflow:hidden; transition:background .3s ease; }
+.messages-app .preset-pick > .css-tpl-btn{ background:transparent; border-radius:18px; }
+.messages-app .preset-pick.open{ flex-basis:100%; background:rgba(255,255,255,.08); }
+.messages-app .preset-list{ display:flex; flex-direction:column; gap:6px; max-height:0; opacity:0; padding:0 10px; overflow:hidden; transition:max-height .3s ease, opacity .3s ease, padding .3s ease; }
+.messages-app .preset-pick.open .preset-list{ max-height:260px; opacity:1; padding:4px 10px 10px; overflow-y:auto; }
+.messages-app .preset-item{ border:0; border-radius:12px; padding:8px 12px; background:rgba(255,255,255,.1); color:#fff; font-size:12px; text-align:left; cursor:pointer; }
+.messages-app .preset-empty{ font-size:12px; color:rgba(255,255,255,.5); text-align:center; padding:6px 0; }
+.messages-app .css-tpl-name{ width:70px; height:28px; border:0; border-radius:999px; padding:0 10px; box-sizing:border-box; background:rgba(255,255,255,.1); color:#fff; font-size:11px; outline:none; }
+
+/* ===================== 选择预设 / 方角 / 对面圆角：三个按钮同样大小 ===================== */
+.messages-app .css-tpl > .css-tpl-btn,
+.messages-app .preset-pick > .css-tpl-btn{ box-sizing:border-box; width:80px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center; font-size:11px; line-height:1; white-space:nowrap; }
+.messages-app .preset-pick:not(.open){ flex:0 0 auto; width:80px; }
+
+/* ===================== 聊天室设置：输入时固定页面，底部滑轮不被顶起 ===================== */
+.messages-app #roomView.typing{ position:fixed; inset:0; height:100%; }
+
+/* ===================== 引用：输入框上方引用条；底栏花边随之上拉 ===================== */
+.messages-app #chatView .composer.quoting{ padding-top:58px; }
+.messages-app #chatView .quote-bar{ position:absolute; left:18px; right:36px; top:10px; height:36px; box-sizing:border-box; display:flex; align-items:center; gap:8px; padding:0 8px 0 12px; border-radius:16px; background:#F4F4F6; z-index:1; }
+.messages-app .quote-bar .qb-who{ font-size:11px; font-weight:600; color:#6B6B73; white-space:nowrap; }
+.messages-app .quote-bar .qb-txt{ flex:1; min-width:0; font-size:12px; color:#8E8E8E; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.messages-app .quote-bar .qb-x{ width:22px; height:22px; border:0; border-radius:50%; background:rgba(0,0,0,.08); color:#444; font-size:14px; line-height:1; cursor:pointer; flex-shrink:0; padding:0; }
+/* 气泡里的引用块 */
+.messages-app .qt-in{ border-left:2px solid rgba(0,0,0,.2); padding:2px 8px; margin-bottom:4px; font-size:11.5px; color:#8E8E8E; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.messages-app .qt-in b{ font-weight:600; margin-right:4px; color:#6B6B73; }
+
+/* ===================== 消息区：只允许上下滚动，横向拖动交给「滑动引用」 ===================== */
+.messages-app #thread, .messages-app #chatView .thread{ touch-action:pan-y; }
+.messages-app #thread .mrow{ touch-action:pan-y; }
+
+/* ===================== 引用条里面：底部虚线 ===================== */
+.messages-app #chatView .quote-bar{
+  background-image: repeating-linear-gradient(to right, rgba(0,0,0,.28) 0 4px, transparent 4px 8px);
+  background-size: calc(100% - 24px) 1px;
+  background-repeat: no-repeat;
+  background-position: 12px calc(100% - 4px);
+}
+
+/* ===================== 心声照片：透明底直接透出背后内容 ===================== */
+.messages-app .hp-ph img{ background:transparent; }
+
+/* ===== 世界书挂载：胶囊悬浮展开（黑白灰） ===== */
+.worldbook-app .wb-mount-row { position: relative; z-index: 30; display: flex; justify-content: center; height: 34px; margin: 4px 0 14px; }
+.worldbook-app .wb-mount-capsule {
+    position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+    width: 176px; max-width: 100%; border-radius: 999px; border: 1px solid #D9D9D9;
+    background: #FFF; color: #000; overflow: hidden;
+    display: grid; grid-template-rows: 34px 0fr;
+    transition: width .42s cubic-bezier(.2,.8,.2,1), border-radius .42s cubic-bezier(.2,.8,.2,1), grid-template-rows .42s cubic-bezier(.2,.8,.2,1), background .25s ease, border-color .25s ease, box-shadow .35s ease;
+}
+.worldbook-app .wb-mount-capsule.on:not(.open) { background: #000; border-color: #000; color: #FFF; }
+.worldbook-app .wb-mount-capsule.open {
+    width: min(330px, calc(100vw - 32px)); border-radius: 26px; grid-template-rows: 34px 1fr;
+    background: rgba(255,255,255,.5);
+    border-color: #E6E6E6; box-shadow: 0 14px 36px rgba(0,0,0,.12);
+}
+
+.worldbook-app .wb-mount-head-btn {
+    width: 100%; height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 14px;
+    background: none; border: none; color: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+}
+.worldbook-app .wb-mount-head-btn span { color: #8E8E8E; }
+.worldbook-app .wb-mount-head-btn b { font-weight: 650; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.worldbook-app .wb-mount-dot { width: 7px; height: 7px; border-radius: 50%; background: #C8C8C8; flex-shrink: 0; }
+.worldbook-app .wb-mount-capsule.on:not(.open) .wb-mount-head-btn span { color: #BDBDBD; }
+.worldbook-app .wb-mount-capsule.on:not(.open) .wb-mount-dot { background: #FFF; }
+.worldbook-app .wb-mount-caret { width: 14px; height: 14px; margin-left: auto; flex-shrink: 0; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; transition: transform .4s cubic-bezier(.2,.8,.2,1); }
+.worldbook-app .wb-mount-capsule.open .wb-mount-caret { transform: rotate(180deg); }
+.worldbook-app .wb-mount-capsule.open .wb-mount-head-btn span { color: #8E8E8E; }
+.worldbook-app .wb-mount-capsule.open .wb-mount-dot { background: #000; }
+
+.worldbook-app .wb-mount-drop { min-height: 0; overflow: hidden; }
+.worldbook-app .wb-mount-drop-in { padding: 0 14px; opacity: 0; transition: opacity .2s ease, padding .42s cubic-bezier(.2,.8,.2,1); }
+.worldbook-app .wb-mount-capsule.open .wb-mount-drop-in { opacity: 1; padding: 2px 14px 14px; transition: opacity .3s ease .12s, padding .42s cubic-bezier(.2,.8,.2,1); }
+
+.worldbook-app .wb-mount-all {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; border-radius: 16px; background: rgba(0,0,0,.04); border: none; text-align: left; cursor: pointer; color: #000;
+}
+.worldbook-app .wb-mount-all b { display: block; font-size: 14px; font-weight: 650; }
+.worldbook-app .wb-mount-all small { font-size: 11px; color: #8E8E8E; }
+.worldbook-app .wb-mount-switch-wrap { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.worldbook-app .wb-mount-tag { font-size: 12px; font-weight: 600; color: #555; }
+.worldbook-app .wb-mount-switch { width: 40px; height: 24px; border-radius: 12px; background: #D6D6D6; position: relative; flex-shrink: 0; transition: background .2s ease; }
+.worldbook-app .wb-mount-switch i { position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #FFF; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: left .2s ease; }
+.worldbook-app .wb-mount-switch.on { background: #000; }
+.worldbook-app .wb-mount-switch.on i { left: 18px; }
+
+.worldbook-app .wb-mount-divider { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; font-size: 11px; color: #8E8E8E; }
+.worldbook-app .wb-mount-divider::before, .worldbook-app .wb-mount-divider::after { content: ""; flex: 1; height: 1px; background: rgba(0,0,0,.08); }
+
+.worldbook-app .wb-mount-list { max-height: 220px; overflow-y: auto; transition: opacity .2s ease; }
+.worldbook-app .wb-mount-list.dim { opacity: .35; pointer-events: none; }
+.worldbook-app .wb-mount-item { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-radius: 12px; cursor: pointer; color: #000; }
+.worldbook-app .wb-mount-item:active { background: rgba(0,0,0,.05); }
+.worldbook-app .wb-mount-av { width: 32px; height: 32px; border-radius: 50%; background: #F0F0F0; color: #555; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; overflow: hidden; }
+.worldbook-app .wb-mount-av img { width: 100%; height: 100%; object-fit: cover; }
+.worldbook-app .wb-mount-name { flex: 1; font-size: 14px; font-weight: 550; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.worldbook-app .wb-mount-check { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid #CFCFCF; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background .15s ease, border-color .15s ease; }
+.worldbook-app .wb-mount-check svg { width: 12px; height: 12px; stroke: #FFF; stroke-width: 2.6; fill: none; stroke-linecap: round; stroke-linejoin: round; opacity: 0; transition: opacity .15s ease; }
+.worldbook-app .wb-mount-item.on .wb-mount-check { background: #000; border-color: #000; }
+.worldbook-app .wb-mount-item.on .wb-mount-check svg { opacity: 1; }
+.worldbook-app .wb-mount-empty { text-align: center; color: #8E8E8E; font-size: 12px; padding: 18px 0; }
+
+.worldbook-app .wb-mount-foot { display: flex; gap: 8px; margin-top: 12px; }
+.worldbook-app .wb-mount-foot button { flex: 1; height: 40px; border-radius: 12px; font-size: 14px; font-weight: 650; border: none; cursor: pointer; }
+.worldbook-app .wb-mount-cancel { background: rgba(0,0,0,.05); color: #000; }
+.worldbook-app .wb-mount-save { background: #000; color: #FFF; }
