@@ -249,4 +249,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 初始渲染
     renderUI();
+
+    // 触发真实照片与资源预加载检测，确保所有照片加载完毕后再进入桌面
+    if (window.PhotoLoader && typeof window.PhotoLoader.start === 'function') {
+        window.PhotoLoader.start();
+    }
 });
