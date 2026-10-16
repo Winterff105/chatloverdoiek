@@ -2640,7 +2640,7 @@ function msgOf(x) {
     return out;
 }
 
-/* ---------------- 引用：消息向右滑动即可引用 ---------------- */
+/* ---------------- 引用：消息向左滑动即可引用 ---------------- */
 let quoteDraft = null;
 function quoteMessage(i) {
     const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
@@ -2675,7 +2675,7 @@ function bindSwipeQuote() {
     });
     box.addEventListener('pointermove', e => {
         if (!row) return;
-        const ddx = e.clientX - sx, ddy = e.clientY - sy;
+        const ddx = sx - e.clientX, ddy = e.clientY - sy;
         if (!active) {
             if (Math.abs(ddy) > 12) { row = null; return; }
             if (ddx > 10) active = true;
@@ -2683,7 +2683,7 @@ function bindSwipeQuote() {
         }
         dx = Math.max(0, Math.min(ddx, 90));
         row.style.transition = 'none';
-        row.style.transform = `translateX(${dx}px)`;
+        row.style.transform = `translateX(-${dx}px)`;
     });
     const end = () => {
         if (!row) return;
