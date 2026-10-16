@@ -8,7 +8,7 @@ window.initWorldbookModule = function (root) {
     root.classList.add('worldbook-app');
 
     /* ---------------- 数据 ---------------- */
-    const KEY = 'whatever_worldbooks_v1';
+    const KEY = 'forever_worldbooks_v1';
     const POS_LABEL = { before: '前', mid: '中', after: '后' };
     const uid = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -16,7 +16,7 @@ window.initWorldbookModule = function (root) {
     let BOOKS = load();
 
     /* ---------------- 分组（胶囊切换，默认 i / love / u） ---------------- */
-    const GKEY = 'whatever_worldbooks_groups_v1';
+    const GKEY = 'forever_worldbooks_groups_v1';
     const DEFAULT_GROUPS = ['i', 'love', 'u'];
     function loadGroups() { try { const v = JSON.parse(localStorage.getItem(GKEY) || 'null'); return Array.isArray(v) && v.length ? v : DEFAULT_GROUPS.slice(); } catch (_) { return DEFAULT_GROUPS.slice(); } }
     let GROUPS = loadGroups();
@@ -248,7 +248,7 @@ window.initWorldbookModule = function (root) {
     /* ---------------- 挂载 ---------------- */
     function loadMountContacts() {
         try {
-            const v = JSON.parse(localStorage.getItem('whatever_messages_contacts_v1') || '[]');
+            const v = JSON.parse(localStorage.getItem('forever_messages_contacts_v1') || '[]');
             return Array.isArray(v) ? v.filter(c => c && c.id != null).map(c => ({
                 id: String(c.id), name: String(c.name || '未命名'), avatar: c.avatar || '',
                 ini: String(c.ini || c.name || '?').slice(0, 1).toUpperCase()
@@ -631,7 +631,7 @@ function matchWbEntry(e, ctx) {
 }
 
 function wbLoadBooks() {
-    try { const v = JSON.parse(localStorage.getItem('whatever_worldbooks_v1') || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; }
+    try { const v = JSON.parse(localStorage.getItem('forever_worldbooks_v1') || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; }
 }
 
 /* 挂载判断：全局挂载的书给所有联系人；单独挂载的书只给选中的联系人 */

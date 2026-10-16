@@ -10,12 +10,12 @@ let CHAT_MAP = loadStoredChatMap();
 const ME_DEFAULT = { name: 'Kitty Angel', id: '1004', status: '오늘도 날개를 펴는 중', sig: '작은 구름 위에서 안부를 전해요', avatar: '', persona: '', speech: '', relation: '', backstory: '', replies: [] };
 let ME = loadStoredMe();
 const SIDE = { open: false, pickedId: null, liveId: null };
-const IDN_KEY = 'whatever_messages_identities_v2';
+const IDN_KEY = 'forever_messages_identities_v2';
 let IDENTITIES = loadStoredIdentities();
 let pendingPersonaAvatar = null;
-const ACTIVE_KEY = 'whatever_messages_active_identity_v1';
+const ACTIVE_KEY = 'forever_messages_active_identity_v1';
 let ACTIVE_ID = 'self';
-const DELETED_NAMES_KEY = 'whatever_messages_deleted_names_v1';
+const DELETED_NAMES_KEY = 'forever_messages_deleted_names_v1';
 let DELETED_NAMES = (() => { try { return JSON.parse(localStorage.getItem(DELETED_NAMES_KEY) || '{}') || {}; } catch (_) { return {}; } })();
 function saveDeletedNames() { try { localStorage.setItem(DELETED_NAMES_KEY, JSON.stringify(DELETED_NAMES)); } catch (_) {} }
 const MOMENT_REPLY = {};   // 朋友圈 id -> 正在回复的那条评论 { by, t, text }
@@ -32,16 +32,16 @@ function normalizeIdentity(x) {
 }
 function loadStoredIdentities() { try { const v = JSON.parse(localStorage.getItem(IDN_KEY) || '[]'); return Array.isArray(v) ? v.map(normalizeIdentity) : []; } catch (_) { return []; } }
 function persistIdentities() { try { localStorage.setItem(IDN_KEY, JSON.stringify(IDENTITIES)); } catch (e) { toast('保存失败：存储空间可能不足'); } }
-function loadStoredMe() { try { const v = JSON.parse(localStorage.getItem('whatever_messages_me_v1') || 'null'); return Object.assign({}, ME_DEFAULT, v && typeof v === 'object' ? v : {}); } catch (_) { return Object.assign({}, ME_DEFAULT); } }
-function persistMe() { try { localStorage.setItem('whatever_messages_me_v1', JSON.stringify(ME)); } catch (e) { toast('保存失败：存储空间可能不足'); console.error(e); } }
+function loadStoredMe() { try { const v = JSON.parse(localStorage.getItem('forever_messages_me_v1') || 'null'); return Object.assign({}, ME_DEFAULT, v && typeof v === 'object' ? v : {}); } catch (_) { return Object.assign({}, ME_DEFAULT); } }
+function persistMe() { try { localStorage.setItem('forever_messages_me_v1', JSON.stringify(ME)); } catch (e) { toast('保存失败：存储空间可能不足'); console.error(e); } }
 
 
-function loadStoredChatIds(){ try { const v=JSON.parse(localStorage.getItem('whatever_messages_chat_ids_v1')||'[]'); return Array.isArray(v)?v.map(String):[]; } catch(_){ return []; } }
+function loadStoredChatIds(){ try { const v=JSON.parse(localStorage.getItem('forever_messages_chat_ids_v1')||'[]'); return Array.isArray(v)?v.map(String):[]; } catch(_){ return []; } }
 
 
-const MOMENT_KEY = 'whatever_messages_moments_v1';
-const MOMENT_BG_KEY = 'whatever_messages_moments_bg_v1';
-const MOMENT_AVATAR_KEY = 'whatever_messages_moments_avatar_v1';
+const MOMENT_KEY = 'forever_messages_moments_v1';
+const MOMENT_BG_KEY = 'forever_messages_moments_bg_v1';
+const MOMENT_AVATAR_KEY = 'forever_messages_moments_avatar_v1';
 let POSTS = loadStoredMoments();
 let MOMENT_BG = loadMomentBg();
 let MOMENT_AVATAR = loadMomentAvatar();
@@ -80,27 +80,27 @@ function defaultPromptOpts() { return ['ai', 'greasy', 'threat', 'fake', 'macho'
 /* ---------------- 本地真实数据：没有内置假联系人 ---------------- */
 function loadStoredContacts() {
     try {
-        const raw = localStorage.getItem('whatever_messages_contacts_v1');
+        const raw = localStorage.getItem('forever_messages_contacts_v1');
         let list = raw ? JSON.parse(raw) : [];
         // 一次性迁移：防油腻默认开启，已存在的联系人也补上（只改 promptOpts，其他字段原样保留）
-        if (Array.isArray(list) && !localStorage.getItem('whatever_messages_greasy_default_v1')) {
+        if (Array.isArray(list) && !localStorage.getItem('forever_messages_greasy_default_v1')) {
             list.forEach(c => {
                 if (!c || typeof c !== 'object') return;
                 const opts = Array.isArray(c.promptOpts) ? c.promptOpts : [];
                 if (!opts.includes('greasy')) c.promptOpts = opts.concat('greasy');
             });
-            localStorage.setItem('whatever_messages_contacts_v1', JSON.stringify(list));
-            localStorage.setItem('whatever_messages_greasy_default_v1', '1');
+            localStorage.setItem('forever_messages_contacts_v1', JSON.stringify(list));
+            localStorage.setItem('forever_messages_greasy_default_v1', '1');
         }
         // 一次性迁移：所有防xx（防八股 / 防油腻 / 防威胁 / 防假性安慰 / 防超雄）默认开启，已存在的联系人补齐；之后手动关闭会正常保存
-        if (Array.isArray(list) && !localStorage.getItem('whatever_messages_prompt_all_on_v1')) {
+        if (Array.isArray(list) && !localStorage.getItem('forever_messages_prompt_all_on_v1')) {
             list.forEach(c => {
                 if (!c || typeof c !== 'object') return;
                 const opts = Array.isArray(c.promptOpts) ? c.promptOpts : [];
                 c.promptOpts = Array.from(new Set(opts.concat(defaultPromptOpts())));
             });
-            localStorage.setItem('whatever_messages_contacts_v1', JSON.stringify(list));
-            localStorage.setItem('whatever_messages_prompt_all_on_v1', '1');
+            localStorage.setItem('forever_messages_contacts_v1', JSON.stringify(list));
+            localStorage.setItem('forever_messages_prompt_all_on_v1', '1');
         }
         return Array.isArray(list) ? list.map(normalizeContact) : [];
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
@@ -110,8 +110,8 @@ function normalizeContact(c) {
 }
 
 
-function loadStoredFolders() { try { const v=JSON.parse(localStorage.getItem('whatever_messages_folders_v1') || '[]'); return Array.isArray(v) ? v.filter(x=>x && x.id && x.name).map(x=>({id:String(x.id),name:String(x.name)})) : []; } catch (_) { return []; } }
-function persistFolders() { try { localStorage.setItem('whatever_messages_folders_v1', JSON.stringify(FOLDERS)); } catch(e) { console.warn('[Messages] 文件夹保存失败',e); } }
+function loadStoredFolders() { try { const v=JSON.parse(localStorage.getItem('forever_messages_folders_v1') || '[]'); return Array.isArray(v) ? v.filter(x=>x && x.id && x.name).map(x=>({id:String(x.id),name:String(x.name)})) : []; } catch (_) { return []; } }
+function persistFolders() { try { localStorage.setItem('forever_messages_folders_v1', JSON.stringify(FOLDERS)); } catch(e) { console.warn('[Messages] 文件夹保存失败',e); } }
 async function importDeviceContacts() {
     if (!('contacts' in navigator) || !navigator.contacts || typeof navigator.contacts.select !== 'function') {
         toast('当前浏览器不支持读取手机通讯录，请点 New 手动新建'); return;
@@ -631,7 +631,7 @@ function preloadDefaultImages() {
     });
 }
 /* ---------------- 记忆区：总结、记忆列表、全屏页面 ---------------- */
-const MEM_PRESET_KEY = 'whatever_memory_presets_v1';
+const MEM_PRESET_KEY = 'forever_memory_presets_v1';
 const DEFAULT_SUMMARY_INSTR = [
     '你是聊天记录的记忆整理员。请阅读下面的对话，写出这段时间里发生的事情经过。',
     '【格式必须遵守】',
@@ -1331,7 +1331,7 @@ function toggleChatPrompt(k) {
     c.promptOpts = arr;
     persistContacts(); renderChatDrop();
 }
-const CHAT_PROMPT_SETTINGS_KEY = 'whatever_chat_prompt_settings_v1';
+const CHAT_PROMPT_SETTINGS_KEY = 'forever_chat_prompt_settings_v1';
 const CHAT_BAN_DEFAULTS = ['低吼一声', '揉进骨血', '揉进骨头'];
 // 解析一行输入：「词条」或「词条|原因」
 function parseWordLine(line) {
@@ -1971,7 +1971,7 @@ function persistNewCustomWords(items) {
         priority: words.filter(w => levels[w] === 'high')
     });
 }
-const CHAT_PROMPT_TEXT_KEY = 'whatever_chat_prompt_texts_v1';
+const CHAT_PROMPT_TEXT_KEY = 'forever_chat_prompt_texts_v1';
 const CHAT_PROMPT_TEXT_DEFAULTS = {
     threat: `{char}需要学会尊重user，不能说"你胆子肥了"，"长本事了吧"，这类像char扮演类似"父亲"角色的威胁式言论，user是个个体，不是必须要看char的眼色的。`,
     fake: `安慰人是有层级的弹窗
@@ -2353,7 +2353,7 @@ function cleanMsgPart(t, name) {
     return s;
 }
 /* ---------------- 聊天软件设置：消息条数 & 一次性发出（保存在本机） ---------------- */
-const CHAT_OPTS_KEY = 'whatever_messages_chat_opts_v1';
+const CHAT_OPTS_KEY = 'forever_messages_chat_opts_v1';
 function coClamp(x, lo, hi, d) { const n = parseInt(x, 10); return Number.isFinite(n) ? Math.max(lo, n) : d; }
 function loadChatOpts() {
     try {
@@ -2533,7 +2533,7 @@ let touchStartX = 0;
 let touchStartInCap = false;
 
 /* ---------------- 旁白：开启后 AI 会输出动作 / 神态 / 环境，以【旁白】开头单独成条 ---------------- */
-const NARR_KEY = 'whatever_messages_narr_v1';
+const NARR_KEY = 'forever_messages_narr_v1';
 const NARR_DEFAULT = { on: false, person: '2', min: 10, max: 40, mode: 'free', size: 13.5, italic: true, color: '#9A9AA0' };
 let NARR = (() => { try { return Object.assign({}, NARR_DEFAULT, JSON.parse(localStorage.getItem(NARR_KEY) || '{}')); } catch (_) { return Object.assign({}, NARR_DEFAULT); } })();
 function saveNarr() { try { localStorage.setItem(NARR_KEY, JSON.stringify(NARR)); } catch (_) {} }
@@ -2609,7 +2609,7 @@ function openMoreSheet() {
         <div class="mq-foot"><button class="mq-close" type="button" onclick="closeMqSheet()">关闭</button></div>`);
 }
 /* 旁白弹窗背景图：默认采用指定参数；通过密码入口可临时调整并保存 */
-const NB_KEY = 'whatever_messages_narr_bg_v5';
+const NB_KEY = 'forever_messages_narr_bg_v5';
 const NB_DEFAULT = Object.freeze({ x: 29, y: -2, w: 350, h: 356, opacity: 0.75, overlay: 0.65 });
 let NB = Object.assign({}, NB_DEFAULT);
 let NB_PANEL = false;
@@ -4013,14 +4013,14 @@ function exitContactLogin() {
 function persistChatIds() {
     CHAT_IDS = [...new Set(CHAT_IDS.map(String).filter(id => CONTACTS.some(c => String(c.id) === id)))];
     CHAT_MAP[ACTIVE_ID] = CHAT_IDS;
-    try { localStorage.setItem('whatever_messages_chat_map_v2', JSON.stringify(CHAT_MAP)); }
+    try { localStorage.setItem('forever_messages_chat_map_v2', JSON.stringify(CHAT_MAP)); }
     catch (e) { console.warn('[Messages] 聊天列表保存失败', e); }
 }
 
 function persistContacts() {
     try { if (typeof renderMoments === 'function') renderMoments(); } catch (_) {}
     CONTACTS.forEach(c => { c.threads = c.threads || {}; c.threads[ACTIVE_ID] = c.msgs; });
-    try { localStorage.setItem('whatever_messages_contacts_v1', JSON.stringify(CONTACTS, (k, v) => (k === 'msgs' ? undefined : v))); }
+    try { localStorage.setItem('forever_messages_contacts_v1', JSON.stringify(CONTACTS, (k, v) => (k === 'msgs' ? undefined : v))); }
     catch (e) { toast('保存失败：存储空间可能不足'); console.error(e); }
 }
 
@@ -4033,7 +4033,7 @@ function migrateContactId(oldId, newId) {
 
 function loadStoredChatMap() {
     try {
-        const v = JSON.parse(localStorage.getItem('whatever_messages_chat_map_v2') || 'null');
+        const v = JSON.parse(localStorage.getItem('forever_messages_chat_map_v2') || 'null');
         if (v && typeof v === 'object') {
             const out = {};
             Object.keys(v).forEach(k => { out[k] = Array.isArray(v[k]) ? v[k].map(String) : []; });
@@ -4390,7 +4390,7 @@ function fallbackCopy(t) {
     toast(ok ? '已复制' : '复制失败，请手动全选复制');
 }
 /* ---------------- CSS 预设（直接在按钮行里操作，不用弹窗） ---------------- */
-const CSS_PRESET_KEY = 'whatever_messages_css_presets_v1';
+const CSS_PRESET_KEY = 'forever_messages_css_presets_v1';
 function loadCssPresets() { try { const v = JSON.parse(localStorage.getItem(CSS_PRESET_KEY) || '[]'); return Array.isArray(v) ? v.filter(x => x && x.name) : []; } catch (_) { return []; } }
 function saveCssPresets(list) { try { localStorage.setItem(CSS_PRESET_KEY, JSON.stringify(list)); } catch (e) { toast('保存失败：存储空间可能不足'); } }
 /* 添加预设：名字取输入框，CSS 取上面的输入框，点一下就保存 */

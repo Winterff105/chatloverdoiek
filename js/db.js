@@ -1,9 +1,9 @@
 /* =========================================
-   whatever · 本地持久化（IndexedDB 优先，不可用时回退 localStorage）
+   Forever · 本地持久化（IndexedDB 优先，不可用时回退 localStorage）
    对外接口保持不变：DB.save / DB.load / DB.remove，均返回 Promise
    ========================================= */
 const DB = {
-    dbName: 'whateverchat_Unlimited_DB',
+    dbName: 'NoirOS_Unlimited_DB',
     storeName: 'kv_store',
     version: 1,
     dbInstance: null,

@@ -1,6 +1,6 @@
-/* Messages uses the active API preset configured in the main whatever Settings app. */
+/* Messages uses the active API preset configured in the main Forever Settings app. */
 (function () {
-  const SETTINGS_KEY = 'whatever_settings_active_api_v1';
+  const SETTINGS_KEY = 'forever_settings_active_api_v1';
   const MAX_MESSAGES = 8;
   const ROLEPLAY_PROMPT = `[ROLEPLAY IDENTITY]
 
@@ -231,8 +231,8 @@
   /* 读取当前在预设工坊中选用的生效预设 */
   function loadActivePresetConfig() {
     try {
-      const list = JSON.parse(localStorage.getItem('whatever_preset_custom_list_v2') || '[]');
-      const activeId = localStorage.getItem('whatever_preset_active_id_v2') || 'default';
+      const list = JSON.parse(localStorage.getItem('forever_preset_custom_list_v2') || '[]');
+      const activeId = localStorage.getItem('forever_preset_active_id_v2') || 'default';
       if (Array.isArray(list) && list.length) {
         const found = list.find(p => p.id === activeId);
         if (found) return found;
@@ -260,7 +260,7 @@
     };
     const promptExtra = (contact.promptOpts || []).map(k => PROMPT_OPT_TEXT[k]).filter(Boolean);
     let styleSettings = null;
-    try { styleSettings = JSON.parse(localStorage.getItem('whatever_chat_prompt_settings_v1') || 'null'); } catch (_) {}
+    try { styleSettings = JSON.parse(localStorage.getItem('forever_chat_prompt_settings_v1') || 'null'); } catch (_) {}
     let styleBlock = '';
     if (styleSettings && styleSettings.enabled !== false) {
       const words = Array.isArray(styleSettings.words) ? styleSettings.words.map(String).filter(Boolean) : [];
