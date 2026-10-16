@@ -43,52 +43,84 @@
     document.body.appendChild(layer);
     const fill = document.getElementById('plFill');
 
-    // 3. 要等的地址：背景图 + PHOTO_LIST + data-preload 的图片
-    const urls = Array.from(new Set(
-        [BG].concat(LIST, Array.from(document.querySelectorAll('img[data-preload]'))
-            .map(i => i.getAttribute('src')).filter(Boolean))
-    ));
-    const total = urls.length;
-    let done = 0, finished = false;
+    // 3. 真实照片加载监控：必须真实照片全部加载完毕才进入
+    const trackedUrls = new Set();
+    let total = 0, done = 0, finished = false, closing = false;
 
-    // 进度条：每一帧平滑往目标走。目标 = 真实加载进度，和“按时间慢慢爬”两者取大的那个，
-    // 所以素材少、加载很快时也会有明显的推进；全部完成后走到 100%
-    let shown = 0, closing = false;
+    function trackUrl(src) {
+        if (!src || trackedUrls.has(src)) return;
+        trackedUrls.add(src);
+        total++;
+        const im = new Image();
+        const onEnd = () => {
+            done++;
+            checkDone();
+        };
+        im.onload = onEnd;
+        im.onerror = onEnd;
+        im.src = src;
+    }
+
+    function addPhotos(arr) {
+        if (!Array.isArray(arr)) return;
+        arr.forEach(trackUrl);
+    }
+    window.addPhotosToLoader = addPhotos;
+
+    let rawList = LIST;
+    try {
+        Object.defineProperty(window, 'PHOTO_LIST', {
+            configurable: true,
+            enumerable: true,
+            get() { return rawList; },
+            set(v) {
+                rawList = Array.isArray(v) ? v : [];
+                addPhotos(rawList);
+            }
+        });
+    } catch (e) {}
+
+    // 进度条：完全由真实照片加载推进，不靠时间伪装
+    let shown = 0;
     function tick() {
-        const realT = total ? Math.min(done / total, 0.92) : 0;
-        const timeT = Math.min(0.92, (Date.now() - startedAt) / HOLD_MIN * 0.92);
-        const loaded = done >= total;
-        // 还在加载：跟着真实进度（但不超过 92%）；已经全部加载：按时间慢慢走完停留时间；淡出那一刻走到 100%
-        const goal = closing ? 1 : (loaded ? timeT : Math.max(realT, timeT));
-        shown += (goal - shown) * 0.08;
+        const realT = total > 0 ? (done / total) : 0;
+        const goal = closing ? 1 : (finished ? 1 : Math.min(0.98, realT));
+        shown += (goal - shown) * 0.1;
         if (closing && shown > 0.995) shown = 1;
         fill.style.width = (shown * 100).toFixed(2) + '%';
         if (!closing || shown < 1) requestAnimationFrame(tick);
     }
-    function setProgress() { /* 进度由 tick() 每帧更新 */ }
     requestAnimationFrame(tick);
+
+    function checkDone() {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', checkDone, { once: true });
+            return;
+        }
+        if (total > 0 && done >= total && !finished) {
+            finish();
+        }
+    }
 
     function finish() {
         if (finished) return;
         finished = true;
-        done = total; setProgress();                    // 进度条走到 100%
-        // 照片读完也要等够最短停留时间（默认 5 秒）再淡出
-        const wait = Math.max(350, HOLD_MIN - (Date.now() - startedAt));   // 至少停满 3 秒
+        const wait = Math.max(300, HOLD_MIN - (Date.now() - startedAt));
         setTimeout(() => {
-            closing = true;                                 // 进度条此刻走到 100%
+            closing = true;
             layer.classList.add('pl-hide');
-            setTimeout(() => layer.remove(), 800);
+            setTimeout(() => { if (layer.parentNode) layer.remove(); }, 800);
         }, wait);
     }
 
     window.hidePhotoLoader = finish;
 
-    urls.forEach(src => {
-        const im = new Image();
-        const one = () => { done++; setProgress(); if (done >= total) finish(); };   // 照片全部读完就进入
-        im.onload = one;
-        im.onerror = one;                               // 读取失败也算完成，不卡住
-        im.src = src;
+    // 立即登记背景图与所有需要加载的真实照片
+    trackUrl(BG);
+    addPhotos(LIST);
+    document.querySelectorAll('img[data-preload]').forEach(i => {
+        const s = i.getAttribute('src');
+        if (s) trackUrl(s);
     });
 
     setTimeout(finish, TIMEOUT);                        // 超时保护
