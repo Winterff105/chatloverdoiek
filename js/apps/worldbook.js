@@ -550,10 +550,11 @@ window.initWorldbookModule = function (root) {
     window.WORLDBOOK = {
         list: () => BOOKS,
         /* 返回 { before: [文本], after: [文本], depth: [{ depth, text, order }] } */
-        buildInjection() {
+        buildInjection(contextText) {
             const out = { before: [], after: [], depth: [] };
-            BOOKS.filter(b => b.enabled !== false).forEach(b => {
-                (b.entries || []).filter(e => e.enabled !== false && (e.content || '').trim())
+            const ctx = typeof contextText === 'string' ? contextText.toLowerCase() : null;
+            BOOKS.filter(b => b && b.enabled !== false).forEach(b => {
+                (b.entries || []).filter(e => matchWbEntry(e, ctx))
                     .sort((x, y) => (x.order || 0) - (y.order || 0))
                     .forEach(e => {
                         const t = e.content.trim();
@@ -569,3 +570,39 @@ window.initWorldbookModule = function (root) {
     root.__wbReset = () => { selectMode = false; selectedEntryIds.clear(); formDraft = null; cur = { view: 'lib', bookId: null, entryId: null, delArmed: false }; render(); };
     render();
 };
+
+function matchWbEntry(e, ctx) {
+    if (!e || e.enabled === false || !e.content || !e.content.trim()) return false;
+    if (ctx && e.keys && e.keys.trim()) {
+        const keys = e.keys.split(/[,，、\s]+/).map(k => k.trim().toLowerCase()).filter(Boolean);
+        if (keys.length && !keys.some(k => ctx.includes(k))) return false;
+    }
+    return true;
+}
+
+if (!window.WORLDBOOK) {
+    window.WORLDBOOK = {
+        list() {
+            try {
+                const v = JSON.parse(localStorage.getItem('forever_worldbooks_v1') || '[]');
+                return Array.isArray(v) ? v : [];
+            } catch (_) { return []; }
+        },
+        buildInjection(contextText) {
+            const books = this.list();
+            const out = { before: [], after: [], depth: [] };
+            const ctx = typeof contextText === 'string' ? contextText.toLowerCase() : null;
+            books.filter(b => b && b.enabled !== false).forEach(b => {
+                (b.entries || []).filter(e => matchWbEntry(e, ctx))
+                    .sort((x, y) => (x.order || 0) - (y.order || 0))
+                    .forEach(e => {
+                        const t = e.content.trim();
+                        if (e.pos === 'mid') out.depth.push({ depth: Math.max(0, Number(e.depth) || 0), text: t, order: e.order || 0 });
+                        else if (e.pos === 'after') out.after.push(t);
+                        else out.before.push(t);
+                    });
+            });
+            return out;
+        }
+    };
+}
