@@ -581,6 +581,8 @@ function openChat(id) {
     document.getElementById('headStatus').textContent = c.online ? '在线' : c.status;
     renderThread();
     applyRoomBeauty(c);
+    const cap = document.querySelector('.messages-app .send-capsule');
+    if (cap) cap.classList.toggle('pulling', !!c._typing);
     document.getElementById('chatView').classList.add('open');
     refreshChatBadge();
     document.getElementById('tabbar').classList.add('hide');
@@ -2175,10 +2177,14 @@ function renderThread(opts) {
         const qHtml = m.quote && m.quote.text ? `<div class="qt-in"><b>${esc(m.quote.me ? (ME.name || '我') : c.name)}</b>${esc(m.quote.text)}</div>` : '';
         html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}"${fsInline}>${qHtml}${esc(m.text)}</div>${meta}</div>`;
     });
+    if (c._typing) {
+        html += `<div class="mrow typing mrow-new" id="typingRow"><div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div><div class="ct-bubble">${ctSvgHtml('ct-chat')}</div></div>`;
+    }
     box.innerHTML = html;
     box.dataset.chat = c.id;
     box.dataset.count = c.msgs.length;
     box.scrollTop = box.scrollHeight;
+    if (c._typing) ctEnsure();
     if (MM.mode === 'multi') mmRefreshSel();
 }
 /* ---------------- 调取中：云朵气泡（呼吸 + 慢速滚动） ---------------- */
@@ -2359,7 +2365,9 @@ async function pullReply() {
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction, o.max);
         const heart = replies.heart || null;
+        c._typing = false;
         const row = document.getElementById('typingRow'); if (row) row.remove();
+        const capCur = document.querySelector('.messages-app .send-capsule'); if (capCur) capCur.classList.remove('pulling');
         const parts = replies.map(p => narrPart(p, c.name)).filter(Boolean);
         parts.forEach(pt => { if (pt.quoteRaw) { pt.quote = resolveQuote(c, pt.quoteRaw); delete pt.quoteRaw; } });
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
@@ -2368,8 +2376,8 @@ async function pullReply() {
         attachHeart(c, heart, startLen); persistContacts();
         if (activeId === c.id) renderThread({noAnim:true});
         maybeAutoSummary(c);
-    } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
-    finally { c._busy=false; c._typing=false; if(cap) cap.classList.remove('pulling'); renderChats(); }
+    } catch (e) { c._typing = false; const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
+    finally { c._busy=false; c._typing=false; const capCur = document.querySelector('.messages-app .send-capsule'); if(capCur) capCur.classList.remove('pulling'); renderChats(); }
 }
 
 /* ---------------- 底栏上拉菜单：重新回复 ---------------- */
