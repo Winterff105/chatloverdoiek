@@ -2640,7 +2640,7 @@ function msgOf(x) {
     return out;
 }
 
-/* ---------------- 引用：消息向右滑动即可引用 ---------------- */
+/* ---------------- 引用：消息向左滑动即可引用 ---------------- */
 let quoteDraft = null;
 function quoteMessage(i) {
     const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
@@ -2678,10 +2678,10 @@ function bindSwipeQuote() {
         const ddx = e.clientX - sx, ddy = e.clientY - sy;
         if (!active) {
             if (Math.abs(ddy) > 12) { row = null; return; }
-            if (ddx > 10) active = true;
+            if (ddx < -10) active = true;
             else return;
         }
-        dx = Math.max(0, Math.min(ddx, 90));
+        dx = Math.max(-90, Math.min(ddx, 0));
         row.style.transition = 'none';
         row.style.transform = `translateX(${dx}px)`;
     });
@@ -2689,7 +2689,7 @@ function bindSwipeQuote() {
         if (!row) return;
         const r = row; row = null;
         r.style.transition = ''; r.style.transform = '';
-        if (active && dx >= 50) { quoteMessage(Number(r.dataset.i)); if (navigator.vibrate) { try { navigator.vibrate(8); } catch (_) {} } }
+        if (active && dx <= -50) { quoteMessage(Number(r.dataset.i)); if (navigator.vibrate) { try { navigator.vibrate(8); } catch (_) {} } }
         active = false; dx = 0;
     };
     box.addEventListener('pointerup', end);
