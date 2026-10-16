@@ -17,7 +17,7 @@
         return out.slice(0,6);
     }
     /* 读取模型响应：流式（SSE）时边收边拼；若接口直接返回普通 JSON 则照常解析。统一返回 OpenAI 的 JSON 结构。 */
-    async function readAiResponse(r){
+    async function readAiResponse(r,onProgress){
         const ct=(r.headers&&r.headers.get&&r.headers.get('content-type'))||'';
         if(!ct.includes('event-stream'))return await r.json();
         const reader=r.body.getReader(), dec=new TextDecoder();
@@ -35,8 +35,14 @@
             let j;try{j=JSON.parse(data)}catch(e){return}
             if(j.usage)usage=j.usage;
             const dl=(j.choices&&j.choices[0]&&j.choices[0].delta)||{};
-            if(typeof dl.content==='string')content+=dl.content;
-            if(typeof dl.reasoning_content==='string')reasoning+=dl.reasoning_content;
+            if(typeof dl.reasoning_content==='string'){
+              reasoning+=dl.reasoning_content;
+              if(onProgress)onProgress('reasoning',dl.reasoning_content,reasoning);
+            }
+            if(typeof dl.content==='string'){
+              content+=dl.content;
+              if(onProgress)onProgress('content',dl.content,content);
+            }
         };
         for(;;){
             const {done,value}=await withIdle(reader.read(),reader);
@@ -1064,12 +1070,12 @@
           $('#ar-gToken').value=g.token||'';$('#ar-gOwner').value=g.owner||'';$('#ar-gRepo').value=g.repo||'';$('#ar-gBranch').value=g.branch||'main';
           $('#ar-aBase').value=a.base||'https://api.openai.com/v1';$('#ar-aKey').value=a.key||'';
           if(a.model)$('#ar-aModel').innerHTML=`<option>${esc(a.model)}</option>`;})();
-        async function ai(msgs){
+        async function ai(msgs,onProgress){
           const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
           const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,max_tokens:8192,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
           let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败（HTTP '+r.status+'）：'+await err(r));
-          const d=await readAiResponse(r);runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
+          const d=await readAiResponse(r,onProgress);runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
           const outText=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):m.content||'';runLog.push({label:'仓库调用 '+(runLog.length+1),raw:String(outText)});return outText;
         }
         function pj(t){const c=String(t||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');try{return JSON.parse(c)}catch{const i=c.indexOf('{'),j=c.lastIndexOf('}');if(i<0||j<=i)throw new Error('AI 返回的不是有效 JSON');return JSON.parse(c.slice(i,j+1))}}
@@ -1259,14 +1265,25 @@
             let d=step(0,LBL[0]);
             if(!ST.tree.length||ST.key!==rk(G()))await loadTree();if(!ST.tree.length)throw new Error('仓库文件树为空');
             d();d=step(1,LBL[1]);
-            const recentText=((currentConversation&&currentConversation.messages)||[]).map(m=>`${m.role==='assistant'?'对面':m.role==='system'?'系统':'我'}：${String(m.text||'')}`).join('\n');
+            const recentText=((currentConversation&&currentConversation.messages)||[]).slice(-4).map(m=>{
+              const role=m.role==='assistant'?'对面':m.role==='system'?'系统':'我';
+              const cleanTxt=String(m.text||'').slice(0,200).replace(/\n+/g,' ');
+              return `${role}：${cleanTxt}`;
+            }).join('\n');
             const attachCands=[];
-            ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
+            ((currentConversation&&currentConversation.messages)||[]).slice(-4).forEach(m=>(m.attach||[]).forEach(a=>{
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
             }));
             const hitMap=await codeSearch(text);
             const hitSection=hitMap.length?`\n\n代码搜索命中（以下文件的内容包含需求里的关键词，优先从中选择）：\n${hitMap.map(h=>`${h.term} → ${h.paths.slice(0,12).join('、')}`).join('\n')}`:'';
-            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是谨慎的代码仓库修改助手。','用户通常不会说出具体文件名，你要根据需求的意思、功能名、模块名，以及文件路径和文件名自己找到要读取或修改的文件。宁可多猜几个相关的，也不要空着；最多选 8 个。只能选列表中存在的路径。','intent：只有用户是在聊天、问问题，或者只是想直接拿到文件（不涉及仓库）时才写 chat；这时直接在 reply 里写回复，需要给他的文件放进 outFiles。用户说上传、传到仓库、推到 GitHub、提交、保存到仓库，或者要你新建文件或文件夹并放进仓库，就写 create；要读取、查看仓库里的东西就写 read；要改、加、删、修现有文件就写 edit。只负责生成待上传方案，绝不能声称已经上传；只要用户要求改动或上传仓库文件，就必须返回 edit 或 create，不能返回 chat，也绝不能叫用户再次点击底栏调取。上传必须等用户点击确认卡片。','只返回 JSON：{"thinking":"用 2-4 句话（中文）说明你的分析思路","steps":["四个英文步骤名，依次是 PARSE_REQUEST、SELECT_FILES、READ_CONTENT、BUILD_CHANGES 这一类（这四个用下划线大写）"],"intent":"chat、read、edit 或 create","reply":"intent 为 chat 时写给用户的回复，其它情况留空","outFiles":[{"name":"文件名","content":"完整内容"},{"name":"文件夹名/","type":"folder"}],"uploadFiles":[],"files":[{"path":"真实路径","reason":"选择原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话：\n${recentText}\n\n用户附带过的文件：${attachCands.map(a=>a.name).join('、')||'无'}\n\n仓库文件列表：\n${ST.tree.map(f=>`${f.path} | ${f.size} bytes`).join('\n')}${hitSection}`}]));
+            const compactTree=ST.tree.filter(f=>!/(^|\/)(\.git|node_modules|dist|build|coverage|\.vscode|\.idea)\//i.test(f.path)&&!/\.(png|jpg|jpeg|gif|webp|ico|svg|woff|woff2|ttf|eot|mp3|mp4|zip|tar|gz)$/i.test(f.path)).slice(0,180).map(f=>f.path).join('\n');
+            const onStreamStep1=(kind,delta,full)=>{
+              if(kind==='reasoning'||(kind==='content'&&!full.includes('}'))){
+                tp.textContent=full.slice(-120).replace(/[{}\"\\]/g,'').trim()||'正在分析需求并匹配相关文件…';
+                scroll();
+              }
+            };
+            const sel=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是高效的代码修改助手。根据需求匹配要改的文件（最多选 4 个，只能选列表中有的真实路径）。','intent：纯问答选 chat；查阅选 read；改动或上传仓库选 edit 或 create。','只返回极简 JSON：{"thinking":"简短思路","steps":["PARSE_REQUEST","SELECT_FILES","READ_CONTENT","BUILD_CHANGES"],"intent":"chat、read、edit 或 create","reply":"","outFiles":[],"uploadFiles":[],"files":[{"path":"真实路径","reason":"原因"}]}'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近对话：\n${recentText}\n\n仓库文件：\n${compactTree}${hitSection}`}],onStreamStep1));
             if(wantsRepoChange && ['chat','read'].includes(sel.intent)) sel.intent=/(新建|新增|添加文件|上传新文件|创建文件夹)/.test(text)?'create':'edit';
             if(sel.intent==='chat'){
               const rp=(Array.isArray(sel.reply)?sel.reply:[sel.reply]).map(x=>String(x??'').trim()).filter(Boolean);
@@ -1327,6 +1344,7 @@
 '根据用户需求修改提供的文件。修改已有文件时优先使用 edits（查找替换）：每个 edit 的 old 必须从原文件里逐字复制（包括缩进和空格），取一段足够长的原文（通常 3 到 10 行）以保证它在该文件中只出现一次；new 是替换后的内容；同一文件可以有多个 edit，按顺序应用。只改真正需要改的地方，不要动无关代码。',
 '如果是新建文件或文件夹，就在 files 里给出每一个文件的路径和完整 content（路径不存在也没关系；文件夹用路径里的 / 表示，比如 notes/todo.md），要多少个都可以全部放进 files。',
 '只返回 JSON：{"reply":"修改说明","files":[{"path":"真实文件路径","edits":[{"old":"原文中逐字复制的一段","new":"替换后的内容"}]},{"path":"新文件路径","content":"完整文件内容"}]}',
+'注意：reply 只简述修改了哪些功能。严禁声称“已经上传/已推送到仓库/已提交”，因为此刻用户还没有点击上传确认按钮，你只能说明方案已就绪并等待用户确认！',
 '不要返回 Markdown 代码围栏。files 只放发生修改的文件。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话（全部）：\n${recentText}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
             const ch=[];const failed=[];
             const pushChange=(f,lf)=>{const t=f.orig.includes('\r\n')?lf.replace(/\n/g,'\r\n'):lf;if(t!==f.orig)ch.push({...f,edit:t,lines:diff(f.orig.replace(/\r\n/g,'\n'),lf)})};
@@ -1382,7 +1400,8 @@
             }
             d(ch.length+' FILES');
 
-            const assistantReply=String(mod.reply||'已生成修改。');
+            let assistantReply=String(mod.reply||'已生成修改方案。');
+            assistantReply=assistantReply.replace(/已(?:经)?(?:成功)?(?:上传|提交|推送|保存)到(?:GitHub|远程|仓库)[\s\S]*?[。！!]/g,'已生成修改方案，等待你确认上传。');
 
             if(!ch.length){
               const noChangeReply='我读取了相关文件，但没有生成可以安全应用的修改，可以把需求描述得更具体些。';
@@ -1392,7 +1411,7 @@
               return;
             }
 
-            const fullReply=assistantReply+'\n\n'+`共修改 ${ch.length} 个文件，点开卡片查看改动（红色是删除，绿色是新增）。确认后才会一起上传到 GitHub。`;
+            const fullReply=assistantReply+'\n\n'+`共修改 ${ch.length} 个文件，点开卡片查看改动（红色是删除，绿色是新增）。请在下方点击确认按钮，才会真正上传到 GitHub。`;
             showConfirm(ch,fullReply,sel.thinking);
           }catch(e){
             box.querySelectorAll('.step:not(.done)').forEach(x=>x.classList.add('fail'));
