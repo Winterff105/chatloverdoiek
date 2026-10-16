@@ -2439,9 +2439,21 @@
 .messages-app .mm-bar-count{ flex: 1; font-size: 12px; font-weight: 600; color: #6E6E76; }
 .messages-app .mm-bar-btn{ height: 28px; padding: 0 12px; border: 0; border-radius: 14px; background: #F2F2F4; font-family: inherit; font-size: 11px; font-weight: 600; color: #111; cursor: pointer; }
 .messages-app .mm-bar-btn.del{ color: #C98C96; background: #FBF1F3; }
-.messages-app #thread.mm-multi .mrow{ cursor: pointer; opacity: .5; }
-.messages-app #thread.mm-multi .mrow.sel{ opacity: 1; }
+.messages-app #thread.mm-multi .mrow, .messages-app #thread.mm-multi .narr-row{ cursor: pointer; opacity: .5; }
+.messages-app #thread.mm-multi .mrow.sel, .messages-app #thread.mm-multi .narr-row.sel{ opacity: 1; }
 .messages-app #thread.mm-multi .mrow.sel .bubble{ box-shadow: 0 0 0 2px #111111; }
+.messages-app #thread.mm-multi .narr-row.sel .narr{ border-radius: 12px; box-shadow: 0 0 0 2px #111111; background: rgba(0,0,0,0.06); }
+.messages-app .mm-select-to-btn{
+    position: absolute; right: 18px; top: -14px; z-index: 10;
+    display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 12px;
+    border: 0; border-radius: 999px; background: #111111; color: #FFFFFF;
+    font-family: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.22);
+    animation: mmTipPop .25s cubic-bezier(.22,1,.36,1) both;
+}
+.messages-app .mm-select-to-btn svg{ width: 13px; height: 13px; fill: none; stroke: #FFFFFF; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.messages-app .mm-select-to-btn:active{ transform: scale(.94); }
+@keyframes mmTipPop{ from{ opacity:0; transform: translateY(6px) scale(.92); } to{ opacity:1; transform: none; } }
 
 /* 编辑消息框 */
 .messages-app .mm-edit-ta{ width: 100%; box-sizing: border-box; border: 0; border-radius: 14px; padding: 10px 12px; background: #F2F2F4; color: #111; font-size: 14px; line-height: 1.5; font-family: inherit; resize: none; outline: none; }
@@ -4868,7 +4880,7 @@
 
 /* ===================== 修复：头像与气泡对齐；心声爱心不再撑高消息行 ===================== */
 /* 头像列固定 32px、高度只等于头像本身，和气泡按底部对齐（与没有心声时一致） */
-.messages-app .av-col{ position:relative; width:32px; flex-shrink:0; align-self:flex-end; }
+.messages-app .av-col{ position:relative; width:32px; flex-shrink:0; align-self:flex-end; cursor:pointer; }
 .messages-app .av-col .avf{ display:flex; }
 /* 爱心挂在头像下方，绝对定位，不参与布局，所以不会把头像推离气泡 */
 .messages-app .av-col .hv-stack{ position:absolute; left:0; right:0; top:100%; margin-top:0; }

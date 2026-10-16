@@ -569,11 +569,33 @@ const CHAT_ICON = '<svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-.9 3
 
 
 /* ---------------- 聊天详情 ---------------- */
+let threadLimit = 35;
+let threadLoadingMore = false;
+function bindThreadScroll() {
+    const box = document.getElementById('thread');
+    if (!box || box.dataset.scrollBound) return;
+    box.dataset.scrollBound = '1';
+    box.addEventListener('scroll', () => {
+        if (box.scrollTop <= 40 && !threadLoadingMore) {
+            const c = CONTACTS.find(x => x.id === activeId);
+            if (!c || threadLimit >= c.msgs.length) return;
+            threadLoadingMore = true;
+            const oldH = box.scrollHeight;
+            const oldT = box.scrollTop;
+            threadLimit = Math.min(c.msgs.length, threadLimit + 35);
+            renderThread({ prepend: true, noAnim: true });
+            box.scrollTop = box.scrollHeight - oldH + oldT;
+            setTimeout(() => { threadLoadingMore = false; }, 80);
+        }
+    });
+}
 function openChat(id) {
     const c = CONTACTS.find(x => x.id === id);
     if (!c) return;
     activeId = id;
-    clearQuote(true); bindSwipeQuote();
+    threadLimit = 35;
+    threadLoadingMore = false;
+    clearQuote(true); bindSwipeQuote(); bindThreadScroll();
     c.unread = 0;
     persistContacts();
     document.getElementById('headAv').outerHTML = avatar(c, 'md').replace('class="av ', 'id="headAv" class="av ');
@@ -1020,7 +1042,13 @@ function mmMenuEl() {
     return el;
 }
 function mmBuildMenu(el) {
-    const items = [
+    const isMulti = MM.mode === 'multi';
+    const items = isMulti ? [
+        { k: 'selectTo', label: '选择到这里', icon: MM_ICONS.range },
+        { k: 'copy', label: '复制', icon: MM_ICONS.copy },
+        { div: true },
+        { k: 'del', label: '删除', icon: MM_ICONS.del, cls: 'del' }
+    ] : [
         { k: 'edit', label: '编辑', icon: MM_ICONS.edit },
         { k: 'copy', label: '复制', icon: MM_ICONS.copy },
         { div: true },
@@ -1068,10 +1096,48 @@ function hideMsgMenu() {
     const ov = document.getElementById('mmOverlay'); if (ov) { ov.classList.remove('show'); ov.querySelectorAll('.mm-hl').forEach(n => n.remove()); }
     const el = document.getElementById('mmMenu'); if (el) el.classList.remove('show');
 }
+function mmSelectTo(targetIdx) {
+    const c = curMemContact();
+    if (!c || targetIdx == null) return;
+    const anchor = (MM.anchor != null) ? MM.anchor : (MM.sel.size ? Math.min(...MM.sel) : targetIdx);
+    const from = Math.min(anchor, targetIdx);
+    const to = Math.max(anchor, targetIdx);
+    for (let idx = from; idx <= to; idx++) {
+        if (c.msgs[idx]) MM.sel.add(idx);
+    }
+    MM.lastClicked = targetIdx;
+    hideSelectToTip();
+    hideMsgMenu();
+    mmRefreshSel();
+    mmBarUpdate();
+}
+function showSelectToTip(row, targetIdx) {
+    hideSelectToTip();
+    if (MM.anchor == null || MM.anchor === targetIdx) return;
+    const tip = document.createElement('button');
+    tip.id = 'mmSelectToTip';
+    tip.className = 'mm-select-to-btn';
+    tip.type = 'button';
+    tip.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span>选择到这里</span>';
+    tip.onclick = e => {
+        e.stopPropagation();
+        mmSelectTo(targetIdx);
+    };
+    row.style.position = 'relative';
+    row.appendChild(tip);
+    clearTimeout(showSelectToTip._t);
+    showSelectToTip._t = setTimeout(hideSelectToTip, 4500);
+}
+function hideSelectToTip() {
+    clearTimeout(showSelectToTip._t);
+    const tip = document.getElementById('mmSelectToTip');
+    if (tip) tip.remove();
+}
 function mmRun(k) {
     const i = MM.idx;
     hideMsgMenu();
     const c = curMemContact(); if (!c || i == null || !c.msgs[i]) return;
+    if (k === 'selectTo') return mmSelectTo(i);
     if (k === 'edit') return mmOpenEdit(c, i);
     if (k === 'copy') return mmCopy([c.msgs[i].text]);
     if (k === 'del') return mmDelete(c, [i]);
@@ -1111,13 +1177,16 @@ function mmDelete(c, idxs) {
 function mmEnterMulti(i) {
     MM.mode = 'multi';
     MM.sel = new Set([i]);
+    MM.anchor = i;
+    MM.lastClicked = i;
     const box = document.getElementById('thread');
     if (box) box.classList.add('mm-multi');
     mmBarEl().classList.add('show');
     mmRefreshSel(); mmBarUpdate();
 }
 function mmExitMulti() {
-    MM.mode = 'menu'; MM.sel = new Set();
+    MM.mode = 'menu'; MM.sel = new Set(); MM.anchor = null; MM.lastClicked = null;
+    hideSelectToTip();
     const box = document.getElementById('thread');
     if (box) box.classList.remove('mm-multi');
     const bar = document.getElementById('mmBar'); if (bar) bar.classList.remove('show');
@@ -1163,7 +1232,6 @@ function bindMsgMenu() {
     const cancel = () => { clearTimeout(MM.timer); MM.timer = null; };
     box.addEventListener('pointerdown', e => {
         hideMsgMenu();
-        if (MM.mode === 'multi') return;
         const row = e.target.closest && e.target.closest('.mrow, .narr-row');
         if (!row || row.classList.contains('typing')) return;
         MM.sx = e.clientX; MM.sy = e.clientY;
@@ -1177,14 +1245,32 @@ function bindMsgMenu() {
     box.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.mrow, .narr-row')) e.preventDefault(); });
     box.addEventListener('click', e => {
         if (MM.mode !== 'multi') return;
+        if (e.target.closest && e.target.closest('#mmSelectToTip')) return;
         const row = e.target.closest && e.target.closest('.mrow, .narr-row');
         if (!row) return;
         const i = Number(row.dataset.i);
-        if (MM.sel.has(i)) MM.sel.delete(i); else MM.sel.add(i);
+        MM.lastClicked = i;
+        if (MM.sel.has(i)) {
+            MM.sel.delete(i);
+            hideSelectToTip();
+            if (MM.anchor === i) {
+                MM.anchor = MM.sel.size ? Math.min(...MM.sel) : null;
+            }
+        } else {
+            MM.sel.add(i);
+            if (MM.anchor == null) {
+                MM.anchor = i;
+            } else {
+                showSelectToTip(row, i);
+            }
+        }
         mmRefreshSel(); mmBarUpdate();
     });
     document.addEventListener('pointerdown', e => {
-        if (!e.target.closest('.mm-menu') && !e.target.closest('.mrow, .narr-row')) hideMsgMenu();
+        if (!e.target.closest('.mm-menu') && !e.target.closest('.mrow, .narr-row') && !e.target.closest('#mmSelectToTip')) {
+            hideMsgMenu();
+            hideSelectToTip();
+        }
     });
 }
 /* ---------------- 聊天室顶栏下滑面板：内置提示词 + 条数 + 大时间 ---------------- */
@@ -2156,10 +2242,13 @@ function renderThread(opts) {
     if (latestHid) c.msgs.forEach((m, i) => { if (!m.me && !m.narr && m.hid === latestHid) heartIdx = i; });
     const fsInline = (c.beauty && Number(c.beauty.fontSize)) ? ` style="font-size:${Number(c.beauty.fontSize)}px !important"` : '';
     let html = '<div class="day">Today</div>';
-    c.msgs.forEach((m, i) => {
+    const totalMsgs = c.msgs.length;
+    const startIdx = Math.max(0, totalMsgs - threadLimit);
+    for (let i = startIdx; i < totalMsgs; i++) {
+        const m = c.msgs[i];
         if (m.narr) {
             html += `<div class="narr-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><div class="narr" style="color:${NARR.color};font-size:${NARR.size}px;font-style:${NARR.italic ? 'italic' : 'normal'}">${esc(m.text)}</div></div>`;
-            return;
+            continue;
         }
         // 只看紧邻的前后一条消息。旁白也算分隔：旁白前后的气泡各自开始新的一轮样式，
         // 不会接着上一轮的形状继续连在一起。
@@ -2175,15 +2264,17 @@ function renderThread(opts) {
         const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
         const grp = (pos === 'g-head') ? 'grp-head' : '';
         const qHtml = m.quote && m.quote.text ? `<div class="qt-in"><b>${esc(m.quote.me ? (ME.name || '我') : c.name)}</b>${esc(m.quote.text)}</div>` : '';
-        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > 0 ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}"${fsInline}>${qHtml}${esc(m.text)}</div>${meta}</div>`;
-    });
+        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > startIdx ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}"${fsInline}>${qHtml}${esc(m.text)}</div>${meta}</div>`;
+    }
     if (c._typing) {
         html += `<div class="mrow typing mrow-new" id="typingRow"><div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div><div class="ct-bubble">${ctSvgHtml('ct-chat')}</div></div>`;
     }
     box.innerHTML = html;
     box.dataset.chat = c.id;
     box.dataset.count = c.msgs.length;
-    box.scrollTop = box.scrollHeight;
+    if (!opts || !opts.prepend) {
+        box.scrollTop = box.scrollHeight;
+    }
     if (c._typing) ctEnsure();
     if (MM.mode === 'multi') mmRefreshSel();
 }
@@ -4952,6 +5043,9 @@ let MOMENT_VIS_Q = '';
 let MV_ANIM = false;
 /* 长按消息菜单：天使图标 */
 const MM_ICONS = {
+    range: `<svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 7h14M5 12h10M5 17h14M17 10l3 2-3 2"/>
+    </svg>`,
     edit: `<svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4.2 17.8 3 21l3.3-1.1L18.9 7.3a2.15 2.15 0 0 0-3-3L4.2 17.8Z"/>
       <path d="m14.8 5.4 3.8 3.8"/>
@@ -4985,7 +5079,7 @@ const MM_ICONS = {
 };
 let MM_SHEET_TAG = false;
 let CFOLD_OPEN = {};
-const MM = { timer: null, sx: 0, sy: 0, mode: 'menu', sel: new Set(), idx: null, bound: false };
+const MM = { timer: null, sx: 0, sy: 0, mode: 'menu', sel: new Set(), idx: null, bound: false, anchor: null, lastClicked: null };
 const MV_ICO = {
     globe: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3c2.5 2.6 3.8 5.6 3.8 9S14.5 18.4 12 21c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>',
     users: '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M2.8 20a6.2 6.2 0 0 1 12.4 0"/><circle cx="17" cy="9" r="2.6"/><path d="M16.4 13.5a5 5 0 0 1 4.8 5.2"/></svg>',
@@ -5700,10 +5794,38 @@ function openHeartCabinet(){
     document.getElementById('hpPop').classList.add('is-fav');
     document.getElementById('hpMask').classList.add('show');
 }
-/* 点头像下的爱心打开心声 */
+/* 点头像下的爱心或对面头像打开心声 */
 document.addEventListener('click', e => {
+    if (!activeId) return;
+    if (typeof MM !== 'undefined' && MM.mode === 'multi') return;
     const hv = e.target.closest && e.target.closest('.hv-heart');
-    if (hv && activeId) openHeart(activeId);
+    if (hv) {
+        openHeart(activeId);
+        return;
+    }
+    const themAv = e.target.closest && e.target.closest('#thread .mrow:not(.me) .av-col');
+    if (themAv) {
+        const row = themAv.closest('.mrow');
+        const c = CONTACTS.find(x => x.id === activeId);
+        if (!c) return;
+        const i = row ? Number(row.dataset.i) : -1;
+        let targetHid = null;
+        if (i >= 0 && c.msgs && c.msgs[i]) {
+            if (c.msgs[i].hid) {
+                targetHid = c.msgs[i].hid;
+            } else {
+                for (let k = i; k >= 0 && !c.msgs[k].me && !c.msgs[k].narr; k--) {
+                    if (c.msgs[k].hid) { targetHid = c.msgs[k].hid; break; }
+                }
+                if (!targetHid) {
+                    for (let k = i; k < c.msgs.length && !c.msgs[k].me && !c.msgs[k].narr; k++) {
+                        if (c.msgs[k].hid) { targetHid = c.msgs[k].hid; break; }
+                    }
+                }
+            }
+        }
+        openHeart(activeId, targetHid);
+    }
 });
 };
 
