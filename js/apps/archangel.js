@@ -1259,7 +1259,7 @@
           };
           const hasLocalAttach=pendingMsgs.some(m=>m.attach&&m.attach.length>0)||pendingAttach.length>0||/附件|发给(?:你|他)|发我|回传|直接发|打包|压缩包|下载/i.test(text);
           const explicitRepo=/(上传到仓库|推送到仓库|提交到仓库|写入仓库|保存到仓库|传到仓库|推送到\s*github|上传到\s*github|commit|push|pull request)/i.test(text);
-          const wantsRepoChange=!hasLocalAttach && (explicitRepo || /(仓库文件|在仓库|修改仓库|提交修改)/i.test(text));
+          const wantsRepoChange=!hasLocalAttach && (explicitRepo || /(仓库文件|在仓库|修改仓库|提交修改|修改|改成|改为|改一下|修复|替换|更新|添加|删掉|去掉)/i.test(text));
           const hasRepo=modeCfg().mode!=='healer'&&(()=>{const g=G();return !!(g.token&&g.owner&&g.repo&&modeCfg().mode!=='healer')})();
           if(!hasRepo&&wantsRepoChange){
             const warning='这次还没有生成上传确认卡片，因为当前没有可用的 GitHub 仓库连接，或当前模式不支持仓库修改。请先切换到工作/辅助模式并检查仓库设置。现在没有上传任何文件。';
