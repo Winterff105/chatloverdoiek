@@ -1078,7 +1078,36 @@
           const d=await readAiResponse(r,onProgress);runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
           const outText=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):m.content||'';runLog.push({label:'仓库调用 '+(runLog.length+1),raw:String(outText)});return outText;
         }
-        function pj(t){const c=String(t||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');try{return JSON.parse(c)}catch{const i=c.indexOf('{'),j=c.lastIndexOf('}');if(i<0||j<=i)throw new Error('AI 返回的不是有效 JSON');return JSON.parse(c.slice(i,j+1))}}
+        function pj(t){
+          const raw=String(t||'').trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
+          try{return JSON.parse(raw)}catch(_){}
+          const i=raw.indexOf('{'),j=raw.lastIndexOf('}');
+          if(i<0||j<=i)throw new Error('AI 返回的不是有效 JSON');
+          let s=raw.slice(i,j+1);
+          try{return JSON.parse(s)}catch(_){}
+          let inStr=false,esc=false,out='';
+          for(let k=0;k<s.length;k++){
+            const ch=s[k];
+            if(inStr){
+              if(esc){out+=ch;esc=false}
+              else if(ch==='\\'){out+=ch;esc=true}
+              else if(ch==='"'){out+=ch;inStr=false}
+              else if(ch==='\n'){out+='\\n'}
+              else if(ch==='\r'){out+='\\r'}
+              else if(ch==='\t'){out+='\\t'}
+              else{out+=ch}
+            }else{
+              if(ch==='"'){inStr=true}
+              out+=ch;
+            }
+          }
+          try{return JSON.parse(out)}catch(e){
+            if(inStr)out+='"';
+            const openB=(out.match(/\{/g)||[]).length,closeB=(out.match(/\}/g)||[]).length;
+            if(openB>closeB)out+='}'.repeat(openB-closeB);
+            return JSON.parse(out);
+          }
+        }
         async function codeSearch(text){
           let g;try{g=G();need(g)}catch(e){return []}
           const valid=new Set(ST.tree.map(f=>f.path));
@@ -1265,13 +1294,16 @@
             let d=step(0,LBL[0]);
             if(!ST.tree.length||ST.key!==rk(G()))await loadTree();if(!ST.tree.length)throw new Error('仓库文件树为空');
             d();d=step(1,LBL[1]);
-            const recentText=((currentConversation&&currentConversation.messages)||[]).slice(-4).map(m=>{
+            const recentText=((currentConversation&&currentConversation.messages)||[]).slice(-15).map(m=>{
               const role=m.role==='assistant'?'对面':m.role==='system'?'系统':'我';
-              const cleanTxt=String(m.text||'').slice(0,200).replace(/\n+/g,' ');
-              return `${role}：${cleanTxt}`;
-            }).join('\n');
+              let txt=String(m.text||'');
+              txt=txt.replace(/```[\s\S]*?```/g,'[已折叠历史代码块]');
+              txt=txt.replace(/\{"thinking"[\s\S]*?"files"[\s\S]*?\}/g,'[已折叠历史改动数据]');
+              if(txt.length>400)txt=txt.slice(0,400)+'…';
+              return `${role}：${txt.trim()}`;
+            }).filter(Boolean).join('\n');
             const attachCands=[];
-            ((currentConversation&&currentConversation.messages)||[]).slice(-4).forEach(m=>(m.attach||[]).forEach(a=>{
+            ((currentConversation&&currentConversation.messages)||[]).slice(-8).forEach(m=>(m.attach||[]).forEach(a=>{
               if(a.type!=='image'&&a.content!=null){const i=attachCands.findIndex(x=>x.name===a.name);if(i>=0)attachCands.splice(i,1);attachCands.push(a)}
             }));
             const hitMap=await codeSearch(text);
