@@ -1,0 +1,552 @@
+/* =========================================
+   世界书 App 样式 · 纯白风格（颜色由本文件自己定义，不跟随壁纸）
+   ========================================= */
+.worldbook-app{
+    --wb-bg:#FFFFFF;
+    --wb-card:#FFFFFF;
+    --wb-border:#EAEAEA;
+    --wb-fill:#F3F3F3;
+    --wb-text:#1C1C1C;
+    --wb-sub:#8B8B8B;
+    --wb-lav:#B3B3B3;
+    --wb-pink:#CCCCCC;
+    --wb-sky:#C3C3C3;
+    --wb-lav-bg:#F0F0F0;
+    --wb-pink-bg:#F1F1F1;
+    --wb-sky-bg:#F0F0F0;
+    --wb-peach-bg:#F3F3F3;
+    --wb-peach:#A4A4A4;
+}
+.app-window .app-content.worldbook-app,
+.worldbook-app{
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:stretch !important;
+    justify-content:flex-start !important;
+    padding:22px 18px 40px !important;
+    font-size:14px !important;
+    color:var(--wb-text) !important;
+    background-color:var(--wb-bg) !important;
+    background-image:radial-gradient(circle at 8% 6%, #F1F1F1 0 70px, transparent 71px), radial-gradient(circle at 96% 34%, #F5F5F5 0 60px, transparent 61px), radial-gradient(circle at 10% 92%, #F2F2F2 0 80px, transparent 81px) !important;
+    background-repeat:no-repeat !important;
+    overflow-y:auto !important;
+    position:relative;
+    scrollbar-width:none;
+}
+.worldbook-app::-webkit-scrollbar{ display:none; }
+
+/* 浮动提示：只渐显 */
+.worldbook-app .wb-tip{
+    position:absolute; top:18px; left:50%; transform:translateX(-50%);
+    padding:7px 14px; border-radius:999px; font-size:12px; color:var(--wb-text);
+    background:var(--wb-card); border:1px solid var(--wb-border);
+    
+    opacity:0; pointer-events:none; transition:opacity .3s ease; z-index:5; white-space:nowrap;
+}
+.worldbook-app .wb-tip.show{ opacity:1; }
+
+.worldbook-app .wb-view{ width:100%; font-size:14px; color:var(--wb-text); }
+@keyframes wbFade{ from{ opacity:0; } to{ opacity:1; } }
+.worldbook-app .wb-in{ animation:wbFade .32s ease both; }
+
+/* ---------- 顶栏 ---------- */
+.worldbook-app .wb-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:18px; min-height:40px; }
+.worldbook-app .wb-title{ font-size:28px; font-weight:700; letter-spacing:-.6px; }
+.worldbook-app .wb-title.small{ font-size:16px; font-weight:600; letter-spacing:0; flex:1; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.worldbook-app .wb-top-actions{ display:flex; gap:8px; }
+.worldbook-app .wb-top-spacer{ width:36px; }
+.worldbook-app .wb-round{
+    width:36px; height:36px; border-radius:50%; flex-shrink:0; padding:0; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--wb-fill); border:1px solid var(--wb-border); color:var(--wb-text);
+}
+.worldbook-app .wb-round svg{ width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.worldbook-app .wb-text-btn{ background:none; border:0; color:var(--wb-sub); font-size:14px; cursor:pointer; padding:6px 2px; }
+
+/* ---------- 书架卡片 ---------- */
+.worldbook-app .wb-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.worldbook-app .wb-card{
+    cursor:pointer; padding:14px 14px 12px; border-radius:22px; min-height:172px;
+    display:flex; flex-direction:column; gap:4px;
+    background:var(--wb-card); border:1px solid var(--wb-border);
+    
+    box-shadow:0 6px 18px rgba(0,0,0,.06);
+}
+.worldbook-app .wb-card-ico{ width:40px; height:40px; margin-bottom:6px; }
+.worldbook-app .wb-card-ico svg{ width:100%; height:100%; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.worldbook-app .wb-card-ico .stroke-primary{ stroke:var(--wb-text); stroke-width:1.5; }
+.worldbook-app .wb-card-ico .stroke-secondary{ stroke:var(--wb-sub); stroke-width:1.3; }
+.worldbook-app .wb-card-name{ font-size:16px; font-weight:650; letter-spacing:-.2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.worldbook-app .wb-card-author{ font-size:11.5px; color:var(--wb-sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.worldbook-app .wb-card-intro{
+    font-size:12px; line-height:1.5; color:var(--wb-sub); margin-top:4px;
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; flex:1;
+}
+.worldbook-app .wb-card-foot{ display:flex; align-items:center; justify-content:space-between; font-size:11px; color:var(--wb-sub); margin-top:6px; }
+
+.worldbook-app .wb-chip{
+    display:inline-flex; align-items:center; padding:3px 9px; border-radius:999px; font-size:11px; white-space:nowrap;
+    background:var(--wb-fill); color:var(--wb-sub); border:1px solid var(--wb-border);
+}
+.worldbook-app .wb-chip.off{ opacity:.55; }
+
+.worldbook-app .wb-empty{ text-align:center; padding:70px 10px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+.worldbook-app .wb-empty-ico{ width:56px; height:56px; opacity:.85; }
+.worldbook-app .wb-empty-ico svg{ width:100%; height:100%; fill:none; stroke:var(--wb-text); stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; }
+.worldbook-app .wb-empty-txt{ font-size:16px; font-weight:600; }
+.worldbook-app .wb-empty-sub{ font-size:12px; color:var(--wb-sub); }
+.worldbook-app .wb-empty-sub.pad{ text-align:center; padding:30px 0; }
+
+/* ---------- 书详情 ---------- */
+.worldbook-app .wb-head{
+    padding:18px; border-radius:24px; margin-bottom:16px;
+    background:var(--wb-card); border:1px solid var(--wb-border);
+    
+}
+.worldbook-app .wb-big{ font-size:22px; font-weight:700; letter-spacing:-.4px; }
+.worldbook-app .wb-meta{ font-size:12px; color:var(--wb-sub); margin-top:4px; }
+.worldbook-app .wb-intro{ font-size:13px; line-height:1.6; color:var(--wb-text); opacity:.85; margin-top:10px; white-space:pre-wrap; }
+.worldbook-app .wb-head-row{ display:flex; align-items:center; justify-content:space-between; margin-top:14px; font-size:13px; }
+
+.worldbook-app .wb-switch{
+    position:relative; width:44px; height:26px; border-radius:999px; flex-shrink:0; cursor:pointer;
+    background:var(--wb-fill); border:1px solid var(--wb-border); transition:background .25s ease;
+}
+.worldbook-app .wb-switch i{
+    position:absolute; top:2px; left:2px; width:20px; height:20px; border-radius:50%;
+    background:var(--wb-sub); transition:transform .25s var(--smooth-ease), background .25s ease;
+}
+.worldbook-app .wb-switch.on{ background:var(--wb-text); }
+.worldbook-app .wb-switch.on i{ transform:translateX(18px); background:var(--wb-bg); }
+
+.worldbook-app .wb-sec{ display:flex; align-items:center; justify-content:space-between; margin:6px 2px 10px; font-size:13px; color:var(--wb-sub); }
+.worldbook-app .wb-sec-btns{ display:flex; gap:8px; }
+.worldbook-app .wb-pill{
+    padding:6px 12px; border-radius:999px; font-size:12px; cursor:pointer;
+    background:var(--wb-fill); border:1px solid var(--wb-border); color:var(--wb-text);
+}
+.worldbook-app .wb-pill.strong{ background:var(--wb-text); color:var(--wb-bg); border-color:transparent; }
+
+.worldbook-app .wb-list{ display:flex; flex-direction:column; gap:10px; }
+.worldbook-app .wb-entry{
+    display:flex; align-items:center; gap:10px; padding:13px 14px; border-radius:20px; cursor:pointer;
+    background:var(--wb-card); border:1px solid var(--wb-border);
+    
+}
+.worldbook-app .wb-entry-main{ flex:1; min-width:0; }
+.worldbook-app .wb-entry-name{ font-size:14.5px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.worldbook-app .wb-entry-keys{ font-size:11.5px; color:var(--wb-sub); margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* ---------- 表单 ---------- */
+.worldbook-app .wb-form{ display:flex; flex-direction:column; gap:14px; }
+.worldbook-app .wb-field{ display:flex; flex-direction:column; gap:6px; }
+.worldbook-app .wb-field.half{ width:50%; }
+.worldbook-app .wb-field > span{ font-size:12px; color:var(--wb-sub); padding-left:4px; }
+.worldbook-app .wb-field input,
+.worldbook-app .wb-field textarea{
+    width:100%; padding:12px 14px; border-radius:14px; font:inherit; font-size:15px; color:var(--wb-text);
+    background:var(--wb-fill); border:1px solid var(--wb-border); outline:none; box-sizing:border-box;
+}
+.worldbook-app .wb-field textarea{ resize:vertical; line-height:1.55; min-height:120px; }
+.worldbook-app .wb-field input:focus,
+.worldbook-app .wb-field textarea:focus{ border-color:var(--wb-sub); }
+.worldbook-app .wb-field input::placeholder,
+.worldbook-app .wb-field textarea::placeholder{ color:var(--wb-sub); opacity:.7; }
+
+.worldbook-app .wb-seg{ display:flex; gap:4px; padding:4px; border-radius:16px; background:var(--wb-fill); border:1px solid var(--wb-border); }
+.worldbook-app .wb-seg-btn{ flex:1; padding:9px 0; border:0; border-radius:12px; cursor:pointer; background:transparent; color:var(--wb-sub); font-size:14px; }
+.worldbook-app .wb-seg-btn.on{ background:var(--wb-text); color:var(--wb-bg); font-weight:600; }
+
+.worldbook-app .wb-depth-row{ display:flex; align-items:flex-end; gap:12px; }
+.worldbook-app .wb-depth-row[data-show="false"]{ display:none; }
+.worldbook-app .wb-depth-hint{ font-size:11.5px; color:var(--wb-sub); padding-bottom:12px; line-height:1.5; }
+
+.worldbook-app .wb-form .wb-head-row{ margin-top:0; padding:2px 4px; }
+.worldbook-app .wb-form .wb-head-row > span:first-child{ font-size:14px; }
+
+.worldbook-app .wb-save{
+    margin-top:6px; height:48px; border:0; border-radius:16px; cursor:pointer;
+    background:var(--wb-text); color:var(--wb-bg); font-size:15px; font-weight:650;
+}
+.worldbook-app .wb-danger{
+    height:44px; border-radius:16px; cursor:pointer; background:transparent;
+    border:1px solid rgba(124,124,124,.45); color:#7C7C7C; font-size:14px;
+}
+
+/* 世界书图标在桌面的样式由 app-icon.css 的 .stroke-primary 等类统一控制，这里不额外覆盖 */
+
+/* ===================== 装饰：光环、翅膀、星星、天使 ===================== */
+.worldbook-app .wb-title-wrap{ display:flex; flex-direction:column; align-items:center; gap:0; }
+.worldbook-app .wb-halo{ width:40px; height:10px; color:var(--wb-lav); margin-bottom:-2px; }
+.worldbook-app .wb-title{ display:flex; align-items:center; gap:6px; font-size:26px; }
+.worldbook-app .wb-wing{ color:var(--wb-pink); display:inline-flex; }
+.worldbook-app .wb-wing:last-child{ transform:scaleX(-1); }
+.worldbook-app .wb-title.small .wb-wing{ display:none; }
+.worldbook-app .wb-card-ico{ color:var(--wb-lav); }
+.worldbook-app .wb-card-star{ position:absolute; top:12px; right:12px; width:12px; height:12px; color:var(--wb-pink); }
+.worldbook-app .wb-card-star svg{ width:100%; height:100%; }
+.worldbook-app .wb-card{ position:relative; background:linear-gradient(180deg,#FFFFFF 0%,#FBFBFB 100%); border:1px solid #EDEDED; border-radius:24px; }
+.worldbook-app .wb-card:nth-child(2n){ background:linear-gradient(180deg,#FFFFFF 0%,#FCFCFC 100%); border-color:#EDEDED; }
+.worldbook-app .wb-card-foot .wb-chip{ background:var(--wb-lav-bg); color:#737373; border-color:transparent; }
+.worldbook-app .wb-card-foot .wb-chip.off{ background:#F3F3F3; color:var(--wb-sub); }
+
+/* 位置颜色：前 天蓝 / 中 淡紫 / 后 桃 */
+.worldbook-app .wb-chip.pos-before{ background:var(--wb-sky-bg); color:#717171; border-color:transparent; }
+.worldbook-app .wb-chip.pos-mid{ background:var(--wb-lav-bg); color:#737373; border-color:transparent; }
+.worldbook-app .wb-chip.pos-after{ background:var(--wb-peach-bg); color:var(--wb-peach); border-color:transparent; }
+
+/* 空状态天使 */
+.worldbook-app .wb-angel{ width:170px; height:auto; margin-bottom:6px; }
+.worldbook-app .wb-empty-txt{ color:#575757; }
+
+/* 开关：淡紫渐变 + 小圆钮 */
+.worldbook-app .wb-switch{ background:#ECECEC; border-color:transparent; }
+.worldbook-app .wb-switch.on{ background:linear-gradient(90deg,#B3B3B3,#CCCCCC); }
+.worldbook-app .wb-switch i{ background:#FFFFFF; box-shadow:0 1px 3px rgba(0,0,0,.14); }
+.worldbook-app .wb-switch.on i{ background:#FFFFFF; }
+
+/* 分段：选中为淡紫 */
+.worldbook-app .wb-seg{ background:#F5F5F5; border-color:#EDEDED; }
+.worldbook-app .wb-seg-btn.on{ background:linear-gradient(90deg,#B3B3B3,#CCCCCC); color:#FFFFFF; }
+
+/* 按钮：渐变 */
+.worldbook-app .wb-save{ background:linear-gradient(90deg,#B3B3B3,#CCCCCC); color:#FFFFFF; box-shadow:0 6px 16px rgba(179,179,179,.35); letter-spacing:.5px; }
+.worldbook-app .wb-pill.strong{ background:linear-gradient(90deg,#B3B3B3,#CCCCCC); color:#FFFFFF; }
+.worldbook-app .wb-round{ background:#FFFFFF; border-color:#EDEDED; color:#737373; }
+
+/* 区块标题：虚线 + 小星星 */
+.worldbook-app .wb-sec{ position:relative; gap:10px; color:#888888; }
+.worldbook-app .wb-sec > span{ flex-shrink:0; }
+.worldbook-app .wb-sec::after{ content:''; flex:1; height:0; border-top:1px dashed #DADADA; margin:0 10px; }
+.worldbook-app .wb-sec-btns{ flex-shrink:0; }
+
+/* 条目行：白卡片 + 淡紫描边 */
+.worldbook-app .wb-entry{ background:#FFFFFF; border:1px solid #EDEDED; border-radius:22px; box-shadow:0 4px 14px rgba(179,179,179,.10); }
+.worldbook-app .wb-entry-keys{ color:#A2A2A2; }
+
+/* 提示条：白胶囊 + 小星星 */
+.worldbook-app .wb-tip{ background:#FFFFFF; border:1px solid #EDEDED; color:#575757; box-shadow:0 6px 18px rgba(179,179,179,.2); }
+.worldbook-app .wb-tip-star{ display:inline-block; width:8px; height:8px; margin-right:6px; vertical-align:middle; background:var(--wb-pink);
+    clip-path:polygon(50% 0,62% 38%,100% 50%,62% 62%,50% 100%,38% 62%,0 50%,38% 38%); }
+
+/* 表单输入：淡紫聚焦 */
+.worldbook-app .wb-field input,
+.worldbook-app .wb-field textarea{ background:#FBFBFB; border-color:#EDEDED; }
+.worldbook-app .wb-field input:focus,
+.worldbook-app .wb-field textarea:focus{ border-color:#B3B3B3; box-shadow:0 0 0 3px rgba(179,179,179,.18); }
+.worldbook-app .wb-danger{ border-color:#D6D6D6; background:#FAFAFA; }
+
+/* ===================== 书架：标题居中 ===================== */
+.worldbook-app .wb-top.wb-top-lib{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; }
+.worldbook-app .wb-top.wb-top-lib .wb-title-wrap{ grid-column:2; }
+.worldbook-app .wb-top.wb-top-lib .wb-top-actions{ grid-column:3; justify-self:end; }
+
+/* ===================== 书架：卡片做成书本 ===================== */
+.worldbook-app .wb-grid{ gap:22px 18px; padding:4px 6px 14px; }
+.worldbook-app .wb-grid .wb-card:nth-child(n){
+    position:relative; aspect-ratio:3 / 4; min-height:0; padding:18px 14px 14px 26px;
+    display:flex; flex-direction:column; gap:6px; overflow:visible;
+    border-radius:3px 12px 12px 3px;
+    background:linear-gradient(90deg,#FFFFFF 0%,#FFFFFF 90%,#F4F4F4 100%);
+    border:1px solid #D4D4D4; border-left:0;
+    box-shadow:
+        4px 3px 0 -1px #F2F2F2,
+        7px 6px 0 -2px #E3E3E3,
+        10px 9px 0 -3px #F6F6F6,
+        13px 12px 0 -4px #DDDDDD,
+        0 14px 22px -8px rgba(0,0,0,.22);
+}
+/* 书脊 */
+.worldbook-app .wb-grid .wb-card:nth-child(n)::before{
+    content:''; position:absolute; left:0; top:0; bottom:0; width:14px;
+    border-radius:3px 0 0 3px;
+    background:linear-gradient(90deg,#4A4A4A 0%,#7A7A7A 45%,#3E3E3E 100%);
+    box-shadow:inset -1px 0 0 rgba(0,0,0,.25), 1px 0 0 #D4D4D4;
+}
+/* 书脊上的纹路 */
+.worldbook-app .wb-grid .wb-card:nth-child(n)::after{
+    content:''; position:absolute; left:4px; top:14px; bottom:14px; width:2px; pointer-events:none;
+    background:repeating-linear-gradient(to bottom, rgba(255,255,255,.45) 0 1.5px, transparent 1.5px 14px);
+}
+.worldbook-app .wb-grid .wb-card-ico{ width:46px; height:46px; margin:4px auto 2px; color:#3A3A3A; }
+.worldbook-app .wb-grid .wb-card-star{ top:12px; right:12px; color:#9A9A9A; }
+/* 封面标签框 */
+.worldbook-app .wb-grid .wb-card-name{
+    text-align:center; white-space:normal; overflow:hidden;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+    font-size:15px; font-weight:700; line-height:1.3; letter-spacing:.2px;
+    padding:8px 6px; background:#FFFFFF; border:1px solid #BDBDBD; border-radius:2px;
+    color:#1C1C1C; box-shadow:inset 0 0 0 3px #FFFFFF, inset 0 0 0 4px #E2E2E2;
+}
+.worldbook-app .wb-grid .wb-card-author{ text-align:center; font-size:11px; letter-spacing:.4px; color:#6F6F6F; }
+.worldbook-app .wb-grid .wb-card-intro{ text-align:center; font-size:11.5px; line-height:1.55; color:#8A8A8A; margin-top:2px; -webkit-line-clamp:3; }
+.worldbook-app .wb-grid .wb-card-foot{
+    margin-top:auto; padding-top:8px; border-top:1px dashed #C9C9C9;
+    font-size:10.5px; letter-spacing:.3px; color:#7A7A7A;
+}
+.worldbook-app .wb-grid .wb-card-foot .wb-chip{ background:#EFEFEF; color:#3A3A3A; border:1px solid #D0D0D0; padding:2px 8px; }
+.worldbook-app .wb-grid .wb-card-foot .wb-chip.off{ background:#F7F7F7; color:#9A9A9A; }
+
+/* ===================== 极淡分割线：条目合成一个面板 ===================== */
+.worldbook-app .wb-head-row{ border-top:1px solid #F3F3F3; padding-top:12px; }
+.worldbook-app .wb-list{ gap:0; background:#FFFFFF; border:1px solid #F0F0F0; border-radius:20px; overflow:hidden; }
+.worldbook-app .wb-entry{ border:0; border-top:1px solid #F4F4F4; border-radius:0; box-shadow:none; background:#FFFFFF; padding:13px 16px; }
+.worldbook-app .wb-entry:first-child{ border-top:0; }
+.worldbook-app .wb-entry:hover{ background:#FCFCFC; }
+
+/* ===================== 书本点开 ===================== */
+@keyframes wbOpen{
+    0%  { transform:perspective(900px) rotateY(0deg); opacity:1; }
+    100%{ transform:perspective(900px) rotateY(-150deg); opacity:0; }
+}
+.worldbook-app .wb-grid .wb-card.wb-opening{ transform-origin:left center; animation:wbOpen .5s ease-in forwards; z-index:2; }
+.worldbook-app .wb-grid .wb-card.wb-dim{ opacity:0; transition:opacity .3s ease; pointer-events:none; }
+@keyframes wbUnfold{
+    from{ opacity:0; transform:perspective(900px) rotateY(-32deg); }
+    to  { opacity:1; transform:perspective(900px) rotateY(0deg); }
+}
+.worldbook-app .wb-head{ transform-origin:left center; animation:wbUnfold .5s ease both; }
+
+/* ===================== 标题：一对翅膀环绕文字 ===================== */
+.worldbook-app .wb-title-wrap{ position:relative; }
+.worldbook-app .wb-wing-one{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:170px; color:#B3B3B3; pointer-events:none; }
+.worldbook-app .wb-wing-one svg{ width:100%; height:auto; display:block; }
+.worldbook-app .wb-title{ position:relative; z-index:1; }
+
+/* ===================== 书架卡片：内页极淡粉 ===================== */
+.worldbook-app .wb-grid .wb-card:nth-child(n){
+    background:linear-gradient(90deg,#FFF8FB 0%,#FFFFFF 42%,#FFF4F8 100%);
+}
+.worldbook-app .wb-grid .wb-card-name{ background:#FFFBFD; }
+
+/* ===================== 调整：翅膀变小；书本去掉油腻的渐变与叠影，改为平面质感 ===================== */
+.worldbook-app .wb-wing-one{ width:112px; color:#C4C4C4; }
+
+.worldbook-app .wb-grid .wb-card:nth-child(n){
+    background:#FFFCFD;
+    border:1px solid #E2E2E2; border-left:0;
+    border-radius:2px 8px 8px 2px;
+    box-shadow:1px 1px 0 #E6E6E6, 2px 2px 0 #F0F0F0, 0 4px 10px rgba(0,0,0,.05);
+}
+.worldbook-app .wb-grid .wb-card:nth-child(n)::before{
+    width:10px; border-radius:2px 0 0 2px;
+    background:#5C5C5C;
+    box-shadow:none;
+}
+.worldbook-app .wb-grid .wb-card:nth-child(n)::after{
+    left:3px; width:1px; opacity:.9;
+    background:repeating-linear-gradient(to bottom, rgba(255,255,255,.35) 0 2px, transparent 2px 12px);
+}
+.worldbook-app .wb-grid .wb-card-ico{ color:#5C5C5C; }
+.worldbook-app .wb-grid .wb-card-name{
+    background:#FFFFFF; border:1px solid #DADADA; border-radius:2px;
+    box-shadow:none; color:#1C1C1C; font-weight:650; font-size:14.5px;
+}
+.worldbook-app .wb-grid .wb-card-author{ color:#8A8A8A; }
+.worldbook-app .wb-grid .wb-card-intro{ color:#9A9A9A; }
+.worldbook-app .wb-grid .wb-card-foot{ border-top:1px solid #EFEFEF; }
+.worldbook-app .wb-grid .wb-card-foot .wb-chip{ background:#F4F4F4; border:1px solid #E4E4E4; }
+.worldbook-app .wb-grid .wb-card-star{ color:#C8C8C8; }
+.worldbook-app .wb-grid .wb-card.wb-opening{ box-shadow:2px 6px 12px rgba(0,0,0,.14); }
+
+/* ===================== 书本厚度：卡片与封面有细细的页边 ===================== */
+.worldbook-app .wb-grid .wb-card:nth-child(n){
+    box-shadow:
+        1px 1px 0 #E6E6E6,
+        2px 2px 0 #EEEEEE,
+        3px 3px 0 #E4E4E4,
+        4px 4px 0 #F2F2F2,
+        0 6px 12px rgba(0,0,0,.05);
+}
+
+/* ===================== 书详情：封面 ===================== */
+.worldbook-app .wb-cover{
+    position:relative; display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px;
+    padding:24px 18px 16px 30px; margin-bottom:18px;
+    background:#FFFCFD; border:1px solid #E2E2E2; border-left:0; border-radius:2px 10px 10px 2px;
+    box-shadow:1px 1px 0 #E6E6E6, 2px 2px 0 #EEEEEE, 3px 3px 0 #E4E4E4, 4px 4px 0 #F2F2F2, 0 6px 12px rgba(0,0,0,.05);
+}
+.worldbook-app .wb-cover .wb-spine{
+    position:absolute; left:0; top:0; bottom:0; width:12px; border-radius:2px 0 0 2px; background:#5C5C5C;
+}
+.worldbook-app .wb-cover .wb-spine::after{
+    content:''; position:absolute; left:4px; top:14px; bottom:14px; width:1px;
+    background:repeating-linear-gradient(to bottom, rgba(255,255,255,.35) 0 2px, transparent 2px 12px);
+}
+.worldbook-app .wb-cover-ico{ width:52px; height:52px; color:#5C5C5C; }
+.worldbook-app .wb-cover-ico svg{ width:100%; height:100%; }
+.worldbook-app .wb-cover-label{
+    max-width:100%; padding:9px 14px; background:#FFFFFF; border:1px solid #DADADA; border-radius:2px;
+    font-size:18px; font-weight:700; color:#1C1C1C; overflow:hidden; text-overflow:ellipsis;
+}
+.worldbook-app .wb-cover-author{ font-size:12px; letter-spacing:.4px; color:#8A8A8A; }
+.worldbook-app .wb-cover-intro{ margin:4px 0 0; font-size:13px; line-height:1.6; color:#6F6F6F; white-space:pre-wrap; }
+.worldbook-app .wb-cover .wb-head-row{ width:100%; margin-top:10px; padding-top:12px; border-top:1px dashed #E2E2E2; justify-content:space-between; }
+
+/* ===================== 条目编辑：导入按钮 ===================== */
+.worldbook-app .wb-entry-import{ display:flex; justify-content:flex-end; margin-bottom:-6px; }
+
+/* ===================== 翅膀：再缩小一半 ===================== */
+.worldbook-app .wb-wing-one{ width:56px; }
+
+/* ===================== 书详情：手帐本内页 ===================== */
+.worldbook-app .wb-journal{
+    position:relative; min-height:calc(100% - 8px); margin:0 -2px; padding:20px 16px 56px 42px; border-radius:6px;
+    background-color:#FFFFFF;
+    background-image:radial-gradient(circle, #DCDCDC 0.9px, transparent 1.3px);
+    background-size:16px 16px; background-position:8px 8px;
+    box-shadow:0 1px 0 #EBEBEB, 0 6px 16px rgba(0,0,0,.05);
+}
+/* 左侧装订线 */
+.worldbook-app .wb-binding{ position:absolute; left:28px; top:0; bottom:0; width:0; border-left:1px dashed #CFCFCF; }
+.worldbook-app .wb-journal::before{
+    content:''; position:absolute; left:8px; top:22px; bottom:22px; width:6px; pointer-events:none;
+    background:radial-gradient(circle, #E4E4E4 2.4px, transparent 2.9px) 0 0 / 6px 30px repeat-y;
+}
+/* 胶带 */
+.worldbook-app .wb-tape{
+    position:absolute; top:-9px; width:72px; height:20px; display:block; pointer-events:none;
+    background:rgba(252,232,241,.82);
+    box-shadow:0 1px 2px rgba(0,0,0,.06);
+    clip-path:polygon(0 0,4% 22%,0 44%,4% 66%,0 88%,3% 100%,97% 100%,100% 84%,96% 62%,100% 40%,96% 18%,100% 0);
+}
+.worldbook-app .wb-tape.t1{ left:44px; transform:rotate(-7deg); }
+.worldbook-app .wb-tape.t2{ right:22px; width:58px; transform:rotate(6deg); }
+/* 贴纸 */
+.worldbook-app .wb-sticker{ position:absolute; width:14px; height:14px; color:#B8B8B8; pointer-events:none; }
+.worldbook-app .wb-sticker.s1{ right:18px; top:86px; transform:rotate(12deg); }
+.worldbook-app .wb-sticker.s2{ right:44px; bottom:64px; width:16px; height:16px; color:#F2C6D8; transform:rotate(-8deg); }
+/* 页码 */
+.worldbook-app .wb-pageno{ position:absolute; right:16px; bottom:14px; font-size:11px; letter-spacing:1px; color:#A4A4A4; font-family:'Courier New', monospace; }
+
+/* 标题区：贴在纸上的手写风标题 */
+.worldbook-app .wb-journal .wb-top{ margin-bottom:6px; }
+.worldbook-app .wb-journal .wb-top .wb-title.small{ font-size:15px; letter-spacing:.5px; }
+.worldbook-app .wb-journal .wb-cover{
+    background:transparent; border:0; box-shadow:none; border-radius:0;
+    padding:10px 0 14px; margin-bottom:8px; align-items:flex-start; text-align:left; gap:8px;
+}
+.worldbook-app .wb-journal .wb-cover .wb-spine{ display:none; }
+.worldbook-app .wb-journal .wb-cover-ico{
+    position:absolute; right:0; top:4px; width:58px; height:58px; padding:9px; box-sizing:border-box;
+    background:#FFFFFF; border:1px dashed #C9C9C9; border-radius:50%; color:#4A4A4A; transform:rotate(-6deg);
+}
+.worldbook-app .wb-journal .wb-cover-label{
+    background:transparent; border:0; border-bottom:2px solid #1C1C1C; border-radius:0;
+    padding:2px 0 6px; font-size:24px; font-weight:700; letter-spacing:.3px; max-width:calc(100% - 72px); text-align:left;
+}
+.worldbook-app .wb-journal .wb-cover-author{ font-size:12px; color:#8A8A8A; }
+/* 简介：横线纸 */
+.worldbook-app .wb-journal .wb-cover-intro{
+    margin:4px 0 0; width:100%; box-sizing:border-box; padding:0 0 0 2px; line-height:26px; font-size:13px; color:#555;
+    background:repeating-linear-gradient(to bottom, transparent 0 25px, #E4E4E4 25px 26px);
+    min-height:52px;
+}
+.worldbook-app .wb-journal .wb-cover .wb-head-row{ border-top:1px dashed #CFCFCF; margin-top:6px; padding-top:12px; }
+
+/* 条目区标签：贴纸式标签 */
+.worldbook-app .wb-journal .wb-sec{ margin:10px 0 12px; }
+.worldbook-app .wb-journal .wb-sec::after{ border-top:1px dotted #C9C9C9; }
+.worldbook-app .wb-journal .wb-sec > span{
+    background:#1C1C1C; color:#FFFFFF; padding:4px 10px; border-radius:2px; font-size:12px; letter-spacing:.5px;
+    transform:rotate(-2deg); display:inline-block;
+}
+.worldbook-app .wb-journal .wb-pill{ background:#FFFFFF; border:1px dashed #BDBDBD; color:#3A3A3A; }
+.worldbook-app .wb-journal .wb-pill.strong{ background:#1C1C1C; color:#FFFFFF; border:1px solid #1C1C1C; }
+
+/* 条目：横线笔记 */
+.worldbook-app .wb-journal .wb-list{ gap:0; }
+.worldbook-app .wb-journal .wb-entry{
+    background:repeating-linear-gradient(to bottom, transparent 0 39px, #E6E6E6 39px 40px);
+    background-color:#FFFFFF; border:0; border-bottom:1px solid #E6E6E6; border-radius:0; box-shadow:none;
+    padding:12px 4px 10px; min-height:40px; align-items:flex-start;
+}
+.worldbook-app .wb-journal .wb-entry-name{ font-size:15px; font-weight:700; color:#1C1C1C; }
+.worldbook-app .wb-journal .wb-entry-keys{ color:#9A9A9A; }
+.worldbook-app .wb-journal .wb-entry .wb-chip{ background:#FFFFFF; border:1px dashed #BDBDBD; color:#3A3A3A; }
+.worldbook-app .wb-journal .wb-entry .wb-switch{ margin-top:2px; }
+
+/* ===================== 标题两侧一对翅膀（不压字） ===================== */
+.worldbook-app .wb-title .wb-wing-half{ display:inline-flex; color:#C4C4C4; }
+.worldbook-app .wb-title .wb-wing-half.mirror{ transform:scaleX(-1); }
+.worldbook-app .wb-title{ gap:10px; }
+
+/* ===================== 手帐条目：留出左侧缩进，右侧标签与开关不挤压名字 ===================== */
+.worldbook-app .wb-journal{ padding-left:46px; }
+.worldbook-app .wb-journal .wb-entry{ padding:12px 6px 10px 16px; gap:8px; }
+.worldbook-app .wb-journal .wb-entry-main{ flex:1 1 auto; min-width:0; padding-right:4px; }
+.worldbook-app .wb-journal .wb-entry-name{ white-space:normal; overflow:visible; text-overflow:clip; line-height:1.35; }
+.worldbook-app .wb-journal .wb-entry-keys{ white-space:normal; overflow:visible; text-overflow:clip; line-height:1.4; }
+.worldbook-app .wb-journal .wb-entry .wb-chip{ flex-shrink:0; font-size:10.5px; padding:2px 7px; white-space:nowrap; }
+.worldbook-app .wb-journal .wb-entry .wb-switch{ flex-shrink:0; margin-top:1px; }
+
+/* ===================== 书架分组：胶囊切换 + 右侧新增 ===================== */
+.worldbook-app .wb-groups{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 14px; }
+.worldbook-app .wb-pills{ display:inline-flex; gap:2px; padding:3px; border-radius:999px; background:#F3F3F3; border:1px solid #E6E6E6; }
+.worldbook-app .wb-gpill{ border:0; background:transparent; padding:6px 16px; border-radius:999px; font-size:13px; color:#8A8A8A; cursor:pointer; }
+.worldbook-app .wb-gpill.on{ background:#1C1C1C; color:#FFFFFF; }
+.worldbook-app .wb-gadd{ flex-shrink:0; padding:7px 12px; border-radius:999px; border:1px dashed #BDBDBD; background:#FFFFFF; font-size:12px; color:#3A3A3A; cursor:pointer; white-space:nowrap; }
+.worldbook-app .wb-gadd-row{ display:flex; gap:8px; margin:-4px 0 14px; }
+.worldbook-app .wb-gin{ flex:1; min-width:0; height:36px; border-radius:999px; border:1px solid #E0E0E0; padding:0 14px; box-sizing:border-box; font:inherit; font-size:14px; color:#1C1C1C; background:#FFFFFF; outline:none; }
+.worldbook-app .wb-gin:focus{ border-color:#9A9A9A; }
+.worldbook-app .wb-gok{ flex-shrink:0; height:36px; padding:0 14px; border:0; border-radius:999px; background:#1C1C1C; color:#FFFFFF; font-size:13px; cursor:pointer; }
+/* 表单里的分组选择：沿用分段样式 */
+.worldbook-app .wb-seg-group .wb-seg-btn{ font-size:13px; }
+
+/* ===================== 分组：多了可以横向滑动，不顶出屏幕；胶囊变淡；翅膀变淡 ===================== */
+.worldbook-app .wb-groups{ min-width:0; }
+.worldbook-app .wb-pills{
+    display:flex; flex:1 1 auto; min-width:0; max-width:100%; overflow-x:auto; overflow-y:hidden;
+    -webkit-overflow-scrolling:touch; scrollbar-width:none; scroll-behavior:smooth;
+    background:#FAFAFA; border:1px solid #F0F0F0;
+}
+.worldbook-app .wb-pills::-webkit-scrollbar{ display:none; }
+.worldbook-app .wb-pills > .wb-gpill{ flex-shrink:0; }
+.worldbook-app .wb-gpill{ color:#B4B4B4; }
+.worldbook-app .wb-gpill.on{ background:#4A4A4A; color:#FFFFFF; }
+.worldbook-app .wb-gadd{ flex-shrink:0; background:#FAFAFA; border-color:#E4E4E4; color:#9A9A9A; }
+.worldbook-app .wb-title .wb-wing-half{ color:#E6E6E6; }
+
+/* ===================== 世界书背景图（路径相对于 css/ 文件夹） ===================== */
+.app-window .app-content.worldbook-app,
+.worldbook-app{
+    background-image:url("../assets/app/世界书背景.jpg") !important;
+    background-size:cover !important;
+    background-position:center !important;
+    background-repeat:no-repeat !important;
+    background-color:#FFFFFF !important;
+}
+
+/* ===================== 修复：窗口撑满、标题与翅膀尺寸 ===================== */
+/* 应用内容区是居中的弹性布局，世界书根节点要撑满宽度，否则会按内容收缩 */
+.wb-host,
+.app-content > .wb-host{ width:100% !important; align-self:stretch !important; flex:1 1 auto !important; min-height:0 !important; box-sizing:border-box; }
+.worldbook-app{ width:100% !important; align-self:stretch !important; box-sizing:border-box; }
+
+/* 标题文字：明确颜色，避免被父级透明色吞掉 */
+.worldbook-app .wb-title{ color:var(--wb-text) !important; }
+.worldbook-app .wb-title > span:not(.wb-wing-half){ color:var(--wb-text) !important; }
+
+/* 翅膀与光环：固定尺寸，不随父级放大 */
+.worldbook-app .wb-title .wb-wing-half{ width:20px; height:33px; flex-shrink:0; }
+.worldbook-app .wb-title .wb-wing-half svg{ width:20px !important; height:33px !important; display:block; }
+.worldbook-app .wb-halo{ width:40px !important; height:10px !important; display:block; }
+
+/* ===================== 标题一行：翅膀 + 文字 + 翅膀 ===================== */
+.worldbook-app .wb-title-row{ display:flex; align-items:center; justify-content:center; gap:10px; }
+.worldbook-app .wb-title-text{ font-size:26px; font-weight:700; letter-spacing:-.6px; color:#1C1C1E !important; white-space:nowrap; }
+.worldbook-app .wb-title-row .wb-wing-half{ display:inline-flex; width:20px; height:33px; color:#E6E6E6; }
+.worldbook-app .wb-title-row .wb-wing-half.mirror{ transform:scaleX(-1); }
+
+/* ===================== 分组胶囊：按内容宽度，多了再横向滑动 ===================== */
+.worldbook-app .wb-pills{ flex:0 1 auto !important; width:auto !important; max-width:calc(100% - 120px) !important; }
+
+/* ===================== 手帐内页：撑满整个屏幕 ===================== */
+.worldbook-app .wb-view{ flex:1 0 auto; min-height:100%; display:flex; flex-direction:column; }
+.worldbook-app .wb-journal{ flex:1 0 auto; min-height:100%; box-sizing:border-box; display:flex; flex-direction:column; }
+.worldbook-app .wb-journal > .wb-top,
+.worldbook-app .wb-journal > .wb-cover,
+.worldbook-app .wb-journal > .wb-sec,
+.worldbook-app .wb-journal > .wb-list{ flex-shrink:0; }
+.worldbook-app .wb-journal > .wb-list{ flex:1 0 auto; }
+

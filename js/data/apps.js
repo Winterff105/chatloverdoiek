@@ -165,7 +165,24 @@ const APPS = {
             <line class="stroke-secondary" x1="21.5" y1="24.5" x2="29" y2="24.5"/>
             <path class="star-solid-translucent" d="M31 6v3M29.5 7.5h3"/>
         </svg>`
+    },
+    'worldbook': {
+        name: '世界书',
+        svg: `<svg viewBox="0 0 40 40">
+            <path class="stroke-secondary" d="M4 13v-4.5a4.5 4.5 0 0 1 4.5-4.5H13"/>
+            <path class="stroke-secondary" d="M36 27v4.5a4.5 4.5 0 0 1-4.5 4.5H27"/>
+            <g transform="translate(3.2 6) scale(0.7)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                <ellipse class="stroke-primary" cx="24" cy="5" rx="5" ry="1.6"/>
+                <path class="stroke-primary" d="M24 16.5C22.2 12.6 16.8 11.2 13.6 14.4 10.2 17.8 11.2 23.4 14 27c3 3.8 7 6.6 10 8.4 3-1.8 7-4.6 10-8.4 2.8-3.6 3.8-9.2.4-12.6-3.2-3.2-8.6-1.8-10.4 2.1z"/>
+                <path class="stroke-secondary" d="M24 16.5v20"/>
+                <path class="stroke-secondary" d="M17.5 21.5h13"/>
+                <path class="stroke-primary" d="M14.5 14.2c-3-.6-6.4.6-8.2 3.6-.8 1.4-1.2 3.2-1 5"/>
+                <path class="stroke-primary" d="M33.5 14.2c3-.6 6.4.6 8.2 3.6.8 1.4 1.2 3.2 1 5"/>
+                <path class="star-solid-translucent" transform="translate(40 8) scale(.5)" d="M0-6L1.5-1.5 6 0 1.5 1.5 0 6-1.5 1.5-6 0-1.5-1.5Z"/>
+            </g>
+        </svg>`
     }
+
 };
 
 // 组件手绘可爱爱心矢量

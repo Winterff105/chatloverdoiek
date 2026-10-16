@@ -66,6 +66,19 @@ function openApp(appId) {
                 if (typeof window.initArchangelApp === 'function') window.initArchangelApp(contentArea.firstElementChild);
                 else contentArea.innerHTML = '<div style="padding:24px;color:#fff">Little Lace 模块未加载，请检查 js/apps/archangel.js 与 css/archangel.css 的路径。</div>';
             });
+        } else if (appId === 'worldbook') {
+            // 世界书：样式 css/worldbook.css，脚本 js/apps/worldbook.js
+            contentArea.innerHTML = '<div class="wb-host" style="height:100%;overflow:hidden;"></div>';
+            const host = contentArea.firstElementChild;
+            if (typeof window.initWorldbookModule === 'function') {
+                try { window.initWorldbookModule(host); }
+                catch (err) {
+                    console.error('[Forever] 世界书初始化失败:', err);
+                    host.innerHTML = '<div style="padding:24px;color:#333">世界书初始化失败：' + String(err && err.message || err) + '</div>';
+                }
+            } else {
+                host.innerHTML = '<div style="padding:24px;color:#333">世界书脚本未加载，请检查 js/apps/worldbook.js 的路径。</div>';
+            }
         } else {
             contentArea.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;"><div class="app-icon" style="width:68px;height:68px;"><div class="floating-glyph" style="width:40px;height:40px;">${def.svg || ''}</div></div><h2 style="color:var(--text-dark);font-size:17px;font-weight:600;">${def.name || '应用'}</h2><p style="font-size:13px;color:var(--text-sub);">应用开发中...</p></div>`;
         }
