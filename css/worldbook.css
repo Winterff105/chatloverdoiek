@@ -592,5 +592,79 @@
     padding:7px 14px; border-radius:999px; border:1px solid #E5E5E5;
     background:#FFFFFF; color:#666666; font-size:13px; cursor:pointer;
 }
+
+/* ===================== 手账内页顶部挂载胶囊 & 挂载弹窗 ===================== */
+.worldbook-app .wb-mount-pill{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    padding:5px 12px; border-radius:999px; font-size:12px; font-weight:500;
+    background:#FFFFFF; border:1px solid #E2E2E2; color:#4A4A4A;
+    cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,.04);
+    transition:all .2s ease; max-width:140px; white-space:nowrap;
+}
+.worldbook-app .wb-mount-pill:hover{ background:#F9F9F9; border-color:#D0D0D0; }
+.worldbook-app .wb-mount-pill .wb-mount-dot{
+    width:6px; height:6px; border-radius:50%; background:#B8B8B8; flex-shrink:0;
+}
+.worldbook-app .wb-mount-pill.active .wb-mount-dot{ background:#F296B6; }
+.worldbook-app .wb-mount-pill span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+.worldbook-app .wb-scope-mask{
+    position:absolute; inset:0; z-index:100;
+    background:rgba(0,0,0,.35); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center; padding:16px; box-sizing:border-box;
+    animation:wbFade .2s ease both;
+}
+.worldbook-app .wb-scope-dialog{
+    width:100%; max-width:320px; max-height:82%; background:#FFFFFF;
+    border-radius:24px; box-shadow:0 12px 36px rgba(0,0,0,.15);
+    display:flex; flex-direction:column; overflow:hidden; border:1px solid #F0F0F0;
+    animation:wbUnfold .25s ease both;
+}
+.worldbook-app .wb-scope-header{
+    padding:16px 18px 12px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid #F3F3F3;
+}
+.worldbook-app .wb-scope-title{ font-size:15px; font-weight:700; color:#1C1C1C; }
+.worldbook-app .wb-scope-close{
+    background:none; border:0; padding:4px; cursor:pointer; color:#999;
+    display:flex; align-items:center; justify-content:center; border-radius:50%;
+}
+.worldbook-app .wb-scope-close:hover{ color:#333; }
+.worldbook-app .wb-scope-body{
+    padding:14px 18px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; flex:1; min-height:0;
+}
+.worldbook-app .wb-scope-global-card{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:12px 14px; background:#F9F9F9; border:1px solid #EDEDED; border-radius:16px;
+}
+.worldbook-app .wb-scope-global-info{ display:flex; flex-direction:column; gap:2px; }
+.worldbook-app .wb-scope-global-title{ font-size:13.5px; font-weight:600; color:#1C1C1C; }
+.worldbook-app .wb-scope-global-desc{ font-size:11.5px; color:#888; }
+.worldbook-app .wb-scope-section-label{ font-size:12px; font-weight:600; color:#888; padding:2px 2px 0; }
+.worldbook-app .wb-scope-contact-list{ display:flex; flex-direction:column; gap:6px; max-height:190px; overflow-y:auto; }
+.worldbook-app .wb-scope-contact-item{
+    display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:12px;
+    background:#FAFAFA; border:1px solid #EEEEEE; cursor:pointer; transition:all .15s ease;
+}
+.worldbook-app .wb-scope-contact-item.checked{ background:#FFF2F6; border-color:#FCD6E3; }
+.worldbook-app .wb-scope-contact-avatar{
+    width:32px; height:32px; border-radius:50%; object-fit:cover; background:#EAEAEA; flex-shrink:0;
+}
+.worldbook-app .wb-scope-contact-name{ flex:1; font-size:13px; font-weight:500; color:#222; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.worldbook-app .wb-scope-contact-check{
+    width:18px; height:18px; border-radius:50%; border:1.5px solid #D0D0D0;
+    display:flex; align-items:center; justify-content:center; box-sizing:border-box; background:#FFF;
+}
+.worldbook-app .wb-scope-contact-item.checked .wb-scope-contact-check{
+    background:#F296B6; border-color:#F296B6; color:#FFF;
+}
+.worldbook-app .wb-scope-footer{
+    padding:12px 18px 16px; display:flex; justify-content:flex-end; gap:8px; border-top:1px solid #F3F3F3;
+}
+.worldbook-app .wb-scope-btn-confirm{
+    padding:8px 20px; border-radius:999px; border:0;
+    background:linear-gradient(90deg,#B3B3B3,#CCCCCC); color:#FFFFFF;
+    font-size:13px; font-weight:600; cursor:pointer;
+}
 /* 世界书样式结束 */
 
