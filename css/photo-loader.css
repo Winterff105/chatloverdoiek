@@ -63,6 +63,7 @@
   position: relative; overflow: hidden;
   height: 100%; width: 0%;
   background: linear-gradient(90deg, #8a8a92 0%, #2a2a30 100%);
+  transition: width 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 /* 进度条上流动的高光：一直在走，让人看到还在加载 */
 .pl-fill::after{
