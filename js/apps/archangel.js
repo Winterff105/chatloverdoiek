@@ -1410,10 +1410,11 @@
             const handleMod=(c,fromRetry)=>{
               const p=String(c&&c.path||'').trim().replace(/^\/+/,'').replace(/\.\.\//g,''),f=got.find(x=>x.path==p);
               if(!p)return;
+              const ct=c.content||c.code||c.text;
               if(!f){
-                if(fromRetry||typeof c.content!='string'||!c.content)return;
+                if(fromRetry||typeof ct!='string'||!ct)return;
                 if(ST.tree.some(x=>x.path===p))return;
-                const nl=c.content.replace(/\r\n/g,'\n');
+                const nl=ct.replace(/\r\n/g,'\n');
                 ch.push({path:p,edit:nl,orig:'',sha:undefined,lines:diff('',nl),why:'新文件'});
                 return;
               }
@@ -1422,13 +1423,14 @@
                 if(r2===null){failed.push(p);return}
                 pushChange(f,r2);return;
               }
-              if(typeof c.content=='string'&&c.content)pushChange(f,c.content.replace(/\r\n/g,'\n'));
+              if(typeof ct=='string'&&ct)pushChange(f,ct.replace(/\r\n/g,'\n'));
             };
-            (mod.files||[]).forEach(c=>handleMod(c,false));
+            const getF=m=>{if(Array.isArray(m))return m;if(!m||typeof m!=='object')return [];return m.files||m.outFiles||m.changes||(m.path?[m]:[])};
+            (getF(mod)).forEach(c=>handleMod(c,false));
             if(failed.length){
               d('补救 '+failed.length+' 个文件');
               const fix=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是代码修改助手。上一次用查找替换的方式没能套用到部分文件，现在请直接给出这些文件修改后的完整内容。','必须保留原文件的完整内容，不能用省略号、占位符或说明文字代替代码。','只返回 JSON：{"files":[{"path":"真实文件路径","content":"修改后的完整文件内容"}]}，不要返回 Markdown 代码围栏。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n修改说明：${mod.reply||''}\n\n需要修改的文件：\n${got.filter(f=>failed.includes(f.path)).map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
-              (fix.files||[]).forEach(c=>handleMod(c,true));
+              (getF(fix)).forEach(c=>handleMod(c,true));
             }
             d(ch.length+' FILES');
 
@@ -1436,8 +1438,8 @@
             assistantReply=assistantReply.replace(/已(?:经)?(?:成功)?(?:上传|提交|推送|保存)到(?:GitHub|远程|仓库)[\s\S]*?[。！!]/g,'已生成修改方案，等待你确认上传。');
 
             if(!ch.length){
-              const noChangeReply='我读取了相关文件，但没有生成可以安全应用的修改，可以把需求描述得更具体些。';
-              const noChangeText=String(mod.reply||'我看了一下，这次不需要改动任何文件。');say(bodyHTML([noChangeText]));commit(noChangeText,sel.thinking);
+              const noChangeText=assistantReply+'\n\n【系统提示：未检测到有效的文件改动。可能是查找替换匹配失败，或文件内容未发生实质变化。请让对面重试或提供更具体的修改位置。】';
+              say(bodyHTML([noChangeText]));commit(noChangeText,sel.thinking);
               
               stopMeta();busy=false;
               return;
