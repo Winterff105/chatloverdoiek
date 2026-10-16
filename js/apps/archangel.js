@@ -1073,8 +1073,12 @@
         async function ai(msgs,onProgress){
           const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
           const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,max_tokens:8192,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
-          let r=await go(true);if(!r.ok)r=await go(false);
-          if(!r.ok)throw new Error('AI 请求失败（HTTP '+r.status+'）：'+await err(r));
+          let r=await go(false);if(!r.ok&&(r.status===400||r.status===422))r=await go(true);
+          if(!r.ok){
+            const msg=await err(r);
+            if(r.status===524)throw new Error('AI 响应超时（Cloudflare 524）：生成时间过长被网关截断。建议拆分需求小步修改，或换用更快的模型。');
+            throw new Error('AI 请求失败（HTTP '+r.status+'）：'+msg);
+          }
           const d=await readAiResponse(r,onProgress);runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
           const outText=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):m.content||'';runLog.push({label:'仓库调用 '+(runLog.length+1),raw:String(outText)});return outText;
         }
