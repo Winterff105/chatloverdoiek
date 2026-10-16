@@ -100,7 +100,7 @@
     <section id="ar-chat"><div class="hint">先在左侧填好 GitHub 和 AI 设置并读取文件树。发送需求（可连发），再点底栏“调取”开始处理。长按消息可重回、编辑或多选删除。</div></section>
   </main>
   <footer class="bottom"><span class="ar-grip" id="ar-grip" aria-label="控制台把手"></span><div class="ar-upp" id="ar-upp"><div class="ar-upp-in"><div class="ar-upp-head"><b id="ar-uppCount">0 个文件</b><span class="sp"></span><button type="button" id="ar-uppMulti">多选</button><button type="button" id="ar-uppDel" disabled>删除所选</button><button type="button" id="ar-uppClear">全部清空</button></div><div class="ar-upp-cards" id="ar-uppCards"></div></div></div><div class="comp">
-    <input id="ar-prompt" type="text" placeholder="告诉 AI 你想修改什么…" />
+    <input id="ar-prompt" type="text" placeholder="告诉 AI 你想修改什么…" style="overflow-x:auto;-webkit-overflow-scrolling:touch;" />
     <div class="act"><button id="ar-send">发送</button><span></span><button id="ar-fetch">调取</button></div>
   </div></footer>
 </div>
@@ -663,7 +663,7 @@
             const text=String(p??'');
             const lines=text.split('\n');
             const first=(lines.find(x=>x.trim())||'模块内容').trim().replace(/^#+\s*/, '').replace(/^[*#>\s]+/, '');
-            const moduleLike=/(?:模块|module|文件内容|代码片段|代码模块|```|<script\b|<style\b|\bfunction\s+[$\w]+|\b(?:const|let|class|export)\s+[$\w]+)/i.test(text) && (text.includes('\n')||text.length>180);
+            const moduleLike=/(?:模块|module|文件内容|代码片段|代码模块|```|<script\b|<style\b|\bfunction\s+[$_\w]+|\b(?:const|let|class|export)\s+[$_\w]+)/i.test(text) && (text.includes('\n')||text.length>180);
             if(moduleLike){
               const label=first.length>42?first.slice(0,42)+'…':first;
               return `<details class="abody out-module"><summary><span class="out-module-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 4.5h14v15H5zM8 8h8M8 11.5h8M8 15h5"/></svg></span><span class="out-module-title">${esc(label||'模块内容')}</span><span class="out-module-hint">展开查看</span></summary><div class="out-module-content">${esc(text)}</div></details>`;
@@ -1315,7 +1315,7 @@
             const compactTree=ST.tree.filter(f=>!/(^|\/)(\.git|node_modules|dist|build|coverage|\.vscode|\.idea)\//i.test(f.path)&&!/\.(png|jpg|jpeg|gif|webp|ico|svg|woff|woff2|ttf|eot|mp3|mp4|zip|tar|gz)$/i.test(f.path)).slice(0,180).map(f=>f.path).join('\n');
             const onStreamStep1=(kind,delta,full)=>{
               if(kind==='reasoning'||(kind==='content'&&!full.includes('}'))){
-                tp.textContent=full.slice(-120).replace(/[{}\"\\]/g,'').trim()||'正在分析需求并匹配相关文件…';
+                tp.textContent=full.slice(-120).replace(/[{}"\\]/g,'').trim()||'正在分析需求并匹配相关文件…';
                 scroll();
               }
             };
@@ -1439,7 +1439,7 @@
                 d(`${fi+1}/${got.length} `+curF.path.split('/').pop());
                 const onStreamStep3=(kind,delta,full)=>{
                   if(kind==='reasoning'||(kind==='content'&&!full.includes('}'))){
-                    tp.textContent=`[${fi+1}/${got.length}] `+(full.slice(-100).replace(/[{}\"\\]/g,'').trim()||`正在生成 ${curF.path} 的修改…`);
+                    tp.textContent=`[${fi+1}/${got.length}] `+(full.slice(-100).replace(/[{}"\\]/g,'').trim()||`正在生成 ${curF.path} 的修改…`);
                     scroll();
                   }
                 };
@@ -1554,7 +1554,10 @@
         chat.addEventListener('pointerdown',e=>{
           if(IS()||e.target.closest('.mask,.editing'))return;
           const b=e.target.closest('.urow,.arow');if(!b)return;
-          lpX=e.clientX;lpY=e.clientY;lpT=setTimeout(()=>{lpAt=Date.now();showMask(b)},550);
+          lpX=e.clientX;lpY=e.clientY;lpT=setTimeout(()=>{
+            lpAt=Date.now();
+            showMask(b);
+          },550);
         });
         const stopLP=()=>clearTimeout(lpT);
         ['pointerup','pointercancel','pointerleave'].forEach(t=>chat.addEventListener(t,stopLP));
@@ -1571,6 +1574,39 @@
         $('#ar-send').onclick=send;$('#ar-fetch').onclick=()=>{if(busy){stopCtl&&stopCtl.abort();return}run()};
         setInterval(()=>{const f=$('#ar-fetch');const on=busy?'1':'0';if(f.dataset.on!==on){f.dataset.on=on;f.innerHTML=busy?'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>':'调取';f.title=busy?'停止调取':'调取'}},120);
         input.addEventListener('keydown',e=>{if(e.key=='Enter'&&!e.isComposing){e.preventDefault();send()}});
+
+        // 底部栏输入框长文本左右滑动查看
+        (function initPromptScroll(){
+          let isTouch = false, startX = 0, startScroll = 0;
+          input.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+              isTouch = true;
+              startX = e.touches[0].clientX;
+              startScroll = input.scrollLeft;
+            }
+          }, { passive: true });
+          input.addEventListener('touchmove', e => {
+            if (!isTouch || e.touches.length !== 1) return;
+            const dx = e.touches[0].clientX - startX;
+            if (Math.abs(dx) > 3) {
+              input.scrollLeft = startScroll - dx;
+              e.stopPropagation();
+            }
+          }, { passive: false });
+          const endTouch = () => { isTouch = false; };
+          input.addEventListener('touchend', endTouch, { passive: true });
+          input.addEventListener('touchcancel', endTouch, { passive: true });
+          input.addEventListener('wheel', e => {
+            if (input.scrollWidth > input.clientWidth) {
+              const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+              if (delta) {
+                input.scrollLeft += delta;
+                e.preventDefault();
+              }
+            }
+          }, { passive: false });
+        })();
+
         async function bootApplication(){
           if(!currentConversation){
             currentConversation=createConversation();
@@ -1861,8 +1897,7 @@
           const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,max_tokens:8192,messages:msgs,temperature:.8,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
           let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败（HTTP '+r.status+'）：'+await err(r));
-          const d=await readAiResponse(r);runTokens+=(d.usage&&d.usage.total_tokens)||0;
-          const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
+          const d=await readAiResponse(r);runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
           const rawOut=Array.isArray(m.content)?m.content.map(p=>p.text||'').join(''):(m.content||'');runLog.push({label:'聊天输出',raw:String(rawOut)});
 
           // 模型把思考写在 <think>…</think> / <thinking>…</thinking> 里时，取出来当思维链，并从正文里去掉
