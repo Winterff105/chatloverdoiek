@@ -265,6 +265,7 @@ function renderChats() {
     const box = document.getElementById('chatList');
     const setListHtml = h => { if (box.dataset.html !== h) { box.innerHTML = h; box.dataset.html = h; } };
     if (!list.length) { setListHtml('<div class="empty"><div style="font-size:28px;margin-bottom:12px">＋</div><strong>还没有聊天</strong><p style="margin-top:8px;line-height:1.7">先到「联系人」创建联系人并生成 ID，再点击右下角圆形按钮，粘贴 ID 添加聊天。</p></div>'); return; }
+    ctEnsure();
     setListHtml(list.map(c => {
         const m = last(c) || {me:false,text:'还没有消息',t:''};
         return `
@@ -273,7 +274,7 @@ function renderChats() {
             <div class="info">
                 <div class="top"><span class="name">${esc(dispName(c))}</span><span class="time">${esc(c.time)}</span></div>
                 <div class="bottom">
-                    <span class="preview">${m.me ? 'You: ' : ''}${esc(m.text)}</span>
+                    ${c._typing ? ctSvgHtml('ct-list') : `<span class="preview">${m.me ? 'You: ' : ''}${esc(m.text)}</span>`}
                     ${c.unread ? `<span class="badge">${c.unread}</span>` : ''}
                 </div>
             </div>
@@ -2180,12 +2181,52 @@ function renderThread(opts) {
     box.scrollTop = box.scrollHeight;
     if (MM.mode === 'multi') mmRefreshSel();
 }
+/* ---------------- 调取中：云朵气泡（呼吸 + 慢速滚动） ---------------- */
+const CT_N = 10, CT_CX = 50, CT_CY = 44, CT_RX = 40, CT_RY = 32;
+function ctCloudD(amp, phase, mods) {
+    const pts = [];
+    for (let i = 0; i < CT_N; i++) {
+        const a = phase + i / CT_N * Math.PI * 2;
+        pts.push([CT_CX + Math.cos(a) * CT_RX, CT_CY + Math.sin(a) * CT_RY]);
+    }
+    const f = 1 + amp * 2;
+    let d = `M${pts[0][0].toFixed(2)} ${pts[0][1].toFixed(2)}`;
+    for (let i = 1; i <= CT_N; i++) {
+        const [x0, y0] = pts[i - 1], [x1, y1] = pts[i % CT_N];
+        const r = Math.hypot(x1 - x0, y1 - y0) / 2 * f * (mods ? mods[i - 1] : 1);
+        d += `A${r.toFixed(2)} ${r.toFixed(2)} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+    }
+    return d + 'Z';
+}
+function ctSvgHtml(cls) {
+    return `<svg class="ct-svg ${cls}" viewBox="0 0 100 100" aria-hidden="true"><circle class="ct-tail" cx="14" cy="84" r="5.5"/><path class="ct-shape" d=""/><circle class="ct-dot" cx="36" cy="44" r="5"/><circle class="ct-dot" cx="50" cy="44" r="5"/><circle class="ct-dot" cx="64" cy="44" r="5"/></svg>`;
+}
+let ctRaf = 0;
+function ctTick(now) {
+    const els = document.querySelectorAll('.messages-app .ct-svg');
+    if (!els.length) { ctRaf = 0; return; }
+    const t = now / 1000;
+    const w = (x, s) => 0.5 + 0.5 * Math.sin(x * s);
+    const amp = 0.05 + 0.05 * w(t, 1.1);
+    const phase = t * 1.1;
+    const mods = Array.from({ length: CT_N }, (_, i) => 1 + 0.08 * Math.cos(2 * Math.PI * i / CT_N - t * 1.1));
+    const tailOp = 0.35 + 0.65 * w(t * 3, 1);
+    const d = ctCloudD(amp, phase, mods);
+    els.forEach(svg => {
+        svg.querySelector('.ct-shape').setAttribute('d', d);
+        svg.querySelector('.ct-tail').setAttribute('opacity', tailOp.toFixed(3));
+        svg.querySelectorAll('.ct-dot').forEach((c, i) => c.setAttribute('opacity', (0.35 + 0.65 * w(t * 3 - i * 1.1, 1)).toFixed(3)));
+    });
+    ctRaf = requestAnimationFrame(ctTick);
+}
+function ctEnsure() { if (!ctRaf) ctRaf = requestAnimationFrame(ctTick); }
 function showTyping(c) {
     const box = document.getElementById('thread');
     const el = document.createElement('div');
     el.className = 'mrow typing mrow-new'; el.id = 'typingRow';
-    el.innerHTML = `<div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div><div class="bubble"><span class="dots"><i></i><i></i><i></i></span></div>`;
+    el.innerHTML = `<div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div><div class="ct-bubble">${ctSvgHtml('ct-chat')}</div>`;
     box.appendChild(el); box.scrollTop = box.scrollHeight;
+    ctEnsure();
 }
 const MSG_SEP = '|||';
 const MAX_BUBBLES = 12;
@@ -2274,6 +2315,7 @@ async function deliverMsgs(c, parts) {
         // 一次性发出：每一句都响一声，错开 150ms 免得叠在一起听不清
         parts.forEach((t, i) => {
             c.msgs.push(msgOf(t));
+            if (activeId !== c.id) c.unread = (c.unread || 0) + 1;
             setTimeout(() => playSfx('recv'), i * 150);
         });
         c.time = nowTime(); persistContacts();
@@ -2285,6 +2327,7 @@ async function deliverMsgs(c, parts) {
         if (i > 0) await sleep(650);
         playSfx('recv');   // 每一句出现时都响一声
         c.msgs.push(msgOf(parts[i]));
+        if (activeId !== c.id) c.unread = (c.unread || 0) + 1;
         c.time = nowTime(); persistContacts();
         if (activeId === c.id) renderThread();
         renderChats();
@@ -2308,6 +2351,7 @@ async function pullReply() {
     c._busy = true;
     const cap = document.querySelector('.messages-app').querySelector('.send-capsule'); if (cap) cap.classList.add('pulling');
     showTyping(c);
+    c._typing = true; renderChats();
     try {
         const countDesc = o.min === o.max ? `本次回复必须精确输出 ${o.min} 条独立消息气泡（messages 数组长度必须严格等于 ${o.min}，不多不少）` : `本次回复必须输出 ${o.min} 到 ${o.max} 条独立消息气泡（messages 数组长度必须在 ${o.min} 到 ${o.max} 之间，绝不可偷懒少发）`;
         const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【气泡条数硬性限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + narrInstruction();
@@ -2325,7 +2369,7 @@ async function pullReply() {
         if (activeId === c.id) renderThread({noAnim:true});
         maybeAutoSummary(c);
     } catch (e) { const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
-    finally { c._busy=false; if(cap) cap.classList.remove('pulling'); }
+    finally { c._busy=false; c._typing=false; if(cap) cap.classList.remove('pulling'); renderChats(); }
 }
 
 /* ---------------- 底栏上拉菜单：重新回复 ---------------- */
@@ -4665,7 +4709,6 @@ async function charPrivateReply(cid, p, userText, quoteText) {
     try {
         const r = await window.MessagesAPI.momentDmReply(c, p, userText, quoteText, (c.msgs || []).slice(-ctxN), { min: o.min, max: o.max });
         if (!r || !r.send || !r.texts.length) return;
-        if (activeId !== c.id) c.unread = (c.unread || 0) + 1;
         deliverMsgs(c, r.texts);
     } catch (e) { showApiError(e); }
 }
@@ -4795,7 +4838,42 @@ function sendMomentCommentInline(id) {
     p.comments.push({ by: ACTIVE_ID, text, t: Date.now(), ...(rt ? { to: rt.by } : {}) });
     MOMENT_CMT_OPEN[id] = true;
     persistMoments(); renderMoments();
-    if (rt && rt.by !== ACTIVE_ID) charPrivateReply(rt.by, p, text, rt.text);
+    if (rt && rt.by !== ACTIVE_ID) {
+        momentCommentAiReply(rt.by, p);
+        charPrivateReply(rt.by, p, text, rt.text);
+    }
+}
+/* 用户回复了 AI 的评论：AI 在朋友圈评论区接着回一句（底栏显示调取中，完成后显示角标） */
+async function momentCommentAiReply(cid, p) {
+    const c = CONTACTS.find(x => x.id === cid);
+    if (!c || !window.MessagesAPI || !window.MessagesAPI.isConfigured()) return;
+    if (momentFetchBusy) return;
+    momentFetchBusy = true;
+    MOMENT_UNSEEN = false;
+    refreshChatBadge();
+    showMomentLoading();
+    const excerpt = (p.text || '').trim().slice(0, 20) || '一张照片';
+    let replied = false;
+    try {
+        const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: cm.text }));
+        const r = await window.MessagesAPI.momentWordReply(c, p, (c.msgs || []).slice(-30), existing);
+        if (r.comment) {
+            p.comments = p.comments || [];
+            p.comments.push({ by: c.id, text: r.comment, t: Date.now(), to: ACTIVE_ID });
+            addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下评论：${r.comment}`, p.id);
+            persistContacts(); persistMoments(); renderMoments();
+            replied = true;
+        }
+    } catch (e) { showApiError(e); }
+    momentFetchBusy = false;
+    if (!replied) { hideMomentBubble(); refreshChatBadge(); return; }
+    showMomentDone([c]);
+    if (activeTab === 'moments') {
+        setTimeout(() => { if (activeTab === 'moments' && !momentFetchBusy) hideMomentBubble(); }, 2000);
+    } else {
+        MOMENT_UNSEEN = true;
+    }
+    refreshChatBadge();
 }
 function openMomentComments(id) {
     const p = POSTS.find(x => x.id === id); if (!p) return;

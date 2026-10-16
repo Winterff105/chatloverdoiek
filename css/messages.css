@@ -56,6 +56,13 @@
 .messages-app .row .bottom{ display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 3px; }
 .messages-app .row .preview{ font-size: 13.5px; color: #8E8E8E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .messages-app .row.unread .preview{ color: #000; font-weight: 500; }
+.messages-app .ct-svg{ display:block; overflow:visible; }
+.messages-app .ct-svg .ct-shape{ fill:#fff; stroke:#C4C4C4; stroke-width:2.2; stroke-linejoin:round; }
+.messages-app .ct-svg .ct-tail{ fill:#fff; stroke:#C4C4C4; stroke-width:2.2; }
+.messages-app .ct-svg .ct-dot{ fill:#9A9A9A; }
+.messages-app .ct-chat{ width:44px; height:auto; }
+.messages-app .ct-list{ width:26px; height:auto; margin-top:1px; }
+.messages-app .ct-bubble{ display:inline-block; vertical-align:bottom; }
 .messages-app .badge{ min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #000; color: #fff; font-size: 11px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .messages-app .dot-mute{ width: 8px; height: 8px; border-radius: 50%; background: #000; flex-shrink: 0; }
 .messages-app .section-label{ padding: 14px 16px 6px; font-size: 12px; font-weight: 600; color: #8E8E8E; letter-spacing: 0.3px; text-transform: uppercase; }
