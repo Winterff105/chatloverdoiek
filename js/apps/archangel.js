@@ -1752,7 +1752,12 @@
           let thinking=typeof m.reasoning_content==='string'?m.reasoning_content.trim():'';
           if(!thinking&&tagged.length)thinking=tagged.join('\n').trim();
 
-          const toList=(v,max,len)=>(Array.isArray(v)?v:[v]).map(x=>String(x??'').trim()).filter(Boolean).slice(0,max).map(x=>x.slice(0,len));
+          const toList=(v,max,len)=>{
+            let arr=(Array.isArray(v)?v:[v]).map(x=>String(x??'').trim()).filter(Boolean);
+            if(typeof max==='number')arr=arr.slice(0,max);
+            if(typeof len==='number')arr=arr.map(x=>x.slice(0,len));
+            return arr;
+          };
           let steps=[];let files=[];let pack='';
           let parts=null;
           try{
@@ -1766,14 +1771,14 @@
                 files=[...(Array.isArray(o.files)?o.files:[]),...(Array.isArray(o.outFiles)?o.outFiles:[])].filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
               }
               if(o.reply!==undefined){
-                const p=toList(o.reply,6,2000);
+                const p=(Array.isArray(o.reply)?o.reply:[o.reply]).map(x=>String(x??'').trim()).filter(Boolean);
                 if(p.length)parts=p;
               }
             }
           }catch(e){}
           if(!parts){
             const t=raw;
-            const lines=short?t.split(/\n+/).map(x=>x.trim()).filter(Boolean).slice(0,6):[];
+            const lines=short?t.split(/\n+/).map(x=>x.trim()).filter(Boolean):[];
             parts=lines.length>1?lines:[t||'（模型没有返回内容）'];
           }
           const ex=await expandZips(files);
