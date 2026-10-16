@@ -1408,7 +1408,7 @@
               return t;
             };
             const handleMod=(c,fromRetry)=>{
-              const p=String(c&&c.path||'').trim().replace(/^\/+/,'').replace(/\.\.\//g,''),f=got.find(x=>x.path==p);
+              const p=String(c&&(c.path||c.name)||'').trim().replace(/^\/+/,'').replace(/\.\.\//g,''),f=got.find(x=>x.path==p);
               if(!p)return;
               const ct=c.content||c.code||c.text;
               if(!f){
@@ -1425,7 +1425,7 @@
               }
               if(typeof ct=='string'&&ct)pushChange(f,ct.replace(/\r\n/g,'\n'));
             };
-            const getF=m=>{if(Array.isArray(m))return m;if(!m||typeof m!=='object')return [];return m.files||m.outFiles||m.changes||(m.path?[m]:[])};
+            const getF=m=>{if(Array.isArray(m))return m;if(!m||typeof m!=='object')return [];return m.files||m.outFiles||m.changes||((m.path||m.name)?[m]:[])};
             (getF(mod)).forEach(c=>handleMod(c,false));
             if(failed.length){
               d('补救 '+failed.length+' 个文件');
