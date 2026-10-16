@@ -237,7 +237,30 @@
 .worldbook-app .wb-danger{ border-color:#D6D6D6; background:#FAFAFA; }
 
 /* ===================== 书架：标题居中 ===================== */
-.worldbook-app .wb-top.wb-top-lib{ display:grid; grid-template-columns:1fr auto 1fr; align-items:center; }
+.worldbook-app .wb-top.wb-top-lib{
+    position:relative;
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:center;
+    margin:-57px -18px 18px -18px;
+    padding:57px 18px 12px 18px;
+    background:#FFFFFF;
+    box-sizing:border-box;
+}
+.worldbook-app .wb-top.wb-top-lib::after{
+    content:"";
+    position:absolute;
+    left:0;
+    right:0;
+    bottom:-7px;
+    height:7px;
+    z-index:1;
+    pointer-events:none;
+    background:
+      linear-gradient(#FFFFFF, #FFFFFF) 0 0 / 100% 3px no-repeat,
+      radial-gradient(circle at 50% 0, #FFFFFF 5.4px, transparent 6px) 0 0 / 14px 7px repeat-x,
+      radial-gradient(circle at 50% 0, rgba(0,0,0,0.06) 6.2px, transparent 6.8px) 0 0 / 14px 7px repeat-x;
+}
 .worldbook-app .wb-top.wb-top-lib .wb-title-wrap{ grid-column:2; }
 .worldbook-app .wb-top.wb-top-lib .wb-top-actions{ grid-column:3; justify-self:end; }
 
@@ -510,7 +533,7 @@
 /* ===================== 世界书背景图（路径相对于 css/ 文件夹） ===================== */
 .app-window .app-content.worldbook-app,
 .worldbook-app{
-    background-image:url("../assets/app/世界书背景.jpg") !important;
+    background-image:linear-gradient(rgba(255,255,255,.6), rgba(255,255,255,.6)), url("../assets/app/世界书背景.jpg") !important;
     background-size:cover !important;
     background-position:center !important;
     background-repeat:no-repeat !important;
@@ -528,14 +551,14 @@
 .worldbook-app .wb-title > span:not(.wb-wing-half){ color:var(--wb-text) !important; }
 
 /* 翅膀与光环：固定尺寸，不随父级放大 */
-.worldbook-app .wb-title .wb-wing-half{ width:20px; height:33px; flex-shrink:0; }
+.worldbook-app .wb-title .wb-wing-half{ width:20px; height:33px; flex-shrink:0; opacity:.5; }
 .worldbook-app .wb-title .wb-wing-half svg{ width:20px !important; height:33px !important; display:block; }
-.worldbook-app .wb-halo{ width:40px !important; height:10px !important; display:block; }
+.worldbook-app .wb-halo{ width:40px !important; height:10px !important; display:block; opacity:.5; }
 
 /* ===================== 标题一行：翅膀 + 文字 + 翅膀 ===================== */
 .worldbook-app .wb-title-row{ display:flex; align-items:center; justify-content:center; gap:10px; }
 .worldbook-app .wb-title-text{ font-size:26px; font-weight:700; letter-spacing:-.6px; color:#1C1C1E !important; white-space:nowrap; }
-.worldbook-app .wb-title-row .wb-wing-half{ display:inline-flex; width:20px; height:33px; color:#E6E6E6; }
+.worldbook-app .wb-title-row .wb-wing-half{ display:inline-flex; width:20px; height:33px; color:#E6E6E6; opacity:.5; }
 .worldbook-app .wb-title-row .wb-wing-half.mirror{ transform:scaleX(-1); }
 
 /* ===================== 分组胶囊：按内容宽度，多了再横向滑动 ===================== */

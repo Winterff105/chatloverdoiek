@@ -85,7 +85,6 @@ window.initWorldbookModule = function (root) {
         const newPills = root.querySelector('.wb-pills');
         if (newPills) newPills.scrollLeft = keepLeft;
         if (tip) { const el = root.querySelector('.wb-tip'); el.innerHTML = '<i class="wb-tip-star"></i>' + esc(tip); el.classList.add('show'); }
-        const sel = root.querySelector('[data-focus]'); if (sel) sel.focus({ preventScroll: true });
     }
 
     function groupBar() {
@@ -118,17 +117,14 @@ window.initWorldbookModule = function (root) {
             ${shown.length ? `<div class="wb-grid">${cards}</div>` : `
             <div class="wb-empty">
                 <svg class="wb-angel" viewBox="0 0 160 130" aria-hidden="true">
-                    <ellipse cx="80" cy="20" rx="18" ry="4.5" fill="none" stroke="#B3B3B3" stroke-width="2"/>
-                    <g fill="#F2F2F2" stroke="#B3B3B3" stroke-width="1.6" stroke-linejoin="round">
-                        <path d="M58 70C36 74 20 58 18 36c14 4 24 1 30-8-6-6-8-16-3-26 12 8 20 22 22 38"/>
-                        <path d="M102 70c22 4 38-12 40-34-14 4-24 1-30-8 6-6 8-16 3-26-12 8-20 22-22 38"/>
-                    </g>
-                    <path d="M58 60h44v18c0 4-3 6-6 6H64c-3 0-6-2-6-6z" fill="#FFFFFF" stroke="#B3B3B3" stroke-width="1.6"/>
-                    <path d="M80 60v24" stroke="#B3B3B3" stroke-width="1.3"/>
-                    <path d="M62 68h14M62 73h12M84 68h12M84 73h10" stroke="#CCCCCC" stroke-width="1.6" stroke-linecap="round"/>
-                    <circle cx="80" cy="50" r="5" fill="#E9E9E9"/>
-                    <path transform="translate(26 22)" d="M0-6L1.5-1.5 6 0 1.5 1.5 0 6-1.5 1.5-6 0-1.5-1.5Z" fill="#CCCCCC"/>
-                    <path transform="translate(136 40) scale(.7)" d="M0-6L1.5-1.5 6 0 1.5 1.5 0 6-1.5 1.5-6 0-1.5-1.5Z" fill="#E2E2E2"/>
+                    <path d="M32 82c16-3 32-2 48 4 16-6 32-7 48-4v5c-16-3-32-2-48 4-16-6-32-7-48-4z" fill="#EDEDED" stroke="#B3B3B3" stroke-width="1.4" stroke-linejoin="round"/>
+                    <path d="M80 84C64 78 48 79 32 82V48c16-3 32-2 48 4 16-6 32-7 48-4v34c-16-3-32-2-48 4z" fill="#FFFFFF" stroke="#B3B3B3" stroke-width="1.6" stroke-linejoin="round"/>
+                    <path d="M80 50v34" stroke="#B3B3B3" stroke-width="1.4" stroke-linecap="round"/>
+                    <path d="M42 58h22M42 66h16M42 74h20M96 58h22M102 66h16M98 74h20" stroke="#E2E2E2" stroke-width="1.5" stroke-linecap="round"/>
+                    <path d="M80 73c-2.2-2.4-15-14.2-15-21.5a7.5 7.5 0 0 1 15-4.5 7.5 7.5 0 0 1 15 4.5c0 7.3-12.8 19.1-15 21.5z" fill="#FFF5F8" stroke="#B3B3B3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M72 49a4 4 0 0 1 4-2" stroke="#E0C0CE" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+                    <path transform="translate(24 28)" d="M0-6L1.5-1.5 6 0 1.5 1.5 0 6-1.5 1.5-6 0-1.5-1.5Z" fill="#CCCCCC"/>
+                    <path transform="translate(136 34) scale(.7)" d="M0-6L1.5-1.5 6 0 1.5 1.5 0 6-1.5 1.5-6 0-1.5-1.5Z" fill="#E2E2E2"/>
                     <path transform="translate(128 100) scale(.6)" d="M0-6L1.5-1.5 6 0 1.5 1.5 0 6-1.5 1.5-6 0-1.5-1.5Z" fill="#B3B3B3"/>
                     <g fill="#EFEFEF"><path d="M10 104a6 6 0 0 1 6-6 7 7 0 0 1 13-1 5 5 0 0 1 7 5 4 4 0 0 1-4 4H14a4 4 0 0 1-4-2z"/></g>
                 </svg>
