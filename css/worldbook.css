@@ -242,10 +242,10 @@
 .worldbook-app .wb-top.wb-top-lib .wb-top-actions{ grid-column:3; justify-self:end; }
 
 /* ===================== 书架：卡片做成书本 ===================== */
-.worldbook-app .wb-grid{ gap:22px 18px; padding:4px 6px 14px; }
+.worldbook-app .wb-grid{ gap:16px 16px; padding:4px 6px 14px; }
 .worldbook-app .wb-grid .wb-card:nth-child(n){
-    position:relative; aspect-ratio:3 / 4; min-height:0; padding:18px 14px 14px 26px;
-    display:flex; flex-direction:column; gap:6px; overflow:visible;
+    position:relative; aspect-ratio:5 / 6; min-height:0; padding:13px 12px 10px 22px;
+    display:flex; flex-direction:column; gap:4px; overflow:visible;
     border-radius:3px 12px 12px 3px;
     background:linear-gradient(90deg,#FFFFFF 0%,#FFFFFF 90%,#F4F4F4 100%);
     border:1px solid #D4D4D4; border-left:0;
@@ -268,20 +268,20 @@
     content:''; position:absolute; left:4px; top:14px; bottom:14px; width:2px; pointer-events:none;
     background:repeating-linear-gradient(to bottom, rgba(255,255,255,.45) 0 1.5px, transparent 1.5px 14px);
 }
-.worldbook-app .wb-grid .wb-card-ico{ width:46px; height:46px; margin:4px auto 2px; color:#3A3A3A; }
+.worldbook-app .wb-grid .wb-card-ico{ width:38px; height:38px; margin:2px auto 0; color:#3A3A3A; }
 .worldbook-app .wb-grid .wb-card-star{ top:12px; right:12px; color:#9A9A9A; }
 /* 封面标签框 */
 .worldbook-app .wb-grid .wb-card-name{
     text-align:center; white-space:normal; overflow:hidden;
     display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-    font-size:15px; font-weight:700; line-height:1.3; letter-spacing:.2px;
-    padding:8px 6px; background:#FFFFFF; border:1px solid #BDBDBD; border-radius:2px;
+    font-size:14px; font-weight:700; line-height:1.25; letter-spacing:.2px;
+    padding:5px 4px; background:#FFFFFF; border:1px solid #BDBDBD; border-radius:2px;
     color:#1C1C1C; box-shadow:inset 0 0 0 3px #FFFFFF, inset 0 0 0 4px #E2E2E2;
 }
 .worldbook-app .wb-grid .wb-card-author{ text-align:center; font-size:11px; letter-spacing:.4px; color:#6F6F6F; }
-.worldbook-app .wb-grid .wb-card-intro{ text-align:center; font-size:11.5px; line-height:1.55; color:#8A8A8A; margin-top:2px; -webkit-line-clamp:3; }
+.worldbook-app .wb-grid .wb-card-intro{ text-align:center; font-size:11px; line-height:1.45; color:#8A8A8A; margin-top:1px; -webkit-line-clamp:2; }
 .worldbook-app .wb-grid .wb-card-foot{
-    margin-top:auto; padding-top:8px; border-top:1px dashed #C9C9C9;
+    margin-top:auto; padding-top:6px; border-top:1px dashed #C9C9C9;
     font-size:10.5px; letter-spacing:.3px; color:#7A7A7A;
 }
 .worldbook-app .wb-grid .wb-card-foot .wb-chip{ background:#EFEFEF; color:#3A3A3A; border:1px solid #D0D0D0; padding:2px 8px; }
@@ -340,7 +340,7 @@
 .worldbook-app .wb-grid .wb-card-ico{ color:#5C5C5C; }
 .worldbook-app .wb-grid .wb-card-name{
     background:#FFFFFF; border:1px solid #DADADA; border-radius:2px;
-    box-shadow:none; color:#1C1C1C; font-weight:650; font-size:14.5px;
+    box-shadow:none; color:#1C1C1C; font-weight:650; font-size:13.5px;
 }
 .worldbook-app .wb-grid .wb-card-author{ color:#8A8A8A; }
 .worldbook-app .wb-grid .wb-card-intro{ color:#9A9A9A; }
