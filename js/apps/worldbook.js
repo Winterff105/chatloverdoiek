@@ -271,7 +271,7 @@ window.initWorldbookModule = function (root) {
         const d = cur.mountOpen && cur.mountDraft ? cur.mountDraft : { all: !!m.all, contacts: (m.contacts || []).slice() };
         const rows = loadMountContacts().map(c => {
             const on = d.contacts.indexOf(c.id) >= 0;
-            return `<div class="wb-mount-item ${on ? 'on' : ''}" data-act="mount-contact" data-cid="${esc(c.id)}"><span class="wb-mount-av">${c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : esc(c.ini)}</span><span class="wb-mount-name">${esc(c.name)}</span><span class="wb-mount-check"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></div>`;
+            return `<div class="wb-mount-item ${on ? 'on' : ''}" data-act="mount-contact" data-cid="${esc(c.id)}"><span class="wb-mount-av"><img src="${esc(c.avatar || 'assets/聊天默认头像/chartouxiang.jpg')}" alt="" onerror="this.remove()"></span><span class="wb-mount-name">${esc(c.name)}</span><span class="wb-mount-check"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></div>`;
         }).join('');
         return `<button class="wb-mount-head-btn" type="button" data-act="toggle-mount"><i class="wb-mount-dot"></i><span>挂载</span><b>${esc(mountLabel(b))}</b><svg class="wb-mount-caret" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
         <div class="wb-mount-drop"><div class="wb-mount-drop-in">

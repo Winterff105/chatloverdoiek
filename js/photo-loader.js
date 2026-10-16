@@ -145,10 +145,33 @@
     requestAnimationFrame(tick);
 
     /* main.js 首屏渲染完成后调用：补充壁纸、头像等资源并开始等待 */
+    /* 消息应用的头像、背景等存在 localStorage 里，进入前就要读进缓存 */
+    function trackStoredImages() {
+        const walk = (v) => {
+            if (typeof v === 'string') {
+                if (/^data:image\//.test(v) || /^assets\//.test(v) || /\.(png|jpe?g|gif|webp|svg)(\?|$)/i.test(v)) trackUrl(v);
+            } else if (v && typeof v === 'object') {
+                Object.values(v).forEach(walk);
+            }
+        };
+        try {
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i);
+                const raw = k ? localStorage.getItem(k) : null;
+                if (!raw || (raw[0] !== '{' && raw[0] !== '[')) continue;
+                try { walk(JSON.parse(raw)); } catch (_) {}
+            }
+        } catch (_) {}
+    }
+
     function start(extra) {
         if (started) return;
         started = true;
         if (Array.isArray(extra)) extra.forEach(trackUrl);
+        // 聊天的默认头像（没有自定义头像时用）
+        if (typeof DEFAULT_CHAT_AVATAR !== 'undefined') trackUrl(DEFAULT_CHAT_AVATAR);
+        if (typeof DEFAULT_CHAR_AVATAR !== 'undefined') trackUrl(DEFAULT_CHAR_AVATAR);
+        trackStoredImages();
         const phone = document.getElementById('phoneContainer');
         if (phone) trackCssBackgrounds(phone);
         document.querySelectorAll('#phoneContainer img').forEach(trackEl);
