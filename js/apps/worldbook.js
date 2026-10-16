@@ -29,10 +29,12 @@ window.initWorldbookModule = function (root) {
 
     /* ---------------- 视图状态 ---------------- */
     let cur = { view: 'lib', bookId: null, entryId: null, delArmed: false };
+    let selectMode = false;
+    let selectedEntryIds = new Set();
     let tip = '';
     let tipT = null;
     function note(t) { tip = t; clearTimeout(tipT); tipT = setTimeout(() => { tip = ''; const el = root.querySelector('.wb-tip'); if (el) el.classList.remove('show'); }, 2200); const el = root.querySelector('.wb-tip'); if (el) { el.innerHTML = '<i class="wb-tip-star"></i>' + esc(t); el.classList.add('show'); } }
-    function go(view, extra) { formDraft = null; cur = Object.assign({ view, bookId: null, entryId: null, delArmed: false }, extra || {}); render(); }
+    function go(view, extra) { selectMode = false; selectedEntryIds.clear(); formDraft = null; cur = Object.assign({ view, bookId: null, entryId: null, delArmed: false }, extra || {}); render(); }
 
     /* ---------------- 图标 ---------------- */
     const WING_PAIR = `<g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
@@ -141,22 +143,31 @@ window.initWorldbookModule = function (root) {
         const rows = entries.map(e => {
             const posTxt = e.pos === 'mid' ? `中 · 深度 ${Number(e.depth) || 0}` : POS_LABEL[e.pos] || '前';
             const posCls = e.pos === 'mid' ? 'pos-mid' : e.pos === 'after' ? 'pos-after' : 'pos-before';
+            const isSel = selectMode && selectedEntryIds.has(e.id);
             return `
-            <div class="wb-entry" data-act="open-entry" data-id="${e.id}">
+            <div class="wb-entry ${selectMode ? 'wb-entry-select-mode' : ''} ${isSel ? 'selected' : ''}" data-act="${selectMode ? 'toggle-entry-select' : 'open-entry'}" data-id="${e.id}">
+                ${selectMode ? `<span class="wb-select-check ${isSel ? 'on' : ''}"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span>` : ''}
                 <div class="wb-entry-main">
                     <div class="wb-entry-name">${esc(e.name || '未命名条目')}</div>
                     <div class="wb-entry-keys">${e.keys ? esc(e.keys) : '无关键词'}</div>
                 </div>
                 <span class="wb-chip ${posCls}">${posTxt}</span>
-                <span class="wb-switch ${e.enabled === false ? '' : 'on'}" data-act="toggle-entry" data-id="${e.id}" role="switch" aria-checked="${e.enabled !== false}"><i></i></span>
+                ${selectMode ? '' : `<span class="wb-switch ${e.enabled === false ? '' : 'on'}" data-act="toggle-entry" data-id="${e.id}" role="switch" aria-checked="${e.enabled !== false}"><i></i></span>`}
             </div>`;
         }).join('');
-        return `
+        const topBar = selectMode ? `
+            <div class="wb-top wb-top-select">
+                <button class="wb-round" data-act="cancel-select" aria-label="退出多选">${BACK_SVG}</button>
+                <div class="wb-title small">已选择 ${selectedEntryIds.size} 项</div>
+                <button class="wb-text-btn ${selectedEntryIds.size ? 'wb-danger-text' : ''}" data-act="del-selected">删除</button>
+            </div>` : `
             <div class="wb-top">
                 <button class="wb-round" data-act="lib" aria-label="返回">${BACK_SVG}</button>
                 <div class="wb-title small">${esc(b.name || '未命名')}</div>
                 <button class="wb-text-btn" data-act="edit-book" data-id="${b.id}">编辑</button>
-            </div>
+            </div>`;
+        return `
+            ${topBar}
             <div class="wb-cover">
                 <i class="wb-spine"></i>
                 <div class="wb-cover-ico">${FOLDER_SVG}</div>
@@ -169,13 +180,18 @@ window.initWorldbookModule = function (root) {
                 </div>
             </div>
             <div class="wb-sec">
-                <span>条目 · ${entries.length}</span>
+                <span>${selectMode ? `选择条目 · ${selectedEntryIds.size}/${entries.length}` : `条目 · ${entries.length}`}</span>
                 <div class="wb-sec-btns">
-                    <button class="wb-pill" data-act="import">导入</button>
-                    <button class="wb-pill strong" data-act="new-entry">新建</button>
+                    ${selectMode ? `
+                        <button class="wb-pill" data-act="select-all">${selectedEntryIds.size === entries.length && entries.length > 0 ? '取消全选' : '全选'}</button>
+                        <button class="wb-pill strong wb-pill-del" data-act="del-selected">删除所选</button>
+                    ` : `
+                        <button class="wb-pill" data-act="import">导入</button>
+                        <button class="wb-pill strong" data-act="new-entry">新建</button>
+                    `}
                 </div>
             </div>
-            <div class="wb-list">${rows || '<div class="wb-empty-sub pad">还没有条目</div>'}</div>`;
+            <div class="wb-list ${selectMode ? 'wb-selecting' : ''}">${rows || '<div class="wb-empty-sub pad">还没有条目</div>'}</div>`;
     }
 
     function viewBookForm() {
@@ -252,7 +268,24 @@ window.initWorldbookModule = function (root) {
     }
     let pressT = null, pressG = null, pressX = 0, pressY = 0;
     function clearPress() { clearTimeout(pressT); pressT = null; pressG = null; }
+    let entryPressT = null, entryPressId = null, entryPressX = 0, entryPressY = 0;
+    function clearEntryPress() { clearTimeout(entryPressT); entryPressT = null; entryPressId = null; }
     root.addEventListener('pointerdown', e => {
+        const entryEl = e.target.closest && e.target.closest('.wb-entry');
+        if (entryEl && cur.view === 'book' && !selectMode) {
+            if (e.target.closest('.wb-switch')) return;
+            entryPressId = entryEl.dataset.id;
+            entryPressX = e.clientX; entryPressY = e.clientY;
+            entryPressT = setTimeout(() => {
+                const eid = entryPressId; clearEntryPress();
+                root.__wbEntryLongFired = true;
+                selectMode = true;
+                selectedEntryIds.clear();
+                if (eid) selectedEntryIds.add(eid);
+                render();
+            }, 550);
+            return;
+        }
         const pill = e.target.closest && e.target.closest('.wb-gpill');
         if (!pill) return;
         pressG = pill.dataset.g; pressX = e.clientX; pressY = e.clientY;
@@ -264,10 +297,12 @@ window.initWorldbookModule = function (root) {
     });
     root.addEventListener('pointermove', e => {
         if (pressT && (Math.abs(e.clientX - pressX) > 8 || Math.abs(e.clientY - pressY) > 8)) clearPress();
+        if (entryPressT && (Math.abs(e.clientX - entryPressX) > 8 || Math.abs(e.clientY - entryPressY) > 8)) clearEntryPress();
     });
-    root.addEventListener('pointerup', clearPress);
-    root.addEventListener('pointercancel', clearPress);
-    root.addEventListener('pointerleave', clearPress);
+    function clearAllPress() { clearPress(); clearEntryPress(); }
+    root.addEventListener('pointerup', clearAllPress);
+    root.addEventListener('pointercancel', clearAllPress);
+    root.addEventListener('pointerleave', clearAllPress);
 
     function confirmGroup() {
         const inp = root.querySelector('[data-field="newgroup"]');
@@ -287,8 +322,31 @@ window.initWorldbookModule = function (root) {
         switch (act) {
             case 'lib': cur.delArmed = false; go('lib'); break;
             case 'open-book':
+                selectMode = false; selectedEntryIds.clear();
                 if (cur.view === 'lib' && el.classList.contains('wb-card')) { openBookAnim(el, id); break; }
                 go('book', { bookId: id }); break;
+            case 'cancel-select':
+                selectMode = false; selectedEntryIds.clear(); render(); break;
+            case 'select-all': {
+                const b = findBook(cur.bookId); const entries = (b && b.entries) || [];
+                if (selectedEntryIds.size === entries.length && entries.length > 0) selectedEntryIds.clear();
+                else entries.forEach(item => selectedEntryIds.add(item.id));
+                render(); break;
+            }
+            case 'del-selected': {
+                if (selectedEntryIds.size === 0) { note('请先选择要删除的条目'); break; }
+                const count = selectedEntryIds.size;
+                const b = findBook(cur.bookId);
+                if (b) { b.entries = (b.entries || []).filter(x => !selectedEntryIds.has(x.id)); save(); }
+                selectedEntryIds.clear(); selectMode = false;
+                note(`已删除 ${count} 个条目`);
+                render(); break;
+            }
+            case 'toggle-entry-select':
+                if (root.__wbEntryLongFired) { root.__wbEntryLongFired = false; break; }
+                if (selectedEntryIds.has(id)) selectedEntryIds.delete(id);
+                else selectedEntryIds.add(id);
+                render(); break;
             case 'new-book': go('bookForm', {}); break;
             case 'edit-book': go('bookForm', { bookId: id }); break;
             case 'import': importTarget(); break;
@@ -305,7 +363,9 @@ window.initWorldbookModule = function (root) {
             }
             case 'import-entry': importMode = 'entry'; fileInput.click(); break;
             case 'new-entry': go('entry', { bookId: cur.bookId }); break;
-            case 'open-entry': go('entry', { bookId: cur.bookId, entryId: id }); break;
+            case 'open-entry':
+                if (root.__wbEntryLongFired) { root.__wbEntryLongFired = false; break; }
+                go('entry', { bookId: cur.bookId, entryId: id }); break;
             case 'toggle-book': {
                 const b = findBook(id); if (!b) break;
                 b.enabled = b.enabled === false; save(); render(); break;
@@ -506,6 +566,6 @@ window.initWorldbookModule = function (root) {
         }
     };
 
-    root.__wbReset = () => { formDraft = null; cur = { view: 'lib', bookId: null, entryId: null, delArmed: false }; render(); };
+    root.__wbReset = () => { selectMode = false; selectedEntryIds.clear(); formDraft = null; cur = { view: 'lib', bookId: null, entryId: null, delArmed: false }; render(); };
     render();
 };
