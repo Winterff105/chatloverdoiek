@@ -1066,7 +1066,7 @@
           if(a.model)$('#ar-aModel').innerHTML=`<option>${esc(a.model)}</option>`;})();
         async function ai(msgs){
           const a=A();if(!a.base||!a.key||!a.model)throw new Error('请先填写 API 设置并选择模型');
-          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
+          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,max_tokens:8192,messages:msgs,temperature:.15,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
           let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败（HTTP '+r.status+'）：'+await err(r));
           const d=await readAiResponse(r);runTokens+=(d.usage&&d.usage.total_tokens)||0;const m=d.choices?.[0]?.message;if(!m)throw new Error('AI 没有返回内容');
@@ -1076,10 +1076,10 @@
         async function codeSearch(text){
           let g;try{g=G();need(g)}catch(e){return []}
           const valid=new Set(ST.tree.map(f=>f.path));
-          const terms=searchTerms(text);const out=[];
-          await pool(terms,2,async t=>{
+          const terms=searchTerms(text).slice(0,3);const out=[];
+          await pool(terms,3,async t=>{
             try{
-              const r=await req(`https://api.github.com/search/code?q=${encodeURIComponent(t)}+repo:${g.owner}/${g.repo}&per_page=10`,{headers:gh(g)},10000);
+              const r=await req(`https://api.github.com/search/code?q=${encodeURIComponent(t)}+repo:${g.owner}/${g.repo}&per_page=8`,{headers:gh(g)},2500);
               if(!r.ok)return;
               const d=await r.json();
               const paths=(d.items||[]).map(x=>x.path).filter(p=>valid.has(p));
@@ -1138,13 +1138,13 @@
             short
               ?'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":["第一条消息","第二条消息"],"files":[],"pack":""}'
               :'{"thinking":"你的思考过程","steps":["步骤一","步骤二"],"reply":"发给用户的正文","files":[],"pack":""}',
-            'thinking：用中文写 1 到 2 句简短思考过程，务必快速开始输出内容，严禁长篇推演，防止网关 524 超时。',
-            'steps：2 到 4 个英文短语，每个不超过 3 个单词，描述你这一轮实际做的几件事，比如 parse request、update code、generate file。',
+            'thinking：用极短中文（1句）概括思路，立即开始输出，严禁长篇推演。',
+            'steps：2 到 4 个英文短语，描述你做的步骤。',
             short
               ?'reply 必须是数组，模拟真人连发微信：每一条只写一句话，每条不超过 30 个字，通常 1 到 4 条。不要把长段落塞进一条里，也不要使用代码块。'
-              :'reply：你真正要发给用户的话，语气遵循上面的角色设定。若修改了文件，简述改动即可，严禁在 reply 中重复粘贴长代码！',
-            'pack：files 里有多个文件时，用户要压缩包（zip）就写 "zip"，要文件夹就写 "folder"；没有文件就写空字符串。',
-            'files：用户要求修改附件并返回/发给他时，必须把修改后的完整文件放入 files 数组：[{"name":"文件名","content":"修改后的完整代码"}]。代码必须完整可用，不要写省略号。文件内容只写在 content 中，不要写在 reply 里。'
+              :'reply：你真正要发给用户的话，语气遵循上面的角色设定。简述改动即可，严禁在 reply 中重复粘贴长代码！',
+            'pack：files 里有多个文件时，用户要压缩包就写 "zip"，要文件夹就写 "folder"；没有就写空字符串。',
+            'files：修改用户附件或生成文件时放入 files：[{"name":"文件名","edits":[{"old":"原代码片段","new":"修改后片段"}]}] 或直接给出完整 content。对现有文件必须优先使用 edits 局部修改，严禁全量重写大文件以防止截断。'
           ];
         }
         function recordSystem(text){
@@ -1330,7 +1330,33 @@
 '不要返回 Markdown 代码围栏。files 只放发生修改的文件。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话（全部）：\n${recentText}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
             const ch=[];const failed=[];
             const pushChange=(f,lf)=>{const t=f.orig.includes('\r\n')?lf.replace(/\n/g,'\r\n'):lf;if(t!==f.orig)ch.push({...f,edit:t,lines:diff(f.orig.replace(/\r\n/g,'\n'),lf)})};
-            const applyEdits=(orig,edits)=>{let t=orig;for(const e of edits){const o=String(e&&e.old!=null?e.old:'').replace(/\r\n/g,'\n'),n=String(e&&e.new!=null?e.new:'').replace(/\r\n/g,'\n');if(!o)return null;if(t.split(o).length!==2)return null;t=t.replace(o,()=>n)}return t};
+            const applyEdits=(orig,edits)=>{
+              let t=orig;
+              for(const e of edits){
+                const o=String(e&&e.old!=null?e.old:'').replace(/\r\n/g,'\n'),n=String(e&&e.new!=null?e.new:'').replace(/\r\n/g,'\n');
+                if(!o)return null;
+                if(t.includes(o)){
+                  const parts=t.split(o);
+                  if(parts.length===2){t=parts[0]+n+parts[1];continue}
+                }
+                const srcLines=t.split('\n');
+                const oldLines=o.trim().split('\n').map(l=>l.trim());
+                if(!oldLines.length)return null;
+                let matchIdx=-1;
+                for(let i=0;i<=srcLines.length-oldLines.length;i++){
+                  let ok=true;
+                  for(let j=0;j<oldLines.length;j++){
+                    if(srcLines[i+j].trim()!==oldLines[j]){ok=false;break}
+                  }
+                  if(ok){if(matchIdx!==-1){matchIdx=-1;break}matchIdx=i}
+                }
+                if(matchIdx<0)return null;
+                const indent=(srcLines[matchIdx].match(/^\s*/)||[''])[0];
+                const newLines=n.split('\n').map(l=>(l.trim()?indent+l.trimStart():''));
+                t=[...srcLines.slice(0,matchIdx),...newLines,...srcLines.slice(matchIdx+oldLines.length)].join('\n');
+              }
+              return t;
+            };
             const handleMod=(c,fromRetry)=>{
               const p=String(c&&c.path||'').trim().replace(/^\/+/,'').replace(/\.\.\//g,''),f=got.find(x=>x.path==p);
               if(!p)return;
@@ -1738,7 +1764,7 @@
         async function chatText(msgs){
           const a=A();
           const short=uiCfg().short==='on';
-          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,messages:msgs,temperature:.8,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
+          const go=j=>req(a.base+'/chat/completions',{method:'POST',headers:{Authorization:'Bearer '+a.key,'Content-Type':'application/json'},body:JSON.stringify({model:a.model,stream:true,max_tokens:8192,messages:msgs,temperature:.8,...(j?{response_format:{type:'json_object'}}:{})})},AI_TIMEOUT);
           let r=await go(true);if(!r.ok)r=await go(false);
           if(!r.ok)throw new Error('AI 请求失败（HTTP '+r.status+'）：'+await err(r));
           const d=await readAiResponse(r);runTokens+=(d.usage&&d.usage.total_tokens)||0;
@@ -1767,8 +1793,21 @@
               if(Array.isArray(o.steps))steps=toList(o.steps,4,28);
               if(typeof o.pack==='string')pack=o.pack.trim();
               if(Array.isArray(o.files)||Array.isArray(o.outFiles)){
-                const cn=n=>String(n||'').replace(/\\/g,'/').split('/').filter(x=>x&&x!=='.'&&x!=='..').join('/').slice(0,120)||'file.txt';
-                files=[...(Array.isArray(o.files)?o.files:[]),...(Array.isArray(o.outFiles)?o.outFiles:[])].filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string')).map(cleanOutFile).slice(0,30);
+                const rawList=[...(Array.isArray(o.files)?o.files:[]),...(Array.isArray(o.outFiles)?o.outFiles:[])];
+                const attachMap=new Map();
+                ((currentConversation&&currentConversation.messages)||[]).forEach(m=>(m.attach||[]).forEach(a=>{if(a&&a.name&&typeof a.content==='string')attachMap.set(a.name,a.content)}));
+                files=rawList.filter(f=>f&&(f.type==='folder'||/\/$/.test(String(f.name||''))||typeof f.content==='string'||Array.isArray(f.edits))).map(f=>{
+                  if(Array.isArray(f.edits)&&attachMap.has(f.name)){
+                    let origText=attachMap.get(f.name);
+                    for(const ed of f.edits){
+                      const o=String(ed&&ed.old||'').replace(/\r\n/g,'\n'),n=String(ed&&ed.new||'').replace(/\r\n/g,'\n');
+                      if(!o)continue;
+                      if(origText.includes(o))origText=origText.replace(o,n);
+                    }
+                    return cleanOutFile({name:f.name,content:origText});
+                  }
+                  return cleanOutFile(f);
+                }).slice(0,30);
               }
               if(o.reply!==undefined){
                 const p=(Array.isArray(o.reply)?o.reply:[o.reply]).map(x=>String(x??'').trim()).filter(Boolean);
