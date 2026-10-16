@@ -554,3 +554,42 @@
 .app-window .app-content.worldbook-app,
 .worldbook-app{ padding-top:57px !important; }
 
+/* ===================== 条目多选删除与粉色选中态 ===================== */
+.worldbook-app .wb-entry{ user-select:none; -webkit-user-select:none; transition:background-color .2s ease, border-color .2s ease; }
+.worldbook-app .wb-entry.selected{ background-color:#FFF0F5 !important; border-color:#F8CADC !important; }
+.worldbook-app .wb-journal .wb-entry.selected{
+    background-color:#FFF0F5 !important;
+    background-image:repeating-linear-gradient(to bottom, transparent 0 39px, #FCE0EC 39px 40px) !important;
+    border-bottom-color:#F8CADC !important;
+}
+.worldbook-app .wb-entry-check{
+    display:none; width:20px; height:20px; border-radius:50%; flex-shrink:0;
+    border:1.5px solid #D6D6D6; background:#FFFFFF; margin-top:2px;
+    align-items:center; justify-content:center; box-sizing:border-box; transition:all .2s ease;
+}
+.worldbook-app.wb-select-mode .wb-entry-check{ display:flex; }
+.worldbook-app .wb-entry.selected .wb-entry-check{
+    background:#F296B6; border-color:#F296B6; color:#FFFFFF;
+}
+.worldbook-app .wb-entry-check svg{ width:12px; height:12px; stroke:currentColor; stroke-width:2.2; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+.worldbook-app .wb-select-bar{
+    position:sticky; bottom:0; left:0; right:0; margin:16px -16px -40px; padding:12px 18px;
+    background:rgba(255,255,255,.94); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+    border-top:1px solid #FAD7E4; display:flex; align-items:center; justify-content:space-between;
+    box-shadow:0 -4px 16px rgba(242,164,194,.16); z-index:10;
+}
+.worldbook-app .wb-select-count{ font-size:13px; font-weight:600; color:#555555; }
+.worldbook-app .wb-select-count span{ color:#E87A90; margin:0 3px; font-weight:700; }
+.worldbook-app .wb-select-actions{ display:flex; gap:8px; align-items:center; }
+.worldbook-app .wb-btn-del-batch{
+    padding:7px 16px; border-radius:999px; border:0;
+    background:linear-gradient(135deg, #F4A7BA 0%, #EA7A99 100%);
+    color:#FFFFFF; font-size:13px; font-weight:600; cursor:pointer;
+    box-shadow:0 3px 10px rgba(234,122,153,.35); transition:opacity .2s ease;
+}
+.worldbook-app .wb-btn-del-batch:disabled{ opacity:.45; cursor:not-allowed; box-shadow:none; }
+.worldbook-app .wb-btn-cancel-select{
+    padding:7px 14px; border-radius:999px; border:1px solid #E5E5E5;
+    background:#FFFFFF; color:#666666; font-size:13px; cursor:pointer;
+}
+
