@@ -168,6 +168,7 @@ window.initWorldbookModule = function (root) {
             </div>`;
         return `
             ${topBar}
+            ${mountRow(b)}
             <div class="wb-cover">
                 <i class="wb-spine"></i>
                 <div class="wb-cover-ico">${FOLDER_SVG}</div>
@@ -246,6 +247,51 @@ window.initWorldbookModule = function (root) {
                 <button class="wb-save" data-act="save-entry" data-id="${e.id || ''}">保存</button>
                 ${del}
             </div>`;
+    }
+
+    /* ---------------- 挂载 ---------------- */
+    function loadMountContacts() {
+        try {
+            const v = JSON.parse(localStorage.getItem('forever_messages_contacts_v1') || '[]');
+            return Array.isArray(v) ? v.filter(c => c && c.id != null).map(c => ({
+                id: String(c.id), name: String(c.name || '未命名'), avatar: c.avatar || '',
+                ini: String(c.ini || c.name || '?').slice(0, 1).toUpperCase()
+            })) : [];
+        } catch (_) { return []; }
+    }
+    function mountLabel(b) {
+        const m = b.mount || {};
+        if (m.all) return '全局挂载';
+        const n = (m.contacts || []).length;
+        return n ? n + ' 位联系人' : '未挂载';
+    }
+    function mountOn(b) { const m = b.mount || {}; return !!(m.all || (m.contacts || []).length); }
+    function mountInner(b) {
+        const m = b.mount || {};
+        const d = cur.mountOpen && cur.mountDraft ? cur.mountDraft : { all: !!m.all, contacts: (m.contacts || []).slice() };
+        const rows = loadMountContacts().map(c => {
+            const on = d.contacts.indexOf(c.id) >= 0;
+            return `<div class="wb-mount-item ${on ? 'on' : ''}" data-act="mount-contact" data-cid="${esc(c.id)}"><span class="wb-mount-av">${c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : esc(c.ini)}</span><span class="wb-mount-name">${esc(c.name)}</span><span class="wb-mount-check"><svg viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg></span></div>`;
+        }).join('');
+        return `<button class="wb-mount-head-btn" type="button" data-act="toggle-mount"><i class="wb-mount-dot"></i><span>挂载</span><b>${esc(mountLabel(b))}</b><svg class="wb-mount-caret" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <div class="wb-mount-drop"><div class="wb-mount-drop-in">
+            <button class="wb-mount-all ${d.all ? 'on' : ''}" type="button" data-act="mount-all"><span><b>全局挂载</b><small>所有联系人都会注入这本书</small></span><span class="wb-mount-switch-wrap"><span class="wb-mount-switch ${d.all ? 'on' : ''}"><i></i></span><span class="wb-mount-tag">全局</span></span></button>
+            <div class="wb-mount-divider"><span>${d.all ? '已全局挂载' : '或单独选择联系人'}</span></div>
+            <div class="wb-mount-list ${d.all ? 'dim' : ''}">${rows || '<div class="wb-mount-empty">还没有联系人</div>'}</div>
+            <div class="wb-mount-foot"><button class="wb-mount-cancel" type="button" data-act="mount-cancel">取消</button><button class="wb-mount-save" type="button" data-act="mount-save">保存</button></div>
+        </div></div>`;
+    }
+    function mountRow(b) {
+        return `<div class="wb-mount-row"><div class="wb-mount-capsule ${mountOn(b) ? 'on' : ''} ${cur.mountOpen ? 'open' : ''}">${mountInner(b)}</div></div>`;
+    }
+    /* 只更新胶囊内部，胶囊本身不重建，才能看到伸长动画 */
+    function refreshMount() {
+        const b = findBook(cur.bookId); const cap = root.querySelector('.wb-mount-capsule');
+        if (!b || !cap) { render(); return; }
+        const list = cap.querySelector('.wb-mount-list'); const keep = list ? list.scrollTop : 0;
+        cap.className = 'wb-mount-capsule ' + (mountOn(b) ? 'on ' : '') + (cur.mountOpen ? 'open' : '');
+        cap.innerHTML = mountInner(b);
+        const nl = cap.querySelector('.wb-mount-list'); if (nl) nl.scrollTop = keep;
     }
 
     /* ---------------- 表单状态（切换位置/开关时先记住输入） ---------------- */
@@ -384,6 +430,28 @@ window.initWorldbookModule = function (root) {
                 root.querySelectorAll('.wb-seg-btn').forEach(b => b.classList.toggle('on', b === el));
                 const row = root.querySelector('.wb-depth-row'); if (row) row.dataset.show = String(el.dataset.pos === 'mid');
                 break;
+            }
+            case 'toggle-mount': {
+                const b = findBook(cur.bookId); if (!b) break;
+                if (cur.mountOpen) { cur.mountOpen = false; cur.mountDraft = null; }
+                else { const m = b.mount || {}; cur.mountOpen = true; cur.mountDraft = { all: !!m.all, contacts: (m.contacts || []).slice() }; }
+                refreshMount(); break;
+            }
+            case 'mount-cancel': cur.mountOpen = false; cur.mountDraft = null; refreshMount(); break;
+            case 'mount-all': if (cur.mountDraft) { cur.mountDraft.all = !cur.mountDraft.all; refreshMount(); } break;
+            case 'mount-contact': {
+                const d = cur.mountDraft; if (!d || d.all) break;
+                const cid = el.dataset.cid; const i = d.contacts.indexOf(cid);
+                if (i >= 0) d.contacts.splice(i, 1); else d.contacts.push(cid);
+                refreshMount(); break;
+            }
+            case 'mount-save': {
+                const b = findBook(cur.bookId); const d = cur.mountDraft;
+                if (!b || !d) break;
+                b.mount = { all: !!d.all, contacts: d.contacts.slice() };
+                cur.mountOpen = false; cur.mountDraft = null;
+                if (save()) note(d.all ? '已全局挂载' : (d.contacts.length ? '已挂载给 ' + d.contacts.length + ' 位联系人' : '已取消挂载'));
+                refreshMount(); break;
             }
             case 'save-book': saveBook(id); break;
             case 'save-entry': saveEntry(id); break;
@@ -549,22 +617,8 @@ window.initWorldbookModule = function (root) {
     /* ---------------- 给提示词用的接口 ---------------- */
     window.WORLDBOOK = {
         list: () => BOOKS,
-        /* 返回 { before: [文本], after: [文本], depth: [{ depth, text, order }] } */
-        buildInjection(contextText) {
-            const out = { before: [], after: [], depth: [] };
-            const ctx = typeof contextText === 'string' ? contextText.toLowerCase() : null;
-            BOOKS.filter(b => b && b.enabled !== false).forEach(b => {
-                (b.entries || []).filter(e => matchWbEntry(e, ctx))
-                    .sort((x, y) => (x.order || 0) - (y.order || 0))
-                    .forEach(e => {
-                        const t = e.content.trim();
-                        if (e.pos === 'mid') out.depth.push({ depth: Math.max(0, Number(e.depth) || 0), text: t, order: e.order || 0 });
-                        else if (e.pos === 'after') out.after.push(t);
-                        else out.before.push(t);
-                    });
-            });
-            return out;
-        }
+        /* 返回 { before: [文本], after: [文本], depth: [{ depth, text, order }] }；contactId 为空时只取全局挂载的书 */
+        buildInjection(contextText, contactId) { return wbBuildInjection(BOOKS, contextText, contactId); }
     };
 
     root.__wbReset = () => { selectMode = false; selectedEntryIds.clear(); formDraft = null; cur = { view: 'lib', bookId: null, entryId: null, delArmed: false }; render(); };
@@ -580,29 +634,56 @@ function matchWbEntry(e, ctx) {
     return true;
 }
 
+function wbLoadBooks() {
+    try { const v = JSON.parse(localStorage.getItem('forever_worldbooks_v1') || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; }
+}
+
+/* 挂载判断：全局挂载的书给所有联系人；单独挂载的书只给选中的联系人 */
+function wbIsMounted(b, contactId) {
+    const m = b && b.mount;
+    if (!m) return false;
+    if (m.all) return true;
+    return contactId != null && Array.isArray(m.contacts) && m.contacts.indexOf(String(contactId)) >= 0;
+}
+
+function wbBuildInjection(books, contextText, contactId) {
+    const out = { before: [], after: [], depth: [] };
+    const ctx = typeof contextText === 'string' ? contextText.toLowerCase() : null;
+    (books || []).filter(b => b && b.enabled !== false && wbIsMounted(b, contactId)).forEach(b => {
+        (b.entries || []).filter(e => matchWbEntry(e, ctx))
+            .sort((x, y) => (x.order || 0) - (y.order || 0))
+            .forEach(e => {
+                const t = e.content.trim();
+                if (e.pos === 'mid') out.depth.push({ depth: Math.max(0, Number(e.depth) || 0), text: t, order: e.order || 0 });
+                else if (e.pos === 'after') out.after.push(t);
+                else out.before.push(t);
+            });
+    });
+    return out;
+}
+
+function wbMsgText(recentMsgs) {
+    if (typeof recentMsgs === 'string') return recentMsgs;
+    if (!Array.isArray(recentMsgs)) return '';
+    return recentMsgs.map(m => typeof m === 'string' ? m : (m && (m.text || m.content) || '')).join('\n');
+}
+
+function wbPromptText(inj) {
+    const mid = inj.depth.slice().sort((x, y) => x.order - y.order).map(d => d.text);
+    return [...inj.before, ...mid, ...inj.after].filter(Boolean).join('\n\n');
+}
+
 if (!window.WORLDBOOK) {
     window.WORLDBOOK = {
-        list() {
-            try {
-                const v = JSON.parse(localStorage.getItem('forever_worldbooks_v1') || '[]');
-                return Array.isArray(v) ? v : [];
-            } catch (_) { return []; }
-        },
-        buildInjection(contextText) {
-            const books = this.list();
-            const out = { before: [], after: [], depth: [] };
-            const ctx = typeof contextText === 'string' ? contextText.toLowerCase() : null;
-            books.filter(b => b && b.enabled !== false).forEach(b => {
-                (b.entries || []).filter(e => matchWbEntry(e, ctx))
-                    .sort((x, y) => (x.order || 0) - (y.order || 0))
-                    .forEach(e => {
-                        const t = e.content.trim();
-                        if (e.pos === 'mid') out.depth.push({ depth: Math.max(0, Number(e.depth) || 0), text: t, order: e.order || 0 });
-                        else if (e.pos === 'after') out.after.push(t);
-                        else out.before.push(t);
-                    });
-            });
-            return out;
-        }
+        list: wbLoadBooks,
+        buildInjection: (contextText, contactId) => wbBuildInjection(wbLoadBooks(), contextText, contactId)
     };
 }
+
+/* 给消息应用的提示词接口：按联系人返回已挂载的世界书文本 */
+window.WorldBook = {
+    getChatPrompt(contact, recentMsgs) {
+        const cid = contact && contact.id != null ? String(contact.id) : null;
+        return wbPromptText(wbBuildInjection(wbLoadBooks(), wbMsgText(recentMsgs), cid));
+    }
+};

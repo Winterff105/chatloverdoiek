@@ -252,6 +252,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 触发真实照片与资源预加载检测，确保所有照片加载完毕后再进入桌面
     if (window.PhotoLoader && typeof window.PhotoLoader.start === 'function') {
-        window.PhotoLoader.start();
+        // 把桌面壁纸、头像也交给开屏等待，全部读完才进入
+        const themeWallpaper = phoneContainer.classList.contains('theme-light') ? 'assets/Light/bizhi.png' : 'assets/Dark/bizhi.png';
+        window.PhotoLoader.start([
+            window.currentDesktopWallpaperSrc,
+            themeWallpaper,
+            currentUploadedAvatar,
+            currentCoupleAvatar
+        ]);
     }
 });

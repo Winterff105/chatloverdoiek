@@ -11,7 +11,7 @@
 (function () {
     const BG = window.PHOTO_BG || 'assets/前景/ovo.png';
     const LIST = Array.isArray(window.PHOTO_LIST) ? window.PHOTO_LIST.slice() : [];
-    const TIMEOUT = 15000;   // 兜底：照片一直读不出来，最多等 15 秒
+    const TIMEOUT = 30000;   // 兜底：超过 30 秒还有照片没读完，才强制进入（控制台会列出未读完的图片）
     const HOLD_MIN = 3000;   // 最少停留 3 秒，之后照片读完就进入
     const CSS_PATH = window.PHOTO_LOADER_CSS || 'css/photo-loader.css';
 
@@ -43,23 +43,64 @@
     document.body.appendChild(layer);
     const fill = document.getElementById('plFill');
 
-    // 3. 真实照片加载监控：必须真实照片全部加载完毕才进入
-    const trackedUrls = new Set();
-    let total = 0, done = 0, finished = false, closing = false;
+    // 3. 真实加载监控：页面里所有图片（含后来插入的、CSS 背景图）全部读完，进度条才走满
+    const recs = [];                 // 每一项 { src, done }
+    const seenSrc = new Set();
+    const seenEl = new WeakMap();    // img 元素 -> 已登记的 src
+    let started = false;             // main.js 完成首屏渲染后调用 start()
+    let forced = false;              // 超时或手动强制
+    let closing = false;
+
+    function record(src) { const r = { src, done: false }; recs.push(r); return r; }
 
     function trackUrl(src) {
-        if (!src || trackedUrls.has(src)) return;
-        trackedUrls.add(src);
-        total++;
+        if (!src || typeof src !== 'string' || seenSrc.has(src)) return;
+        seenSrc.add(src);
+        const r = record(src);
         const im = new Image();
-        const onEnd = () => {
-            done++;
-            checkDone();
-        };
-        im.onload = onEnd;
-        im.onerror = onEnd;
+        const end = () => { r.done = true; };
+        im.onload = end;
+        im.onerror = end;
         im.src = src;
     }
+
+    function trackEl(img) {
+        if (!(img instanceof HTMLImageElement)) return;
+        if (img.closest('#photoLoader')) return;
+        if (img.loading === 'lazy') return;          // 懒加载图在滚动前不会读，不能等它
+        const src = img.getAttribute('src');
+        if (!src || seenEl.get(img) === src) return;
+        seenEl.set(img, src);
+        const r = record(src);
+        const end = () => { r.done = true; };
+        if (img.complete) { end(); return; }
+        img.addEventListener('load', end, { once: true });
+        img.addEventListener('error', end, { once: true });
+    }
+
+    function trackCssBackgrounds(root) {
+        root.querySelectorAll('*').forEach(el => {
+            const bg = getComputedStyle(el).backgroundImage;
+            if (!bg || bg === 'none') return;
+            const re = /url\((['"]?)(.*?)\1\)/g;
+            let m;
+            while ((m = re.exec(bg))) trackUrl(m[2]);
+        });
+    }
+
+    // 监听 DOM：页面解析、渲染过程中新出现的图片也登记
+    const mo = new MutationObserver(muts => {
+        if (closing) return;
+        muts.forEach(m => {
+            if (m.type === 'attributes') { trackEl(m.target); return; }
+            m.addedNodes.forEach(n => {
+                if (n.nodeType !== 1) return;
+                if (n.tagName === 'IMG') trackEl(n);
+                n.querySelectorAll && n.querySelectorAll('img').forEach(trackEl);
+            });
+        });
+    });
+    mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['src'] });
 
     function addPhotos(arr) {
         if (!Array.isArray(arr)) return;
@@ -80,50 +121,59 @@
         });
     } catch (e) {}
 
-    // 进度条：完全由真实照片加载推进，不靠时间伪装
+    // 进度条：按真实完成比例推进（平滑过渡，所以能看到过程）；全部读完才走到 100%
     let shown = 0;
     function tick() {
-        const realT = total > 0 ? (done / total) : 0;
-        const goal = closing ? 1 : (finished ? 1 : Math.min(0.98, realT));
-        shown += (goal - shown) * 0.1;
-        if (closing && shown > 0.995) shown = 1;
+        const total = recs.length;
+        const done = recs.reduce((n, r) => n + (r.done ? 1 : 0), 0);
+        const allDone = forced || (started && done === total);
+        const real = total ? done / total : 0;
+        const goal = allDone ? 1 : Math.min(real, 0.97);
+        shown += (goal - shown) * 0.06;
+        if (allDone && shown > 0.995) shown = 1;
         fill.style.width = (shown * 100).toFixed(2) + '%';
-        if (!closing || shown < 1) requestAnimationFrame(tick);
+
+        if (allDone && shown >= 1 && Date.now() - startedAt >= HOLD_MIN) {
+            closing = true;
+            mo.disconnect();
+            layer.classList.add('pl-hide');
+            setTimeout(() => { if (layer.parentNode) layer.remove(); }, 800);
+            return;
+        }
+        requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
 
-    function checkDone() {
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', checkDone, { once: true });
-            return;
-        }
-        if (total > 0 && done >= total && !finished) {
-            finish();
-        }
+    /* main.js 首屏渲染完成后调用：补充壁纸、头像等资源并开始等待 */
+    function start(extra) {
+        if (started) return;
+        started = true;
+        if (Array.isArray(extra)) extra.forEach(trackUrl);
+        const phone = document.getElementById('phoneContainer');
+        if (phone) trackCssBackgrounds(phone);
+        document.querySelectorAll('#phoneContainer img').forEach(trackEl);
     }
+    window.PhotoLoader = { start, track: trackUrl };
+    window.hidePhotoLoader = () => { forced = true; };
 
-    function finish() {
-        if (finished) return;
-        finished = true;
-        const wait = Math.max(300, HOLD_MIN - (Date.now() - startedAt));
-        setTimeout(() => {
-            closing = true;
-            layer.classList.add('pl-hide');
-            setTimeout(() => { if (layer.parentNode) layer.remove(); }, 800);
-        }, wait);
-    }
-
-    window.hidePhotoLoader = finish;
-
-    // 立即登记背景图与所有需要加载的真实照片
-    trackUrl(BG);
-    addPhotos(LIST);
-    document.querySelectorAll('img[data-preload]').forEach(i => {
-        const s = i.getAttribute('src');
-        if (s) trackUrl(s);
+    // 兜底：如果 main.js 没有调用 start，DOM 就绪后 2 秒自动开始
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(() => { if (!started) start(); }, 2000);
     });
 
-    setTimeout(finish, TIMEOUT);                        // 超时保护
+    // 立即登记背景图与配置的照片
+    trackUrl(BG);
+    addPhotos(LIST);
+    document.querySelectorAll('img[data-preload]').forEach(i => trackEl(i));
+
+    // 超时保护：超过 TIMEOUT 仍未读完，强制进入，并列出没读完的图片
+    setTimeout(() => {
+        if (closing) return;
+        const pending = recs.filter(r => !r.done).map(r => r.src);
+        if (pending.length) console.warn('[PhotoLoader] 超时，以下图片未读完:', pending);
+        forced = true;
+    }, TIMEOUT);
+
 })();
 
 /* ---- 自动全屏：进入后尽量进入浏览器全屏 ----
