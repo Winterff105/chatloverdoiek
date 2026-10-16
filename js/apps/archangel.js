@@ -1378,13 +1378,7 @@
               stopMeta();busy=false;return;
             }
             d=step(3,LBL[3]);
-            const mod=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是一个专业代码修改助手。',
-'根据用户需求修改提供的文件。修改已有文件时优先使用 edits（查找替换）：每个 edit 的 old 必须从原文件里逐字复制（包括缩进和空格），取一段足够长的原文（通常 3 到 10 行）以保证它在该文件中只出现一次；new 是替换后的内容；同一文件可以有多个 edit，按顺序应用。只改真正需要改的地方，不要动无关代码。',
-'如果是新建文件或文件夹，就在 files 里给出每一个文件的路径和完整 content（路径不存在也没关系；文件夹用路径里的 / 表示，比如 notes/todo.md），要多少个都可以全部放进 files。',
-'只返回 JSON：{"reply":"修改说明","files":[{"path":"真实文件路径","edits":[{"old":"原文中逐字复制的一段","new":"替换后的内容"}]},{"path":"新文件路径","content":"完整文件内容"}]}',
-'注意：reply 只简述修改了哪些功能。严禁声称“已经上传/已推送到仓库/已提交”，因为此刻用户还没有点击上传确认按钮，你只能说明方案已就绪并等待用户确认！',
-'不要返回 Markdown 代码围栏。files 只放发生修改的文件。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n最近的对话（全部）：\n${recentText}\n\n需要检查和修改的文件：\n${got.map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
-            const ch=[];const failed=[];
+            const ch=[];const failed=[];const replies=[];
             const pushChange=(f,lf)=>{const t=f.orig.includes('\r\n')?lf.replace(/\n/g,'\r\n'):lf;if(t!==f.orig)ch.push({...f,edit:t,lines:diff(f.orig.replace(/\r\n/g,'\n'),lf)})};
             const applyEdits=(orig,edits)=>{
               let t=orig;
@@ -1432,15 +1426,52 @@
               if(typeof ct=='string'&&ct)pushChange(f,ct.replace(/\r\n/g,'\n'));
             };
             const getF=m=>{if(Array.isArray(m))return m;if(!m||typeof m!=='object')return [];return m.files||m.outFiles||m.changes||((m.path||m.name)?[m]:[])};
-            (getF(mod)).forEach(c=>handleMod(c,false));
+
+            if(!got.length){
+              const sysPrompt=[...modeSystemLines(),'你是一个专业代码助手。根据用户需求新建文件。只返回极简 JSON：{"reply":"创建说明","files":[{"path":"新文件路径","content":"完整代码"}]}，不要 Markdown 围栏。'].join('\n');
+              const mod=pj(await ai([{role:'system',content:sysPrompt},{role:'user',content:`用户需求：\n${text}\n\n最近对话：\n${recentText}`}]));
+              if(mod&&mod.reply)replies.push(mod.reply);
+              (getF(mod)).forEach(c=>handleMod(c,false));
+            } else {
+              const otherPaths=got.map(x=>x.path);
+              for(let fi=0;fi<got.length;fi++){
+                const curF=got[fi];
+                d(`${fi+1}/${got.length} `+curF.path.split('/').pop());
+                const onStreamStep3=(kind,delta,full)=>{
+                  if(kind==='reasoning'||(kind==='content'&&!full.includes('}'))){
+                    tp.textContent=`[${fi+1}/${got.length}] `+(full.slice(-100).replace(/[{}\"\\]/g,'').trim()||`正在生成 ${curF.path} 的修改…`);
+                    scroll();
+                  }
+                };
+                const sysPrompt=[...modeSystemLines(),'你是一个专业代码修改助手。',
+'根据用户需求修改指定的文件。必须使用 edits（查找替换）：每个 edit 的 old 必须从原文件中逐字复制 3 到 8 行原文（包含缩进和空格）；new 是替换后的代码。如果该文件经分析不需要修改，files 返回空数组。',
+'只返回极简 JSON：{"reply":"简要修改说明","files":[{"path":"'+curF.path+'","edits":[{"old":"原代码片段","new":"修改后代码"}]}]}',
+'注意：reply 只简述修改。严禁全量重写整个大文件以避免超时。严禁声称已上传到仓库。不要返回 Markdown 围栏。'].join('\n');
+                const userPrompt=`用户需求：\n${text}\n\n本次修改涉及的文件总列表：\n${otherPaths.join('、')}\n\n当前目标文件（第 ${fi+1}/${got.length} 个）：\n===== FILE: ${curF.path} =====\n${curF.orig}\n===== END FILE =====`;
+                try{
+                  const mod=pj(await ai([{role:'system',content:sysPrompt},{role:'user',content:userPrompt}],onStreamStep3));
+                  if(mod&&mod.reply)replies.push(mod.reply);
+                  (getF(mod)).forEach(c=>handleMod(c,false));
+                }catch(e){
+                  failed.push(curF.path);
+                }
+              }
+            }
+
             if(failed.length){
               d('补救 '+failed.length+' 个文件');
-              const fix=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是代码修改助手。上一次用查找替换的方式没能套用到部分文件，现在请直接给出这些文件修改后的完整内容。','必须保留原文件的完整内容，不能用省略号、占位符或说明文字代替代码。','只返回 JSON：{"files":[{"path":"真实文件路径","content":"修改后的完整文件内容"}]}，不要返回 Markdown 代码围栏。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n修改说明：${mod.reply||''}\n\n需要修改的文件：\n${got.filter(f=>failed.includes(f.path)).map(f=>`===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`).join('\n\n')}`}]));
-              (getF(fix)).forEach(c=>handleMod(c,true));
+              for(const fpath of failed){
+                const f=got.find(x=>x.path===fpath);
+                if(!f)continue;
+                try{
+                  const fix=pj(await ai([{role:'system',content:[...modeSystemLines(),'你是代码修改助手。请直接给出该文件修改后的完整内容。','必须保留原文件的完整内容，不要用省略号代替。','只返回 JSON：{"files":[{"path":"'+f.path+'","content":"完整内容"}]}，不要 Markdown 围栏。'].join('\n')},{role:'user',content:`用户需求：\n${text}\n\n需要修改的文件：\n===== FILE: ${f.path} =====\n${f.orig}\n===== END FILE =====`}]));
+                  (getF(fix)).forEach(c=>handleMod(c,true));
+                }catch(e){}
+              }
             }
             d(ch.length+' FILES');
 
-            let assistantReply=String(mod.reply||'已生成修改方案。');
+            let assistantReply=replies.filter(Boolean).join('\n')||'已生成修改方案。';
             assistantReply=assistantReply.replace(/已(?:经)?(?:成功)?(?:上传|提交|推送|保存)到(?:GitHub|远程|仓库)[\s\S]*?[。！!]/g,'已生成修改方案，等待你确认上传。');
 
             if(!ch.length){
