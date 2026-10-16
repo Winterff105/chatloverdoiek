@@ -550,3 +550,7 @@
 .worldbook-app .wb-journal > .wb-list{ flex-shrink:0; }
 .worldbook-app .wb-journal > .wb-list{ flex:1 0 auto; }
 
+/* ===================== 整体下移 20px ===================== */
+.app-window .app-content.worldbook-app,
+.worldbook-app{ padding-top:42px !important; }
+
