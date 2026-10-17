@@ -623,8 +623,8 @@ window.initWorldModule = function (host) {
 
     function readContacts() {
         try {
-            // 优先使用消息应用里的实时联系人数据（含刚设置的头像），没有时再读存储
-            const live = (typeof CONTACTS !== 'undefined' && Array.isArray(CONTACTS)) ? CONTACTS : null;
+            const live = (typeof CONTACTS !== 'undefined' && Array.isArray(CONTACTS)) ? CONTACTS :
+                         (window.State && Array.isArray(window.State.contacts)) ? window.State.contacts : null;
             const list = live || JSON.parse(localStorage.getItem(WORLD_CONTACTS_KEY) || '[]');
             return Array.isArray(list) ? list.filter(c => c && c.id != null) : [];
         } catch (_) { return []; }
@@ -659,6 +659,15 @@ window.initWorldModule = function (host) {
 
     function getUserInfo() {
         let name = '我', avatar = '';
+        try {
+            if (window.State) {
+                const su = window.State.user || window.State.profile || (typeof window.State.getUser === 'function' ? window.State.getUser() : null);
+                if (su) {
+                    if (su.name) name = su.name;
+                    if (su.avatar) avatar = su.avatar;
+                }
+            }
+        } catch (_) {}
         try {
             const p = JSON.parse(localStorage.getItem('user_profile') || localStorage.getItem('profile') || '{}');
             if (p.name) name = p.name;
@@ -1152,13 +1161,46 @@ window.initWorldModule = function (host) {
             }
         } catch (_) {}
     }
+    async function syncUserAvatarFromDB() {
+        if (window.DB) {
+            try {
+                const saved = await DB.load('forever_messages_my_avatar', null) ||
+                              await DB.load('user_profile', null) ||
+                              await DB.load('profile', null) ||
+                              await DB.load('user_avatar', null) ||
+                              await DB.load('my_avatar', null);
+                let changed = false;
+                if (typeof saved === 'string' && saved) {
+                    try { localStorage.setItem('forever_messages_my_avatar_v1', saved); } catch (_) {}
+                    changed = true;
+                } else if (saved && typeof saved === 'object') {
+                    if (saved.avatar) { try { localStorage.setItem('forever_messages_my_avatar_v1', saved.avatar); } catch (_) {} changed = true; }
+                    if (saved.name) { try { localStorage.setItem('forever_messages_my_name', saved.name); } catch (_) {} changed = true; }
+                }
+                const dbContacts = await DB.load(WORLD_CONTACTS_KEY, null);
+                if (Array.isArray(dbContacts) && dbContacts.length) {
+                    if (typeof window !== 'undefined' && (!window.CONTACTS || !window.CONTACTS.length)) window.CONTACTS = dbContacts;
+                    try { localStorage.setItem(WORLD_CONTACTS_KEY, JSON.stringify(dbContacts)); } catch (_) {}
+                    changed = true;
+                }
+                if (changed) {
+                    buildContactNodes();
+                    renderFilterRow();
+                    renderTetherLines();
+                }
+            } catch (_) {}
+        }
+    }
     syncUserAvatarFromDB();
-    window.refreshWorldUserAvatar = () => { buildContactNodes(); renderTetherLines(); };
+    const refreshAll = () => { buildContactNodes(); renderFilterRow(); renderTetherLines(); };
+    window.refreshWorldUserAvatar = refreshAll;
+    window.refreshWorld = refreshAll;
     window.addEventListener('storage', (e) => {
-        if (!e.key || e.key.includes('avatar') || e.key.includes('profile')) {
-            buildContactNodes();
-            renderTetherLines();
+        if (!e.key || e.key.includes('avatar') || e.key.includes('profile') || e.key.includes('contacts')) {
+            refreshAll();
         }
     });
+    window.addEventListener('user_profile_updated', refreshAll);
+    window.addEventListener('contacts_updated', refreshAll);
     window.getWorldTethers = () => relations;
 };
