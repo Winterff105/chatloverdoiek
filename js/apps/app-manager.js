@@ -14,6 +14,21 @@ function loadArchangelApp(done) {
     s.onload = done; s.onerror = done;
     document.body.appendChild(s);
 }
+/* 世界：按需加载 css/world.css 与 js/apps/world.js（只加载一次） */
+function loadWorldApp(done) {
+    if (!document.querySelector('link[href$="css/world.css"]')) {
+        const l = document.createElement('link');
+        l.rel = 'stylesheet'; l.href = 'css/world.css';
+        document.head.appendChild(l);
+    }
+    if (window.initWorldModule) { done(); return; }
+    const existing = document.querySelector('script[data-world-js]');
+    if (existing) { existing.addEventListener('load', done); existing.addEventListener('error', done); return; }
+    const s = document.createElement('script');
+    s.src = 'js/apps/world.js'; s.dataset.worldJs = '1';
+    s.onload = done; s.onerror = done;
+    document.body.appendChild(s);
+}
 function openApp(appId) {
     const def = (typeof APPS !== 'undefined' && APPS[appId]) || { name: appId === 'chat' ? 'chat' : appId, svg: '' };
     const home = document.getElementById('homeScreen');
@@ -79,6 +94,19 @@ function openApp(appId) {
             } else {
                 host.innerHTML = '<div style="padding:24px;color:#333">世界书脚本未加载，请检查 js/apps/worldbook.js 的路径。</div>';
             }
+        } else if (appId === 'world') {
+            // 世界：样式 css/world.css，脚本 js/apps/world.js
+            contentArea.innerHTML = '<div class="world-host"></div>';
+            const host = contentArea.firstElementChild;
+            loadWorldApp(() => {
+                if (typeof window.initWorldModule === 'function') {
+                    try { window.initWorldModule(host); }
+                    catch (err) {
+                        console.error('[Forever] 世界初始化失败:', err);
+                        host.innerHTML = '<div style="padding:24px;color:#fff">世界初始化失败：' + String(err && err.message || err) + '</div>';
+                    }
+                } else host.innerHTML = '<div style="padding:24px;color:#fff">世界模块未加载，请检查 js/apps/world.js 与 css/world.css 的路径。</div>';
+            });
         } else if (appId === 'todo') {
             // app预设：样式 css/preset.css，脚本 js/apps/preset.js
             contentArea.innerHTML = '<div class="preset-app" style="width:100%;height:100%;position:relative;overflow:hidden;"></div>';

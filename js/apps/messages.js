@@ -5,6 +5,172 @@ if (root) root.classList.add('messages-app');
 
 /* ---------------- 数据（黑白灰） ---------------- */
 let CONTACTS = loadStoredContacts();
+/* ================= 朋友圈频率（设置 → 管理我 下方）================= */
+const MF_KEY = 'forever_messages_moment_freq_v1';
+const mfEsc = v => String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+const mfName = c => String((c && (c.remark || c.name)) || '');
+const mfInitial = c => (mfName(c).trim().charAt(0) || '?').toUpperCase();
+const MF_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg>';
+function mfLoad() {
+    let c = null; try { c = JSON.parse(localStorage.getItem(MF_KEY) || 'null'); } catch (_) {}
+    c = c || {};
+    return {
+        on: c.on !== false,
+        pct: typeof c.pct === 'number' ? c.pct : 30,
+        maxH: typeof c.maxH === 'number' ? c.maxH : 24,
+        per: c.per || {}
+    };
+}
+function mfSave(cfg) { try { localStorage.setItem(MF_KEY, JSON.stringify(cfg)); } catch (_) {} }
+function mfAllowed(c) {
+    const cfg = mfLoad();
+    return cfg.on && !(cfg.per[c.id] && cfg.per[c.id].on === false);
+}
+function mfField(c, f) {
+    const cfg = mfLoad(); const p = cfg.per[c.id] || {};
+    return typeof p[f] === 'number' ? p[f] : cfg[f];
+}
+function mfPctOf(c) { return mfField(c, 'pct'); }
+function mfLastPostH(c) {
+    const mine = POSTS.filter(p => p.by === c.id);
+    if (!mine.length) return null;
+    return (Date.now() - Math.max(...mine.map(p => p.t || 0))) / 3600000;
+}
+
+function postContactMoment(c, text) {
+    const post = { id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5), text, t: Date.now(), by: c.id, vis: 'all', visTo: [], likes: [], comments: [], imgs: [] };
+    POSTS.unshift(post);
+    persistMoments();
+    renderMoments();
+    scheduleMomentFetch(post);
+}
+
+async function momentSyncAll() {
+    const cfg = mfLoad();
+    if (!cfg.on) { toast('朋友圈频率已关闭'); return; }
+    if (!window.MessagesAPI || !MessagesAPI.isConfigured()) { toast('请先在「设置 → API」保存接口配置'); return; }
+    const btn = document.getElementById('mfSyncBtn');
+    if (btn) btn.classList.add('spin');
+    let posted = 0;
+    try {
+        for (const c of CONTACTS) {
+            if (!mfAllowed(c)) continue;
+            const lastH = mfLastPostH(c);
+            const pct = Math.round(mfPctOf(c) * (lastH !== null && lastH < 24 ? 0.4 : 1));
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH });
+            if (r) { postContactMoment(c, r.text); posted++; }
+        }
+    } catch (e) { showApiError(e); }
+    if (btn) btn.classList.remove('spin');
+    toast(posted ? `调取完成，${posted} 位联系人发了朋友圈` : '调取完成，这次没有人发朋友圈');
+}
+
+function mfSliderHTML(k, f, label, val, lo, hi, unit, first) {
+    const pct = ((val - lo) / (hi - lo) * 100).toFixed(1);
+    return `<div class="mf-slide ${first ? '' : 'mf-dash'}"><div class="mf-slide-head"><span>${label}</span><b>${val}${unit}</b></div>
+        <input type="range" min="${lo}" max="${hi}" value="${val}" data-mf-k="${k}" data-mf-f="${f}" data-mf-u="${unit}" style="--p:${pct}%"></div>`;
+}
+function mfBlockHTML(k, v) {
+    return mfSliderHTML(k, 'pct', '发布概率 <button class="mf-info" data-mf-info aria-label="说明">!</button>', v.pct, 0, 100, '%', true)
+         + '<div class="mf-note" hidden>每次调取时，联系人按这个概率考虑要不要发朋友圈，最终还是要看聊天记录。24 小时内刚发过的，概率会自动降低，避免总是同一个人在发。</div>';
+}
+function mfRowHTML(c, cfg) {
+    const per = cfg.per[c.id] || {};
+    const on = per.on !== false;
+    const v = { pct: mfField(c, 'pct') };
+    return `<div class="mf-ctc ${on ? '' : 'off'}">
+        <div class="mf-ctc-top"><div class="mf-ava mf-ava-img"><img src="${mfEsc(c.avatar || DEFAULT_CHAR_AVATAR)}" alt="" onerror="this.parentNode.textContent='${mfEsc(mfInitial(c))}'"></div>
+          <div class="mf-ctc-name">${mfEsc(mfName(c))}</div>
+          <button class="mf-tg ${on ? 'on' : ''}" data-mf-tg="${c.id}" aria-label="开关"></button></div>
+        ${mfBlockHTML(c.id, v)}
+      </div>`;
+}
+function renderMomentFreq() {
+    const cfg = mfLoad();
+    const body = document.getElementById('mfBody');
+    if (!body) return;
+    const g = { pct: cfg.pct };
+    body.innerHTML = `
+        <div class="mf-label">全局默认</div>
+        <div class="mf-panel">
+          <div class="mf-row"><div class="mf-row-text"><div class="mf-row-t">允许联系人自主发朋友圈</div></div>
+            <button class="mf-tg ${cfg.on ? 'on' : ''}" data-mf-tg="global" aria-label="开关"></button></div>
+          ${mfBlockHTML('global', g)}
+        </div>
+        <div class="mf-label">每个联系人</div>
+        <div class="mf-panel">${CONTACTS.length ? CONTACTS.map((c, i) => (i ? '<div class="mf-dash-line"></div>' : '') + mfRowHTML(c, cfg)).join('') : '<div class="mf-empty">还没有联系人</div>'}</div>
+        <div class="mf-hint">每次调取都会先读取聊天记录，再结合概率决定是否发。</div>`;
+}
+
+function openMomentFreq() {
+    const panel = document.getElementById('mfPanel');
+    if (!panel) { toast('朋友圈频率面板还没准备好，请稍等'); return; }
+    panel.classList.add('open');
+    const tb = document.getElementById('tabbar'); if (tb) tb.classList.add('hide');
+    try { renderMomentFreq(); }
+    catch (e) {
+        console.error('[朋友圈频率]', e);
+        const body = document.getElementById('mfBody');
+        const msg = e && e.name ? `${e.name}: ${e.message}` : String(e);
+        const where = e && e.stack ? String(e.stack).split('\n').slice(0, 2).join(' / ') : '';
+        if (body) body.innerHTML = `<div class="mf-hint" style="word-break:break-all">加载失败<br>${mfEsc(msg)}<br>${mfEsc(where)}</div>`;
+    }
+}
+function closeMomentFreq() {
+    document.getElementById('mfPanel').classList.remove('open');
+    document.getElementById('tabbar').classList.remove('hide');
+}
+
+function mfInit() {
+    const host = document.getElementById('phone');
+    if (!host) return;   // 手机外框还没渲染好，等下一次变化再挂
+    const oldSec = document.getElementById('mfPanel');
+    if (oldSec && oldSec.parentElement !== host) oldSec.remove();
+    if (!document.getElementById('mfPanel')) {
+        const sec = document.createElement('section');
+        sec.className = 'edit-view'; sec.id = 'mfPanel';
+        sec.innerHTML = `<header class="edit-header"><button class="action" onclick="closeMomentFreq()">返回</button><span class="title">朋友圈频率</span><span style="width:44px"></span></header>
+          <div class="edit-body mf-body" id="mfBody"></div>`;
+        host.appendChild(sec);
+        sec.addEventListener('click', e => {
+            const t = e.target.closest('[data-mf-tg]'); if (!t) return;
+            const cfg = mfLoad(), k = t.dataset.mfTg;
+            if (k === 'global') cfg.on = !cfg.on;
+            else { cfg.per[k] = cfg.per[k] || {}; cfg.per[k].on = cfg.per[k].on === false; }
+            mfSave(cfg); renderMomentFreq();
+        });
+        sec.addEventListener('input', e => {
+            const r = e.target.closest('[data-mf-k]'); if (!r) return;
+            const cfg = mfLoad(), k = r.dataset.mfK, f = r.dataset.mfF, v = +r.value;
+            const tgt = k === 'global' ? cfg : (cfg.per[k] = cfg.per[k] || {});
+            tgt[f] = v;
+            mfSave(cfg);
+            const lo = +r.min, hi = +r.max;
+            r.style.setProperty('--p', ((v - lo) / (hi - lo) * 100) + '%');
+            r.parentElement.querySelector('b').textContent = v + r.dataset.mfU;
+        });
+        sec.addEventListener('click', e => {
+            const info = e.target.closest('[data-mf-info]'); if (!info) return;
+            const note = info.closest('.mf-panel').querySelector('.mf-note');
+            if (note) note.hidden = !note.hidden;
+        });
+        sec.addEventListener('change', e => {
+            if (e.target.closest('[data-mf-k]')) renderMomentFreq();
+        });
+    }
+    const acctEl = document.querySelector('[onclick*="openAccountMgr"]');
+    const acct = acctEl && (acctEl.closest('.settings-item') || acctEl);
+    if (acct && !document.getElementById('mfRow')) {
+        const row = document.createElement('div');
+        row.id = 'mfRow'; row.className = 'settings-item mf-settings-row';
+        row.setAttribute('onclick', 'openMomentFreq()');
+        row.innerHTML = `<button class="mf-sync" id="mfSyncBtn" aria-label="调取" onclick="event.stopPropagation();momentSyncAll()">${MF_ICON}</button>
+          <div class="mf-si-text"><div class="mf-si-title">朋友圈频率</div><div class="mf-si-sub">调取时，联系人发朋友圈的概率</div></div><span class="mf-chev">›</span>`;
+        acct.insertAdjacentElement('afterend', row);
+    }
+}
+mfInit();
+new MutationObserver(() => mfInit()).observe(document.body, { childList: true, subtree: true });
 let CHAT_IDS = loadStoredChatIds();
 let CHAT_MAP = loadStoredChatMap();
 const ME_DEFAULT = { name: 'Kitty Angel', id: '1004', status: '오늘도 날개를 펴는 중', sig: '작은 구름 위에서 안부를 전해요', avatar: '', persona: '', speech: '', relation: '', backstory: '', replies: [] };
@@ -2702,11 +2868,12 @@ async function pullReply() {
     c._typing = true; renderChats();
     try {
         const countDesc = o.min === o.max ? `本次对话台词气泡必须精确输出 ${o.min} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）` : `本次对话台词气泡必须输出 ${o.min} 到 ${o.max} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）`;
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + narrInstruction();
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 "moment" 字段，值为朋友圈文字；不发就不要写这个字段。' : '') + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction, o.max + (NARR.on ? 3 : 0));
         const heart = replies.heart || null;
+        if (replies.moment && replies.moment.text && mfAllowed(c)) postContactMoment(c, replies.moment.text);
         c._typing = false;
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const capCur = document.querySelector('.messages-app .send-capsule'); if (capCur) capCur.classList.remove('pulling');
@@ -5823,6 +5990,7 @@ initComposerGesture();
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
 Object.assign(__messagesHandlers, {clearQuote, onRoomFontSize, openCssHelp, copyCssHelp, closeHeartPop, addPresetFromInput, presetNameKey, togglePresetPick, pickCssPreset, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
+Object.assign(window, { openMomentFreq, closeMomentFreq, momentSyncAll });
 
 /* ---------------- 心声：头像下的爱心 · 心声弹窗 · 波浪线切换 · 收藏柜 · 设置 ---------------- */
 const HEART_SET_KEY = 'heart_popup_settings_v1';

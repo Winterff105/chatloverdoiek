@@ -130,7 +130,7 @@ function attachDragAndHoldEvents(el, itemData) {
                     // Normal tap must open the Information app too; previously only Settings
                     // opened outside edit mode, making the Chat/Information icon look dead.
                     // 普通点击直接打开的应用：设置、聊天、Little Lace（book）；其他应用在编辑模式下才打开
-                    const TAP_OPENS = ['settings', 'chat', 'book', 'worldbook', 'todo'];
+                    const TAP_OPENS = ['settings', 'chat', 'book', 'worldbook', 'todo', 'world'];
                     if (TAP_OPENS.includes(itemData.id) || isEditMode) {
                         phoneContainer.classList.remove('edit-mode');
                         if (typeof openApp === 'function') openApp(itemData.id);

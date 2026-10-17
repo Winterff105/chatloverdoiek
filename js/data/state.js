@@ -34,7 +34,7 @@ let desktopItems = [
     { id: 'todo', type: 'app', page: 1, slot: 13, span: 1, rowSpan: 1 }
 ];
 
-let dockData = ['phone', 'browser', 'music', 'worldbook'];
+let dockData = ['phone', 'world', 'music', 'worldbook'];
 
 // 全局 DOM 引用 (在 main.js 中初始化)
 let phoneContainer;

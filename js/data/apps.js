@@ -64,8 +64,8 @@ const APPS = {
             <path class="star-solid-translucent" d="M31 8v4M29 10h4"/>
         </svg>`
     },
-    'browser': {
-        name: '探索',
+    'world': {
+        name: 'World',
         svg: `<svg viewBox="0 0 40 40">
             <circle class="stroke-primary" cx="20" cy="20" r="11"/>
             <circle class="stroke-secondary" cx="20" cy="20" r="7.8" stroke-dasharray="2.5 3.5"/>
