@@ -544,7 +544,9 @@ async function initSettingsApp() {
 
         // 5. 更新全屏开关状态
         syncFullscreenSwitch();
-        applySettingsAvatar(await safeDB.load('settings_avatar', null));
+        const customAvatar = await safeDB.load('settings_avatar', null);
+        const chatUserAvatar = await safeDB.load('chat_user_avatar', null) || await safeDB.load('user_avatar', null) || (window.userAvatar || window.chatUserAvatar || null);
+        applySettingsAvatar(customAvatar || chatUserAvatar || null);
 
         // 6. 加载并应用保存的视口边距
         const savedVpTop = await safeDB.load('viewport_padding_top', 24);
@@ -3011,6 +3013,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 // =====================================================================
 const SETTINGS_AVATAR_DEFAULT = "assets/杂七杂八/设置里面的头像.jpg";
 
+async function getChatUserAvatarFallback() {
+    return (await safeDB.load('chat_user_avatar', null)) || (await safeDB.load('user_avatar', null)) || (window.userAvatar || window.chatUserAvatar || null) || SETTINGS_AVATAR_DEFAULT;
+}
+
 function applySettingsAvatar(src) {
     const img = document.getElementById('settingsAvatarImg');
     if (img) img.src = src || SETTINGS_AVATAR_DEFAULT;
@@ -3071,7 +3077,8 @@ async function settingsAvatarRestore(e) {
     if (e) e.stopPropagation();
     closeSettingsAvatarMorph(true);
     await safeDB.save('settings_avatar', null);
-    applySettingsAvatar(SETTINGS_AVATAR_DEFAULT);
+    const fallback = await getChatUserAvatarFallback();
+    applySettingsAvatar(fallback);
 }
 
 function settingsAvatarUpload(e) {
