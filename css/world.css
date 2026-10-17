@@ -104,7 +104,7 @@
         }
 .world-host .filter-section {
             position: absolute;
-            top: 72px;
+            top: 108px;
             left: 20px;
             right: 20px;
             display: flex;
@@ -131,7 +131,7 @@
         }
 .world-host .linking-banner {
             position: absolute;
-            top: 120px;
+            top: 152px;
             left: 50%;
             transform: translateX(-50%) translateY(-20px);
             background: #ffffff;
@@ -327,7 +327,7 @@
 .world-host .zoom-controls {
             position: absolute;
             right: 18px;
-            top: 130px;
+            top: 156px;
             display: flex;
             flex-direction: column;
             gap: 7px;
@@ -808,10 +808,11 @@
 .world-host .toast-msg.show {
             transform: translateX(-50%) translateY(0);
             opacity: 1;
-        }/* 页面整体下移 35px，标题加大 */
+        }/* 页面整体下移 35px，标题加大并单行锁定 */
 .world-host .k-phone { margin-top: 35px; height: calc(100% - 35px); background: transparent; }
-.world-host .header-title { font-size: 40px; }
+.world-host .header-title { font-size: 32px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(100% - 90px); }
 .world-host .world-pill span, .world-host .choice-btn span { display: inline-block; color: inherit; font-size: inherit; opacity: 1; visibility: visible; -webkit-text-fill-color: currentColor; }
+.world-host .world-pill, .world-host .exit-btn, .world-host .back-btn, .world-host .header-exit, .world-host [class*="exit"] { white-space: nowrap !important; writing-mode: horizontal-tb !important; flex-shrink: 0 !important; display: inline-flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; }
 .world-host .node-avatar { position: relative; overflow: hidden; }
 .world-host .node-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .world-host .npc-list { max-height: 140px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
