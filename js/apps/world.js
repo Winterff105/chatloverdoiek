@@ -664,8 +664,33 @@ window.initWorldModule = function (host) {
             if (p.name) name = p.name;
             if (p.avatar) avatar = p.avatar;
         } catch (_) {}
-        if (!avatar) avatar = localStorage.getItem('user_avatar') || localStorage.getItem('my_avatar') || '';
-        const uname = localStorage.getItem('user_name') || localStorage.getItem('my_name');
+        try {
+            if (!avatar && typeof window.getMyAvatar === 'function') avatar = window.getMyAvatar();
+            if (!avatar && typeof window.MY_AVATAR === 'string' && window.MY_AVATAR) avatar = window.MY_AVATAR;
+            if (!avatar && typeof window.myAvatar === 'string' && window.myAvatar) avatar = window.myAvatar;
+            if (!avatar) {
+                const chatProfile = JSON.parse(localStorage.getItem('forever_messages_user_info') || localStorage.getItem('forever_messages_profile') || '{}');
+                if (chatProfile.avatar) avatar = chatProfile.avatar;
+                if (chatProfile.name) name = chatProfile.name;
+            }
+        } catch (_) {}
+        if (!avatar) {
+            avatar = localStorage.getItem('forever_messages_my_avatar_v1') ||
+                     localStorage.getItem('forever_messages_my_avatar') ||
+                     localStorage.getItem('forever_messages_user_avatar') ||
+                     localStorage.getItem('chat_my_avatar') ||
+                     localStorage.getItem('user_avatar') ||
+                     localStorage.getItem('my_avatar') || '';
+        }
+        if (!avatar) {
+            const meContact = readContacts().find(c => c && (c.id === 'user' || c.id === 'me' || c.isMe));
+            if (meContact && meContact.avatar) avatar = meContact.avatar;
+        }
+        const uname = (typeof window.getMyName === 'function' ? window.getMyName() : null) ||
+                      (typeof window.MY_NAME === 'string' ? window.MY_NAME : null) ||
+                      localStorage.getItem('forever_messages_my_name') ||
+                      localStorage.getItem('user_name') ||
+                      localStorage.getItem('my_name');
         if (uname) name = uname;
         return { name, avatar: avatar || 'assets/聊天默认头像/chartouxiang.jpg', role: 'PROTAGONIST // ME' };
     }
@@ -1110,5 +1135,30 @@ window.initWorldModule = function (host) {
     centerScene();
     loadRelations();
     loadPositionsAsync();
+    async function syncUserAvatarFromDB() {
+        if (!window.DB) return;
+        try {
+            const saved = await DB.load('forever_messages_my_avatar', null) ||
+                          await DB.load('my_avatar', null) ||
+                          await DB.load('user_avatar', null) ||
+                          await DB.load('user_profile', null);
+            let av = '';
+            if (typeof saved === 'string' && saved) av = saved;
+            else if (saved && typeof saved === 'object' && saved.avatar) av = saved.avatar;
+            if (av) {
+                const uImg = root.querySelector('.node-user .node-avatar img');
+                if (uImg) uImg.src = av;
+                if (docketDB['user']) docketDB['user'].avatarImg = av;
+            }
+        } catch (_) {}
+    }
+    syncUserAvatarFromDB();
+    window.refreshWorldUserAvatar = () => { buildContactNodes(); renderTetherLines(); };
+    window.addEventListener('storage', (e) => {
+        if (!e.key || e.key.includes('avatar') || e.key.includes('profile')) {
+            buildContactNodes();
+            renderTetherLines();
+        }
+    });
     window.getWorldTethers = () => relations;
 };
