@@ -483,6 +483,7 @@ background: rgba(0, 0, 0, 0.78);
 backdrop-filter: blur(14px);
 z-index: 200;
 opacity: 0;
+visibility: hidden;
 pointer-events: none;
 transition: opacity 0.25s ease;
 display: flex;
@@ -495,6 +496,7 @@ backface-visibility: hidden;
 }
 .world-host .modal-overlay.open {
 opacity: 1;
+visibility: visible;
 pointer-events: auto;
 }
 .world-host .docket-card {
@@ -510,7 +512,6 @@ overflow: visible;
 transform: scale(0.92) translateZ(0);
 opacity: 0;
 transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
-will-change: transform, opacity;
 -webkit-backface-visibility: hidden;
 backface-visibility: hidden;
 }
@@ -681,6 +682,26 @@ z-index: 2;
             color: #ffffff;
             font-size: 10px;
             font-family: var(--font-mono);
+        }
+.world-host .tether-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+.world-host .tether-unlink-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 0.5px solid rgba(255, 255, 255, 0.16);
+            color: var(--text-mid);
+            border-radius: 4px;
+            font-size: 9px;
+            padding: 2px 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+.world-host .tether-unlink-btn:hover {
+            color: #ffffff;
+            border-color: var(--thread-red);
+            background: rgba(142, 14, 32, 0.35);
         }
 .world-host .card-close-btn {
             background: rgba(255, 255, 255, 0.08);
