@@ -589,9 +589,18 @@ window.initWorldModule = function (host) {
     const groupMenuModal = $('groupMenuModal');
     const groupPickModal = $('groupPickModal');
 
+    const WORLD_FOLDERS_KEY = 'forever_messages_folders_v1';
+    function saveFoldersLocal(list) {
+        try { localStorage.setItem(WORLD_FOLDERS_KEY, JSON.stringify(list)); } catch (_) {}
+        if (typeof persistFolders === 'function') persistFolders();
+    }
+    function saveContactsLocal(list) {
+        try { localStorage.setItem(WORLD_CONTACTS_KEY, JSON.stringify(list)); } catch (_) {}
+        if (typeof persistContacts === 'function') persistContacts();
+    }
     function matchFilter(node, filter) {
         if (filter === 'all') return true;
-        if (filter.indexOf('folder:') === 0) return node.dataset.folder === filter.slice(7);
+        if (filter.indexOf('folder:') === 0) return String(node.dataset.folder || '') === String(filter.slice(7));
         return node.getAttribute('data-type') === filter;
     }
     function applyFilter(filter) {
@@ -602,17 +611,31 @@ window.initWorldModule = function (host) {
         renderFilterRow();
     }
     function folderList() {
-        return (typeof FOLDERS !== 'undefined' && Array.isArray(FOLDERS)) ? FOLDERS : [];
+        if (typeof FOLDERS !== 'undefined' && Array.isArray(FOLDERS)) return FOLDERS;
+        try {
+            const list = JSON.parse(localStorage.getItem(WORLD_FOLDERS_KEY) || '[]');
+            if (Array.isArray(list)) {
+                if (typeof window !== 'undefined') window.FOLDERS = list;
+                return list;
+            }
+        } catch (_) {}
+        const fallback = [];
+        if (typeof window !== 'undefined') window.FOLDERS = fallback;
+        return fallback;
     }
     function removeGroup(fid) {
         const list = folderList();
-        const idx = list.findIndex(f => f.id === fid);
+        const idx = list.findIndex(f => String(f.id) === String(fid));
         if (idx < 0) return;
         const name = list[idx].name;
         list.splice(idx, 1);
-        if (typeof CONTACTS !== 'undefined') CONTACTS.forEach(c => { if (c.folder === fid) c.folder = null; });
-        if (typeof persistFolders === 'function') persistFolders();
-        if (typeof persistContacts === 'function') persistContacts();
+        saveFoldersLocal(list);
+        const cs = readContacts();
+        cs.forEach(c => { if (String(c.folder || '') === String(fid)) c.folder = null; });
+        if (typeof CONTACTS !== 'undefined' && Array.isArray(CONTACTS)) {
+            CONTACTS.forEach(c => { if (String(c.folder || '') === String(fid)) c.folder = null; });
+        }
+        saveContactsLocal(cs);
         buildContactNodes();
         applyFilter(activeFilter === 'folder:' + fid ? 'all' : activeFilter);
         renderFilterRow();
@@ -701,7 +724,7 @@ window.initWorldModule = function (host) {
     function openGroupPick(fid) {
         const cs = readContacts();
         $('gpContacts').innerHTML = cs.length
-            ? cs.map(c => '<div class="npc-item' + (c.folder === fid ? ' on' : '') + '" data-cid="' + escHtml(c.id) + '">' + escHtml(c.remark || c.name || '未命名') + '</div>').join('')
+            ? cs.map(c => '<div class="npc-item' + (String(c.folder || '') === String(fid) ? ' on' : '') + '" data-cid="' + escHtml(c.id) + '">' + escHtml(c.remark || c.name || '未命名') + '</div>').join('')
             : '<div class="npc-status">还没有联系人</div>';
         $('gpContacts').querySelectorAll('.npc-item').forEach(el => el.addEventListener('click', () => el.classList.toggle('on')));
         pickFid = fid;
@@ -715,11 +738,18 @@ window.initWorldModule = function (host) {
     groupPickModal.addEventListener('click', (e) => { if (e.target === groupPickModal) groupPickModal.classList.remove('open'); });
     $('gpSave').addEventListener('click', () => {
         const picked = new Set([...$('gpContacts').querySelectorAll('.npc-item.on')].map(el => String(el.dataset.cid)));
-        if (typeof CONTACTS !== 'undefined') CONTACTS.forEach(c => {
+        const cs = readContacts();
+        cs.forEach(c => {
             if (picked.has(String(c.id))) c.folder = pickFid;
-            else if (c.folder === pickFid) c.folder = null;
+            else if (String(c.folder || '') === String(pickFid)) c.folder = null;
         });
-        if (typeof persistContacts === 'function') persistContacts();
+        if (typeof CONTACTS !== 'undefined' && Array.isArray(CONTACTS)) {
+            CONTACTS.forEach(c => {
+                if (picked.has(String(c.id))) c.folder = pickFid;
+                else if (String(c.folder || '') === String(pickFid)) c.folder = null;
+            });
+        }
+        saveContactsLocal(cs);
         groupPickModal.classList.remove('open');
         buildContactNodes();
         applyFilter(activeFilter);
@@ -736,8 +766,9 @@ window.initWorldModule = function (host) {
     $('groupOk').addEventListener('click', () => {
         const name = $('groupName').value.trim();
         if (!name) { showToast('请输入分组名字'); return; }
-        folderList().push({ id: 'f' + Date.now(), name });
-        if (typeof persistFolders === 'function') persistFolders();
+        const list = folderList();
+        list.push({ id: 'f' + Date.now(), name });
+        saveFoldersLocal(list);
         groupModal.classList.remove('open');
         renderFilterRow();
         showToast('已新建分组: ' + name);
@@ -827,11 +858,11 @@ window.initWorldModule = function (host) {
     $('entityName').closest('.input-group').classList.add('contact-only');
     $('tetherTarget').closest('.input-group').classList.add('contact-only');
     setTetherMode(false);
+    buildContactNodes();
     applyFilter('all');
     $('addGroupBtn').style.cssText = GROUP_BALL_CSS;
     renderFilterRow();
     new Image().src = 'assets/app/世界壁纸.jpg';
-    buildContactNodes();
     centerScene();
     loadRelations();
 
