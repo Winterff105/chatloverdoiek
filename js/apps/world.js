@@ -18,6 +18,9 @@ window.initWorldModule = function (host) {
         .world-host .modal-overlay.open { visibility: visible; pointer-events: auto; }
         .world-host .docket-card { -webkit-backface-visibility: hidden; backface-visibility: hidden; transform: translateZ(0) scale(0.92); will-change: transform, opacity; }
         .world-host .modal-overlay.open .docket-card { transform: translateZ(0) scale(1); }
+        .world-host .node-user .node-avatar { width: 68px; height: 68px; font-size: 26px; border: 2px solid #ffffff; box-shadow: 0 0 25px rgba(255, 255, 255, 0.4); }
+        .world-host .node-contact .node-avatar { width: 50px; height: 50px; font-size: 18px; }
+        .world-host .node-npc .node-avatar { width: 38px; height: 38px; font-size: 13px; font-family: var(--font-mono); background: rgba(18, 18, 18, 0.7); border: 1px dashed rgba(255, 255, 255, 0.4); }
     `;
     root.innerHTML = "<style>" + WORLD_CSS + WORLD_FIX_CSS + "</style><div class=\"world-host\">" + WORLD_MARKUP + "</div>";
     const $ = id => root.querySelector("#" + CSS.escape(id));
@@ -593,7 +596,10 @@ window.initWorldModule = function (host) {
     });
 
     $('btnWorldOverview').addEventListener('click', () => {
-        showToast(`${readContacts().length} 个联系人，2 个 NPC`);
+        const cs = readContacts();
+        const contactCnt = cs.filter(c => !c.npc).length;
+        const npcCnt = cs.filter(c => c.npc).length;
+        showToast(`1 个主角，${contactCnt} 个联系人，${npcCnt} 个 NPC`);
         hideChoicePop();
     });
     $('worldPillBtn').addEventListener('click', () => {
@@ -651,9 +657,54 @@ window.initWorldModule = function (host) {
         if (window.DB) DB.save(WORLD_TETHER_KEY, relations);
     }
 
+    function getUserInfo() {
+        let name = '我', avatar = '';
+        try {
+            const p = JSON.parse(localStorage.getItem('user_profile') || localStorage.getItem('profile') || '{}');
+            if (p.name) name = p.name;
+            if (p.avatar) avatar = p.avatar;
+        } catch (_) {}
+        if (!avatar) avatar = localStorage.getItem('user_avatar') || localStorage.getItem('my_avatar') || '';
+        const uname = localStorage.getItem('user_name') || localStorage.getItem('my_name');
+        if (uname) name = uname;
+        return { name, avatar: avatar || 'assets/聊天默认头像/chartouxiang.jpg', role: 'PROTAGONIST // ME' };
+    }
+
     function buildContactNodes() {
         const scene = $('graphScene');
-        root.querySelectorAll('.avatar-node[data-id^="c-"]').forEach(n => n.remove());
+        root.querySelectorAll('.avatar-node[data-id^="c-"], .avatar-node[data-id="user"]').forEach(n => n.remove());
+        const u = getUserInfo();
+        const uNodeId = 'node-user';
+        let ux = 600, uy = 600;
+        const uPos = nodePositions['user'] || nodePositions[uNodeId];
+        if (uPos && typeof uPos.x === 'number' && typeof uPos.y === 'number') { ux = uPos.x; uy = uPos.y; }
+        const uIni = (u.name.charAt(0) || 'U').toUpperCase();
+        docketDB['user'] = {
+            name: u.name, role: u.role, docCode: 'USR.00-CORE', sync: '100% HOST',
+            sector: 'SECTOR_CORE // #00', stamp: 'YOU', avatar: uIni, avatarImg: u.avatar, isNpc: false, hornColor: '#ffffff',
+            get tethers() {
+                return relations.filter(r => r.from === uNodeId || r.to === uNodeId).map(r => {
+                    const otherId = r.from === uNodeId ? r.to : r.from;
+                    const el = $(otherId);
+                    const target = el && el.querySelector('.node-name') ? el.querySelector('.node-name').innerText.trim() : otherId;
+                    return { label: r.label || '羁绊关联', target, isRed: !!r.isRed, fromNodeId: r.from, toNodeId: r.to };
+                });
+            }
+        };
+        const uEl = document.createElement('div');
+        uEl.className = 'avatar-node node-user';
+        uEl.id = uNodeId; uEl.dataset.id = 'user'; uEl.dataset.type = 'user'; uEl.dataset.folder = '';
+        uEl.style.left = ux + 'px'; uEl.style.top = uy + 'px';
+        uEl.innerHTML =
+            '<div class="node-avatar-wrap">' +
+            '<svg class="inverted-devil-horns" viewBox="0 0 28 9" fill="none">' +
+            '<path d="M7 8.5 C7 6 6 5.5 5.2 4 L5.2 0.8 L6.8 0.8 L7.8 4.5 C8 6.5 8.2 7.5 8.2 8.5 Z" fill="#ffffff"/>' +
+            '<path d="M21 8.5 C21 6 22 5.5 22.8 4 L22.8 0.8 L21.2 0.8 L20.2 4.5 C20 6.5 19.8 7.5 19.8 8.5 Z" fill="#ffffff"/>' +
+            '</svg>' +
+            '<div class="node-avatar"><img src="' + escHtml(u.avatar) + '" alt="" onerror="this.remove()">' + escHtml(uIni) + '</div></div>' +
+            '<div class="node-meta"><span class="node-name">' + escHtml(u.name) + '</span>' +
+            '<span class="node-role">' + escHtml(u.role) + '</span></div>';
+        scene.appendChild(uEl);
         readContacts().forEach((c, i) => {
             const key = contactKey(c);
             const nodeId = 'node-' + key;
@@ -662,11 +713,10 @@ window.initWorldModule = function (host) {
             const ini = (name.charAt(0) || '?').toUpperCase();
             // 没有设置头像时使用消息应用的默认联系人头像
             const avatarSrc = c.avatar || 'assets/聊天默认头像/chartouxiang.jpg';
-            let x = 600, y = 600, cls = 'node-center';
-            if (i > 0) {
-                const k = i - 1, r = 200 + (k % 2) * 110, a = k * 2.399963;
-                x = 600 + r * Math.cos(a); y = 600 + r * Math.sin(a); cls = 'node-satellite';
-            }
+            const cls = c.npc ? 'node-npc' : 'node-contact';
+            const r = 220 + (i % 2) * 110, a = i * 2.399963;
+            let x = 600 + r * Math.cos(a);
+            let y = 600 + r * Math.sin(a);
             const savedPos = nodePositions[key] || nodePositions[nodeId];
             if (savedPos && typeof savedPos.x === 'number' && typeof savedPos.y === 'number') {
                 x = savedPos.x;
@@ -689,11 +739,12 @@ window.initWorldModule = function (host) {
             el.className = 'avatar-node ' + cls;
             el.id = nodeId; el.dataset.id = key; el.dataset.type = c.npc ? 'npc' : 'contact'; el.dataset.folder = c.folder || '';
             el.style.left = x + 'px'; el.style.top = y + 'px';
+            const hornCol = c.npc ? 'var(--thread-red)' : '#ffffff';
             el.innerHTML =
                 '<div class="node-avatar-wrap">' +
                 '<svg class="inverted-devil-horns" viewBox="0 0 28 9" fill="none">' +
-                '<path d="M7 8.5 C7 6 6 5.5 5.2 4 L5.2 0.8 L6.8 0.8 L7.8 4.5 C8 6.5 8.2 7.5 8.2 8.5 Z" fill="#ffffff"/>' +
-                '<path d="M21 8.5 C21 6 22 5.5 22.8 4 L22.8 0.8 L21.2 0.8 L20.2 4.5 C20 6.5 19.8 7.5 19.8 8.5 Z" fill="#ffffff"/>' +
+                '<path d="M7 8.5 C7 6 6 5.5 5.2 4 L5.2 0.8 L6.8 0.8 L7.8 4.5 C8 6.5 8.2 7.5 8.2 8.5 Z" fill="' + hornCol + '"/>' +
+                '<path d="M21 8.5 C21 6 22 5.5 22.8 4 L22.8 0.8 L21.2 0.8 L20.2 4.5 C20 6.5 19.8 7.5 19.8 8.5 Z" fill="' + hornCol + '"/>' +
                 '</svg>' +
                 '<div class="node-avatar"><img src="' + escHtml(avatarSrc) + '" alt="" onerror="this.remove()">' + escHtml(ini) + '</div></div>' +
                 '<div class="node-meta"><span class="node-name">' + escHtml(name) + '</span>' +
@@ -757,6 +808,7 @@ window.initWorldModule = function (host) {
     }
     function matchFilter(node, filter) {
         if (filter === 'all') return true;
+        if (node.getAttribute('data-type') === 'user') return true;
         if (filter.indexOf('folder:') === 0) return String(node.dataset.folder || '') === String(filter.slice(7));
         return node.getAttribute('data-type') === filter;
     }
@@ -1058,5 +1110,5 @@ window.initWorldModule = function (host) {
     centerScene();
     loadRelations();
     loadPositionsAsync();
-
+    window.getWorldTethers = () => relations;
 };
