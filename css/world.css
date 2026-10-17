@@ -28,7 +28,7 @@
             user-select: none;
         }
 .world-host {
-            background-color: #000000;
+            background-color: transparent;
             color: var(--text-high);
             font-family: var(--font-sans);
             display: flex;
@@ -57,7 +57,7 @@
             top: 0;
             left: 0;
             right: 0;
-            background: linear-gradient(180deg, rgba(6,6,6,0.95) 0%, rgba(6,6,6,0.7) 70%, transparent 100%);
+            background: transparent;
             z-index: 50;
             pointer-events: none;
         }
@@ -65,7 +65,7 @@
             pointer-events: auto;
         }
 .world-host .header-meta {
-            font-size: 10px;
+            font-size: 20px;
             letter-spacing: 2px;
             text-transform: uppercase;
             color: var(--text-low);
