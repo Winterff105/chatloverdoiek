@@ -6,13 +6,14 @@ const WORLD_CSS = ":host { all: initial; display: block; width: 100%; height: 10
 window.initWorldModule = function (host) {
     const root = host.shadowRoot || host.attachShadow({ mode: "open" });
     const WORLD_FIX_CSS = `
+        .world-host header { background: transparent !important; }
         .world-host header > div:first-child { min-width: 0; flex: 1 1 auto; }
-        .world-host .header-title { font-size: clamp(20px, 5.5vw, 30px) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; line-height: 1.1 !important; }
+        .world-host .header-title { font-size: clamp(40px, 11vw, 56px) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; line-height: 1.05 !important; }
         .world-host .world-pill { flex-shrink: 0 !important; white-space: nowrap !important; word-break: keep-all !important; display: inline-flex !important; flex-direction: row !important; align-items: center !important; }
         .world-host .world-pill span { white-space: nowrap !important; }
-        .world-host .filter-section { top: 96px !important; flex-wrap: nowrap !important; }
-        .world-host .linking-banner { top: 134px !important; }
-        .world-host .zoom-controls { top: 140px !important; }
+        .world-host .filter-section { top: 118px !important; flex-wrap: nowrap !important; }
+        .world-host .linking-banner { top: 156px !important; }
+        .world-host .zoom-controls { top: 160px !important; }
     `;
     root.innerHTML = "<style>" + WORLD_CSS + WORLD_FIX_CSS + "</style><div class=\"world-host\">" + WORLD_MARKUP + "</div>";
     const $ = id => root.querySelector("#" + CSS.escape(id));
