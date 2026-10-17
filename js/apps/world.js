@@ -14,6 +14,10 @@ window.initWorldModule = function (host) {
         .world-host .filter-section { top: 118px !important; flex-wrap: nowrap !important; }
         .world-host .linking-banner { top: 156px !important; }
         .world-host .zoom-controls { top: 160px !important; }
+        .world-host .modal-overlay { visibility: hidden; pointer-events: none; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+        .world-host .modal-overlay.open { visibility: visible; pointer-events: auto; }
+        .world-host .docket-card { -webkit-backface-visibility: hidden; backface-visibility: hidden; transform: translateZ(0) scale(0.92); will-change: transform, opacity; }
+        .world-host .modal-overlay.open .docket-card { transform: translateZ(0) scale(1); }
     `;
     root.innerHTML = "<style>" + WORLD_CSS + WORLD_FIX_CSS + "</style><div class=\"world-host\">" + WORLD_MARKUP + "</div>";
     const $ = id => root.querySelector("#" + CSS.escape(id));
@@ -343,11 +347,12 @@ window.initWorldModule = function (host) {
 
     // 微胶囊选项 1：查看卡片
     $('btnPopInspect').addEventListener('click', (e) => {
+        e.preventDefault();
         e.stopPropagation();
         if (!selectedNodeForPop) return;
         const id = selectedNodeForPop.getAttribute('data-id');
-        openDocketCard(id);
         hideChoicePop();
+        openDocketCard(id);
     });
 
     // 微胶囊选项 2：发起牵线
@@ -453,6 +458,7 @@ window.initWorldModule = function (host) {
     // ======= 4. 卡片详情展示 =======
     const docketModal = $('docketModal');
     const inspectCard = $('inspectCard');
+    let lastDocketOpenAt = 0;
 
     function openDocketCard(id) {
         const data = docketDB[id];
@@ -464,7 +470,14 @@ window.initWorldModule = function (host) {
         $('cardStamp').innerText = data.stamp;
         $('cardName').innerText = data.name;
         $('cardRole').innerText = data.role;
-        $('cardAvatarDisc').innerText = data.avatar; { const disc = $('cardAvatarDisc'); disc.style.position = 'relative'; disc.style.overflow = 'hidden'; if (data.avatarImg) disc.insertAdjacentHTML('afterbegin', '<img src="' + escHtml(data.avatarImg) + '" alt="" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">'); }
+        const disc = $('cardAvatarDisc');
+        disc.style.position = 'relative';
+        disc.style.overflow = 'hidden';
+        if (data.avatarImg) {
+            disc.innerHTML = '<img src="' + escHtml(data.avatarImg) + '" alt="" onerror="this.remove()" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">' + escHtml(data.avatar || '');
+        } else {
+            disc.textContent = data.avatar || '';
+        }
 
         const cardHorns = $('cardHorn').querySelectorAll('path');
         cardHorns.forEach(p => p.setAttribute('fill', data.hornColor));
@@ -507,11 +520,16 @@ window.initWorldModule = function (host) {
             });
         }
 
+        lastDocketOpenAt = Date.now();
         docketModal.classList.add('open');
     }
 
-    $('btnCloseDocket').addEventListener('click', () => docketModal.classList.remove('open'));
+    $('btnCloseDocket').addEventListener('click', (e) => {
+        e.stopPropagation();
+        docketModal.classList.remove('open');
+    });
     docketModal.addEventListener('click', (e) => {
+        if (Date.now() - lastDocketOpenAt < 400) return;
         if (e.target === docketModal) docketModal.classList.remove('open');
     });
 
