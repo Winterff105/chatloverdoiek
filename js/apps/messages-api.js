@@ -97,8 +97,8 @@
     '【输出格式：优先级最高，高于以上所有角色要求】',
     '1. 只输出一个 JSON 对象，不要输出任何其他文字、解释、标题、Markdown 或代码块。',
     '2. 格式固定为：{"messages":["第一条消息","第二条消息"],"heart":{"env":"","mood":"","outfit":"","aff":0,"said":""}}',
-    '3. 【气泡条数硬性限制】数组里的每个元素是一条独立的聊天消息，对应聊天里的一个气泡。必须严格遵循后续指示所规定的气泡条数限制：如果要求了固定条数则必须精确输出该条数；如果指定了范围则必须落在范围内且不得偷懒少发；严禁将多句话合并进一个气泡，messages 数组的长度必须严格符合条数要求。',
-    '4. 每条消息只写角色要说出口的话。不要写角色名或"XX："这样的前缀，不要写时间，不要写括号或星号包裹的动作、神态、心理描写。',
+    '3. 【气泡条数与旁白穿插规则】messages 数组中包含台词气泡和旁白项。台词气泡条数必须严格遵循后续指示的数量范围；当开启旁白时，以【旁白】开头的描写项独立成条，可以且应当【自由穿插在任意台词气泡之前、之间或最后】（不计入台词条数限制），用于细腻描摹动作、神态与环境停顿。严禁将多句话合并进同一个气泡。',
+    '4. 台词气泡中只写角色说出口的话（不要带人名、时间或括号动作）。旁白必须单独成条且严格以【旁白】作为前缀，绝不可敷衍简写，字数必须充实细腻。',
     '5. 一条消息内部需要换行时，在 JSON 字符串里用 \\n 表示；不要把多条消息合并进同一个字符串。',
     '6. 【内容与回复要求】非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。'
   ].join('\n');
@@ -122,9 +122,48 @@
   }
   function isConfigured() { const c = config(); return !!(c.endpoint && c.model && c.apiKey); }
 
-  /* 去掉模型可能夹带的代码块、Markdown 强调、以及“角色名：”这样的前缀 */
+  /* 读取下拉框中的所有启用自定义模块并按位置分组 */
+  function getCustomModulePromptBlocks(contact) {
+    if (!contact || !(contact.promptOpts || []).includes('custom')) return { high: '', mid: '', low: '' };
+    let list = [];
+    try {
+      if (typeof window.getCustomModulesList === 'function') {
+        list = window.getCustomModulesList();
+      } else {
+        list = JSON.parse(localStorage.getItem('forever_chat_custom_modules_v2') || '[]');
+      }
+    } catch (_) {}
+    if (!Array.isArray(list) || !list.length) return { high: '', mid: '', low: '' };
+
+    const groups = { high: [], mid: [], low: [] };
+    for (const item of list) {
+      if (!item || item.enabled === false) continue;
+      const text = String(item.prompt || '').trim();
+      if (!text) continue;
+      const targets = Array.isArray(item.targets) ? item.targets : ['char'];
+      const targetLabels = [];
+      if (targets.includes('narr')) targetLabels.push('旁白描写');
+      if (targets.includes('offline')) targetLabels.push('线下/面对面情境');
+      if (targets.includes('char')) targetLabels.push('角色言行与心态');
+      const header = `【${item.name || '自定义模块'}${targetLabels.length ? `｜作用于：${targetLabels.join('、')}` : ''}】`;
+      const pos = ['high', 'mid', 'low'].includes(item.pos) ? item.pos : 'mid';
+      groups[pos].push(`${header}\n${text}`);
+    }
+
+    return {
+      high: groups.high.join('\n\n'),
+      mid: groups.mid.join('\n\n'),
+      low: groups.low.join('\n\n')
+    };
+  }
+
+  /* 去掉模型可能夹带的代码块、Markdown 强调、以及“角色名：”这样的前缀（保护旁白内容） */
   function cleanOne(s, name) {
     let t = String(s == null ? '' : s).trim();
+    if (/^【旁白】/.test(t)) {
+      let body = t.replace(/^【旁白】\s*/, '').replace(/^[*（(]+/, '').replace(/[*）)]+$/, '').trim();
+      return '【旁白】' + body;
+    }
     t = t.replace(/\*[^*\n]+\*/g, '').replace(/\*\*/g, '').replace(/`/g, '').trim();
     if (name) {
       const esc = String(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -282,13 +321,20 @@
       ? contact.greasyEntries.map(x => x && String(x.text || '').trim()).filter(Boolean) : [];
     const greasyBlock = greasyItems.length ? ['【防油腻条目】'].concat(greasyItems.map(t => '- ' + t)).join('\n') : '';
 
+    const cmBlocks = getCustomModulePromptBlocks(contact);
+    const cmHigh = cmBlocks.high;
+    const cmMid = cmBlocks.mid;
+    const cmLow = cmBlocks.low;
+
     // 系统核心底层人设与对话环境
     const systemCoreText = [
       ROLEPLAY_PROMPT,
+      cmHigh,
       wbBlock,
       memBlock,
       promptBlock,
       greasyBlock,
+      cmMid,
       styleBlock,
       contact.name ? `你的名字：${contact.name}` : '',
       contact.persona ? `${fillU('{char}设定')}：${contact.persona}` : '',
@@ -300,6 +346,7 @@
       hasNarr ? '以【旁白】开头的内容是旁白，描写动作、神态或环境，不是对话，也不是对方说的话。' : '',
       timeBlockOf(contact),
       QUOTE_RULE,
+      cmLow,
       (contact.msgs || []).length ? '【时间感知】每条消息开头方括号里是这条消息的发送时间，只用来理解时间流逝和时段（比如深夜、隔了几天）。你的回复不要写时间或方括号。' : '',
       instruction || ''
     ].filter(Boolean).join('\n');

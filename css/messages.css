@@ -3084,7 +3084,40 @@
   border-color:#bcbcbc !important;
   box-shadow:inset 0 0 0 1px #f8f8f8 !important;
 }
-.messages-app .chat-drop .cd-chip:nth-child(5):last-child{grid-column:1/-1 !important;}
+.cd-custom-mod-card { max-height: 85vh; overflow-y: auto; gap: 9px !important; padding: 18px !important; }
+.cd-cm-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.cd-cm-count { font-size: 11.5px; color: #777; font-weight: 600; }
+.cd-cm-add-btn { height: 28px; padding: 0 12px; border-radius: 999px; border: 0; background: #111; color: #fff; font-size: 11.5px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.14); transition: transform .15s ease; }
+.cd-cm-add-btn:active { transform: scale(0.95); }
+.cd-cm-list { display: flex; flex-direction: column; gap: 8px; max-height: 48vh; overflow-y: auto; padding-right: 2px; }
+.cd-cm-item { background: #ffffff; border: 1px solid #e5e8ec; border-radius: 18px; padding: 6px 12px; display: flex; align-items: center; gap: 8px; transition: all .18s ease; }
+.cd-cm-item:not(.active) { opacity: 0.52; }
+.cd-cm-item-main { flex: 1; min-width: 0; cursor: pointer; }
+.cd-cm-item-top { display: flex; align-items: center; gap: 6px; }
+.cd-cm-item-name { font-size: 12.5px; font-weight: 750; color: #111; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cd-cm-pos-tag { font-size: 9px; font-family: monospace; background: #eaebee; color: #555; padding: 1px 5px; border-radius: 999px; }
+.cd-cm-targets-row { display: flex; gap: 4px; margin-top: 1px; }
+.cd-cm-target-badge { font-size: 8.5px; padding: 1px 5px; border-radius: 999px; background: #eaf0f6; color: #2e4d6a; font-weight: 600; }
+.cd-cm-snippet { font-size: 10.5px; color: #888; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; line-height: 1.3; }
+.cd-cm-item-ops { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.cd-cm-toggle { width: 34px; height: 20px; border-radius: 999px; background: #e0e3e7; border: 0; cursor: pointer; position: relative; transition: background .2s ease; }
+.cd-cm-toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+.cd-cm-toggle.on { background: #111; }
+.cd-cm-toggle.on::after { transform: translateX(14px); }
+.cd-cm-edit-btn, .cd-cm-del-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #e0e3e7; background: #fff; display: grid; place-items: center; cursor: pointer; color: #555; transition: all .15s ease; }
+.cd-cm-edit-btn svg, .cd-cm-del-btn svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cd-cm-edit-btn:active, .cd-cm-del-btn:active { transform: scale(0.92); }
+.cd-cm-del-btn { color: #d34545; border-color: #f7d2d2; background: #fff8f8; }
+.cd-cm-empty { text-align: center; padding: 24px 10px; font-size: 12px; color: #999; }
+.cd-cm-field { display: flex; flex-direction: column; gap: 4px; }
+.cd-cm-label { font-size: 11px; font-weight: 700; color: #727a85; }
+.cd-cm-input { height: 32px; border-radius: 10px; border: 1px solid #e2e6eb; background: #fff; padding: 0 10px; font-size: 12.5px; outline: none; color: #222; }
+.cd-cm-input:focus { border-color: #333; }
+.cd-cm-pills { display: flex; gap: 6px; }
+.cd-cm-pill { flex: 1; height: 30px; border-radius: 999px; border: 1px solid #dcdfe4; background: #fff; color: #666; font-size: 11.5px; font-weight: 600; cursor: pointer; transition: all .15s ease; }
+.cd-cm-pill.on { background: #2b3138; color: #fff; border-color: #2b3138; }
+.cd-cm-textarea { width: 100%; box-sizing: border-box; border: 1px solid #e2e6eb; border-radius: 12px; padding: 8px 10px; font-size: 12px; line-height: 1.5; color: #222; outline: none; resize: vertical; min-height: 70px; }
+.cd-cm-textarea:focus { border-color: #333; }
 .messages-app .chat-drop .cd-foot{
   margin-top:9px !important;
   padding-top:8px !important;

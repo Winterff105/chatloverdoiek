@@ -1282,13 +1282,50 @@ function bindMsgMenu() {
     });
 }
 /* ---------------- 聊天室顶栏下滑面板：内置提示词 + 条数 + 大时间 ---------------- */
-const CHAT_PROMPT_OPTS = [
-    { k: 'ai', label: '防八股' },
-    { k: 'greasy', label: '防油腻' },
-    { k: 'threat', label: '防威胁' },
-    { k: 'fake', label: '防假性安慰' },
-    { k: 'macho', label: '防超雄' }
-];
+const CUSTOM_MODULES_KEY = 'forever_chat_custom_modules_v2';
+function getCustomModulesList() {
+    try {
+        const raw = localStorage.getItem(CUSTOM_MODULES_KEY);
+        if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) return arr;
+        }
+        const old = JSON.parse(localStorage.getItem('forever_chat_custom_module_v1') || 'null');
+        if (old && old.prompt) {
+            return [{
+                id: 'cm_' + Date.now().toString(36),
+                name: old.name || '自定义模块',
+                prompt: old.prompt,
+                targets: old.targets || ['char'],
+                pos: old.pos || 'mid',
+                enabled: true
+            }];
+        }
+    } catch (_) {}
+    return [];
+}
+window.getCustomModulesList = getCustomModulesList;
+function saveCustomModulesList(list) {
+    try {
+        localStorage.setItem(CUSTOM_MODULES_KEY, JSON.stringify(list));
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+function getChatPromptOptions() {
+    const list = getCustomModulesList();
+    const activeCount = list.filter(x => x.enabled !== false).length;
+    return [
+        { k: 'ai', label: '防八股' },
+        { k: 'greasy', label: '防油腻' },
+        { k: 'threat', label: '防威胁' },
+        { k: 'fake', label: '防假性安慰' },
+        { k: 'macho', label: '防超雄' },
+        { k: 'custom', label: activeCount > 0 ? `自定义(${activeCount})` : '自定义模块' }
+    ];
+}
 function chatDropEl() {
     let p = document.getElementById('chatDrop');
     if (p) return p;
@@ -1310,7 +1347,8 @@ function cdTitleHtml() {
 function renderChatDrop() {
     const p = chatDropEl(); const c = curMemContact(); if (!p || !c) return;
     const on = c.promptOpts || [];
-    p.innerHTML = cdTitleHtml() + `<div class="cd-chips">${CHAT_PROMPT_OPTS.map(o => `<div class="cd-option"><button class="cd-chip ${on.indexOf(o.k) >= 0 ? 'on' : ''}" type="button" onclick="toggleChatPrompt('${o.k}')">${o.label}</button><button class="cd-option-settings" type="button" aria-label="调整${o.label}" onclick="openChatPromptSettings('${o.k}')" title="调整提示词"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z"/><path d="m19.4 13.5 1.1.85-1.1 1.9-1.35-.45a7.9 7.9 0 0 1-1.45.84l-.24 1.43h-2.2l-.24-1.43a7.9 7.9 0 0 1-1.45-.84l-1.35.45-1.1-1.9 1.1-.85a7.1 7.1 0 0 1 0-1.68l-1.1-.85 1.1-1.9 1.35.45a7.9 7.9 0 0 1 1.45-.84l.24-1.43h2.2l.24 1.43a7.9 7.9 0 0 1 1.45.84l1.35-.45 1.1 1.9-1.1.85a7.1 7.1 0 0 1 0 1.68Z" transform="translate(-1 -1) scale(1.05)"/></svg></button></div>`).join('')}</div>`
+    const opts = getChatPromptOptions();
+    p.innerHTML = cdTitleHtml() + `<div class="cd-chips">${opts.map(o => `<div class="cd-option"><button class="cd-chip ${on.indexOf(o.k) >= 0 ? 'on' : ''}" type="button" onclick="toggleChatPrompt('${o.k}')">${esc(o.label)}</button><button class="cd-option-settings" type="button" aria-label="调整${esc(o.label)}" onclick="openChatPromptSettings('${o.k}')" title="调整提示词"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z"/><path d="m19.4 13.5 1.1.85-1.1 1.9-1.35-.45a7.9 7.9 0 0 1-1.45.84l-.24 1.43h-2.2l-.24-1.43a7.9 7.9 0 0 1-1.45-.84l-1.35.45-1.1-1.9 1.1-.85a7.1 7.1 0 0 1 0-1.68l-1.1-.85 1.1-1.9 1.35.45a7.9 7.9 0 0 1 1.45-.84l.24-1.43h2.2l.24 1.43a7.9 7.9 0 0 1 1.45.84l1.35-.45 1.1 1.9-1.1.85a7.1 7.1 0 0 1 0 1.68Z" transform="translate(-1 -1) scale(1.05)"/></svg></button></div>`).join('')}</div>`
         + `<div class="cd-foot"><span class="cd-count">共 ${c.msgs.length} 条</span><span class="cd-time">${nowTime()}</span></div>`;
     if (CD_STARS_NODE) p.appendChild(CD_STARS_NODE);
 }
@@ -2032,9 +2070,214 @@ function openChatPromptTextPopup(k) {
         else toast('保存失败：存储空间可能不足');
     };
 }
+function openCustomModulePopup() {
+    const old = document.getElementById('cdCustomModulePopup'); if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'cdCustomModulePopup';
+    wrap.className = 'cd-pt-root';
+    wrap.innerHTML = `<div class="ar-sheet show" id="cdCustomModuleSheet">
+      <div class="ar-sheet-card cd-custom-mod-card" id="cdCustomModCard"></div>
+    </div>`;
+    document.body.appendChild(wrap);
+
+    const sheet = wrap.querySelector('#cdCustomModuleSheet');
+    const card = wrap.querySelector('#cdCustomModCard');
+    const close = () => { sheet.classList.remove('show'); setTimeout(() => wrap.remove(), 220); };
+    sheet.addEventListener('click', e => { if (e.target === sheet) close(); });
+
+    renderListView();
+
+    // 视图 1：模块条目管理列表
+    function renderListView() {
+        const list = getCustomModulesList();
+        card.innerHTML = `
+          <div class="ar-sheet-title ar-script">Custom Modules</div>
+          <div class="ar-sheet-title">自定义模块</div>
+          <div class="cd-cm-bar">
+            <span class="cd-cm-count">已创建 ${list.length} 个条目</span>
+            <button type="button" class="cd-cm-add-btn" id="cdCmAddBtn">+ 新建模块</button>
+          </div>
+          <div class="cd-cm-list" id="cdCmList">
+            ${list.length ? list.map(item => {
+                const posLabel = item.pos === 'high' ? '前置(高)' : item.pos === 'low' ? '后置(低)' : '默认(中)';
+                const tgts = Array.isArray(item.targets) ? item.targets : ['char'];
+                const tgtsHtml = tgts.map(t => `<span class="cd-cm-target-badge">${t === 'narr' ? '旁白' : t === 'offline' ? '线下' : 'char'}</span>`).join('');
+                return `
+                  <div class="cd-cm-item ${item.enabled !== false ? 'active' : ''}" data-id="${item.id}">
+                    <div class="cd-cm-item-main" data-act="edit">
+                      <div class="cd-cm-item-top">
+                        <span class="cd-cm-item-name">${esc(item.name || '未命名模块')}</span>
+                        <span class="cd-cm-pos-tag">${posLabel}</span>
+                      </div>
+                      <div class="cd-cm-targets-row">${tgtsHtml}</div>
+                      <div class="cd-cm-snippet">${esc(item.prompt || '暂无提示词正文')}</div>
+                    </div>
+                    <div class="cd-cm-item-ops">
+                      <button type="button" class="cd-cm-toggle ${item.enabled !== false ? 'on' : ''}" data-act="toggle" title="启用/停用"></button>
+                      <button type="button" class="cd-cm-edit-btn" data-act="edit" title="编辑">
+                        <svg viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5a2.828 2.828 0 1 0-4-4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/></svg>
+                      </button>
+                      <button type="button" class="cd-cm-del-btn" data-act="del" title="删除">
+                        <svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                `;
+            }).join('') : '<div class="cd-cm-empty">暂无自定义模块，点击上方「+ 新建模块」开始创建 ୨୧</div>'}
+          </div>
+          <div class="ar-foot" style="margin-top:10px;">
+            <button type="button" class="ar-close" id="cdCmListClose">关闭</button>
+          </div>
+        `;
+
+        card.querySelector('#cdCmListClose').onclick = close;
+        card.querySelector('#cdCmAddBtn').onclick = () => renderEditView(null);
+
+        card.querySelector('#cdCmList').onclick = e => {
+            const row = e.target.closest('.cd-cm-item');
+            if (!row) return;
+            const id = row.dataset.id;
+            const targetBtn = e.target.closest('[data-act]');
+            const act = targetBtn ? targetBtn.dataset.act : 'edit';
+
+            if (act === 'toggle') {
+                const curList = getCustomModulesList();
+                const it = curList.find(x => x.id === id);
+                if (it) {
+                    it.enabled = it.enabled === false ? true : false;
+                    saveCustomModulesList(curList);
+                    renderListView();
+                    renderChatDrop();
+                    toast(it.enabled ? `已启用「${it.name}」` : `已停用「${it.name}」`);
+                }
+                return;
+            }
+
+            if (act === 'del') {
+                let curList = getCustomModulesList();
+                curList = curList.filter(x => x.id !== id);
+                saveCustomModulesList(curList);
+                renderListView();
+                renderChatDrop();
+                toast('模块已删除');
+                return;
+            }
+
+            if (act === 'edit') {
+                renderEditView(id);
+            }
+        };
+    }
+
+    // 视图 2：新建或编辑具体模块
+    function renderEditView(modId) {
+        const list = getCustomModulesList();
+        const isNew = !modId;
+        const cur = (!isNew ? list.find(x => x.id === modId) : null) || {
+            id: 'cm_' + Date.now().toString(36),
+            name: '',
+            prompt: '',
+            targets: ['char'],
+            pos: 'mid',
+            enabled: true
+        };
+
+        let targets = Array.isArray(cur.targets) ? cur.targets.slice() : ['char'];
+        let pos = cur.pos || 'mid';
+
+        card.innerHTML = `
+          <div class="ar-sheet-title ar-script">${isNew ? 'Create Module' : 'Edit Module'}</div>
+          <div class="ar-sheet-title">${isNew ? '新建模块' : '编辑模块'}</div>
+          <div class="cd-cm-field">
+            <label class="cd-cm-label">模块名字</label>
+            <input class="cd-cm-input" id="cdCmName" maxlength="16" value="${esc(cur.name || '')}" placeholder="例如：微动作强化 / 语气调节">
+          </div>
+          <div class="cd-cm-field">
+            <label class="cd-cm-label">作用范围（可多选）</label>
+            <div class="cd-cm-pills" id="cdCmTargets">
+              <button type="button" class="cd-cm-pill ${targets.includes('narr') ? 'on' : ''}" data-target="narr">旁白</button>
+              <button type="button" class="cd-cm-pill ${targets.includes('offline') ? 'on' : ''}" data-target="offline">线下</button>
+              <button type="button" class="cd-cm-pill ${targets.includes('char') ? 'on' : ''}" data-target="char">char</button>
+            </div>
+          </div>
+          <div class="cd-cm-field">
+            <label class="cd-cm-label">在提示词中的位置</label>
+            <div class="cd-cm-pills" id="cdCmPos">
+              <button type="button" class="cd-cm-pill ${pos === 'high' ? 'on' : ''}" data-pos="high">高 (前置)</button>
+              <button type="button" class="cd-cm-pill ${pos === 'mid' ? 'on' : ''}" data-pos="mid">中 (默认)</button>
+              <button type="button" class="cd-cm-pill ${pos === 'low' ? 'on' : ''}" data-pos="low">低 (后置)</button>
+            </div>
+          </div>
+          <div class="cd-cm-field">
+            <label class="cd-cm-label">自定义提示词</label>
+            <textarea class="cd-cm-textarea" id="cdCmPrompt" rows="5" placeholder="在此输入要注入给模型的指令或要求...">${esc(cur.prompt || '')}</textarea>
+          </div>
+          <div class="ar-foot" style="margin-top:12px;">
+            <div class="cd-pt-row">
+              <button type="button" class="ar-save" id="cdCmSave">保存</button>
+              <button type="button" class="ar-close" id="cdCmCancel" style="flex:1;">返回</button>
+            </div>
+          </div>
+        `;
+
+        card.querySelector('#cdCmCancel').onclick = () => renderListView();
+
+        card.querySelectorAll('#cdCmTargets .cd-cm-pill').forEach(btn => {
+            btn.onclick = () => {
+                const t = btn.dataset.target;
+                if (targets.includes(t)) {
+                    if (targets.length > 1) targets = targets.filter(x => x !== t);
+                    else { toast('至少选择一项作用范围'); return; }
+                } else {
+                    targets.push(t);
+                }
+                btn.classList.toggle('on', targets.includes(t));
+            };
+        });
+
+        card.querySelectorAll('#cdCmPos .cd-cm-pill').forEach(btn => {
+            btn.onclick = () => {
+                pos = btn.dataset.pos;
+                card.querySelectorAll('#cdCmPos .cd-cm-pill').forEach(b => b.classList.toggle('on', b.dataset.pos === pos));
+            };
+        });
+
+        card.querySelector('#cdCmSave').onclick = () => {
+            const name = card.querySelector('#cdCmName').value.trim() || '自定义模块';
+            const prompt = card.querySelector('#cdCmPrompt').value.trim();
+            if (!prompt) { toast('请填写提示词内容'); return; }
+
+            const curList = getCustomModulesList();
+            if (isNew) {
+                curList.push({
+                    id: cur.id,
+                    name,
+                    prompt,
+                    targets,
+                    pos,
+                    enabled: true
+                });
+            } else {
+                const idx = curList.findIndex(x => x.id === cur.id);
+                if (idx >= 0) {
+                    curList[idx] = Object.assign(curList[idx], { name, prompt, targets, pos });
+                } else {
+                    curList.push({ id: cur.id, name, prompt, targets, pos, enabled: true });
+                }
+            }
+
+            saveCustomModulesList(curList);
+            renderChatDrop();
+            toast('已保存模块 ୨୧');
+            renderListView();
+        };
+    }
+}
+
 function openChatPromptSettings(k) {
     if (k === 'greasy') { openGreasyPanPopup(); return; }
     if (k === 'threat' || k === 'fake' || k === 'macho') { openChatPromptTextPopup(k); return; }
+    if (k === 'custom') { openCustomModulePopup(); return; }
     if (k !== 'ai') { alert('这个选项暂时没有独立设置项。'); return; }
     const old = document.getElementById('cdPromptSettings'); if (old) old.remove();
     const v = readChatPromptSettings();
@@ -2458,11 +2701,11 @@ async function pullReply() {
     showTyping(c);
     c._typing = true; renderChats();
     try {
-        const countDesc = o.min === o.max ? `本次回复必须精确输出 ${o.min} 条独立消息气泡（messages 数组长度必须严格等于 ${o.min}，不多不少）` : `本次回复必须输出 ${o.min} 到 ${o.max} 条独立消息气泡（messages 数组长度必须在 ${o.min} 到 ${o.max} 之间，绝不可偷懒少发）`;
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【气泡条数硬性限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + narrInstruction();
+        const countDesc = o.min === o.max ? `本次对话台词气泡必须精确输出 ${o.min} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）` : `本次对话台词气泡必须输出 ${o.min} 到 ${o.max} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）`;
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
-        const replies = await window.MessagesAPI.replyFor(c, instruction, o.max);
+        const replies = await window.MessagesAPI.replyFor(c, instruction, o.max + (NARR.on ? 3 : 0));
         const heart = replies.heart || null;
         c._typing = false;
         const row = document.getElementById('typingRow'); if (row) row.remove();
@@ -2541,7 +2784,11 @@ function narrInstruction() {
     if (!NARR.on) return '';
     const person = NARR.person === '1' ? '第一人称（用“我”描写用户的动作）' : NARR.person === '2' ? '第二人称（用“你”描写用户的动作）' : `第三人称（用用户的名字“${window.MESSAGES_USER_NAME || '用户'}”描写用户的动作）`;
     const mode = NARR.mode === 'online' ? '线上聊天时的状态（比如正在打字、看手机、发语音）' : NARR.mode === 'offline' ? '线下面对面的场景和动作（比如靠近、递东西、看向远处）' : '情境相符即可，不限定场景';
-    return ` 本次需要加入旁白：旁白是描写动作、神态或环境的一句话，单独作为一条消息，并以【旁白】开头，每条旁白 ${NARR.min} 到 ${NARR.max} 字。旁白描写${mode}。旁白中提到用户时，使用${person}。`;
+    return `\n【旁白穿插与字数硬性规则】：\n`
+        + `1. 本次回复必须包含旁白，旁白作为独立的数组项，可以且应当【自由穿插在台词气泡的前面、中间或末尾】（例如：[旁白, 气泡1, 旁白, 气泡2] 或 [气泡1, 旁白, 气泡2]），不占用台词条数计数。\n`
+        + `2. 任何旁白数组项必须单独成条，且必须严格以【旁白】二字开头，例如："【旁白】详细的动作神态描写..."。\n`
+        + `3. 【字数充实要求】：每条旁白字数必须丰富充实，严格落在 ${NARR.min} 到 ${NARR.max} 字之间（绝不可只有寥寥几个字敷衍带过！）。要细致描摹微表情、肢体动作细节、视线停顿、呼吸、当下环境氛围或心理停顿。\n`
+        + `4. 旁白描写范围：${mode}；旁白中提到用户时使用：${person}。`;
 }
 /* 解析单条回复：旁白保留，普通台词照旧清理 */
 function narrPartBase(p, name) {
