@@ -276,22 +276,24 @@ overflow: hidden;
 .world-host .avatar-node:active .node-avatar {
             transform: scale(0.92);
         }
-.world-host .node-center .node-avatar {
-            width: 62px;
-            height: 62px;
+.world-host .node-user .node-avatar {
+            width: 66px;
+            height: 66px;
             font-size: 26px;
             border-color: #ffffff;
-            box-shadow: 0 0 25px rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 25px rgba(255, 255, 255, 0.25);
         }
+.world-host .node-center .node-avatar,
+.world-host .node-contact .node-avatar,
 .world-host .node-satellite .node-avatar {
-            width: 48px;
-            height: 48px;
+            width: 50px;
+            height: 50px;
             font-size: 20px;
         }
 .world-host .node-npc .node-avatar {
-            width: 44px;
-            height: 44px;
-            font-size: 12px;
+            width: 36px;
+            height: 36px;
+            font-size: 11px;
             font-family: var(--font-mono);
             background: rgba(18, 18, 18, 0.65);
             border: 0.5px dashed rgba(255, 255, 255, 0.25);
