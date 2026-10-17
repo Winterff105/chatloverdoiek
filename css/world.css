@@ -485,7 +485,8 @@ z-index: 200;
 opacity: 0;
 visibility: hidden;
 pointer-events: none;
-transition: opacity 0.25s ease;
+transition: opacity 0.25s ease, visibility 0.25s ease;
+will-change: opacity;
 display: flex;
 align-items: center;
 justify-content: center;
@@ -509,8 +510,9 @@ position: relative;
 box-shadow: 0 20px 60px rgba(0, 0, 0, 0.95);
 display: flex;
 overflow: visible;
-transform: scale(0.92) translateZ(0);
+transform: scale(0.95) translateZ(0);
 opacity: 0;
+will-change: transform, opacity;
 transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease;
 -webkit-backface-visibility: hidden;
 backface-visibility: hidden;
@@ -721,9 +723,10 @@ z-index: 2;
             color: #000000;
         }
 .world-host .docket-card.is-npc {
-            background: rgba(14, 14, 14, 0.55);
+            background: rgba(18, 18, 18, 0.95);
             border: 0.5px dashed rgba(255, 255, 255, 0.16);
-            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: none;
+            backdrop-filter: none;
         }
 .world-host .docket-card.is-npc .docket-sidebar {
             background: transparent;
