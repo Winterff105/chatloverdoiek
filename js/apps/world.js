@@ -154,6 +154,8 @@ window.initWorldModule = function (host) {
             if (clickedNode) {
                 handleNodeTap(clickedNode);
             }
+        } else if (isNodeDragging && activeDragNode) {
+            saveNodePosition(activeDragNode);
         }
         isNodeDragging = false;
         activeDragNode = null;
@@ -520,7 +522,30 @@ window.initWorldModule = function (host) {
         } catch (_) { return []; }
     }
 
+    const WORLD_POSITIONS_KEY = 'world_node_positions_v1';
+    let nodePositions = {};
+    function loadPositions() {
+        try {
+            nodePositions = JSON.parse(localStorage.getItem(WORLD_POSITIONS_KEY) || '{}') || {};
+        } catch (_) { nodePositions = {}; }
+    }
+    function savePositions() {
+        try { localStorage.setItem(WORLD_POSITIONS_KEY, JSON.stringify(nodePositions)); } catch (_) {}
+        if (window.DB) DB.save(WORLD_POSITIONS_KEY, nodePositions);
+    }
+    function saveNodePosition(node) {
+        if (!node) return;
+        const key = node.dataset.id || node.id;
+        const x = parseFloat(node.style.left);
+        const y = parseFloat(node.style.top);
+        if (!key || isNaN(x) || isNaN(y)) return;
+        const pos = { x: Math.round(x), y: Math.round(y) };
+        nodePositions[key] = pos;
+        if (node.id) nodePositions[node.id] = pos;
+        savePositions();
+    }
     function saveRelations() {
+        try { localStorage.setItem(WORLD_TETHER_KEY, JSON.stringify(relations)); } catch (_) {}
         if (window.DB) DB.save(WORLD_TETHER_KEY, relations);
     }
 
@@ -539,6 +564,11 @@ window.initWorldModule = function (host) {
             if (i > 0) {
                 const k = i - 1, r = 200 + (k % 2) * 110, a = k * 2.399963;
                 x = 600 + r * Math.cos(a); y = 600 + r * Math.sin(a); cls = 'node-satellite';
+            }
+            const savedPos = nodePositions[key] || nodePositions[nodeId];
+            if (savedPos && typeof savedPos.x === 'number' && typeof savedPos.y === 'number') {
+                x = savedPos.x;
+                y = savedPos.y;
             }
             docketDB[key] = {
                 name, role: status, docCode: 'ID.' + String(c.id).slice(-4).toUpperCase(),
@@ -572,10 +602,35 @@ window.initWorldModule = function (host) {
 
     async function loadRelations() {
         try {
-            const saved = window.DB ? await DB.load(WORLD_TETHER_KEY, []) : [];
+            let saved = null;
+            if (window.DB) {
+                try { saved = await DB.load(WORLD_TETHER_KEY, null); } catch (_) {}
+            }
+            if (!saved || !Array.isArray(saved) || !saved.length) {
+                saved = JSON.parse(localStorage.getItem(WORLD_TETHER_KEY) || '[]');
+            }
             relations = Array.isArray(saved) ? saved : [];
         } catch (_) { relations = []; }
         renderTetherLines();
+    }
+    async function loadPositionsAsync() {
+        if (window.DB) {
+            try {
+                const saved = await DB.load(WORLD_POSITIONS_KEY, null);
+                if (saved && typeof saved === 'object') {
+                    nodePositions = Object.assign({}, saved, nodePositions);
+                    root.querySelectorAll('.avatar-node').forEach(node => {
+                        const key = node.dataset.id || node.id;
+                        const pos = nodePositions[key] || nodePositions[node.id];
+                        if (pos && typeof pos.x === 'number' && typeof pos.y === 'number') {
+                            node.style.left = `${pos.x}px`;
+                            node.style.top = `${pos.y}px`;
+                        }
+                    });
+                    renderTetherLines();
+                }
+            } catch (_) {}
+        }
     }
 
     // ======= 8. 筛选与分组（与消息应用共用 FOLDERS）=======
@@ -805,17 +860,51 @@ window.initWorldModule = function (host) {
         } catch (_) { return []; }
     }
     function saveNpcContacts(items, selContacts) {
-        if (typeof CONTACTS === 'undefined') throw new Error('消息应用未加载');
+        let cs = (typeof CONTACTS !== 'undefined' && Array.isArray(CONTACTS)) ? CONTACTS : null;
+        if (!cs) {
+            cs = readContacts();
+            if (typeof window !== 'undefined') window.CONTACTS = cs;
+        }
         const norm = typeof normalizeContact === 'function' ? normalizeContact : (x => x);
         const stamp = Date.now();
         items.forEach((o, i) => {
             const name = String(o.name).trim();
-            const c = norm({ id: 'npc' + stamp + '_' + i, name, ini: name.charAt(0), status: String(o.status || 'NPC'), sig: String(o.sig || ''), persona: String(o.persona || ''), avatar: '', time: '' });
+            const c = norm({ id: 'npc' + stamp + '_' + i, name, remark: name, ini: (name.charAt(0) || 'N').toUpperCase(), status: String(o.status || 'NPC'), sig: String(o.sig || ''), persona: String(o.persona || ''), avatar: '', time: '' });
             c.npc = true;
-            CONTACTS.unshift(c);
-            selContacts.forEach(sc => relations.push({ from: 'node-' + contactKey(sc), to: 'node-' + contactKey(c), isRed: false, label: '关联NPC' }));
+            cs.unshift(c);
+            const nKey = contactKey(c);
+            const nNodeId = 'node-' + nKey;
+            if (selContacts && selContacts.length > 0) {
+                const firstSc = selContacts[0];
+                const pKey = contactKey(firstSc);
+                const pNodeId = 'node-' + pKey;
+                const pEl = $(pNodeId);
+                let px = 600, py = 600;
+                if (pEl) {
+                    px = parseFloat(pEl.style.left) || 600;
+                    py = parseFloat(pEl.style.top) || 600;
+                } else if (nodePositions[pKey]) {
+                    px = nodePositions[pKey].x;
+                    py = nodePositions[pKey].y;
+                }
+                const angle = (i * 1.5) + (Math.random() * 0.4 - 0.2);
+                const dist = 110 + (i % 2) * 30;
+                const nx = Math.round(px + Math.cos(angle) * dist);
+                const ny = Math.round(py + Math.sin(angle) * dist);
+                nodePositions[nKey] = { x: nx, y: ny };
+                nodePositions[nNodeId] = { x: nx, y: ny };
+            }
+            selContacts.forEach(sc => {
+                const fromId = 'node-' + contactKey(sc);
+                const toId = nNodeId;
+                const exists = relations.some(r => (r.from === fromId && r.to === toId) || (r.from === toId && r.to === fromId));
+                if (!exists) {
+                    relations.push({ from: fromId, to: toId, isRed: false, label: o.relation || '关联NPC' });
+                }
+            });
         });
-        if (typeof persistContacts === 'function') persistContacts();
+        saveContactsLocal(cs);
+        savePositions();
         saveRelations();
         return items.length;
     }
@@ -855,6 +944,7 @@ window.initWorldModule = function (host) {
     }
 
     // 初始化
+    loadPositions();
     $('entityName').closest('.input-group').classList.add('contact-only');
     $('tetherTarget').closest('.input-group').classList.add('contact-only');
     setTetherMode(false);
@@ -865,5 +955,6 @@ window.initWorldModule = function (host) {
     new Image().src = 'assets/app/世界壁纸.jpg';
     centerScene();
     loadRelations();
+    loadPositionsAsync();
 
 };
