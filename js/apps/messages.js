@@ -198,8 +198,23 @@ function normalizeIdentity(x) {
 }
 function loadStoredIdentities() { try { const v = JSON.parse(localStorage.getItem(IDN_KEY) || '[]'); return Array.isArray(v) ? v.map(normalizeIdentity) : []; } catch (_) { return []; } }
 function persistIdentities() { try { localStorage.setItem(IDN_KEY, JSON.stringify(IDENTITIES)); } catch (e) { toast('保存失败：存储空间可能不足'); } }
-function loadStoredMe() { try { const v = JSON.parse(localStorage.getItem('forever_messages_me_v1') || 'null'); return Object.assign({}, ME_DEFAULT, v && typeof v === 'object' ? v : {}); } catch (_) { return Object.assign({}, ME_DEFAULT); } }
-function persistMe() { try { localStorage.setItem('forever_messages_me_v1', JSON.stringify(ME)); } catch (e) { toast('保存失败：存储空间可能不足'); console.error(e); } }
+function loadStoredMe() {
+    try {
+        const v = JSON.parse(localStorage.getItem('forever_messages_me_v1') || 'null');
+        const res = Object.assign({}, ME_DEFAULT, v && typeof v === 'object' ? v : {});
+        if (!res.avatar) {
+            const extAv = localStorage.getItem('forever_user_avatar') || localStorage.getItem('user_avatar') || '';
+            if (extAv) res.avatar = extAv;
+        }
+        return res;
+    } catch (_) { return Object.assign({}, ME_DEFAULT); }
+}
+function persistMe() {
+    try {
+        localStorage.setItem('forever_messages_me_v1', JSON.stringify(ME));
+        if (ME.avatar) localStorage.setItem('forever_user_avatar', ME.avatar);
+    } catch (e) { toast('保存失败：存储空间可能不足'); console.error(e); }
+}
 
 
 function loadStoredChatIds(){ try { const v=JSON.parse(localStorage.getItem('forever_messages_chat_ids_v1')||'[]'); return Array.isArray(v)?v.map(String):[]; } catch(_){ return []; } }
@@ -4041,8 +4056,11 @@ function ioInner(name, avatarUrl) {
     return `${img}<span>${esc(initOf(name))}</span>`;
 }
 function selfAvatarHtml(size) {
-    const img = (ME.avatar || DEFAULT_CHAT_AVATAR) ? `<img src="${ME.avatar || DEFAULT_CHAT_AVATAR}" alt="" onerror="this.remove()">` : '';
-    return `<div class="av ${size || 'lg'} g1">${img}<span class="ini">${esc(initOf(ME.name))}</span></div>`;
+    const a = activeIdentity();
+    const av = (a && a.avatar) || ME.avatar;
+    const name = (a && a.name) || ME.name;
+    const img = (av || DEFAULT_CHAT_AVATAR) ? `<img src="${av || DEFAULT_CHAT_AVATAR}" alt="" onerror="this.remove()">` : '';
+    return `<div class="av ${size || 'lg'} g1">${img}<span class="ini">${esc(initOf(name))}</span></div>`;
 }
 function sheetRow(iconHtml, title, sub, action, active) {
     return `<button class="identity-option ${active ? 'active' : ''}" type="button" onclick="${action}"><div class="io-avatar">${iconHtml}</div><div class="io-info"><div class="io-name">${esc(title)}</div>${sub ? `<div class="io-sub">${esc(sub)}</div>` : ''}</div><div class="check">✓</div></button>`;
@@ -4258,6 +4276,8 @@ function pickPersonaAvatar() {
                 slot = document.querySelector('#personaHero .persona-hero-av');
                 if (slot) slot.innerHTML = identityAvatarHtml(c || { name: '' });
             }
+            try { localStorage.setItem('forever_user_avatar', url); } catch (_) {}
+            window.dispatchEvent(new CustomEvent('messages-avatar-updated', { detail: { avatar: url } }));
             toast('头像已更新');
         }).catch(() => toast('图片读取失败，请换一张试试'));
     };
@@ -5023,10 +5043,13 @@ function loadMomentBg() { try { return localStorage.getItem(MOMENT_BG_KEY) || ''
 function loadMomentAvatar() { try { return localStorage.getItem(MOMENT_AVATAR_KEY) || ''; } catch (_) { return ''; } }
 const DEFAULT_MOMENT_AVATAR = 'assets/朋友圈/朋友圈头像.jpg';
 function momentAuthor(by) {
-    if (by && by !== 'self') { const c = IDENTITIES.find(x => x.id === by); if (c) return { name: c.name, avatar: c.avatar }; }
+    if (by && by !== 'self') { const c = IDENTITIES.find(x => x.id === by); if (c) return { name: c.name, avatar: c.avatar || ME.avatar || DEFAULT_CHAT_AVATAR }; }
     const ct = CONTACTS.find(x => x.id === by); if (ct) return { name: ct.name, avatar: ct.avatar };
     if (by && DELETED_NAMES[by]) return { name: `${DELETED_NAMES[by]}（已删除）`, avatar: '' };
-    return { name: ME.name, avatar: MOMENT_AVATAR || DEFAULT_MOMENT_AVATAR };
+    const a = activeIdentity();
+    const myAv = (a && a.avatar) || ME.avatar;
+    const myName = (a && a.name) || ME.name;
+    return { name: myName, avatar: MOMENT_AVATAR || myAv || DEFAULT_MOMENT_AVATAR };
 }
 function momentAvatarHtml(a, size) {
     const img = a.avatar ? `<img src="${a.avatar}" alt="" onerror="this.remove()">` : '';
@@ -5950,6 +5973,17 @@ applySelf();
 syncSettingsMode();
 loadProfileCard();
 loadSettingsName();
+if (ME.avatar) { try { localStorage.setItem('forever_user_avatar', ME.avatar); } catch (_) {} }
+window.getMessagesUserAvatar = function() {
+    const a = activeIdentity();
+    if (a && a.avatar) return a.avatar;
+    if (ME && ME.avatar) return ME.avatar;
+    try {
+        const v = JSON.parse(localStorage.getItem('forever_messages_me_v1') || 'null');
+        if (v && v.avatar) return v.avatar;
+        return localStorage.getItem('forever_user_avatar') || '';
+    } catch (_) { return ''; }
+};
 preloadDefaultImages();
 bindCommentLongPress();
 bindCardLongPress();
