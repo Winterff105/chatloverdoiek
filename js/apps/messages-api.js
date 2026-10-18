@@ -629,7 +629,9 @@ function worldTiesBlock(contact) {
     if (viewers.length) {
       lines.push('发布后，下面这些人也会看到这条朋友圈。你可以替他们决定要不要评论：每人最多一条，很短，像真人随手回的一句；不想评论的人就不要写。评论人的名字只能用下面列出的。');
       lines.push('可能评论的人：\n' + viewers.map(v => `- ${v.name}${v.persona ? `（${String(v.persona).slice(0, 80)}）` : ''}`).join('\n'));
-      lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容","comments":[{"name":"评论人名字","text":"评论内容"}]}；没有人评论时 comments 为空数组；不发时格式：{"post":false}');
+      lines.push('【可见范围】由你自己决定这条朋友圈给谁看：all 所有人都能看；some 只给你指定的人看（名字写在 visTo 里，只能从上面列表选）；self 只有你自己看；user 只给用户看。');
+      lines.push('评论只能来自能看到这条朋友圈的人：vis 为 self 或 user 时 comments 必须为空数组；vis 为 some 时评论人只能是 visTo 里的人。');
+      lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容","vis":"all或some或self或user","visTo":["名字"],"comments":[{"name":"评论人名字","text":"评论内容"}]}；没有人评论时 comments 为空数组；不发时格式：{"post":false}');
     } else {
       lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容"}；不发时格式：{"post":false}');
     }
@@ -642,10 +644,13 @@ function worldTiesBlock(contact) {
     if (x >= 0 && y > x) t = t.slice(x, y + 1);
     let o = null; try { o = JSON.parse(t); } catch (_) { throw new Error('朋友圈调取没有解析出结果，请重试'); }
     if (!o || !o.post || !String(o.text || '').trim()) return null;
-    const comments = (Array.isArray(o.comments) ? o.comments : [])
+    const vis = ['all', 'some', 'self', 'user'].includes(o.vis) ? o.vis : 'all';
+    const visTo = vis === 'some' ? (Array.isArray(o.visTo) ? o.visTo : []).map(n => String(n || '').trim()).filter(n => viewers.some(v => v.name === n)) : [];
+    const canSee = name => vis === 'all' || (vis === 'some' && visTo.includes(name));
+    const comments = (vis === 'self' || vis === 'user') ? [] : (Array.isArray(o.comments) ? o.comments : [])
       .map(c => ({ name: String((c && c.name) || '').trim(), text: String((c && c.text) || '').trim() }))
-      .filter(c => c.name && c.text && viewers.some(v => v.name === c.name));
-    return { text: String(o.text).trim(), comments };
+      .filter(c => c.name && c.text && viewers.some(v => v.name === c.name) && canSee(c.name));
+    return { text: String(o.text).trim(), comments, vis, visTo };
   }
   window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentDmReply, momentAutoPost };
 })();

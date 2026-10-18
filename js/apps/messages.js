@@ -37,8 +37,8 @@ function mfLastPostH(c) {
     return (Date.now() - Math.max(...mine.map(p => p.t || 0))) / 3600000;
 }
 
-function postContactMoment(c, text, comments) {
-    const post = { id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5), text, t: Date.now(), by: c.id, vis: 'all', visTo: [], likes: [], comments: [], imgs: [] };
+function postContactMoment(c, text, comments, meta) {
+    const post = { id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5), text, t: Date.now(), by: c.id, vis: (meta && meta.vis) || 'all', visTo: ((meta && meta.visTo) || []).map(n => (CONTACTS.find(x => x.name === n) || {}).id).filter(Boolean), likes: [], comments: [], imgs: [] };
     POSTS.unshift(post);
     persistMoments();
     renderMoments();
@@ -84,7 +84,7 @@ async function momentSyncAll() {
     const btn = document.getElementById('mfSyncBtn');
     if (btn) btn.classList.add('spin');
     let posted = 0;
-    const allCommenters = [];
+    const allCommenters = [], allPosters = [];
     try {
         for (const c of CONTACTS) {
             if (!mfAllowed(c)) continue;
@@ -94,20 +94,11 @@ async function momentSyncAll() {
             if (Math.random() * 100 >= pct) continue;
             const viewers = CONTACTS.filter(x => x.id !== c.id).map(x => ({ name: x.name, persona: x.persona || '' }));
             const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, decided: true });
-            if (r) { allCommenters.push(...postContactMoment(c, r.text, r.comments || [])); posted++; }
+            if (r) { allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo })); allPosters.push(c); posted++; }
         }
     } catch (e) { showApiError(e); }
     if (btn) btn.classList.remove('spin');
-    if (allCommenters.length) {
-        const uniq = [...new Map(allCommenters.map(c => [c.id, c])).values()];
-        showMomentDone(uniq);
-        if (activeTab === 'moments') {
-            setTimeout(() => { if (activeTab === 'moments' && !momentFetchBusy) hideMomentBubble(); }, 2000);
-        } else {
-            MOMENT_UNSEEN = true;
-        }
-        refreshChatBadge();
-    }
+    notePosterDone([...new Map([...allPosters, ...allCommenters].map(c => [c.id, c])).values()]);
     toast(posted ? `调取完成，${posted} 位联系人发了朋友圈` : '调取完成，这次没有人发朋友圈');
 }
 
@@ -5497,11 +5488,34 @@ function sendMomentCommentInline(id) {
     p.comments.push({ by: ACTIVE_ID, text, t: Date.now(), ...(rt ? { to: rt.by } : {}) });
     MOMENT_CMT_OPEN[id] = true;
     persistMoments(); renderMoments();
+    const author = CONTACTS.find(x => x.id === p.by);
+    if (author) recordUserCommentMemory(author, p, text);
     if (rt && rt.by !== ACTIVE_ID) {
+        const target = CONTACTS.find(x => x.id === rt.by);
+        if (target && target.id !== (author && author.id)) recordUserCommentMemory(target, p, text);
         momentCommentAiReply(rt.by, p);
         charPrivateReply(rt.by, p, text, rt.text);
+    } else if (author) {
+        momentCommentAiReply(author.id, p);
     }
 }
+/* 用户在联系人的朋友圈下评论：计入共同记忆。帖子作者记一条；被回复的那位联系人也记一条 */
+function recordUserCommentMemory(contact, p, text) {
+    const author = CONTACTS.find(x => x.id === p.by);
+    if (!author || !contact) return;
+    const excerpt = (p.text || '').trim() || '一张照片';
+    const who = contact.id === author.id ? '{char}' : author.name;
+    addCommonMemory(contact, `{user}在${who}的朋友圈（${excerpt}）下评论：${text}`, p.id);
+}
+/* 调取完成气泡：有人评论或发了朋友圈、用户还没看，就显示完成；用户在朋友圈页则短暂显示后收起 */
+function notePosterDone(list) {
+    if (!list || !list.length) { hideMomentBubble(); refreshChatBadge(); return; }
+    showMomentDone(list);
+    if (activeTab === 'moments') setTimeout(() => { if (activeTab === 'moments' && !momentFetchBusy) hideMomentBubble(); }, 2000);
+    else MOMENT_UNSEEN = true;
+    refreshChatBadge();
+}
+
 /* 用户回复了 AI 的评论：AI 在朋友圈评论区接着回一句（底栏显示调取中，完成后显示角标） */
 async function momentCommentAiReply(cid, p) {
     const c = CONTACTS.find(x => x.id === cid);
@@ -5552,6 +5566,8 @@ function sendMomentComment(id) {
     p.comments = p.comments || [];
     p.comments.push({ by: ACTIVE_ID, text, t: Date.now() });
     persistMoments(); renderMoments(); openMomentComments(id);
+    const author = CONTACTS.find(x => x.id === p.by);
+    if (author) { recordUserCommentMemory(author, p, text); momentCommentAiReply(author.id, p); }
 }
 
 
@@ -5564,6 +5580,23 @@ function sendMomentComment(id) {
 let MOMENT_VIS = 'public';        // public = 所有人，self = 仅自己，some = 部分联系人
 let MOMENT_VIS_TO = [];
 function visIcon() { return icoSvg(MOMENT_VIS === 'public' ? 'globe' : (MOMENT_VIS === 'self' ? 'lock2' : 'users')); }
+/* 联系人发的朋友圈：分割线下方中间的小胶囊，显示可见范围；仅部分可以点开看是谁 */
+function momentCapsuleHTML(p) {
+    if (!CONTACTS.find(x => x.id === p.by)) return '';
+    const label = { all: '公开', some: '仅部分', self: '仅自己', user: '仅你可看' }[p.vis] || '公开';
+    const click = p.vis === 'some' ? ` onclick="showVisPeek('${p.id}')"` : '';
+    return `<div class="mf-vis-row"><button class="mf-vis-cap" type="button"${click}>${label}</button></div>`;
+}
+function showVisPeek(pid) {
+    const p = POSTS.find(x => x.id === pid); if (!p) return;
+    const names = (p.visTo || []).map(id => { const c = CONTACTS.find(x => x.id === id); return c ? c.name : ''; }).filter(Boolean);
+    const old = document.getElementById('mfVisPeek'); if (old) old.remove();
+    const mask = document.createElement('div');
+    mask.id = 'mfVisPeek'; mask.className = 'mf-vis-mask';
+    mask.innerHTML = `<div class="mf-vis-pop"><div class="mf-vis-pop-t">仅部分可见</div><div class="mf-vis-pop-s">这条朋友圈只给下面这些人看</div>${names.length ? names.map(n => `<div class="mf-vis-pop-n">${esc(n)}</div>`).join('') : '<div class="mf-vis-pop-n">没有选中的联系人</div>'}<button class="mf-vis-pop-x" type="button" onclick="document.getElementById('mfVisPeek').remove()">关闭</button></div>`;
+    mask.addEventListener('click', e => { if (e.target === mask) mask.remove(); });
+    (document.querySelector('.messages-app') || document.body).appendChild(mask);
+}
 function momentVisText(p) {
     if (p.vis === 'self') return '仅自己可见';
     if (p.vis === 'some') return `${(p.visTo || []).length} 位联系人可见`;
@@ -5794,6 +5827,7 @@ function renderMoments() {
                 <button class="mf-act ${liked ? 'on' : ''}" type="button" onclick="toggleMomentLike('${p.id}')">${HEART}<span>${likes.length || ''}</span></button>
                 <button class="mf-act" type="button" onclick="toggleMomentCmt('${p.id}')">${CHAT_ICON}<span>${cmts.length || ''}</span></button>
             <span class="mf-time-br">${fmtMoment(p.t)}</span></div>
+            ${momentCapsuleHTML(p)}
             ${cmtBlock}
         </div>`;
     }).join('');
@@ -5888,7 +5922,7 @@ async function publishMoment() {
 
 /* ---------------- 朋友圈回复逻辑：点赞 / 评论 → 直接进入共同记忆 ---------------- */
 function momentVisibleTo(p, c) {
-    if (p.vis === 'self') return false;
+    if (p.vis === 'self' || p.vis === 'user') return false;
     if (p.vis === 'some') return (p.visTo || []).includes(c.id);
     return true;
 }
@@ -5943,7 +5977,7 @@ async function momentFetchFor(p) {
         } catch (e) { showApiError(e); }
     }
     momentFetchBusy = false;
-    if (!fresh.length) { toast('这次调取没有人评论'); hideMomentBubble(); refreshChatBadge(); return; }
+    if (!fresh.length) { toast('这次调取没有人评论'); const poster = CONTACTS.find(x => x.id === p.by); notePosterDone(poster ? [poster] : []); return; }
     showMomentDone(fresh);
     if (activeTab === 'moments') {
         setTimeout(() => { if (activeTab === 'moments' && !momentFetchBusy) hideMomentBubble(); }, 2000);
