@@ -5163,7 +5163,9 @@
 .messages-app .rt-seg-btn:active{ transform:scale(.94); }
 
 /* 朋友圈可见范围胶囊：纯色、无边框，分割线下方中间 */
-.messages-app .mf-vis-row{ display:flex; justify-content:center; margin-top:8px; }
+.messages-app .mf-vis-row{ position:relative; height:0; margin-top:12px; }
+.messages-app .mf-vis-row + .mf-card-foot{ margin-top:0; }
+.messages-app .mf-vis-cap{ position:absolute; left:50%; top:0; transform:translate(-50%,-50%); background:#fff; white-space:nowrap; }
 .messages-app .mf-vis-cap{ border:0; background:rgba(0,0,0,.06); color:#8E8E93; font-size:11px; line-height:1; padding:5px 11px; border-radius:999px; cursor:pointer; }
 .messages-app .mf-vis-mask{ position:absolute; inset:0; background:rgba(0,0,0,.4); display:flex; align-items:center; justify-content:center; padding:24px; z-index:300; }
 .messages-app .mf-vis-pop{ width:100%; max-width:280px; background:#fff; border-radius:18px; padding:18px; color:#111; }

@@ -5823,11 +5823,11 @@ function renderMoments() {
             </div>
             ${p.text ? `<div class="mf-card-text">${esc(p.text)}</div>` : ''}
             ${photos}
+            ${momentCapsuleHTML(p)}
             <div class="mf-card-foot">
                 <button class="mf-act ${liked ? 'on' : ''}" type="button" onclick="toggleMomentLike('${p.id}')">${HEART}<span>${likes.length || ''}</span></button>
                 <button class="mf-act" type="button" onclick="toggleMomentCmt('${p.id}')">${CHAT_ICON}<span>${cmts.length || ''}</span></button>
             <span class="mf-time-br">${fmtMoment(p.t)}</span></div>
-            ${momentCapsuleHTML(p)}
             ${cmtBlock}
         </div>`;
     }).join('');
