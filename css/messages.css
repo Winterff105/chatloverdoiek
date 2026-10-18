@@ -4400,7 +4400,7 @@
 
 /* ---------------- 朋友圈调取气泡 + 聊天室角标 ---------------- */
 .messages-app #tabbar .tab[data-tab="moments"]{position:relative}
-.messages-app .mq-thought{position:absolute;left:50%;width:0;bottom:calc(100% - 3px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:6}
+.messages-app .mq-thought{position:absolute;left:50%;width:0;bottom:calc(100% - 18px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:6}
 .messages-app .mq-thought.mq-on{opacity:1}
 .messages-app .mq-thought.mq-fade{opacity:0}
 .messages-app .mq-pill{position:relative;flex-shrink:0;width:72px;height:30px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 12px rgba(0,0,0,.05);font-size:12px;font-weight:600;color:#161616;white-space:nowrap;transition:width .55s cubic-bezier(.2,.8,.2,1),height .55s cubic-bezier(.2,.8,.2,1),transform .55s cubic-bezier(.2,.8,.2,1),background .3s ease,color .3s ease,box-shadow .3s ease,border-color .3s ease}
