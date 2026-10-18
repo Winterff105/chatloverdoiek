@@ -2897,7 +2897,7 @@ function setTransOpt(key, val) {
 function transLine(c) {
     const t = transCfgOf(c);
     if (!t.on) return '';
-    return `\n【翻译】对方用${t.src}说话（选择自动识别时自行判断语言）。messages 的每一项都必须是对象：{"text":"${t.src}原文","trans":"${t.tgt}译文"}。text 里只写原文，译文只放在 trans 里，不要加任何符号、标记或括号。`;
+    return `\n【翻译｜本条优先于输出格式里 messages 为字符串的写法】对方用${t.src}说话（选择自动识别时自行判断语言）。messages 的每一项都必须是对象：{"text":"${t.src}原文","trans":"${t.tgt}译文"}，不能再写成普通字符串。text 里只写原文，译文只放在 trans 里，不要加任何符号、标记或括号。`;
 }
 function transSettingsHTML(c) {
     const t = transCfgOf(c);
