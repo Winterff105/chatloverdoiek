@@ -616,7 +616,7 @@ window.initWorldModule = function (host) {
     // 初始化运行
 
     // ======= 7. 联系人同步 & 连线持久化（数据存于 DB：world_tethers_v1） =======
-    const WORLD_CONTACTS_KEY = 'forever_messages_contacts_v1';
+    const WORLD_CONTACTS_KEY = 'whatever_messages_contacts_v1';
     const WORLD_TETHER_KEY = 'world_tethers_v1';
     const escHtml = v => String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
     const contactKey = c => 'c-' + String(c.id).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -658,55 +658,50 @@ window.initWorldModule = function (host) {
     }
 
     function getUserInfo() {
-        let name = '我', avatar = '';
-        try {
-            if (window.State) {
-                const su = window.State.user || window.State.profile || (typeof window.State.getUser === 'function' ? window.State.getUser() : null);
-                if (su) {
-                    if (su.name) name = su.name;
-                    if (su.avatar) avatar = su.avatar;
+        let name = '', avatar = '';
+
+        // 1. 「管理我」里设置的名字（同步自数据库，见 syncUserAvatarFromDB）
+        name = localStorage.getItem('whatever_messages_settings_name_v1') || '';
+
+        // 2. 没设置时，与「管理我」一样：当前身份名 → 默认「我」的名字
+        let me = {};
+        try { me = JSON.parse(localStorage.getItem('whatever_messages_me_v1') || 'null') || {}; } catch (_) {}
+        if (me.avatar) avatar = me.avatar;
+        if (!name) {
+            try {
+                const activeId = localStorage.getItem('whatever_messages_active_identity_v1') || 'self';
+                if (activeId !== 'self') {
+                    const ids = JSON.parse(localStorage.getItem('whatever_messages_identities_v2') || '[]');
+                    const a = ids.find(x => String(x.id) === activeId);
+                    if (a && a.name) name = a.name;
                 }
+            } catch (_) {}
+        }
+        if (!name) name = me.name || '我';
+
+        // 3. 当前选中的人设头像
+        try {
+            const activeId = localStorage.getItem('whatever_messages_active_identity_v1') || 'self';
+            if (activeId !== 'self') {
+                const ids = JSON.parse(localStorage.getItem('whatever_messages_identities_v2') || '[]');
+                const a = ids.find(x => String(x.id) === activeId);
+                if (a && a.avatar) avatar = a.avatar;
             }
         } catch (_) {}
-        try {
-            const p = JSON.parse(localStorage.getItem('user_profile') || localStorage.getItem('profile') || '{}');
-            if (p.name) name = p.name;
-            if (p.avatar) avatar = p.avatar;
-        } catch (_) {}
-        try {
-            if (!avatar && typeof window.getMyAvatar === 'function') avatar = window.getMyAvatar();
-            if (!avatar && typeof window.MY_AVATAR === 'string' && window.MY_AVATAR) avatar = window.MY_AVATAR;
-            if (!avatar && typeof window.myAvatar === 'string' && window.myAvatar) avatar = window.myAvatar;
-            if (!avatar) {
-                const chatProfile = JSON.parse(localStorage.getItem('forever_messages_user_info') || localStorage.getItem('forever_messages_profile') || '{}');
-                if (chatProfile.avatar) avatar = chatProfile.avatar;
-                if (chatProfile.name) name = chatProfile.name;
-            }
-        } catch (_) {}
-        if (!avatar) {
-            avatar = localStorage.getItem('forever_messages_my_avatar_v1') ||
-                     localStorage.getItem('forever_messages_my_avatar') ||
-                     localStorage.getItem('forever_messages_user_avatar') ||
-                     localStorage.getItem('chat_my_avatar') ||
-                     localStorage.getItem('user_avatar') ||
-                     localStorage.getItem('my_avatar') || '';
-        }
-        if (!avatar) {
-            const meContact = readContacts().find(c => c && (c.id === 'user' || c.id === 'me' || c.isMe));
-            if (meContact && meContact.avatar) avatar = meContact.avatar;
-        }
-        const uname = (typeof window.getMyName === 'function' ? window.getMyName() : null) ||
-                      (typeof window.MY_NAME === 'string' ? window.MY_NAME : null) ||
-                      localStorage.getItem('forever_messages_my_name') ||
-                      localStorage.getItem('user_name') ||
-                      localStorage.getItem('my_name');
-        if (uname) name = uname;
-        return { name, avatar: avatar || 'assets/聊天默认头像/chartouxiang.jpg', role: 'PROTAGONIST // ME' };
+
+        // 4. 数据库同步过来的内置用户头像缓存
+        const dbAv = localStorage.getItem('whatever_messages_my_avatar_v1') || '';
+        if (dbAv) avatar = dbAv;
+
+        // 5. 兜底
+        if (!avatar) avatar = localStorage.getItem('whatever_user_avatar') || '';
+
+        return { name, avatar: avatar || 'assets/聊天默认头像/morentouxiang.jpg', role: 'PROTAGONIST // ME' };
     }
 
     function buildContactNodes() {
         const scene = $('graphScene');
-        root.querySelectorAll('.avatar-node[data-id^="c-"], .avatar-node[data-id="user"]').forEach(n => n.remove());
+        root.querySelectorAll('.avatar-node[data-id^="c-"], .avatar-node[data-id^="i-"], .avatar-node[data-id="user"]').forEach(n => n.remove());
         const u = getUserInfo();
         const uNodeId = 'node-user';
         let ux = 600, uy = 600;
@@ -785,6 +780,54 @@ window.initWorldModule = function (host) {
                 '<span class="node-role">' + escHtml(status) + '</span></div>';
             scene.appendChild(el);
         });
+
+        // 身份（设置 → 管理我 里新建的每一个身份）也要显示在关系图上
+        let identities = [];
+        try { identities = JSON.parse(localStorage.getItem('whatever_messages_identities_v2') || '[]'); } catch (_) {}
+        (Array.isArray(identities) ? identities : []).forEach((idn, i) => {
+            if (!idn || idn.id == null) return;
+            const key = 'i-' + String(idn.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+            const nodeId = 'node-' + key;
+            const name = String(idn.name || '未命名身份');
+            const status = String(idn.status || '身份');
+            const ini = (name.charAt(0) || '?').toUpperCase();
+            const avatarSrc = idn.avatar || 'assets/聊天默认头像/morentouxiang.jpg';
+            const r = 300 + (i % 2) * 90, a = i * 2.399963 + 1.2;
+            let x = 600 + r * Math.cos(a);
+            let y = 600 + r * Math.sin(a);
+            const savedPos = nodePositions[key] || nodePositions[nodeId];
+            if (savedPos && typeof savedPos.x === 'number' && typeof savedPos.y === 'number') {
+                x = savedPos.x;
+                y = savedPos.y;
+            }
+            docketDB[key] = {
+                name, role: status, docCode: 'ID.' + String(idn.id).slice(-4).toUpperCase(),
+                sync: 'SYNC --', sector: 'SECTOR_IDENTITY // #' + String(i + 1).padStart(2, '0'),
+                stamp: 'IDENTITY', avatar: ini, avatarImg: avatarSrc, isNpc: false, hornColor: '#ffffff',
+                get tethers() {
+                    return relations.filter(r => r.from === nodeId || r.to === nodeId).map(r => {
+                        const otherId = r.from === nodeId ? r.to : r.from;
+                        const el = $(otherId);
+                        const target = el && el.querySelector('.node-name') ? el.querySelector('.node-name').innerText.trim() : otherId;
+                        return { label: r.label || '关联身份', target, isRed: !!r.isRed, fromNodeId: r.from, toNodeId: r.to };
+                    });
+                }
+            };
+            const el = document.createElement('div');
+            el.className = 'avatar-node node-contact';
+            el.id = nodeId; el.dataset.id = key; el.dataset.type = 'identity'; el.dataset.folder = '';
+            el.style.left = x + 'px'; el.style.top = y + 'px';
+            el.innerHTML =
+                '<div class="node-avatar-wrap">' +
+                '<svg class="inverted-devil-horns" viewBox="0 0 28 9" fill="none">' +
+                '<path d="M7 8.5 C7 6 6 5.5 5.2 4 L5.2 0.8 L6.8 0.8 L7.8 4.5 C8 6.5 8.2 7.5 8.2 8.5 Z" fill="#ffffff"/>' +
+                '<path d="M21 8.5 C21 6 22 5.5 22.8 4 L22.8 0.8 L21.2 0.8 L20.2 4.5 C20 6.5 19.8 7.5 19.8 8.5 Z" fill="#ffffff"/>' +
+                '</svg>' +
+                '<div class="node-avatar"><img src="' + escHtml(avatarSrc) + '" alt="" onerror="this.remove()">' + escHtml(ini) + '</div></div>' +
+                '<div class="node-meta"><span class="node-name">' + escHtml(name) + '</span>' +
+                '<span class="node-role">' + escHtml(status) + '</span></div>';
+            scene.appendChild(el);
+        });
     }
 
     async function loadRelations() {
@@ -831,7 +874,7 @@ window.initWorldModule = function (host) {
     const groupMenuModal = $('groupMenuModal');
     const groupPickModal = $('groupPickModal');
 
-    const WORLD_FOLDERS_KEY = 'forever_messages_folders_v1';
+    const WORLD_FOLDERS_KEY = 'whatever_messages_folders_v1';
     function saveFoldersLocal(list) {
         try { localStorage.setItem(WORLD_FOLDERS_KEY, JSON.stringify(list)); } catch (_) {}
         if (typeof persistFolders === 'function') persistFolders();
@@ -1147,7 +1190,7 @@ window.initWorldModule = function (host) {
     async function syncUserAvatarFromDB() {
         if (!window.DB) return;
         try {
-            const saved = await DB.load('forever_messages_my_avatar', null) ||
+            const saved = await DB.load('whatever_messages_my_avatar', null) ||
                           await DB.load('my_avatar', null) ||
                           await DB.load('user_avatar', null) ||
                           await DB.load('user_profile', null);
@@ -1164,19 +1207,22 @@ window.initWorldModule = function (host) {
     async function syncUserAvatarFromDB() {
         if (window.DB) {
             try {
-                const saved = await DB.load('forever_messages_my_avatar', null) ||
+                const saved = await DB.load('whatever_messages_my_avatar', null) ||
                               await DB.load('user_profile', null) ||
                               await DB.load('profile', null) ||
                               await DB.load('user_avatar', null) ||
                               await DB.load('my_avatar', null);
                 let changed = false;
                 if (typeof saved === 'string' && saved) {
-                    try { localStorage.setItem('forever_messages_my_avatar_v1', saved); } catch (_) {}
+                    try { localStorage.setItem('whatever_messages_my_avatar_v1', saved); } catch (_) {}
                     changed = true;
                 } else if (saved && typeof saved === 'object') {
-                    if (saved.avatar) { try { localStorage.setItem('forever_messages_my_avatar_v1', saved.avatar); } catch (_) {} changed = true; }
-                    if (saved.name) { try { localStorage.setItem('forever_messages_my_name', saved.name); } catch (_) {} changed = true; }
+                    if (saved.avatar) { try { localStorage.setItem('whatever_messages_my_avatar_v1', saved.avatar); } catch (_) {} changed = true; }
+                    if (saved.name) { try { localStorage.setItem('whatever_messages_my_name', saved.name); } catch (_) {} changed = true; }
                 }
+                const settingsName = await DB.load('messages_settings_name_v1', '');
+                try { localStorage.setItem('whatever_messages_settings_name_v1', typeof settingsName === 'string' ? settingsName : ''); } catch (_) {}
+                changed = true;
                 const dbContacts = await DB.load(WORLD_CONTACTS_KEY, null);
                 if (Array.isArray(dbContacts) && dbContacts.length) {
                     if (typeof window !== 'undefined' && (!window.CONTACTS || !window.CONTACTS.length)) window.CONTACTS = dbContacts;

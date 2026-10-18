@@ -1,6 +1,39 @@
-/* Messages uses the active API preset configured in the main Forever Settings app. */
+/* 世界关系图里与当前联系人直接相连的牵线，转成背景说明（只带入相关的关系，并告诉 AI 不要主动提起） */
+function worldTiesBlock(contact) {
+  if (!contact || contact.id == null) return '';
+  let ties = [], contacts = [], identities = [];
+  try { ties = JSON.parse(localStorage.getItem('world_tethers_v1') || '[]'); } catch (_) {}
+  try { contacts = JSON.parse(localStorage.getItem('whatever_messages_contacts_v1') || '[]'); } catch (_) {}
+  try { identities = JSON.parse(localStorage.getItem('whatever_messages_identities_v2') || '[]'); } catch (_) {}
+  if (!Array.isArray(ties) || !ties.length) return '';
+  const key = v => String(v).replace(/[^a-zA-Z0-9_-]/g, '_');
+  const myNode = 'node-c-' + key(contact.id);
+  const names = { 'node-user': (window.MESSAGES_USER_NAME || '用户') };
+  (Array.isArray(contacts) ? contacts : []).forEach(c => { if (c && c.id != null) names['node-c-' + key(c.id)] = String(c.remark || c.name || ''); });
+  (Array.isArray(identities) ? identities : []).forEach(x => { if (x && x.id != null) names['node-i-' + key(x.id)] = String(x.name || ''); });
+  const lines = [];
+  ties.forEach(r => {
+    if (!r || (r.from !== myNode && r.to !== myNode)) return;
+    const other = names[r.from === myNode ? r.to : r.from];
+    if (!other) return;
+    const label = r.label || (r.isRed ? '特殊红线' : '关联');
+    lines.push(`- 与「${other}」：${label}`);
+  });
+  if (!lines.length) return '';
+  return [
+    '【背景关系（仅供你理解，不是本轮话题）】',
+    ...lines,
+    '【使用原则】',
+    '- 以上是你已有的认知，不需要主动提起。',
+    '- 只有当对方提到相关的人或事，或话题自然涉及时，才可以带出一点点，一次最多一处。',
+    '- 大多数回复中不需要提到任何关系。',
+    '- 不要解释、总结或复述这些关系，也不要说"因为我们是……所以……"之类的话。'
+  ].join('\n');
+}
+
+/* Messages uses the active API preset configured in the main Whatever Settings app. */
 (function () {
-  const SETTINGS_KEY = 'forever_settings_active_api_v1';
+  const SETTINGS_KEY = 'whatever_settings_active_api_v1';
   const MAX_MESSAGES = 8;
   const ROLEPLAY_PROMPT = `[ROLEPLAY IDENTITY]
 
@@ -130,7 +163,7 @@
       if (typeof window.getCustomModulesList === 'function') {
         list = window.getCustomModulesList();
       } else {
-        list = JSON.parse(localStorage.getItem('forever_chat_custom_modules_v2') || '[]');
+        list = JSON.parse(localStorage.getItem('whatever_chat_custom_modules_v2') || '[]');
       }
     } catch (_) {}
     if (!Array.isArray(list) || !list.length) return { high: '', mid: '', low: '' };
@@ -271,8 +304,8 @@
   /* 读取当前在预设工坊中选用的生效预设 */
   function loadActivePresetConfig() {
     try {
-      const list = JSON.parse(localStorage.getItem('forever_preset_custom_list_v2') || '[]');
-      const activeId = localStorage.getItem('forever_preset_active_id_v2') || 'default';
+      const list = JSON.parse(localStorage.getItem('whatever_preset_custom_list_v2') || '[]');
+      const activeId = localStorage.getItem('whatever_preset_active_id_v2') || 'default';
       if (Array.isArray(list) && list.length) {
         const found = list.find(p => p.id === activeId);
         if (found) return found;
@@ -300,7 +333,7 @@
     };
     const promptExtra = (contact.promptOpts || []).map(k => PROMPT_OPT_TEXT[k]).filter(Boolean);
     let styleSettings = null;
-    try { styleSettings = JSON.parse(localStorage.getItem('forever_chat_prompt_settings_v1') || 'null'); } catch (_) {}
+    try { styleSettings = JSON.parse(localStorage.getItem('whatever_chat_prompt_settings_v1') || 'null'); } catch (_) {}
     let styleBlock = '';
     if (styleSettings && styleSettings.enabled !== false) {
       const words = Array.isArray(styleSettings.words) ? styleSettings.words.map(String).filter(Boolean) : [];
@@ -345,6 +378,7 @@
       contact.backstory ? `背景经历：${contact.backstory}` : '',
       contact.relation ? `与你的关系：${contact.relation}` : '',
       hasNarr ? '以【旁白】开头的内容是旁白，描写动作、神态或环境，不是对话，也不是对方说的话。' : '',
+      worldTiesBlock(contact),
       timeBlockOf(contact),
       QUOTE_RULE,
       cmLow,
@@ -579,14 +613,22 @@
     win = win || {};
     const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
     const userName = window.MESSAGES_USER_NAME || 'user';
-    const sys = [
+    const viewers = Array.isArray(win.viewers) ? win.viewers.filter(v => v && v.name) : [];
+    const lines = [
       '【朋友圈自主发布】',
       `你可以自己决定此刻要不要发一条朋友圈。你发朋友圈的倾向大约是 ${pct}%，但最终要看你们最近的聊天记录：有值得分享的事、心情或变化就发；没有就不发。`,
       win.lastH == null ? '你还从没发过朋友圈。' : `距离你上次发朋友圈已过 ${Math.floor(win.lastH)} 小时。`,
       `这次发的概率约为 ${pct}%。刚发过的内容不要重复，也不要每次都用同样的句式。`,
-      '朋友圈内容要像真人平时随手发的那样，简短自然，不解释，不使用任何符号。',
-      '只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容"}；不发时格式：{"post":false}'
-    ].join('\n');
+      '朋友圈内容要像真人平时随手发的那样，简短自然，不解释，不使用任何符号。'
+    ];
+    if (viewers.length) {
+      lines.push('发布后，下面这些人也会看到这条朋友圈。你可以替他们决定要不要评论：每人最多一条，很短，像真人随手回的一句；不想评论的人就不要写。评论人的名字只能用下面列出的。');
+      lines.push('可能评论的人：\n' + viewers.map(v => `- ${v.name}${v.persona ? `（${String(v.persona).slice(0, 80)}）` : ''}`).join('\n'));
+      lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容","comments":[{"name":"评论人名字","text":"评论内容"}]}；没有人评论时 comments 为空数组；不发时格式：{"post":false}');
+    } else {
+      lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容"}；不发时格式：{"post":false}');
+    }
+    const sys = lines.join('\n');
     const persona = contact.persona ? `你的设定：${fillU(contact.persona)}` : '';
     const ctx = (recentMsgs || []).map(m => `${m.me ? userName : contact.name}：${String(m.text || '')}`).join('\n') || '（暂无聊天记录）';
     const raw = await complete([sys, persona].filter(Boolean).join('\n\n'), `你们最近的聊天：\n${ctx}`);
@@ -595,7 +637,10 @@
     if (x >= 0 && y > x) t = t.slice(x, y + 1);
     let o = null; try { o = JSON.parse(t); } catch (_) { throw new Error('朋友圈调取没有解析出结果，请重试'); }
     if (!o || !o.post || !String(o.text || '').trim()) return null;
-    return { text: String(o.text).trim() };
+    const comments = (Array.isArray(o.comments) ? o.comments : [])
+      .map(c => ({ name: String((c && c.name) || '').trim(), text: String((c && c.text) || '').trim() }))
+      .filter(c => c.name && c.text && viewers.some(v => v.name === c.name));
+    return { text: String(o.text).trim(), comments };
   }
   window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentDmReply, momentAutoPost };
 })();

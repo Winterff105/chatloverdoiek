@@ -6,7 +6,7 @@ if (root) root.classList.add('messages-app');
 /* ---------------- 数据（黑白灰） ---------------- */
 let CONTACTS = loadStoredContacts();
 /* ================= 朋友圈频率（设置 → 管理我 下方）================= */
-const MF_KEY = 'forever_messages_moment_freq_v1';
+const MF_KEY = 'whatever_messages_moment_freq_v1';
 const mfEsc = v => String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 const mfName = c => String((c && (c.remark || c.name)) || '');
 const mfInitial = c => (mfName(c).trim().charAt(0) || '?').toUpperCase();
@@ -37,12 +37,41 @@ function mfLastPostH(c) {
     return (Date.now() - Math.max(...mine.map(p => p.t || 0))) / 3600000;
 }
 
-function postContactMoment(c, text) {
+function postContactMoment(c, text, comments) {
     const post = { id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5), text, t: Date.now(), by: c.id, vis: 'all', visTo: [], likes: [], comments: [], imgs: [] };
     POSTS.unshift(post);
     persistMoments();
     renderMoments();
+    if (Array.isArray(comments)) return applyAutoComments(post, comments);
     scheduleMomentFetch(post);
+    return [];
+}
+
+/* 自主发帖的评论：和帖子一次请求生成，直接写入，不再额外调取 */
+function applyAutoComments(post, list) {
+    const commenters = [];
+    (list || []).forEach(cm => {
+        const v = CONTACTS.find(x => x.id !== post.by && x.name === cm.name);
+        if (!v) return;
+        post.comments = post.comments || [];
+        post.comments.push({ by: v.id, text: cm.text, t: Date.now() });
+        recordCommentMemory(v, post, cm.text);
+        commenters.push(v);
+    });
+    persistContacts(); persistMoments(); renderMoments();
+    return commenters;
+}
+
+/* 评论计入共同记忆：评论者一定记；如果被评论的是联系人发的帖子，被评论的联系人也记 */
+function recordCommentMemory(commenter, post, text) {
+    const excerpt = (post.text || '').trim().slice(0, 20) || '一张照片';
+    const author = CONTACTS.find(x => x.id === post.by && x.id !== commenter.id) || null;
+    if (!author) {
+        addCommonMemory(commenter, `{char}在{user}的朋友圈（${excerpt}）下评论：${text}`, post.id);
+        return;
+    }
+    addCommonMemory(commenter, `{char}在${author.name}的朋友圈（${excerpt}）下评论：${text}`, post.id);
+    addCommonMemory(author, `${commenter.name}在{char}的朋友圈（${excerpt}）下评论：${text}`, post.id);
 }
 
 async function momentSyncAll() {
@@ -52,16 +81,28 @@ async function momentSyncAll() {
     const btn = document.getElementById('mfSyncBtn');
     if (btn) btn.classList.add('spin');
     let posted = 0;
+    const allCommenters = [];
     try {
         for (const c of CONTACTS) {
             if (!mfAllowed(c)) continue;
             const lastH = mfLastPostH(c);
             const pct = Math.round(mfPctOf(c) * (lastH !== null && lastH < 24 ? 0.4 : 1));
-            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH });
-            if (r) { postContactMoment(c, r.text); posted++; }
+            const viewers = CONTACTS.filter(x => x.id !== c.id).map(x => ({ name: x.name, persona: x.persona || '' }));
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers });
+            if (r) { allCommenters.push(...postContactMoment(c, r.text, r.comments || [])); posted++; }
         }
     } catch (e) { showApiError(e); }
     if (btn) btn.classList.remove('spin');
+    if (allCommenters.length) {
+        const uniq = [...new Map(allCommenters.map(c => [c.id, c])).values()];
+        showMomentDone(uniq);
+        if (activeTab === 'moments') {
+            setTimeout(() => { if (activeTab === 'moments' && !momentFetchBusy) hideMomentBubble(); }, 2000);
+        } else {
+            MOMENT_UNSEEN = true;
+        }
+        refreshChatBadge();
+    }
     toast(posted ? `调取完成，${posted} 位联系人发了朋友圈` : '调取完成，这次没有人发朋友圈');
 }
 
@@ -176,12 +217,12 @@ let CHAT_MAP = loadStoredChatMap();
 const ME_DEFAULT = { name: 'Kitty Angel', id: '1004', status: '오늘도 날개를 펴는 중', sig: '작은 구름 위에서 안부를 전해요', avatar: '', persona: '', speech: '', relation: '', backstory: '', replies: [] };
 let ME = loadStoredMe();
 const SIDE = { open: false, pickedId: null, liveId: null };
-const IDN_KEY = 'forever_messages_identities_v2';
+const IDN_KEY = 'whatever_messages_identities_v2';
 let IDENTITIES = loadStoredIdentities();
 let pendingPersonaAvatar = null;
-const ACTIVE_KEY = 'forever_messages_active_identity_v1';
+const ACTIVE_KEY = 'whatever_messages_active_identity_v1';
 let ACTIVE_ID = 'self';
-const DELETED_NAMES_KEY = 'forever_messages_deleted_names_v1';
+const DELETED_NAMES_KEY = 'whatever_messages_deleted_names_v1';
 let DELETED_NAMES = (() => { try { return JSON.parse(localStorage.getItem(DELETED_NAMES_KEY) || '{}') || {}; } catch (_) { return {}; } })();
 function saveDeletedNames() { try { localStorage.setItem(DELETED_NAMES_KEY, JSON.stringify(DELETED_NAMES)); } catch (_) {} }
 const MOMENT_REPLY = {};   // 朋友圈 id -> 正在回复的那条评论 { by, t, text }
@@ -200,10 +241,10 @@ function loadStoredIdentities() { try { const v = JSON.parse(localStorage.getIte
 function persistIdentities() { try { localStorage.setItem(IDN_KEY, JSON.stringify(IDENTITIES)); } catch (e) { toast('保存失败：存储空间可能不足'); } }
 function loadStoredMe() {
     try {
-        const v = JSON.parse(localStorage.getItem('forever_messages_me_v1') || 'null');
+        const v = JSON.parse(localStorage.getItem('whatever_messages_me_v1') || 'null');
         const res = Object.assign({}, ME_DEFAULT, v && typeof v === 'object' ? v : {});
         if (!res.avatar) {
-            const extAv = localStorage.getItem('forever_user_avatar') || localStorage.getItem('user_avatar') || '';
+            const extAv = localStorage.getItem('whatever_user_avatar') || localStorage.getItem('user_avatar') || '';
             if (extAv) res.avatar = extAv;
         }
         return res;
@@ -211,18 +252,18 @@ function loadStoredMe() {
 }
 function persistMe() {
     try {
-        localStorage.setItem('forever_messages_me_v1', JSON.stringify(ME));
-        if (ME.avatar) localStorage.setItem('forever_user_avatar', ME.avatar);
+        localStorage.setItem('whatever_messages_me_v1', JSON.stringify(ME));
+        if (ME.avatar) localStorage.setItem('whatever_user_avatar', ME.avatar);
     } catch (e) { toast('保存失败：存储空间可能不足'); console.error(e); }
 }
 
 
-function loadStoredChatIds(){ try { const v=JSON.parse(localStorage.getItem('forever_messages_chat_ids_v1')||'[]'); return Array.isArray(v)?v.map(String):[]; } catch(_){ return []; } }
+function loadStoredChatIds(){ try { const v=JSON.parse(localStorage.getItem('whatever_messages_chat_ids_v1')||'[]'); return Array.isArray(v)?v.map(String):[]; } catch(_){ return []; } }
 
 
-const MOMENT_KEY = 'forever_messages_moments_v1';
-const MOMENT_BG_KEY = 'forever_messages_moments_bg_v1';
-const MOMENT_AVATAR_KEY = 'forever_messages_moments_avatar_v1';
+const MOMENT_KEY = 'whatever_messages_moments_v1';
+const MOMENT_BG_KEY = 'whatever_messages_moments_bg_v1';
+const MOMENT_AVATAR_KEY = 'whatever_messages_moments_avatar_v1';
 let POSTS = loadStoredMoments();
 let MOMENT_BG = loadMomentBg();
 let MOMENT_AVATAR = loadMomentAvatar();
@@ -261,27 +302,27 @@ function defaultPromptOpts() { return ['ai', 'greasy', 'threat', 'fake', 'macho'
 /* ---------------- 本地真实数据：没有内置假联系人 ---------------- */
 function loadStoredContacts() {
     try {
-        const raw = localStorage.getItem('forever_messages_contacts_v1');
+        const raw = localStorage.getItem('whatever_messages_contacts_v1');
         let list = raw ? JSON.parse(raw) : [];
         // 一次性迁移：防油腻默认开启，已存在的联系人也补上（只改 promptOpts，其他字段原样保留）
-        if (Array.isArray(list) && !localStorage.getItem('forever_messages_greasy_default_v1')) {
+        if (Array.isArray(list) && !localStorage.getItem('whatever_messages_greasy_default_v1')) {
             list.forEach(c => {
                 if (!c || typeof c !== 'object') return;
                 const opts = Array.isArray(c.promptOpts) ? c.promptOpts : [];
                 if (!opts.includes('greasy')) c.promptOpts = opts.concat('greasy');
             });
-            localStorage.setItem('forever_messages_contacts_v1', JSON.stringify(list));
-            localStorage.setItem('forever_messages_greasy_default_v1', '1');
+            localStorage.setItem('whatever_messages_contacts_v1', JSON.stringify(list));
+            localStorage.setItem('whatever_messages_greasy_default_v1', '1');
         }
         // 一次性迁移：所有防xx（防八股 / 防油腻 / 防威胁 / 防假性安慰 / 防超雄）默认开启，已存在的联系人补齐；之后手动关闭会正常保存
-        if (Array.isArray(list) && !localStorage.getItem('forever_messages_prompt_all_on_v1')) {
+        if (Array.isArray(list) && !localStorage.getItem('whatever_messages_prompt_all_on_v1')) {
             list.forEach(c => {
                 if (!c || typeof c !== 'object') return;
                 const opts = Array.isArray(c.promptOpts) ? c.promptOpts : [];
                 c.promptOpts = Array.from(new Set(opts.concat(defaultPromptOpts())));
             });
-            localStorage.setItem('forever_messages_contacts_v1', JSON.stringify(list));
-            localStorage.setItem('forever_messages_prompt_all_on_v1', '1');
+            localStorage.setItem('whatever_messages_contacts_v1', JSON.stringify(list));
+            localStorage.setItem('whatever_messages_prompt_all_on_v1', '1');
         }
         return Array.isArray(list) ? list.map(normalizeContact) : [];
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
@@ -291,8 +332,8 @@ function normalizeContact(c) {
 }
 
 
-function loadStoredFolders() { try { const v=JSON.parse(localStorage.getItem('forever_messages_folders_v1') || '[]'); return Array.isArray(v) ? v.filter(x=>x && x.id && x.name).map(x=>({id:String(x.id),name:String(x.name)})) : []; } catch (_) { return []; } }
-function persistFolders() { try { localStorage.setItem('forever_messages_folders_v1', JSON.stringify(FOLDERS)); } catch(e) { console.warn('[Messages] 文件夹保存失败',e); } }
+function loadStoredFolders() { try { const v=JSON.parse(localStorage.getItem('whatever_messages_folders_v1') || '[]'); return Array.isArray(v) ? v.filter(x=>x && x.id && x.name).map(x=>({id:String(x.id),name:String(x.name)})) : []; } catch (_) { return []; } }
+function persistFolders() { try { localStorage.setItem('whatever_messages_folders_v1', JSON.stringify(FOLDERS)); } catch(e) { console.warn('[Messages] 文件夹保存失败',e); } }
 async function importDeviceContacts() {
     if (!('contacts' in navigator) || !navigator.contacts || typeof navigator.contacts.select !== 'function') {
         toast('当前浏览器不支持读取手机通讯录，请点 New 手动新建'); return;
@@ -812,7 +853,7 @@ function preloadDefaultImages() {
     });
 }
 /* ---------------- 记忆区：总结、记忆列表、全屏页面 ---------------- */
-const MEM_PRESET_KEY = 'forever_memory_presets_v1';
+const MEM_PRESET_KEY = 'whatever_memory_presets_v1';
 const DEFAULT_SUMMARY_INSTR = [
     '你是聊天记录的记忆整理员。请阅读下面的对话，写出这段时间里发生的事情经过。',
     '【格式必须遵守】',
@@ -1463,7 +1504,7 @@ function bindMsgMenu() {
     });
 }
 /* ---------------- 聊天室顶栏下滑面板：内置提示词 + 条数 + 大时间 ---------------- */
-const CUSTOM_MODULES_KEY = 'forever_chat_custom_modules_v2';
+const CUSTOM_MODULES_KEY = 'whatever_chat_custom_modules_v2';
 function getCustomModulesList() {
     try {
         const raw = localStorage.getItem(CUSTOM_MODULES_KEY);
@@ -1471,7 +1512,7 @@ function getCustomModulesList() {
             const arr = JSON.parse(raw);
             if (Array.isArray(arr)) return arr;
         }
-        const old = JSON.parse(localStorage.getItem('forever_chat_custom_module_v1') || 'null');
+        const old = JSON.parse(localStorage.getItem('whatever_chat_custom_module_v1') || 'null');
         if (old && old.prompt) {
             return [{
                 id: 'cm_' + Date.now().toString(36),
@@ -1550,7 +1591,7 @@ function toggleChatPrompt(k) {
     c.promptOpts = arr;
     persistContacts(); renderChatDrop();
 }
-const CHAT_PROMPT_SETTINGS_KEY = 'forever_chat_prompt_settings_v1';
+const CHAT_PROMPT_SETTINGS_KEY = 'whatever_chat_prompt_settings_v1';
 const CHAT_BAN_DEFAULTS = ['低吼一声', '揉进骨血', '揉进骨头'];
 // 解析一行输入：「词条」或「词条|原因」
 function parseWordLine(line) {
@@ -2190,7 +2231,7 @@ function persistNewCustomWords(items) {
         priority: words.filter(w => levels[w] === 'high')
     });
 }
-const CHAT_PROMPT_TEXT_KEY = 'forever_chat_prompt_texts_v1';
+const CHAT_PROMPT_TEXT_KEY = 'whatever_chat_prompt_texts_v1';
 const CHAT_PROMPT_TEXT_DEFAULTS = {
     threat: `{char}需要学会尊重user，不能说"你胆子肥了"，"长本事了吧"，这类像char扮演类似"父亲"角色的威胁式言论，user是个个体，不是必须要看char的眼色的。`,
     fake: `安慰人是有层级的弹窗
@@ -2777,7 +2818,7 @@ function cleanMsgPart(t, name) {
     return s;
 }
 /* ---------------- 聊天软件设置：消息条数 & 一次性发出（保存在本机） ---------------- */
-const CHAT_OPTS_KEY = 'forever_messages_chat_opts_v1';
+const CHAT_OPTS_KEY = 'whatever_messages_chat_opts_v1';
 function coClamp(x, lo, hi, d) { const n = parseInt(x, 10); return Number.isFinite(n) ? Math.max(lo, n) : d; }
 function loadChatOpts() {
     try {
@@ -2958,7 +2999,7 @@ let touchStartX = 0;
 let touchStartInCap = false;
 
 /* ---------------- 旁白：开启后 AI 会输出动作 / 神态 / 环境，以【旁白】开头单独成条 ---------------- */
-const NARR_KEY = 'forever_messages_narr_v1';
+const NARR_KEY = 'whatever_messages_narr_v1';
 const NARR_DEFAULT = { on: false, person: '2', min: 10, max: 40, mode: 'free', size: 13.5, italic: true, color: '#9A9AA0' };
 let NARR = (() => { try { return Object.assign({}, NARR_DEFAULT, JSON.parse(localStorage.getItem(NARR_KEY) || '{}')); } catch (_) { return Object.assign({}, NARR_DEFAULT); } })();
 function saveNarr() { try { localStorage.setItem(NARR_KEY, JSON.stringify(NARR)); } catch (_) {} }
@@ -3038,7 +3079,7 @@ function openMoreSheet() {
         <div class="mq-foot"><button class="mq-close" type="button" onclick="closeMqSheet()">关闭</button></div>`);
 }
 /* 旁白弹窗背景图：默认采用指定参数；通过密码入口可临时调整并保存 */
-const NB_KEY = 'forever_messages_narr_bg_v5';
+const NB_KEY = 'whatever_messages_narr_bg_v5';
 const NB_DEFAULT = Object.freeze({ x: 29, y: -2, w: 350, h: 356, opacity: 0.75, overlay: 0.65 });
 let NB = Object.assign({}, NB_DEFAULT);
 let NB_PANEL = false;
@@ -4276,7 +4317,7 @@ function pickPersonaAvatar() {
                 slot = document.querySelector('#personaHero .persona-hero-av');
                 if (slot) slot.innerHTML = identityAvatarHtml(c || { name: '' });
             }
-            try { localStorage.setItem('forever_user_avatar', url); } catch (_) {}
+            try { localStorage.setItem('whatever_user_avatar', url); } catch (_) {}
             window.dispatchEvent(new CustomEvent('messages-avatar-updated', { detail: { avatar: url } }));
             toast('头像已更新');
         }).catch(() => toast('图片读取失败，请换一张试试'));
@@ -4447,14 +4488,14 @@ function exitContactLogin() {
 function persistChatIds() {
     CHAT_IDS = [...new Set(CHAT_IDS.map(String).filter(id => CONTACTS.some(c => String(c.id) === id)))];
     CHAT_MAP[ACTIVE_ID] = CHAT_IDS;
-    try { localStorage.setItem('forever_messages_chat_map_v2', JSON.stringify(CHAT_MAP)); }
+    try { localStorage.setItem('whatever_messages_chat_map_v2', JSON.stringify(CHAT_MAP)); }
     catch (e) { console.warn('[Messages] 聊天列表保存失败', e); }
 }
 
 function persistContacts() {
     try { if (typeof renderMoments === 'function') renderMoments(); } catch (_) {}
     CONTACTS.forEach(c => { c.threads = c.threads || {}; c.threads[ACTIVE_ID] = c.msgs; });
-    try { localStorage.setItem('forever_messages_contacts_v1', JSON.stringify(CONTACTS, (k, v) => (k === 'msgs' ? undefined : v))); }
+    try { localStorage.setItem('whatever_messages_contacts_v1', JSON.stringify(CONTACTS, (k, v) => (k === 'msgs' ? undefined : v))); }
     catch (e) { toast('保存失败：存储空间可能不足'); console.error(e); }
 }
 
@@ -4467,7 +4508,7 @@ function migrateContactId(oldId, newId) {
 
 function loadStoredChatMap() {
     try {
-        const v = JSON.parse(localStorage.getItem('forever_messages_chat_map_v2') || 'null');
+        const v = JSON.parse(localStorage.getItem('whatever_messages_chat_map_v2') || 'null');
         if (v && typeof v === 'object') {
             const out = {};
             Object.keys(v).forEach(k => { out[k] = Array.isArray(v[k]) ? v[k].map(String) : []; });
@@ -4824,7 +4865,7 @@ function fallbackCopy(t) {
     toast(ok ? '已复制' : '复制失败，请手动全选复制');
 }
 /* ---------------- CSS 预设（直接在按钮行里操作，不用弹窗） ---------------- */
-const CSS_PRESET_KEY = 'forever_messages_css_presets_v1';
+const CSS_PRESET_KEY = 'whatever_messages_css_presets_v1';
 function loadCssPresets() { try { const v = JSON.parse(localStorage.getItem(CSS_PRESET_KEY) || '[]'); return Array.isArray(v) ? v.filter(x => x && x.name) : []; } catch (_) { return []; } }
 function saveCssPresets(list) { try { localStorage.setItem(CSS_PRESET_KEY, JSON.stringify(list)); } catch (e) { toast('保存失败：存储空间可能不足'); } }
 /* 添加预设：名字取输入框，CSS 取上面的输入框，点一下就保存 */
@@ -5044,7 +5085,7 @@ function loadMomentAvatar() { try { return localStorage.getItem(MOMENT_AVATAR_KE
 const DEFAULT_MOMENT_AVATAR = 'assets/朋友圈/朋友圈头像.jpg';
 function momentAuthor(by) {
     if (by && by !== 'self') { const c = IDENTITIES.find(x => x.id === by); if (c) return { name: c.name, avatar: c.avatar || ME.avatar || DEFAULT_CHAT_AVATAR }; }
-    const ct = CONTACTS.find(x => x.id === by); if (ct) return { name: ct.name, avatar: ct.avatar };
+    const ct = CONTACTS.find(x => x.id === by); if (ct) return { name: ct.name, avatar: ct.avatar || DEFAULT_CHAR_AVATAR };
     if (by && DELETED_NAMES[by]) return { name: `${DELETED_NAMES[by]}（已删除）`, avatar: '' };
     const a = activeIdentity();
     const myAv = (a && a.avatar) || ME.avatar;
@@ -5052,7 +5093,8 @@ function momentAuthor(by) {
     return { name: myName, avatar: MOMENT_AVATAR || myAv || DEFAULT_MOMENT_AVATAR };
 }
 function momentAvatarHtml(a, size) {
-    const img = a.avatar ? `<img src="${a.avatar}" alt="" onerror="this.remove()">` : '';
+    const src = a.avatar || DEFAULT_CHAR_AVATAR;
+    const img = `<img src="${src}" alt="" onerror="this.remove()">`;
     return `<div class="av ${size || 'md'} g1">${img}<span class="ini">${esc(initOf(a.name))}</span></div>`;
 }
 function fmtMoment(t) { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
@@ -5404,7 +5446,7 @@ async function momentCommentAiReply(cid, p) {
         if (r.comment) {
             p.comments = p.comments || [];
             p.comments.push({ by: c.id, text: r.comment, t: Date.now(), to: ACTIVE_ID });
-            addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下评论：${r.comment}`, p.id);
+            recordCommentMemory(c, p, r.comment);
             persistContacts(); persistMoments(); renderMoments();
             replied = true;
         }
@@ -5801,7 +5843,7 @@ async function momentFetchFor(p) {
     momentFetchTimer = null;
     if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('朋友圈没有调取：请先在「设置 → API」保存接口配置'); return; }
     if (momentFetchBusy) { scheduleMomentFetch(p); return; }
-    const who = CONTACTS.filter(x => momentVisibleTo(p, x));
+    const who = CONTACTS.filter(x => momentVisibleTo(p, x) && x.id !== p.by);
     if (!who.length) { toast('朋友圈没有调取：没有能看到这条的联系人'); return; }
     momentFetchBusy = true;
     MOMENT_UNSEEN = false;
@@ -5822,7 +5864,7 @@ async function momentFetchFor(p) {
                 const hit = r.to ? existing.find(e => e.name === r.to && e.id !== c.id) : null;
                 p.comments.push({ by: c.id, text: r.comment, t: Date.now(), to: hit ? hit.id : undefined });
                 fresh.push(c);
-                addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下评论：${r.comment}`, p.id);
+                recordCommentMemory(c, p, r.comment);
             }
             persistContacts(); persistMoments(); renderMoments();
         } catch (e) { showApiError(e); }
@@ -5861,7 +5903,7 @@ function placeMomentBubble(t) {
     if (!root || !tab || !t) return;
     const rr = root.getBoundingClientRect(), tr = tab.getBoundingClientRect();
     t.style.left = (tr.left + tr.width / 2 - rr.left) + 'px';
-    t.style.bottom = (rr.bottom - tr.top - 1) + 'px';
+    t.style.bottom = (rr.bottom - tr.top + 14) + 'px';
 }
 function showMomentLoading() {
     const t = momentBubbleEl(); if (!t) return;
@@ -5973,15 +6015,15 @@ applySelf();
 syncSettingsMode();
 loadProfileCard();
 loadSettingsName();
-if (ME.avatar) { try { localStorage.setItem('forever_user_avatar', ME.avatar); } catch (_) {} }
+if (ME.avatar) { try { localStorage.setItem('whatever_user_avatar', ME.avatar); } catch (_) {} }
 window.getMessagesUserAvatar = function() {
     const a = activeIdentity();
     if (a && a.avatar) return a.avatar;
     if (ME && ME.avatar) return ME.avatar;
     try {
-        const v = JSON.parse(localStorage.getItem('forever_messages_me_v1') || 'null');
+        const v = JSON.parse(localStorage.getItem('whatever_messages_me_v1') || 'null');
         if (v && v.avatar) return v.avatar;
-        return localStorage.getItem('forever_user_avatar') || '';
+        return localStorage.getItem('whatever_user_avatar') || '';
     } catch (_) { return ''; }
 };
 preloadDefaultImages();

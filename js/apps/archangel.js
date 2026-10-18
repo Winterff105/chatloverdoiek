@@ -323,7 +323,10 @@
         const exitWatch = new MutationObserver(() => { if (!host.isConnected) { archStopEnterMusic(); exitWatch.disconnect(); } });
         exitWatch.observe(document.body, { childList: true, subtree: true });
 
-        const $=s=>host.querySelector(s), chat=$('#ar-chat'), input=$('#ar-prompt');
+        const $=s=>host.querySelector(s), input=$('#ar-prompt');
+        let chat=$('#ar-chat');
+        const HIST_PAGE=3;
+        let histStart=0, histSentinel=null;
         const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
         const databaseState={
@@ -842,15 +845,12 @@
           chat.appendChild(hint);
           showIntro();
 
-          currentConversation.messages.forEach(message=>{
-            if(message.role==='user'){
-              addUser(message.text,false,message.id);
-            }else if(message.role==='assistant'){
-              addAssistantHistory(message);
-            }else if(message.role==='system'){
-              addSystemHistory(message.text,message.id);
-            }
-          });
+          const allMsgs=currentConversation.messages;
+          histStart=unitStartIndex(HIST_PAGE);
+          histSentinel=document.createElement('div');
+          histSentinel.style.display='none';
+          chat.appendChild(histSentinel);
+          chat.appendChild(renderMsgRange(histStart,allMsgs.length));
 
           renderConversationHistory();
           scroll();
@@ -895,6 +895,7 @@
           exitSel();
 
           chat.innerHTML='';
+          histStart=0;histSentinel=null;
           const hint=document.createElement('div');
           hint.className='hint';
           hint.textContent='先发送需求，再点底栏“调取”开始处理。';
@@ -910,6 +911,54 @@
         }
         function toast(t){const e=$('#ar-toast');e.textContent=t;e.classList.remove('show');void e.offsetWidth;e.classList.add('show')}
         function scroll(){chat.scrollTop=chat.scrollHeight}
+
+        /* ===== 历史消息懒加载：每次只渲染 3 条，往上滚到顶部才补上面的 3 条 ===== */
+        // 把 messages[from,to) 渲染成文档片段（不改动 currentConversation.messages，AI 上下文不变）
+        function renderMsgRange(from,to){
+          const realChat=chat, frag=document.createDocumentFragment();
+          chat=frag;
+          try{
+            currentConversation.messages.slice(from,to).forEach(message=>{
+              if(message.role==='user'){
+                addUser(message.text,false,message.id);
+              }else if(message.role==='assistant'){
+                addAssistantHistory(message);
+              }else if(message.role==='system'){
+                addSystemHistory(message.text,message.id);
+              }
+            });
+          }finally{chat=realChat}
+          return frag;
+        }
+        // 把消息按「显示行」分组：连续的用户消息合并成一行，AI 回复 / 系统消息各算一行（不管里面有几个气泡）
+        function unitRanges(msgs){
+          const units=[];
+          msgs.forEach((m,i)=>{
+            const prev=units[units.length-1];
+            if(m.role==='user'&&prev&&prev.role==='user'){prev.to=i+1}
+            else units.push({role:m.role,from:i,to:i+1});
+          });
+          return units;
+        }
+        // 最后 count 行在 messages 里的起始下标
+        function unitStartIndex(count){
+          const units=unitRanges(currentConversation.messages);
+          if(!units.length)return 0;
+          return units[Math.max(0,units.length-count)].from;
+        }
+        function loadOlderHistory(){
+          if(!currentConversation||histStart<=0||!histSentinel)return;
+          const above=unitRanges(currentConversation.messages).filter(u=>u.to<=histStart);
+          if(!above.length)return;
+          const from=above.slice(-HIST_PAGE)[0].from;
+          const prevH=chat.scrollHeight, prevTop=chat.scrollTop;
+          const frag=renderMsgRange(from,histStart);
+          histSentinel.after(frag);
+          histStart=from;
+          // 插入上面的内容后保持当前视野不跳动
+          chat.scrollTop=prevTop+(chat.scrollHeight-prevH);
+        }
+        chat.addEventListener('scroll',()=>{if(chat.scrollTop<80)loadOlderHistory()},{passive:true});
         function head(svg,name,extra=''){return `<div class="head"><div class="frame"><div class="av">${svg}</div></div><div class="pill">${name}</div>${extra}</div>`}
         
         function setSide(o){
