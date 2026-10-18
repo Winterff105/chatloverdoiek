@@ -42,6 +42,9 @@ function postContactMoment(c, text, comments) {
     POSTS.unshift(post);
     persistMoments();
     renderMoments();
+    const excerpt = (text || '').trim() || '一张照片';
+    addCommonMemory(c, `{char}发了一条朋友圈（${excerpt}）`, post.id);
+    persistContacts();
     if (Array.isArray(comments)) return applyAutoComments(post, comments);
     scheduleMomentFetch(post);
     return [];
@@ -64,7 +67,7 @@ function applyAutoComments(post, list) {
 
 /* 评论计入共同记忆：评论者一定记；如果被评论的是联系人发的帖子，被评论的联系人也记 */
 function recordCommentMemory(commenter, post, text) {
-    const excerpt = (post.text || '').trim().slice(0, 20) || '一张照片';
+    const excerpt = (post.text || '').trim() || '一张照片';
     const author = CONTACTS.find(x => x.id === post.by && x.id !== commenter.id) || null;
     if (!author) {
         addCommonMemory(commenter, `{char}在{user}的朋友圈（${excerpt}）下评论：${text}`, post.id);
@@ -87,8 +90,10 @@ async function momentSyncAll() {
             if (!mfAllowed(c)) continue;
             const lastH = mfLastPostH(c);
             const pct = Math.round(mfPctOf(c) * (lastH !== null && lastH < 24 ? 0.4 : 1));
+            // 概率由代码掷骰子决定：没中就不调用模型，省额度；中了才让模型写内容
+            if (Math.random() * 100 >= pct) continue;
             const viewers = CONTACTS.filter(x => x.id !== c.id).map(x => ({ name: x.name, persona: x.persona || '' }));
-            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers });
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, decided: true });
             if (r) { allCommenters.push(...postContactMoment(c, r.text, r.comments || [])); posted++; }
         }
     } catch (e) { showApiError(e); }
@@ -2737,7 +2742,13 @@ function renderThread(opts) {
         const pos = newGroup && lastInGroup ? 'g-single' : newGroup ? 'g-head' : lastInGroup ? 'g-tail' : 'g-mid';
         const grp = (pos === 'g-head') ? 'grp-head' : '';
         const qHtml = m.quote && m.quote.text ? `<div class="qt-in"><b>${esc(m.quote.me ? (ME.name || '我') : c.name)}</b>${esc(m.quote.text)}</div>` : '';
-        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > startIdx ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}"${fsInline}>${qHtml}${esc(m.text)}</div>${meta}</div>`;
+        const trc = transCfgOf(c);
+        let trCls = '', trAttr = '', trHtml = '';
+        if (m.trans && trc.on && !m.me) {
+            if (trc.style === 'box') { trCls = ' tr-box'; trHtml = `<div class="trans-float${trc.auto ? ' open' : ''}" onclick="event.stopPropagation();this.classList.toggle('open')">${esc(m.trans)}</div>`; }
+            else { trCls = ' tr-dash' + (trc.auto ? ' open' : ''); trAttr = ' onclick="this.classList.toggle(\'open\')"'; trHtml = `<div class="trans-dash">${esc(m.trans)}</div>`; }
+        }
+        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > startIdx ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}${trCls}"${fsInline}${trAttr}>${qHtml}${esc(m.text)}${trHtml}</div>${meta}</div>`;
     }
     if (c._typing) {
         html += `<div class="mrow typing mrow-new" id="typingRow"><div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div><div class="ct-bubble">${ctSvgHtml('ct-chat')}</div></div>`;
@@ -2863,7 +2874,7 @@ function setRoomOpt(key, value) {
     if (key === 'min') min = coClamp(value, 1, 10, min);
     if (key === 'max') max = coClamp(value, 1, 10, max);
     if (max < min) { if (key === 'min') max = min; else min = max; }
-    c.chatOpts = { min, max, batch: o.batch };
+    c.chatOpts = { ...(c.chatOpts || {}), min, max, batch: o.batch };
     persistContacts(); renderRoomPane();
 }
 function stepRoomOpt(key, delta) {
@@ -2871,10 +2882,40 @@ function stepRoomOpt(key, delta) {
     const o = chatOptsOf(c);
     setRoomOpt(key, (key === 'min' ? o.min : o.max) + delta);
 }
+const TR_SRC = ['英文', '日文', '韩文', '法文', '德文', '西班牙文', '俄文', '自动识别'];
+const TR_TGT = ['中文', '英文', '日文', '韩文'];
+function transCfgOf(c) {
+    const t = (c && c.chatOpts && c.chatOpts.trans) || {};
+    return { on: !!t.on, src: t.src || '英文', tgt: t.tgt || '中文', style: t.style === 'box' ? 'box' : 'dash', auto: !!t.auto };
+}
+function setTransOpt(key, val) {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
+    c.chatOpts = { ...(c.chatOpts || {}), trans: { ...transCfgOf(c), [key]: val } };
+    persistContacts(); renderRoomPane();
+}
+/* 开启翻译时，追加给模型的格式要求：译文只放在 trans 字段里，不用任何符号分隔 */
+function transLine(c) {
+    const t = transCfgOf(c);
+    if (!t.on) return '';
+    return `\n【翻译】对方用${t.src}说话（选择自动识别时自行判断语言）。messages 的每一项都必须是对象：{"text":"${t.src}原文","trans":"${t.tgt}译文"}。text 里只写原文，译文只放在 trans 里，不要加任何符号、标记或括号。`;
+}
+function transSettingsHTML(c) {
+    const t = transCfgOf(c);
+    const opts = (arr, cur) => arr.map(x => `<option ${x === cur ? 'selected' : ''}>${x}</option>`).join('');
+    return `
+        <div class="rp-label rp-center">翻译</div>
+        <div class="rp-opt">
+            <div class="rp-opt-row tr-row"><div><div class="rp-opt-t">开启翻译</div><div class="rp-opt-s">对面的回复会附带译文</div></div><button class="rp-switch ${t.on ? 'on' : ''}" type="button" onclick="setTransOpt('on', ${!t.on})" aria-label="开启翻译"></button></div>
+            <div class="rp-opt-row tr-row"><div><div class="rp-opt-t">对面输出的原文语言</div></div><select class="tr-sel" onchange="setTransOpt('src', this.value)">${opts(TR_SRC, t.src)}</select></div>
+            <div class="rp-opt-row tr-row"><div><div class="rp-opt-t">翻译成</div></div><select class="tr-sel" onchange="setTransOpt('tgt', this.value)">${opts(TR_TGT, t.tgt)}</select></div>
+            <div class="rp-opt-row tr-row"><div><div class="rp-opt-t">显示样式</div></div><div class="tr-seg"><button type="button" class="${t.style === 'dash' ? 'on' : ''}" onclick="setTransOpt('style', 'dash')">虚线展开</button><button type="button" class="${t.style === 'box' ? 'on' : ''}" onclick="setTransOpt('style', 'box')">黑方块</button></div></div>
+            <div class="rp-opt-row tr-row"><div><div class="rp-opt-t">自动展开翻译</div></div><button class="rp-switch ${t.auto ? 'on' : ''}" type="button" onclick="setTransOpt('auto', ${!t.auto})" aria-label="自动展开翻译"></button></div>
+        </div>`;
+}
 function toggleRoomBatch() {
     const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
     const o = chatOptsOf(c);
-    c.chatOpts = { min: o.min, max: o.max, batch: !o.batch };
+    c.chatOpts = { ...(c.chatOpts || {}), min: o.min, max: o.max, batch: !o.batch };
     persistContacts(); renderRoomPane();
 }
 
@@ -2927,13 +2968,13 @@ async function pullReply() {
         const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 "moment" 字段，值为朋友圈文字；不发就不要写这个字段。' : '') + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
-        const replies = await window.MessagesAPI.replyFor(c, instruction, o.max + (NARR.on ? 3 : 0));
+        const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0));
         const heart = replies.heart || null;
         if (replies.moment && replies.moment.text && mfAllowed(c)) postContactMoment(c, replies.moment.text);
         c._typing = false;
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const capCur = document.querySelector('.messages-app .send-capsule'); if (capCur) capCur.classList.remove('pulling');
-        const parts = replies.map(p => narrPart(p, c.name)).filter(Boolean);
+        const parts = replies.map((p, i) => { const pt = narrPart(p, c.name); if (pt && replies.trans && replies.trans[i]) pt.trans = replies.trans[i]; return pt; }).filter(Boolean);
         parts.forEach(pt => { if (pt.quoteRaw) { pt.quote = resolveQuote(c, pt.quoteRaw); delete pt.quoteRaw; } });
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
         const startLen = c.msgs.length;
@@ -3258,6 +3299,7 @@ function msgOf(x) {
     const o = typeof x === 'string' ? { text: x, narr: false } : x;
     const out = { me: false, text: o.text, narr: !!o.narr, t: nowTime(), ts: Date.now() };
     if (o.quote && o.quote.text) out.quote = { me: !!o.quote.me, text: String(o.quote.text) };
+    if (o.trans) out.trans = String(o.trans);
     return out;
 }
 
@@ -5025,11 +5067,40 @@ function roomAction(kind) {
     }
 }
 
+/* 设置面板是整块重建的，所以先记住开关 / 切换的旧状态，重建后再把变化的那一个播放动画 */
+function rpCaptureStates(pane) {
+    const st = {};
+    if (!pane) return st;
+    pane.querySelectorAll('.rp-switch[aria-label]').forEach(b => { st[b.getAttribute('aria-label')] = b.classList.contains('on'); });
+    pane.querySelectorAll('.tr-seg, .rt-seg').forEach((g, gi) => { st['seg' + gi] = [...g.querySelectorAll('button')].findIndex(b => b.classList.contains('on')); });
+    return st;
+}
+function rpPlayStates(pane, st) {
+    if (!pane) return;
+    pane.querySelectorAll('.rp-switch[aria-label]').forEach(b => {
+        const k = b.getAttribute('aria-label');
+        if (!(k in st)) return;
+        const want = b.classList.contains('on');
+        if (st[k] === want) return;
+        b.classList.toggle('on', st[k]); void b.offsetWidth; b.classList.toggle('on', want);
+    });
+    pane.querySelectorAll('.tr-seg, .rt-seg').forEach((g, gi) => {
+        const k = 'seg' + gi;
+        if (!(k in st)) return;
+        const btns = [...g.querySelectorAll('button')];
+        const nowIdx = btns.findIndex(b => b.classList.contains('on'));
+        const prevIdx = st[k];
+        if (prevIdx < 0 || prevIdx === nowIdx) return;
+        btns.forEach((b, i) => b.classList.toggle('on', i === prevIdx)); void g.offsetWidth;
+        btns.forEach((b, i) => b.classList.toggle('on', i === nowIdx));
+    });
+}
 function renderRoomPane() {
     stopRoomTicker();
     const c = CONTACTS.find(x => x.id === activeId);
     const pane = document.getElementById('roomPane');
     if (!c || !pane) return;
+    const st = rpCaptureStates(pane);
     if (ROOM_TAB === 0) { pane.innerHTML = roomChatPane(c); startRoomTicker(); }
     else if (ROOM_TAB === 1) pane.innerHTML = roomPersonaPane(c);
     else {
@@ -5037,6 +5108,7 @@ function renderRoomPane() {
         const ta = document.getElementById('roomCssInput');
         if (ta) ta.value = chatCssOf(c);
     }
+    rpPlayStates(pane, st);
 }
 
 function closeRoomView() {
@@ -5074,7 +5146,8 @@ function roomChatPane(c) {
         ${roomTimerHtml(c)}
         <div class="rp-label">管理这段聊天</div>
         ${rpRow('清空聊天记录', '只删除消息，联系人会保留', "roomAction('clear')", true)}
-        ${rpRow('从消息列表移除', '不会删除联系人', "roomAction('remove')", true)}`;
+        ${rpRow('从消息列表移除', '不会删除联系人', "roomAction('remove')", true)}
+        ${transSettingsHTML(c)}`;
 }
 
 /* ---------------- 朋友圈 ---------------- */
@@ -5301,7 +5374,7 @@ async function charPrivateReply(cid, p, userText, quoteText) {
 
 /* 长按朋友圈卡片：重新调取（清掉之前角色的评论、点赞和对应的共同记忆） */
 function momentRefetch(p) {
-    const excerpt = (p.text || '').trim().slice(0, 20) || '一张照片';
+    const excerpt = (p.text || '').trim() || '一张照片';
     const isAI = id => id !== ACTIVE_ID && id !== 'self' && !!CONTACTS.find(x => x.id === id);
     p.comments = (p.comments || []).filter(cm => !isAI(cm.by));
     p.likes = (p.likes || []).filter(id => !isAI(id));
@@ -5438,7 +5511,7 @@ async function momentCommentAiReply(cid, p) {
     MOMENT_UNSEEN = false;
     refreshChatBadge();
     showMomentLoading();
-    const excerpt = (p.text || '').trim().slice(0, 20) || '一张照片';
+    const excerpt = (p.text || '').trim() || '一张照片';
     let replied = false;
     try {
         const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: cm.text }));
@@ -5849,7 +5922,7 @@ async function momentFetchFor(p) {
     MOMENT_UNSEEN = false;
     refreshChatBadge();
     showMomentLoading();
-    const excerpt = (p.text || '').trim().slice(0, 20) || '一张照片';
+    const excerpt = (p.text || '').trim() || '一张照片';
     const fresh = [];
     for (const c of who) {
         try {
@@ -5947,9 +6020,14 @@ function deleteMoment(id) {
     askConfirm('删除朋友圈', '删除这条朋友圈？', '删除', async () => {
         const p = POSTS.find(x => x.id === id);
         if (p) {
-            // 告诉能看到这条朋友圈的角色：用户已删除
-            const excerpt = (p.text || '').trim().slice(0, 20) || '一张照片';
-            CONTACTS.filter(x => momentVisibleTo(p, x)).forEach(x => addCommonMemory(x, `{user}删除了自己的朋友圈（${excerpt}）`));
+            if (CONTACTS.find(x => x.id === p.by)) {
+                // 联系人发的朋友圈：删除后不留痕迹，和它相关的记忆（发帖、点赞、评论）全部清掉
+                CONTACTS.forEach(x => { if (x.memories) x.memories = x.memories.filter(m => m.src !== p.id); });
+            } else {
+                // 用户自己的朋友圈：照旧告诉能看到的角色用户已删除
+                const excerpt = (p.text || '').trim() || '一张照片';
+                CONTACTS.filter(x => momentVisibleTo(p, x)).forEach(x => addCommonMemory(x, `{user}删除了自己的朋友圈（${excerpt}）`));
+            }
             persistContacts();
         }
         if (p && p.imgs && window.DB) { for (const k of p.imgs) await window.DB.remove(k); }
@@ -6065,6 +6143,7 @@ initComposerGesture();
 
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
 Object.assign(__messagesHandlers, {clearQuote, onRoomFontSize, openCssHelp, copyCssHelp, closeHeartPop, addPresetFromInput, presetNameKey, togglePresetPick, pickCssPreset, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
+__messagesHandlers.setTransOpt = setTransOpt;
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 Object.assign(window, { openMomentFreq, closeMomentFreq, momentSyncAll });
 

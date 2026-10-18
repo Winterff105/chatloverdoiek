@@ -244,7 +244,12 @@ function worldTiesBlock(contact) {
     }
     let list = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.messages) ? obj.messages : null);
     if (!list) list = t.split('|||');
-    const out = list.map(x => cleanOne(x, name)).filter(Boolean).slice(0, limit || MAX_MESSAGES);
+    const cleaned = list.map(x => {
+      if (x && typeof x === 'object') return { text: cleanOne(x.text, name), trans: String(x.trans || '').trim() };
+      return { text: cleanOne(x, name), trans: '' };
+    }).filter(it => it.text).slice(0, limit || MAX_MESSAGES);
+    const out = cleaned.map(it => it.text);
+    out.trans = cleaned.map(it => it.trans);
     out.heart = normHeart(obj && !Array.isArray(obj) ? obj.heart : null);
     out.moment = (obj && !Array.isArray(obj) && typeof obj.moment === 'string' && obj.moment.trim()) ? { text: obj.moment.trim() } : null;
     return out;
@@ -616,7 +621,7 @@ function worldTiesBlock(contact) {
     const viewers = Array.isArray(win.viewers) ? win.viewers.filter(v => v && v.name) : [];
     const lines = [
       '【朋友圈自主发布】',
-      `你可以自己决定此刻要不要发一条朋友圈。你发朋友圈的倾向大约是 ${pct}%，但最终要看你们最近的聊天记录：有值得分享的事、心情或变化就发；没有就不发。`,
+      win.decided ? `这次已经决定发一条朋友圈（发帖概率 ${pct}%，本次已命中），请直接根据你们最近的聊天写出内容，输出 post:true。` : `你可以自己决定此刻要不要发一条朋友圈。你发朋友圈的倾向大约是 ${pct}%，但最终要看你们最近的聊天记录：有值得分享的事、心情或变化就发；没有就不发。`,
       win.lastH == null ? '你还从没发过朋友圈。' : `距离你上次发朋友圈已过 ${Math.floor(win.lastH)} 小时。`,
       `这次发的概率约为 ${pct}%。刚发过的内容不要重复，也不要每次都用同样的句式。`,
       '朋友圈内容要像真人平时随手发的那样，简短自然，不解释，不使用任何符号。'

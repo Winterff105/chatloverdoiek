@@ -5122,3 +5122,42 @@
 .messages-app .mf-info{ display:inline-grid; place-items:center; width:16px; height:16px; margin-left:4px; border-radius:50%; border:1px solid #CFCFCF; background:transparent; color:#A6A6A6; font-size:11px; font-weight:700; line-height:1; cursor:pointer; vertical-align:middle; padding:0; }
 .messages-app .mf-note{ margin:0 16px; padding:0 16px 14px; font-size:12px; line-height:1.6; color:#A6A6A6; }
 .messages-app .mf-note[hidden]{ display:none; }
+
+/* ===== 双语翻译 ===== */
+.messages-app .bubble .trans-dash{display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #c8c8c8;color:#8a8a8a;font-size:13px;line-height:1.5}
+.messages-app .bubble.tr-dash{cursor:pointer}
+.messages-app .bubble.tr-dash.open .trans-dash{display:block}
+.messages-app .bubble.tr-box{position:relative}
+.messages-app .bubble .trans-float{position:absolute;left:10px;top:calc(100% - 6px);z-index:2;background:#000;color:#fff;font-size:11px;line-height:1.35;padding:3px 7px;border-radius:3px;max-width:calc(100% - 20px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.messages-app .bubble .trans-float.open{white-space:normal;overflow:visible;text-overflow:clip}
+.messages-app .mrow.me .bubble.tr-box .trans-float{left:auto;right:10px}
+.messages-app .tr-panel{ margin-bottom:8px; border-radius:20px; background:rgba(255,255,255,.06); overflow:hidden; display:flex; flex-direction:column; }
+.messages-app .tr-item{ display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px; padding:14px 16px; }
+.messages-app .tr-item + .tr-item{ border-top:.5px solid rgba(255,255,255,.08); }
+.messages-app .tr-t{ font-size:14px; font-weight:650; color:#fff; }
+.messages-app .tr-s{ font-size:11px; color:rgba(255,255,255,.45); margin-top:-4px; }
+.messages-app .tr-sel{ font-size:13.5px; border:0; border-radius:10px; padding:6px 12px; background:rgba(255,255,255,.12); color:#fff; outline:none; }
+.messages-app .tr-sel option{ background:#1c1c1c; color:#fff; }
+.messages-app .tr-seg{ display:flex; background:rgba(255,255,255,.1); border-radius:10px; padding:3px; }
+.messages-app .tr-seg button{ border:0; background:transparent; font-size:12.5px; padding:5px 12px; border-radius:8px; color:rgba(255,255,255,.6); cursor:pointer; }
+.messages-app .tr-seg button.on{ background:rgba(255,255,255,.22); color:#fff; }
+
+/* 翻译设置：条目往中间收拢 */
+.messages-app .rp-opt-row.tr-row{ justify-content:center; gap:28px; }
+.messages-app .rp-opt-row.tr-row > div:first-child{ min-width:130px; }
+/* 设置里的开关 / 切换：统一过渡动画 */
+.messages-app .rp-switch{ transition:background-color .3s ease; }
+.messages-app .rp-switch::after{ transition:transform .3s cubic-bezier(.34,1.4,.64,1), background-color .3s ease; }
+.messages-app .tr-seg{ position:relative; }
+.messages-app .tr-seg button{ transition:background-color .25s ease, color .25s ease, box-shadow .25s ease, transform .15s ease; }
+.messages-app .tr-seg button:active{ transform:scale(.94); }
+.messages-app .tr-sel{ transition:background-color .2s ease, box-shadow .2s ease; }
+.messages-app .tr-sel:focus{ box-shadow:0 0 0 1.5px rgba(255,255,255,.35); }
+
+/* 显示样式切换框：圆角药丸 */
+.messages-app .tr-seg{ border-radius:999px; }
+.messages-app .tr-seg button{ border-radius:999px; }
+/* 时间区域的切换（时钟 / 计数）：统一过渡动画 */
+.messages-app .rt-seg{ transition:background-color .3s ease; }
+.messages-app .rt-seg-btn{ transition:background-color .3s ease, color .3s ease, box-shadow .3s ease, transform .15s ease; }
+.messages-app .rt-seg-btn:active{ transform:scale(.94); }
