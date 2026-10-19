@@ -6125,7 +6125,8 @@ function noteMentionMemory(text, src, kind) {
             if (!mentioned) return '@未知';
             return mentioned.id === viewer.id ? '@{char}' : '@' + mentioned.name;
         });
-        const mentionedNames = targets.map(c => c.name).join('、');
+        // 对被艾特的联系人自身，所有被艾特对象都用 {char} 表示；其他联系人仍看到真实名字。
+        const mentionedNames = targets.map(c => c.id === viewer.id ? '{char}' : c.name).join('、');
         addCommonMemory(viewer, `{user}${where}@了${mentionedNames}：${body}`, src);
     }
     persistContacts();
