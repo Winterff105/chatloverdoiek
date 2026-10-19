@@ -3,8 +3,15 @@
     if (document.getElementById('settingsLongPressStyle')) return;
     const st = document.createElement('style');
     st.id = 'settingsLongPressStyle';
-    st.textContent = '#noirSettingsRoot .corner-bg-switcher, #noirSettingsRoot .corner-bg-switcher *, .wp-morph, .wp-morph * , .sb-morph, .sb-morph * { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }';
+    st.textContent = '#noirSettingsRoot, #noirSettingsRoot *, .wp-morph, .wp-morph *, .sb-morph, .sb-morph * { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }'
+        + ' #noirSettingsRoot input, #noirSettingsRoot textarea { -webkit-user-select:text; user-select:text; }'
+        + ' #noirSettingsRoot .settings-panel { overflow-x:hidden; }';
     document.head.appendChild(st);
+    // 长按选中时浏览器会横向拖动内容：一旦设置页内有横向滚动，立即拉回
+    document.addEventListener('scroll', e => {
+        const t = e.target;
+        if (t && t.nodeType === 1 && t.scrollLeft && t.closest && t.closest('#noirSettingsRoot')) t.scrollLeft = 0;
+    }, true);
 })();
 
 /* =========================================

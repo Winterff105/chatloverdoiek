@@ -5698,7 +5698,7 @@ function mentionPicker() {
     if (!el) {
         el = document.createElement('div');
         el.id = 'mentionPicker';
-        el.style.cssText = 'position:fixed;z-index:99999;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:6px;min-width:170px;max-height:220px;overflow-y:auto;display:none;';
+        el.className = 'mention-pop';
         el.addEventListener('pointerdown', e => {
             const it = e.target.closest && e.target.closest('.mention-item');
             if (!it) return;
@@ -5719,11 +5719,16 @@ function mentionRender() {
     const q = st.query.trim().toLowerCase();
     const list = CONTACTS.filter(c => !q || String(c.name).toLowerCase().includes(q) || String(c.remark || '').toLowerCase().includes(q));
     const box = mentionPicker();
-    box.innerHTML = list.length
-        ? list.map(c => `<div class="mention-item" data-id="${esc(c.id)}" style="padding:8px 10px;border-radius:10px;font-size:13px;color:#111;cursor:pointer;white-space:nowrap;">${esc(c.remark || c.name)}</div>`).join('')
-        : '<div style="padding:8px 10px;font-size:12px;color:#9A9AA0;">没有匹配的联系人</div>';
+    const item = c => {
+        const av = c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : `<span>${esc(String(c.remark || c.name || '?').slice(0, 1))}</span>`;
+        const sub = c.remark ? `<i>${esc(c.name)}</i>` : '';
+        return `<button type="button" class="mention-item" data-id="${esc(c.id)}"><span class="mention-av">${av}</span><span class="mention-txt"><b>${esc(c.remark || c.name)}</b>${sub}</span></button>`;
+    };
+    box.innerHTML = `<div class="mention-head">提及联系人</div>` + (list.length
+        ? list.map(item).join('')
+        : '<div class="mention-empty">没有匹配的联系人</div>');
     const r = st.el.getBoundingClientRect();
-    box.style.left = Math.max(8, r.left) + 'px';
+    box.style.left = Math.min(Math.max(8, r.left), window.innerWidth - Math.min(260, window.innerWidth - 16) - 8) + 'px';
     box.style.top = 'auto';
     box.style.bottom = (window.innerHeight - r.top + 6) + 'px';
     box.style.display = 'block';
