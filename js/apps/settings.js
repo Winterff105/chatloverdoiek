@@ -1693,7 +1693,7 @@ function showSettingsToast(text) {
     const el = document.createElement('div');
     el.id = 'settingsToast';
     el.textContent = String(text || '');
-    el.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 28px);transform:translateX(-50%);max-width:86%;padding:10px 16px;border-radius:999px;background:rgba(20,20,20,.88);color:#fff;font-size:13px;line-height:1.4;text-align:center;z-index:99999;pointer-events:none;opacity:0;transition:opacity .25s ease;';
+    el.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 110px);transform:translateX(-50%);max-width:86%;height:30px;padding:0 16px;box-sizing:border-box;border-radius:999px;background:#000;color:#fff;font-size:12px;line-height:30px;white-space:nowrap;text-align:center;z-index:99999;pointer-events:none;opacity:0;transition:opacity .25s ease;';
     document.body.appendChild(el);
     requestAnimationFrame(() => { el.style.opacity = '1'; });
     setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 260); }, 1800);

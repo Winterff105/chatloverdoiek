@@ -83,6 +83,9 @@ async function momentSyncAll() {
     if (!window.MessagesAPI || !MessagesAPI.isConfigured()) { toast('请先在「设置 → API」保存接口配置'); return; }
     const btn = document.getElementById('mfSyncBtn');
     if (btn) btn.classList.add('spin');
+    MOMENT_UNSEEN = false;
+    refreshChatBadge();
+    showMomentLoading();
     let posted = 0;
     const allCommenters = [], allPosters = [];
     try {
@@ -2433,7 +2436,7 @@ function openCustomModulePopup() {
           <div class="ar-foot" style="margin-top:12px;">
             <div class="cd-pt-row">
               <button type="button" class="ar-save" id="cdCmSave">保存</button>
-              <button type="button" class="ar-close" id="cdCmCancel" style="flex:1;">返回</button>
+              <button type="button" class="ar-close" id="cdCmCancel">返回</button>
             </div>
           </div>
         `;
@@ -6027,6 +6030,7 @@ function placeMomentBubble(t) {
 function showMomentLoading() {
     const t = momentBubbleEl(); if (!t) return;
     placeMomentBubble(t);
+    requestAnimationFrame(() => placeMomentBubble(t));
     clearTimeout(momentHideTimer);
     t.classList.remove('mq-fade', 'mq-done');
     t.classList.add('mq-on');
@@ -6034,6 +6038,7 @@ function showMomentLoading() {
 function showMomentDone(list) {
     const t = momentBubbleEl(); if (!t) return;
     placeMomentBubble(t);
+    requestAnimationFrame(() => placeMomentBubble(t));
     const TILT = ['-7deg', '5deg', '-3deg'], MASK = [0, .6, .35];
     document.getElementById('mcStack').innerHTML = list.slice(0, 3).map((c, i) =>
         `<span class="mq-sa ${i === 0 ? 'mq-lead' : 'mq-bk'}" style="--r:${TILT[i]};--m:${MASK[i]};z-index:${3 - i}">${avatar(c, 'sm')}</span>`
@@ -6042,6 +6047,10 @@ function showMomentDone(list) {
     t.classList.remove('mq-fade');
     t.classList.add('mq-on', 'mq-done');
 }
+window.addEventListener('resize', () => {
+    const t = document.getElementById('mcThought');
+    if (t && t.classList.contains('mq-on')) placeMomentBubble(t);
+});
 function hideMomentBubble() {
     const t = document.getElementById('mcThought');
     if (!t || !t.classList.contains('mq-on')) return;
