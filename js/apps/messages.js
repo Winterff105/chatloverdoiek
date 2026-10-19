@@ -6087,24 +6087,33 @@ function worldTiedPair(a, b) {
     return ties.some(r => r && ((A.includes(r.from) && B.includes(r.to)) || (B.includes(r.from) && A.includes(r.to))));
 }
 function momentVisibleTo(p, c) {
-    if (p.vis === 'self' || p.vis === 'user') return false;
+    if (!p || !c) return false;
+    // 用户视角不受朋友圈可见范围和角色连线限制：用户发的朋友圈，所有联系人都能看到。
+    // 角色发的朋友圈则仍按“自己 / 可见范围 / 世界关系连线”判断。
+    const authorIsContact = CONTACTS.some(x => String(x.id) === String(p.by));
+    if (!authorIsContact) return true;
     if (p.by !== c.id && !worldTiedPair(p.by, c.id)) return false;
+    if (p.vis === 'self' || p.vis === 'user') return false;
     if (p.vis === 'some') return (p.visTo || []).includes(c.id);
     return true;
 }
-/* 朋友圈 @：被艾特的角色在共同记忆里看到的是 {char}，其他人显示名字 */
+/* 朋友圈 @：被艾特的人看到 {char}；同一条朋友圈的其他可见联系人也记录被@到的具体联系人 */
 function noteMentionMemory(text, src, kind) {
     const ids = [];
     String(text || '').replace(/@\[([^\]]+)\]/g, (_, id) => { if (!ids.includes(id)) ids.push(id); return _; });
     const targets = ids.map(id => CONTACTS.find(x => String(x.id) === id)).filter(Boolean);
     if (!targets.length) return;
-    for (const t of targets) {
+    const post = POSTS.find(p => p.id === src);
+    const viewers = post ? CONTACTS.filter(c => momentVisibleTo(post, c)) : targets;
+    const where = kind === 'post' ? '在朋友圈发的动态里' : '在朋友圈评论里';
+    for (const viewer of viewers) {
         const body = String(text).replace(/@\[([^\]]+)\]/g, (_, id) => {
-            const c = CONTACTS.find(x => String(x.id) === id);
-            return c === t ? '@{char}' : (c ? '@' + c.name : '@未知');
+            const mentioned = CONTACTS.find(x => String(x.id) === id);
+            if (!mentioned) return '@未知';
+            return mentioned.id === viewer.id ? '@{char}' : '@' + mentioned.name;
         });
-        const where = kind === 'post' ? '在朋友圈发的动态里' : '在朋友圈评论里';
-        addCommonMemory(t, `{user}${where}@了{char}：${body}`, src);
+        const mentionedNames = targets.map(c => c.name).join('、');
+        addCommonMemory(viewer, `{user}${where}@了${mentionedNames}：${body}`, src);
     }
     persistContacts();
 }
