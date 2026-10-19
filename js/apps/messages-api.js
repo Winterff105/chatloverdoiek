@@ -516,6 +516,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
       window.MESSAGES_USER_PERSONA ? `${fillU('{user}设定')}：${window.MESSAGES_USER_PERSONA}` : '',
       contact.relation ? `与用户的关系：${contact.relation}` : '',
       momentOptsBlock(contact),
+      worldTiesBlock(contact),
       '【朋友圈评论】',
       '你是来评论的，不是发帖的人。你正在看一条刚发的朋友圈，像真人一样自然地说几句话。长短由你自己决定，可以只说一句，也可以多说几句，想怎么说就怎么说。',
       '你可以接着评论区里别人的话往下说，也可以直接回复评论区里的某个人，这时在 to 字段写上对方的名字，名字只能从可以回复的人里选；不需要回复就写空字符串。',
@@ -548,8 +549,8 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const memBlock = buildMemBlock(contact.memories || [], fillU);
     const userName = window.MESSAGES_USER_NAME || 'user';
     const ctx = (recentMsgs || []).map(m => `${m.me ? userName : contact.name}：${m.text}`).join('\n') || '（暂无聊天记录）';
-    const lo = Math.max(1, (limits && limits.min) || 1), hi = Math.max(lo, (limits && limits.max) || 4);
-    const countReq = lo === hi ? `必须精确输出 ${lo} 条独立消息气泡` : `必须严格输出 ${lo} 到 ${hi} 条独立消息气泡，不得偷懒少发`;
+    const lo = Math.max(1, (limits && limits.min) || 1), hi = Math.max(lo, (limits && limits.max) || 7);
+    const countReq = lo === hi ? `${lo} 条独立消息气泡` : `${lo} 到 ${hi} 条独立消息气泡`;
     const system = [
       ROLEPLAY_PROMPT,
       memBlock,
@@ -558,7 +559,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
       window.MESSAGES_USER_PERSONA ? `${fillU('{user}设定')}：${window.MESSAGES_USER_PERSONA}` : '',
       contact.relation ? `与用户的关系：${contact.relation}` : '',
       '【朋友圈私聊】',
-      `用户刚在朋友圈里回复了你的评论。你可以顺便私聊他，也可以不发，由你自己决定。要发的话，texts 数组${countReq}。`,
+      `用户刚在朋友圈里回复了你的评论。要不要私聊他由你自己决定：想单独跟他说点什么就发，觉得在评论区说完就够了，就不发。不发是完全正常的选择，不需要为了回应而硬发。要发的话，texts 数组是${countReq}。`,
       '只输出一个 JSON 对象，不要输出其他文字，也不要使用代码块，格式固定为：{"send":true或false,"texts":["消息1","消息2"]}；不发就 send 为 false，texts 为空数组。'
     ].filter(Boolean).join('\n');
     const user = `你们最近的聊天：\n${ctx}\n\n朋友圈内容：${String(post && post.text || '').trim() || '（只发了照片）'}\n你在评论区说的话：${quoteText || ''}\n用户在评论区回复你：${userText}`;
@@ -629,7 +630,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     }
     const recent = Array.isArray(win.recentPosts) ? win.recentPosts.filter(Boolean).slice(0, 5) : [];
     if (recent.length) lines.push('你最近发过的朋友圈：\n' + recent.map(t => '- ' + String(t).slice(0, 60)).join('\n') + '\n这次换个说法，不要重复上面的词、句式和开头。');
-    const sys = [ROLEPLAY_PROMPT, momentOptsBlock(contact), lines.join('\n')].filter(Boolean).join('\n\n');
+    const sys = [ROLEPLAY_PROMPT, momentOptsBlock(contact), worldTiesBlock(contact), lines.join('\n')].filter(Boolean).join('\n\n');
     const persona = contact.persona ? `你的设定：${fillU(contact.persona)}` : '';
     const ctx = (recentMsgs || []).map(m => `${m.me ? userName : contact.name}：${String(m.text || '')}`).join('\n') || '（暂无聊天记录）';
     const raw = await complete([sys, persona].filter(Boolean).join('\n\n'), `你们最近的聊天：\n${ctx}`);

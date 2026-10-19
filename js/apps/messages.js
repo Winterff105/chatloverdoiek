@@ -54,7 +54,7 @@ function postContactMoment(c, text, comments, meta) {
 function applyAutoComments(post, list) {
     const commenters = [];
     (list || []).forEach(cm => {
-        const v = CONTACTS.find(x => x.id !== post.by && x.name === cm.name);
+        const v = CONTACTS.find(x => x.id !== post.by && x.name === cm.name && momentVisibleTo(post, x));
         if (!v) return;
         post.comments = post.comments || [];
         post.comments.push({ by: v.id, text: cm.text, t: Date.now() });
@@ -95,7 +95,7 @@ async function momentSyncAll() {
             const pct = Math.round(mfPctOf(c) * (lastH !== null && lastH < 24 ? 0.4 : 1));
             // 概率由代码掷骰子决定：没中就不调用模型，省额度；中了才让模型写内容
             if (Math.random() * 100 >= pct) continue;
-            const viewers = CONTACTS.filter(x => x.id !== c.id).map(x => ({ name: x.name, persona: x.persona || '' }));
+            const viewers = CONTACTS.filter(x => x.id !== c.id && worldTiedPair(c.id, x.id)).map(x => ({ name: x.name, persona: x.persona || '' }));
             const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => p.text).filter(Boolean) });
             if (r) { allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo })); allPosters.push(c); posted++; }
         }
@@ -2828,9 +2828,9 @@ function coClamp(x, lo, hi, d) { const n = parseInt(x, 10); return Number.isFini
 function loadChatOpts() {
     try {
         const v = JSON.parse(localStorage.getItem(CHAT_OPTS_KEY) || 'null');
-        if (v && typeof v === 'object') return { min: coClamp(v.min, 1, 10, 1), max: coClamp(v.max, 1, 10, 4), batch: !!v.batch };
+        if (v && typeof v === 'object') return { min: coClamp(v.min, 1, 10, 1), max: coClamp(v.max, 1, 10, 7), batch: !!v.batch };
     } catch (_) {}
-    return { min: 1, max: 4, batch: false };
+    return { min: 1, max: 7, batch: false };
 }
 let CHAT_OPTS = loadChatOpts();
 function persistChatOpts() { try { localStorage.setItem(CHAT_OPTS_KEY, JSON.stringify(CHAT_OPTS)); } catch (_) {} }
@@ -2857,7 +2857,7 @@ function chatOptsOf(c) {
     const o = (c && c.chatOpts) || {};
     return {
         min: o.min !== undefined ? coClamp(o.min, 1, 10, 1) : CHAT_OPTS.min,
-        max: o.max !== undefined ? coClamp(o.max, 1, 10, 4) : CHAT_OPTS.max,
+        max: o.max !== undefined ? coClamp(o.max, 1, 10, 7) : CHAT_OPTS.max,
         batch: o.batch !== undefined ? !!o.batch : CHAT_OPTS.batch
     };
 }
@@ -5528,6 +5528,7 @@ function notePosterDone(list) {
 async function momentCommentAiReply(cid, p) {
     const c = CONTACTS.find(x => x.id === cid);
     if (!c || !window.MessagesAPI || !window.MessagesAPI.isConfigured()) return;
+    if (cid !== p.by && !worldTiedPair(cid, p.by)) return;
     if (momentFetchBusy) return;
     momentFetchBusy = true;
     MOMENT_UNSEEN = false;
@@ -5929,8 +5930,26 @@ async function publishMoment() {
 }
 
 /* ---------------- 朋友圈回复逻辑：点赞 / 评论 → 直接进入共同记忆 ---------------- */
+/* 连线：世界关系图里两个人（联系人或用户）有直接连线才算相连 */
+function tieNodesOf(id) {
+    const key = v => String(v).replace(/[^a-zA-Z0-9_-]/g, '_');
+    if (CONTACTS.some(x => x.id === id)) return ['node-c-' + key(id)];
+    if (IDENTITIES.some(x => x.id === id)) return ['node-i-' + key(id)];
+    const nodes = ['node-user'];
+    if (ACTIVE_ID && ACTIVE_ID !== 'self') nodes.push('node-i-' + key(ACTIVE_ID));
+    return nodes;
+}
+function worldTiedPair(a, b) {
+    if (a === b) return false;
+    let ties = [];
+    try { ties = JSON.parse(localStorage.getItem('world_tethers_v1') || '[]'); } catch (_) {}
+    if (!Array.isArray(ties) || !ties.length) return false;
+    const A = tieNodesOf(a), B = tieNodesOf(b);
+    return ties.some(r => r && ((A.includes(r.from) && B.includes(r.to)) || (B.includes(r.from) && A.includes(r.to))));
+}
 function momentVisibleTo(p, c) {
     if (p.vis === 'self' || p.vis === 'user') return false;
+    if (p.by !== c.id && !worldTiedPair(p.by, c.id)) return false;
     if (p.vis === 'some') return (p.visTo || []).includes(c.id);
     return true;
 }
