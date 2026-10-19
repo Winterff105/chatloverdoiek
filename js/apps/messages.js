@@ -6086,17 +6086,29 @@ function worldTiedPair(a, b) {
     const A = tieNodesOf(a), B = tieNodesOf(b);
     return ties.some(r => r && ((A.includes(r.from) && B.includes(r.to)) || (B.includes(r.from) && A.includes(r.to))));
 }
+function momentAuthorIsContact(p) {
+    return !!p && CONTACTS.some(x => String(x.id) === String(p.by));
+}
+/* 一条朋友圈对联系人可见的统一规则：先看帖子范围，再看角色之间是否连线。 */
+function momentViewerList(p) {
+    if (!p) return [];
+    if (p.vis === 'self' || p.vis === 'user') return [];
+    let viewers = CONTACTS.slice();
+    if (p.vis === 'some') viewers = viewers.filter(c => (p.visTo || []).includes(c.id));
+    if (momentAuthorIsContact(p)) {
+        viewers = viewers.filter(c => String(c.id) === String(p.by) || worldTiedPair(p.by, c.id));
+    }
+    return viewers;
+}
 function momentVisibleTo(p, c) {
-    if (!p || !c) return false;
-    // 用户视角不受朋友圈可见范围和角色连线限制：用户发的朋友圈，所有联系人都能看到。
-    // 角色发的朋友圈则仍按“自己 / 可见范围 / 世界关系连线”判断。
-    const authorIsContact = CONTACTS.some(x => String(x.id) === String(p.by));
-    // 用户发帖也必须先检查帖子自身的可见范围；只有 public 才对所有联系人开放。
-    if (p.vis === 'self' || p.vis === 'user') return !authorIsContact && false;
-    if (p.vis === 'some') return (p.visTo || []).includes(c.id);
-    if (!authorIsContact) return true;
-    if (p.by !== c.id && !worldTiedPair(p.by, c.id)) return false;
-    return true;
+    return !!c && momentViewerList(p).some(x => String(x.id) === String(c.id));
+}
+/* 把朋友圈正文中的内部 @ 标记还原成永久保存的联系人名字；删除帖子后也不会丢名字。 */
+function momentTextWithNames(text) {
+    return String(text || '').replace(/@\[([^\]]+)\]/g, (_, id) => {
+        const c = CONTACTS.find(x => String(x.id) === String(id));
+        return c ? '@' + c.name : '@未知联系人';
+    });
 }
 /* 朋友圈 @：被艾特的人看到 {char}；同一条朋友圈的其他可见联系人也记录被@到的具体联系人 */
 function noteMentionMemory(text, src, kind) {
@@ -6105,7 +6117,7 @@ function noteMentionMemory(text, src, kind) {
     const targets = ids.map(id => CONTACTS.find(x => String(x.id) === id)).filter(Boolean);
     if (!targets.length) return;
     const post = POSTS.find(p => p.id === src);
-    const viewers = post ? CONTACTS.filter(c => momentVisibleTo(post, c)) : targets;
+    const viewers = post ? momentViewerList(post) : targets;
     const where = kind === 'post' ? '在朋友圈发的动态里' : '在朋友圈评论里';
     for (const viewer of viewers) {
         const body = String(text).replace(/@\[([^\]]+)\]/g, (_, id) => {
@@ -6142,7 +6154,7 @@ async function momentFetchFor(p) {
     momentFetchTimer = null;
     if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('朋友圈没有调取：请先在「设置 → API」保存接口配置'); return; }
     if (momentFetchBusy) { scheduleMomentFetch(p); return; }
-    const who = CONTACTS.filter(x => momentVisibleTo(p, x) && x.id !== p.by);
+    const who = momentViewerList(p).filter(x => x.id !== p.by);
     if (!who.length) { toast('朋友圈没有调取：没有能看到这条的联系人'); return; }
     momentFetchBusy = true;
     MOMENT_UNSEEN = false;
@@ -6264,8 +6276,8 @@ function deleteMoment(id) {
                 CONTACTS.forEach(x => { if (x.memories) x.memories = x.memories.filter(m => m.src !== p.id); });
             } else {
                 // 用户自己的朋友圈：照旧告诉能看到的角色用户已删除
-                const excerpt = (p.text || '').trim() || '一张照片';
-                CONTACTS.filter(x => momentVisibleTo(p, x)).forEach(x => addCommonMemory(x, `{user}删除了自己的朋友圈（${excerpt}）`));
+                const excerpt = momentTextWithNames(p.text).trim() || '一张照片';
+                momentViewerList(p).forEach(x => addCommonMemory(x, `{user}删除了自己的朋友圈（${excerpt}）`));
             }
             persistContacts();
         }
