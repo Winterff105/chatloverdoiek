@@ -5750,15 +5750,9 @@ function mentionRender() {
     box.style.left = Math.min(Math.max(8, r.left), window.innerWidth - W - 8) + 'px';
     box.style.display = 'block';
     box.classList.add('open');
-    const H = Math.min(box.scrollHeight, 200);
-    const below = window.innerHeight - r.bottom;
-    if (below >= H + 10) {
-        box.style.top = (r.bottom + 6) + 'px';
-        box.style.bottom = 'auto';
-    } else {
-        box.style.top = 'auto';
-        box.style.bottom = (window.innerHeight - r.top + 6) + 'px';
-    }
+    // @ 列表固定放在正在打字的输入框下面，避免向上弹出时被输入内容或顶部元素挡住。
+    box.style.top = (r.bottom + 6) + 'px';
+    box.style.bottom = 'auto';
 }
 function mentionPick(id) {
     const st = MENTION_ST; if (!st) return;
