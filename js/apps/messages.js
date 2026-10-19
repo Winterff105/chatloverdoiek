@@ -5750,8 +5750,10 @@ function mentionRender() {
     box.style.left = Math.min(Math.max(8, r.left), window.innerWidth - W - 8) + 'px';
     box.style.display = 'block';
     box.classList.add('open');
-    // @ 列表固定放在正在打字的输入框下面，避免向上弹出时被输入内容或顶部元素挡住。
-    box.style.top = (r.bottom + 6) + 'px';
+    // 优先放在输入框下方；如果输入框贴近屏幕底部，则限制在可视区域内，确保列表能看到。
+    const H = Math.min(box.scrollHeight, 200);
+    const maxTop = Math.max(8, window.innerHeight - H - 8);
+    box.style.top = Math.min(r.bottom + 6, maxTop) + 'px';
     box.style.bottom = 'auto';
 }
 function mentionPick(id) {
