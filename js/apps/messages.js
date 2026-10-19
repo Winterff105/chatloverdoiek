@@ -6091,10 +6091,11 @@ function momentVisibleTo(p, c) {
     // 用户视角不受朋友圈可见范围和角色连线限制：用户发的朋友圈，所有联系人都能看到。
     // 角色发的朋友圈则仍按“自己 / 可见范围 / 世界关系连线”判断。
     const authorIsContact = CONTACTS.some(x => String(x.id) === String(p.by));
+    // 用户发帖也必须先检查帖子自身的可见范围；只有 public 才对所有联系人开放。
+    if (p.vis === 'self' || p.vis === 'user') return !authorIsContact && false;
+    if (p.vis === 'some') return (p.visTo || []).includes(c.id);
     if (!authorIsContact) return true;
     if (p.by !== c.id && !worldTiedPair(p.by, c.id)) return false;
-    if (p.vis === 'self' || p.vis === 'user') return false;
-    if (p.vis === 'some') return (p.visTo || []).includes(c.id);
     return true;
 }
 /* 朋友圈 @：被艾特的人看到 {char}；同一条朋友圈的其他可见联系人也记录被@到的具体联系人 */
