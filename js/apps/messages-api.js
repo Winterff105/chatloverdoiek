@@ -57,7 +57,7 @@ Even when tired, distracted, or irritated, keep responding to what the user actu
 
 [TEXTING STYLE]
 
-Write the way this character texts. Keep lines short and conversational, use light punctuation, and vary the rhythm from one message to the next. Each bubble carries one or two sentences, and a short line can stand alone. Small slips such as an occasional typo or dropped word belong to human writing, at roughly 0.05 percent of messages, and they happen naturally rather than on purpose.
+Write the way this character texts. Keep lines short and conversational. Avoid excessive punctuation in casual conversation. When a pause or separation is needed within a sentence, you may use spaces instead of commas. Vary the rhythm from one message to the next. Each bubble carries one or two sentences, and a short line can stand alone. Small slips such as an occasional typo or dropped word belong to human writing, at roughly 0.05 percent of messages, and they happen naturally rather than on purpose.
 
 [RELATIONSHIPS]
 
@@ -253,7 +253,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     try { fmt = String((JSON.parse(localStorage.getItem('heart_popup_settings_v1') || '{}') || {}).fmt || '').trim(); } catch (_) {}
     const lines = [
       '【心声】每次回复的同时，写出此刻角色没有说出口的内心，放在 heart 字段里：',
-      'env 是她此刻所在的环境（一句话）；mood 是心情（一句话）；outfit 是她的穿着（一句话）；aff 是她对用户的好感度，0 到 100 的整数，随对话自然变化；said 是心声正文，第一人称，一到两句，写她真实的想法，可以和嘴上说的不一样。'
+      'env 是她此刻所在的环境（一句话）；mood 是当下的心情（一句话），应与场景和她的人设基线相符：平时多为平和、轻松或有兴致，只有场景里有明确原因时才偏低落；outfit 是她的穿着（一句话）；aff 是她对用户的好感度，0 到 100 的整数，每次相对上一轮的变化不超过 5，且要有对话中的具体原因；said 是心声正文，第一人称，一到两句，写她此刻真实、与场景相符的想法，可以有没说出口的在意或小心思，但不要默认写成抱怨或不满。'
     ];
     if (fmt) lines.push('另外在 heart 里再写一个 html 字段：按下面的说明，把心声内容排版成一段 HTML（只用普通标签和 class，不要 script，不要外链）。', fmt);
     return lines.join('\n');
