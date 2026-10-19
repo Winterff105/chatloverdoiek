@@ -6100,6 +6100,10 @@ async function publishMoment() {
         likes: [], comments: [], imgs };
     POSTS.unshift(post);
     noteMentionMemory(text, post.id, 'post');
+    // 用户发帖本身也要进入能看到这条朋友圈的联系人共同记忆。
+    const excerpt = momentTextWithNames(text).trim() || '一张照片';
+    momentViewerList(post).forEach(c => addCommonMemory(c, `{user}在朋友圈发了一条动态（${excerpt}）`, post.id));
+    persistContacts();
     PENDING_IMGS = [];
     persistMoments(); closeFullMask(); renderMoments(); toast('已发布');
     scheduleMomentFetch(post);   // 发完 3 秒后开始调取，能看到的联系人各回一个词
@@ -6259,8 +6263,11 @@ function placeMomentBubble(t) {
     const tab = document.querySelector('#tabbar .tab[data-tab="moments"]');
     if (!root || !tab || !t) return;
     const rr = root.getBoundingClientRect(), tr = tab.getBoundingClientRect();
+    // 固定以朋友圈图标中心为基准，和其他底栏提示保持同一高度。
     t.style.left = (tr.left + tr.width / 2 - rr.left) + 'px';
     t.style.bottom = (rr.bottom - tr.top - 1) + 'px';
+    t.style.marginBottom = '0';
+    t.style.transform = 'translateX(-50%)';
 }
 function showMomentLoading() {
     const t = momentBubbleEl(); if (!t) return;
