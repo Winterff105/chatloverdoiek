@@ -2882,9 +2882,20 @@ function transCfgOf(c) {
     const t = (c && c.chatOpts && c.chatOpts.trans) || {};
     return { on: !!t.on, src: t.src || '英文', tgt: t.tgt || '中文', style: t.style === 'box' ? 'box' : 'dash', auto: !!t.auto };
 }
+function autoFillBoxCss(c) {
+    const cur = chatCssOf(c) || '';
+    if (cur.includes(CSS_TEMPLATES.boxStyle)) return;
+    const next = (cur.trim() ? cur.replace(/\s*$/, '\n') : '') + CSS_TEMPLATES.boxStyle;
+    const ta = document.getElementById('roomCssInput');
+    if (ta) ta.value = next;
+    c.beauty = Object.assign({}, c.beauty || {}, { css: next });
+    delete c.beauty.bubble;
+    applyRoomBeauty(c);
+}
 function setTransOpt(key, val) {
     const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
     c.chatOpts = { ...(c.chatOpts || {}), trans: { ...transCfgOf(c), [key]: val } };
+    if (key === 'style' && val === 'box') autoFillBoxCss(c);
     persistContacts(); renderRoomPane();
 }
 /* 开启翻译时，追加给模型的格式要求：译文只放在 trans 字段里，不用任何符号分隔 */
@@ -4639,6 +4650,7 @@ const CSS_TEMPLATES = {
     round: '.bubble{border-radius:4px !important}',
     roundOther: '.mrow:not(.me) .bubble{border-radius:20px !important}'
 };
+CSS_TEMPLATES.boxStyle = '.mrow:not(.me){margin-top:6px !important;margin-bottom:6px !important}\n.trans-float{border-radius:0 !important}';
 const CSS_TEMPLATE_LABELS = { ink: '墨黑', mist: '雾灰', paper: '奶白', round: '方角', roundOther: '对面圆角' };
 let ROOM_TAB = 0;
 let ROOM_SCROLL = 0;   // 设置页上次退出时的滚动位置
@@ -5494,6 +5506,7 @@ function sendMomentCommentInline(id) {
     const rt = MOMENT_REPLY[id]; delete MOMENT_REPLY[id];
     const box = document.getElementById('mfInl-' + id); if (box) box.value = '';
     p.comments.push({ by: ACTIVE_ID, text, t: Date.now(), ...(rt ? { to: rt.by } : {}) });
+    noteMentionMemory(text, p.id, 'comment');
     MOMENT_CMT_OPEN[id] = true;
     persistMoments(); renderMoments();
     const author = CONTACTS.find(x => x.id === p.by);
@@ -5574,6 +5587,7 @@ function sendMomentComment(id) {
     if (!text) { toast('写点什么再发送吧'); return; }
     p.comments = p.comments || [];
     p.comments.push({ by: ACTIVE_ID, text, t: Date.now() });
+    noteMentionMemory(text, p.id, 'comment');
     persistMoments(); renderMoments(); openMomentComments(id);
     const author = CONTACTS.find(x => x.id === p.by);
     if (author) { recordUserCommentMemory(author, p, text); momentCommentAiReply(author.id, p); }
@@ -5698,7 +5712,7 @@ function mentionPicker() {
     if (!el) {
         el = document.createElement('div');
         el.id = 'mentionPicker';
-        el.className = 'wp-morph mention-pop';
+        el.className = 'mention-pop';
         el.style.display = 'none';
         el.addEventListener('pointerdown', e => {
             const it = e.target.closest && e.target.closest('.mention-item');
@@ -5725,21 +5739,26 @@ function mentionRender() {
         const img = src ? `<img src="${esc(src)}" alt="" onerror="this.remove()">` : '';
         const ini = esc(c.ini || String(c.remark || c.name || '?').slice(0, 1));
         const sub = c.remark ? `<i>${esc(c.name)}</i>` : '';
-        return `<button type="button" class="mention-item wp-morph-item" data-id="${esc(c.id)}"><span class="mention-av">${img}<span class="mention-ini">${ini}</span></span><span class="mention-txt"><b>${esc(c.remark || c.name)}</b>${sub}</span></button>`;
+        return `<button type="button" class="mention-item" data-id="${esc(c.id)}"><span class="mention-txt"><b>${esc(c.remark || c.name)}</b>${sub}</span><span class="mention-av">${img}<span class="mention-ini">${ini}</span></span></button>`;
     };
     box.innerHTML = `<div class="mention-head">提及联系人</div>` + (list.length
         ? list.map(item).join('')
         : '<div class="mention-empty">没有匹配的联系人</div>');
     const r = st.el.getBoundingClientRect();
-    const W = Math.min(240, window.innerWidth - 16);
-    box.style.position = 'fixed';
+    const W = Math.min(176, window.innerWidth - 16);
     box.style.width = W + 'px';
-    box.style.height = 'auto';
     box.style.left = Math.min(Math.max(8, r.left), window.innerWidth - W - 8) + 'px';
-    box.style.top = 'auto';
-    box.style.bottom = (window.innerHeight - r.top + 6) + 'px';
     box.style.display = 'block';
     box.classList.add('open');
+    const H = Math.min(box.scrollHeight, 200);
+    const below = window.innerHeight - r.bottom;
+    if (below >= H + 10) {
+        box.style.top = (r.bottom + 6) + 'px';
+        box.style.bottom = 'auto';
+    } else {
+        box.style.top = 'auto';
+        box.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+    }
 }
 function mentionPick(id) {
     const st = MENTION_ST; if (!st) return;
@@ -6028,6 +6047,7 @@ async function publishMoment() {
         visTo: MOMENT_VIS === 'some' ? MOMENT_VIS_TO.filter(x => worldTiedPair(ACTIVE_ID, x)) : [],
         likes: [], comments: [], imgs };
     POSTS.unshift(post);
+    noteMentionMemory(text, post.id, 'post');
     PENDING_IMGS = [];
     persistMoments(); closeFullMask(); renderMoments(); toast('已发布');
     scheduleMomentFetch(post);   // 发完 3 秒后开始调取，能看到的联系人各回一个词
@@ -6058,6 +6078,22 @@ function momentVisibleTo(p, c) {
     if (p.by !== c.id && !worldTiedPair(p.by, c.id)) return false;
     if (p.vis === 'some') return (p.visTo || []).includes(c.id);
     return true;
+}
+/* 朋友圈 @：被艾特的角色在共同记忆里看到的是 {char}，其他人显示名字 */
+function noteMentionMemory(text, src, kind) {
+    const ids = [];
+    String(text || '').replace(/@\[([^\]]+)\]/g, (_, id) => { if (!ids.includes(id)) ids.push(id); return _; });
+    const targets = ids.map(id => CONTACTS.find(x => String(x.id) === id)).filter(Boolean);
+    if (!targets.length) return;
+    for (const t of targets) {
+        const body = String(text).replace(/@\[([^\]]+)\]/g, (_, id) => {
+            const c = CONTACTS.find(x => String(x.id) === id);
+            return c === t ? '@{char}' : (c ? '@' + c.name : '@未知');
+        });
+        const where = kind === 'post' ? '在朋友圈发的动态里' : '在朋友圈评论里';
+        addCommonMemory(t, `{user}${where}@了{char}：${body}`, src);
+    }
+    persistContacts();
 }
 function addCommonMemory(c, text, src) {
     c.memories = c.memories || [];
