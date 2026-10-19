@@ -5174,5 +5174,9 @@
 .messages-app .mf-vis-pop-n{ font-size:14px; padding:8px 0; border-top:.5px solid #F0F0F3; }
 .messages-app .mf-vis-pop-x{ margin-top:10px; width:100%; border:0; border-radius:12px; padding:10px; background:#F2F2F7; color:#111; font-size:13px; cursor:pointer; }
 
-/* 自定义模块编辑页：返回键 */
-#cdCustomModCard .ar-close{ height:40px; border:0; border-radius:999px; background:#eef1f5; color:#4b535d; font-size:14px; cursor:pointer; }
+/* 自定义模块编辑页：保存与返回按钮同宽，上下排列 */
+#cdCustomModCard .ar-foot{ display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+#cdCustomModCard .cd-pt-row{ display:flex; flex-direction:column; gap:10px; position:relative; }
+#cdCustomModCard .cd-pt-row .ar-save,
+#cdCustomModCard .cd-pt-row .ar-close{ width:100%; height:60px; box-sizing:border-box; border:0; border-radius:999px; font-size:16px; cursor:pointer; flex:none; }
+#cdCustomModCard .cd-pt-row .ar-close{ background:#eef1f5; color:#4b535d; }

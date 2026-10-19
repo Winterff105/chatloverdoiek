@@ -1,3 +1,12 @@
+/* 长按区域：禁用系统长按选中 / 长按菜单，防止样式被顶开 */
+(function injectSettingsLongPressStyle() {
+    if (document.getElementById('settingsLongPressStyle')) return;
+    const st = document.createElement('style');
+    st.id = 'settingsLongPressStyle';
+    st.textContent = '#noirSettingsRoot .corner-bg-switcher, #noirSettingsRoot .corner-bg-switcher *, .wp-morph, .wp-morph * , .sb-morph, .sb-morph * { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }';
+    document.head.appendChild(st);
+})();
+
 /* =========================================
    Studio Noir OS · 设置应用核心逻辑
    ======================================== */
@@ -462,7 +471,7 @@ function getSettingsAppHTML() {
                 </svg>
                 <span class="switcher-text mono-font" id="settingsActivePresetBadge">Preset 1</span>
             </div>
-            <div class="corner-bg-switcher" id="settingsBgCorner" onpointerdown="sbgPointerDown(event)" onpointerup="sbgPointerUp(event)" onpointerleave="sbgCancel()" oncontextmenu="return false" title="单击切换背景 · 长按更多选项">
+            <div class="corner-bg-switcher" id="settingsBgCorner" onpointerdown="sbgPointerDown(event)" onpointerup="sbgPointerUp(event)" onpointerleave="sbgCancel()" onpointercancel="sbgCancel()" oncontextmenu="return false" title="单击切换背景 · 长按更多选项">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
                     <circle cx="8.5" cy="8.5" r="1.5"/>
@@ -694,7 +703,7 @@ let settingsActivePresetIndex = 0;
 function publishActiveSettingsApi(preset) {
     if (!preset) return;
     try {
-        localStorage.setItem('forever_settings_active_api_v1', JSON.stringify({
+        localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({
             name: String(preset.name || ''), url: String(preset.url || '').trim(),
             key: String(preset.key || '').trim(), model: String(preset.model || '').trim(),
             temperature: (typeof preset.temperature === 'number' && isFinite(preset.temperature)) ? preset.temperature : 0.8,
@@ -706,7 +715,7 @@ function publishActiveSettingsApi(preset) {
 function restoreActiveSettingsApi() {
     loadSettingsApiPresets();
     try {
-        const saved = JSON.parse(localStorage.getItem('forever_settings_active_api_v1') || 'null');
+        const saved = JSON.parse(localStorage.getItem('whatever_settings_active_api_v1') || 'null');
         if (!saved || !saved.url || !saved.model) { prefillSettingsForm(settingsApiPresets[settingsActivePresetIndex]); return; }
         let idx = settingsApiPresets.findIndex(p => p.name === saved.name);
         if (idx < 0) {
@@ -1677,6 +1686,19 @@ async function fetchPresetModels(id) {
     }
 }
 
+/* 设置保存提示：非阻塞小条，几秒后自动消失（不用 alert，全屏下 alert 会卡住页面） */
+function showSettingsToast(text) {
+    const old = document.getElementById('settingsToast');
+    if (old) old.remove();
+    const el = document.createElement('div');
+    el.id = 'settingsToast';
+    el.textContent = String(text || '');
+    el.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 28px);transform:translateX(-50%);max-width:86%;padding:10px 16px;border-radius:999px;background:rgba(20,20,20,.88);color:#fff;font-size:13px;line-height:1.4;text-align:center;z-index:99999;pointer-events:none;opacity:0;transition:opacity .25s ease;';
+    document.body.appendChild(el);
+    requestAnimationFrame(() => { el.style.opacity = '1'; });
+    setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 260); }, 1800);
+}
+
 function saveSettingsPreset() {
     const name = document.getElementById('settingsPresetName').value.trim();
     const url = document.getElementById('settingsApiUrl').value.trim();
@@ -1685,11 +1707,11 @@ function saveSettingsPreset() {
     const tune = settingsTuningFromForm();
 
     if (!name || !url || !key) {
-        alert('预设名称、URL 和 Key 都要填完整');
+        showSettingsToast('预设名称、URL 和 Key 都要填完整');
         return;
     }
     if (!model) {
-        alert('请先点 Fetch 获取模型列表，并选择一个模型');
+        showSettingsToast('请先点 Fetch 获取模型列表，并选择一个模型');
         return;
     }
 
@@ -1699,10 +1721,10 @@ function saveSettingsPreset() {
         existing.key = key;
         existing.model = model;
         Object.assign(existing, tune);
-        alert(`预设 "${name}" 已更新！`);
+        showSettingsToast(`预设 "${name}" 已更新！`);
     } else {
         settingsApiPresets.push({ id: Date.now(), name, url, key, model, ...tune });
-        alert(`新预设 "${name}" 保存成功！`);
+        showSettingsToast(`新预设 "${name}" 保存成功！`);
     }
 
     settingsActivePresetIndex = settingsApiPresets.findIndex(p => p.name === name);
