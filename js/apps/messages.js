@@ -5738,11 +5738,14 @@ function mentionPick(id) {
     if (typeof updateMomentCount === 'function' && el.id === 'momentInput') updateMomentCount();
     mentionClose();
 }
+function isMentionInput(el) {
+    return !!el && (el.id === 'momentInput' || el.id === 'mfCmtInput' || (el.classList && (el.classList.contains('mf-inline-input') || el.classList.contains('mf-cmt-input'))));
+}
 if (!window.__mentionBound) {
     window.__mentionBound = true;
     document.addEventListener('input', e => {
         const el = e.target;
-        if (!el || !(el.id === 'momentInput' || (el.classList && el.classList.contains('mf-inline-input')))) return;
+        if (!isMentionInput(el)) return;
         const pos = el.selectionStart == null ? el.value.length : el.selectionStart;
         const m = el.value.slice(0, pos).match(/(^|\s)@([^\s@\[\]]{0,12})$/);
         if (!m) { mentionClose(); return; }
@@ -5752,7 +5755,7 @@ if (!window.__mentionBound) {
     document.addEventListener('pointerdown', e => {
         const t = e.target;
         if (t && t.closest && t.closest('#mentionPicker')) return;
-        if (t && (t.id === 'momentInput' || (t.classList && t.classList.contains('mf-inline-input')))) return;
+        if (isMentionInput(t)) return;
         mentionClose();
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') mentionClose(); });
