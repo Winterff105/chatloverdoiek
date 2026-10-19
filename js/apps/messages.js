@@ -5524,9 +5524,10 @@ function sendMomentCommentInline(id) {
 function recordUserCommentMemory(contact, p, text) {
     const author = CONTACTS.find(x => x.id === p.by);
     if (!author || !contact) return;
-    const excerpt = (p.text || '').trim() || '一张照片';
+    const excerpt = momentTextWithNames(p.text).trim() || '一张照片';
     const who = contact.id === author.id ? '{char}' : author.name;
-    addCommonMemory(contact, `{user}在${who}的朋友圈（${excerpt}）下评论：${text}`, p.id);
+    const body = momentTextWithNames(text);
+    addCommonMemory(contact, `{user}在${who}的朋友圈（${excerpt}）下评论：${body}`, p.id);
 }
 /* 调取完成气泡：有人评论或发了朋友圈、用户还没看，就显示完成；用户在朋友圈页则短暂显示后收起 */
 function notePosterDone(list) {
@@ -5736,7 +5737,7 @@ function mentionCaretRect(el, caret) {
     mirror.style.cssText = `position:fixed;left:${el.getBoundingClientRect().left}px;top:${el.getBoundingClientRect().top}px;width:${el.clientWidth}px;height:auto;visibility:hidden;white-space:pre-wrap;overflow-wrap:break-word;word-break:${cs.wordBreak};box-sizing:border-box;`;
     ['font','fontSize','fontFamily','fontWeight','lineHeight','letterSpacing','padding','border','textAlign','textIndent'].forEach(k => { mirror.style[k] = cs[k]; });
     const before = document.createTextNode(el.value.slice(0, caret));
-    const marker = document.createElement('span'); marker.textContent = '\\u200b';
+    const marker = document.createElement('span'); marker.textContent = '\u200b';
     mirror.appendChild(before); mirror.appendChild(marker);
     document.body.appendChild(mirror);
     const mr = marker.getBoundingClientRect();
@@ -5788,14 +5789,18 @@ function isMentionInput(el) {
 }
 if (!window.__mentionBound) {
     window.__mentionBound = true;
-    document.addEventListener('input', e => {
-        const el = e.target;
+    function refreshMentionFromCaret(el) {
         if (!isMentionInput(el)) return;
         const pos = el.selectionStart == null ? el.value.length : el.selectionStart;
         const m = el.value.slice(0, pos).match(/(^|\s)@([^\s@\[\]]{0,12})$/);
         if (!m) { mentionClose(); return; }
         MENTION_ST = { el, start: pos - m[2].length - 1, caret: pos, query: m[2] };
         mentionRender();
+    }
+    document.addEventListener('input', e => refreshMentionFromCaret(e.target));
+    document.addEventListener('keyup', e => refreshMentionFromCaret(e.target));
+    document.addEventListener('click', e => {
+        if (isMentionInput(e.target)) setTimeout(() => refreshMentionFromCaret(e.target), 0);
     });
     document.addEventListener('pointerdown', e => {
         const t = e.target;
@@ -6122,10 +6127,9 @@ function noteMentionMemory(text, src, kind) {
     for (const viewer of viewers) {
         const body = String(text).replace(/@\[([^\]]+)\]/g, (_, id) => {
             const mentioned = CONTACTS.find(x => String(x.id) === id);
-            if (!mentioned) return '@未知';
+            if (!mentioned) return '@未知联系人';
             return mentioned.id === viewer.id ? '@{char}' : '@' + mentioned.name;
         });
-        // 对被艾特的联系人自身，所有被艾特对象都用 {char} 表示；其他联系人仍看到真实名字。
         const mentionedNames = targets.map(c => c.id === viewer.id ? '{char}' : c.name).join('、');
         addCommonMemory(viewer, `{user}${where}@了${mentionedNames}：${body}`, src);
     }
