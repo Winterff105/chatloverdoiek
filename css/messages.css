@@ -5181,3 +5181,7 @@
 #cdCustomModCard .ar-close{ width:100%; height:40px; box-sizing:border-box; padding:0; margin:0; border:0; border-radius:999px; font-size:14px; cursor:pointer; flex:none; }
 #cdCustomModCard .ar-save{ background:#2b3138; color:#fff; font-weight:600; }
 #cdCustomModCard .ar-close{ background:#eef1f5; color:#4b535d; }
+
+/* @ 联系人 & 可见范围未连线项 */
+.messages-app .mf-at{ color:#111; font-weight:600; }
+.messages-app .mv-row.mv-off{ opacity:.45; }

@@ -96,7 +96,7 @@ async function momentSyncAll() {
             // 概率由代码掷骰子决定：没中就不调用模型，省额度；中了才让模型写内容
             if (Math.random() * 100 >= pct) continue;
             const viewers = CONTACTS.filter(x => x.id !== c.id && worldTiedPair(c.id, x.id)).map(x => ({ name: x.name, persona: x.persona || '' }));
-            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => p.text).filter(Boolean) });
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r) { allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo })); allPosters.push(c); posted++; }
         }
     } catch (e) { showApiError(e); }
@@ -5162,7 +5162,7 @@ function momentAuthor(by) {
 }
 function posterView(p, c) {
     const kind = p.by === c.id ? 'me' : (CONTACTS.find(x => x.id === p.by) ? 'other' : 'user');
-    return Object.assign({}, p, { posterKind: kind, posterName: momentAuthor(p.by).name });
+    return Object.assign({}, p, { posterKind: kind, posterName: momentAuthor(p.by).name, text: plainMentions(p.text) });
 }
 function momentAvatarHtml(a, size) {
     const src = a.avatar || DEFAULT_CHAR_AVATAR;
@@ -5502,7 +5502,7 @@ function sendMomentCommentInline(id) {
         const target = CONTACTS.find(x => x.id === rt.by);
         if (target && target.id !== (author && author.id)) recordUserCommentMemory(target, p, text);
         momentCommentAiReply(rt.by, p);
-        charPrivateReply(rt.by, p, text, rt.text);
+        charPrivateReply(rt.by, p, plainMentions(text), plainMentions(rt.text));
     } else if (author) {
         momentCommentAiReply(author.id, p);
     }
@@ -5537,7 +5537,7 @@ async function momentCommentAiReply(cid, p) {
     const excerpt = (p.text || '').trim() || '一张照片';
     let replied = false;
     try {
-        const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: cm.text }));
+        const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }));
         const r = await window.MessagesAPI.momentWordReply(c, posterView(p, c), (c.msgs || []).slice(-30), existing);
         if (r.comment) {
             p.comments = p.comments || [];
@@ -5632,6 +5632,7 @@ function closeMomentVisPanel() {
 }
 function setMomentVis(k) { MOMENT_VIS = k; MV_ANIM = true; renderMomentVisPanel(); }
 function toggleMomentVisTo(id) {
+    if (!worldTiedPair(ACTIVE_ID, id)) { toast('没有和你连线，不能选择'); return; }
     const i = MOMENT_VIS_TO.indexOf(id);
     if (i >= 0) MOMENT_VIS_TO.splice(i, 1); else MOMENT_VIS_TO.push(id);
     renderMomentVisPanel();
@@ -5690,13 +5691,100 @@ const MV_ICO = {
     search: '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><line x1="21" x2="16.6" y1="21" y2="16.6"/></svg>',
     check: '<svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg>'
 };
+/* ---------------- @ 联系人：输入 @ 弹出列表，存的是 ID 标记，显示随备注/名字变化 ---------------- */
+let MENTION_ST = null;
+function mentionPicker() {
+    let el = document.getElementById('mentionPicker');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'mentionPicker';
+        el.style.cssText = 'position:fixed;z-index:99999;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:6px;min-width:170px;max-height:220px;overflow-y:auto;display:none;';
+        el.addEventListener('pointerdown', e => {
+            const it = e.target.closest && e.target.closest('.mention-item');
+            if (!it) return;
+            e.preventDefault();
+            mentionPick(it.dataset.id);
+        });
+        document.body.appendChild(el);
+    }
+    return el;
+}
+function mentionClose() {
+    MENTION_ST = null;
+    const el = document.getElementById('mentionPicker');
+    if (el) el.style.display = 'none';
+}
+function mentionRender() {
+    const st = MENTION_ST; if (!st) return;
+    const q = st.query.trim().toLowerCase();
+    const list = CONTACTS.filter(c => !q || String(c.name).toLowerCase().includes(q) || String(c.remark || '').toLowerCase().includes(q));
+    const box = mentionPicker();
+    box.innerHTML = list.length
+        ? list.map(c => `<div class="mention-item" data-id="${esc(c.id)}" style="padding:8px 10px;border-radius:10px;font-size:13px;color:#111;cursor:pointer;white-space:nowrap;">${esc(c.remark || c.name)}</div>`).join('')
+        : '<div style="padding:8px 10px;font-size:12px;color:#9A9AA0;">没有匹配的联系人</div>';
+    const r = st.el.getBoundingClientRect();
+    box.style.left = Math.max(8, r.left) + 'px';
+    box.style.top = 'auto';
+    box.style.bottom = (window.innerHeight - r.top + 6) + 'px';
+    box.style.display = 'block';
+}
+function mentionPick(id) {
+    const st = MENTION_ST; if (!st) return;
+    const el = st.el, v = el.value;
+    const token = `@[${id}] `;
+    el.value = v.slice(0, st.start) + token + v.slice(st.caret);
+    const pos = st.start + token.length;
+    try { el.focus(); el.setSelectionRange(pos, pos); } catch (_) {}
+    if (typeof updateMomentCount === 'function' && el.id === 'momentInput') updateMomentCount();
+    mentionClose();
+}
+if (!window.__mentionBound) {
+    window.__mentionBound = true;
+    document.addEventListener('input', e => {
+        const el = e.target;
+        if (!el || !(el.id === 'momentInput' || (el.classList && el.classList.contains('mf-inline-input')))) return;
+        const pos = el.selectionStart == null ? el.value.length : el.selectionStart;
+        const m = el.value.slice(0, pos).match(/(^|\s)@([^\s@\[\]]{0,12})$/);
+        if (!m) { mentionClose(); return; }
+        MENTION_ST = { el, start: pos - m[2].length - 1, caret: pos, query: m[2] };
+        mentionRender();
+    });
+    document.addEventListener('pointerdown', e => {
+        const t = e.target;
+        if (t && t.closest && t.closest('#mentionPicker')) return;
+        if (t && (t.id === 'momentInput' || (t.classList && t.classList.contains('mf-inline-input')))) return;
+        mentionClose();
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') mentionClose(); });
+}
+/* 界面显示：用户看到的是备注（没有备注用名字） */
+function mentionHtml(str) {
+    const src = String(str == null ? '' : str);
+    let out = '', last = 0, m;
+    const re = /@\[([^\]]+)\]/g;
+    while ((m = re.exec(src))) {
+        out += esc(src.slice(last, m.index));
+        const c = CONTACTS.find(x => String(x.id) === m[1]);
+        out += `<span class="mf-at">@${esc(c ? (c.remark || c.name) : '未知')}</span>`;
+        last = re.lastIndex;
+    }
+    return out + esc(src.slice(last));
+}
+/* 给角色看的文字：标记换成名字（不是备注） */
+function plainMentions(str) {
+    return String(str == null ? '' : str).replace(/@\[([^\]]+)\]/g, (_, id) => {
+        const c = CONTACTS.find(x => String(x.id) === id);
+        return c ? '@' + c.name : '@未知';
+    });
+}
 function mvListHtml() {
     const q = MOMENT_VIS_Q.trim().toLowerCase();
     const list = CONTACTS.filter(c => !q || String(c.name).toLowerCase().includes(q) || String(c.id).toLowerCase().includes(q));
     if (!list.length) return '<div class="mv-empty">No records found.</div>';
     return list.map(c => {
         const on = MOMENT_VIS_TO.indexOf(c.id) >= 0;
-        return `<div class="mv-row ${on ? 'on' : ''}" onclick="toggleMomentVisTo('${c.id}')">${avatar(c, 'sm')}<div class="mv-info"><div class="mv-name">${esc(dispName(c))}</div><div class="mv-sub">${esc(c.id)}</div></div><div class="mv-chk">${on ? '×' : ''}</div></div>`;
+        const linked = worldTiedPair(ACTIVE_ID, c.id);
+        return `<div class="mv-row ${on ? 'on' : ''} ${linked ? '' : 'mv-off'}" onclick="toggleMomentVisTo('${c.id}')">${avatar(c, 'sm')}<div class="mv-info"><div class="mv-name">${esc(dispName(c))}</div><div class="mv-sub">${linked ? esc(c.id) : '未连线 · 不可见'}</div></div><div class="mv-chk">${on ? '×' : ''}</div></div>`;
     }).join('');
 }
 function renderMomentVisPanel() {
@@ -5738,7 +5826,7 @@ function filterMomentVis(q) {
 }
 function selectAllMomentVis() {
     MOMENT_VIS_TO.length = 0;
-    CONTACTS.forEach(c => MOMENT_VIS_TO.push(c.id));
+    CONTACTS.filter(c => worldTiedPair(ACTIVE_ID, c.id)).forEach(c => MOMENT_VIS_TO.push(c.id));
     renderMomentVisPanel();
 }
 function clearMomentVis() {
@@ -5818,19 +5906,19 @@ function renderMoments() {
         const cmts = p.comments || [];
         const imgs = p.imgs || [];
         const liked = likes.indexOf(ACTIVE_ID) >= 0;
-        const preview = cmts.slice(0, 2).map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}">${cmtNameHtml(c)}<span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('');
+        const preview = cmts.slice(0, 2).map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}">${cmtNameHtml(c)}<span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${mentionHtml(c.text)}</span></div>`).join('');
         const photos = imgs.length ? `<div class="mf-imgs n${Math.min(imgs.length, 3)}">${imgs.map(k => `<img class="mf-img" data-mkey="${k}" alt="">`).join('')}</div>` : '';
         const cmtOpen = MOMENT_CMT_OPEN[p.id] !== undefined ? MOMENT_CMT_OPEN[p.id] : cmts.length > 0;
         const inlineBar = MOMENT_INPUT_OPEN[p.id] ? `<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="${esc(momentInlinePh(p.id))}"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div>` : '';
         const cmtBlock = cmtOpen
-            ? `<div class="mf-cmts mf-cmts-open${MOMENT_CMT_ENTER[p.id] ? ' mf-cmts-enter' : ''}">${cmts.map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}">${cmtNameHtml(c)}<span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${esc(c.text)}</span></div>`).join('') || '<div class="mf-cmt-none">还没有评论，来说第一句吧</div>'}${inlineBar}</div>`
+            ? `<div class="mf-cmts mf-cmts-open${MOMENT_CMT_ENTER[p.id] ? ' mf-cmts-enter' : ''}">${cmts.map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}">${cmtNameHtml(c)}<span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${mentionHtml(c.text)}</span></div>`).join('') || '<div class="mf-cmt-none">还没有评论，来说第一句吧</div>'}${inlineBar}</div>`
             : (cmts.length ? `<div class="mf-cmts" onclick="toggleMomentCmt('${p.id}')">${preview}${cmts.length > 2 ? `<span class="mf-cmt-more">查看全部 ${cmts.length} 条评论</span>` : ''}</div>` : '');
         return `<!--mf:${p.id}--><div class="mf-card" data-pid="${p.id}">
             <div class="mf-card-head">${momentAvatarHtml(a, 'sm')}
                 <div class="mf-card-who"><b>${esc(a.name)}</b><span>${fmtMoment(p.t)}${momentVisText(p) ? ' · ' + momentVisText(p) : ''}</span></div>
                 <button class="mf-del" type="button" onclick="deleteMoment('${p.id}')">删除</button>
             </div>
-            ${p.text ? `<div class="mf-card-text">${esc(p.text)}</div>` : ''}
+            ${p.text ? `<div class="mf-card-text">${mentionHtml(p.text)}</div>` : ''}
             ${photos}
             ${momentCapsuleHTML(p)}
             <div class="mf-card-foot">
@@ -5921,7 +6009,7 @@ async function publishMoment() {
         imgs.push(key);
     }
     const post = { id, text, t: Date.now(), by: ACTIVE_ID, vis: MOMENT_VIS,
-        visTo: MOMENT_VIS === 'some' ? MOMENT_VIS_TO.slice() : [],
+        visTo: MOMENT_VIS === 'some' ? MOMENT_VIS_TO.filter(x => worldTiedPair(ACTIVE_ID, x)) : [],
         likes: [], comments: [], imgs };
     POSTS.unshift(post);
     PENDING_IMGS = [];
@@ -5941,6 +6029,8 @@ function tieNodesOf(id) {
 }
 function worldTiedPair(a, b) {
     if (a === b) return false;
+    // 用户和任何人之间不限制；只有角色和角色之间才需要连线
+    if (!CONTACTS.some(x => x.id === a) || !CONTACTS.some(x => x.id === b)) return true;
     let ties = [];
     try { ties = JSON.parse(localStorage.getItem('world_tethers_v1') || '[]'); } catch (_) {}
     if (!Array.isArray(ties) || !ties.length) return false;
@@ -5987,7 +6077,7 @@ async function momentFetchFor(p) {
     const fresh = [];
     for (const c of who) {
         try {
-            const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: cm.text }));
+            const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }));
             const r = await window.MessagesAPI.momentWordReply(c, posterView(p, c), (c.msgs || []).slice(-30), existing);
             p.likes = p.likes || []; p.comments = p.comments || [];
             if (r.like && !p.likes.includes(c.id)) {
