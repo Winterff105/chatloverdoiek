@@ -5698,7 +5698,8 @@ function mentionPicker() {
     if (!el) {
         el = document.createElement('div');
         el.id = 'mentionPicker';
-        el.className = 'mention-pop';
+        el.className = 'wp-morph mention-pop';
+        el.style.display = 'none';
         el.addEventListener('pointerdown', e => {
             const it = e.target.closest && e.target.closest('.mention-item');
             if (!it) return;
@@ -5712,7 +5713,7 @@ function mentionPicker() {
 function mentionClose() {
     MENTION_ST = null;
     const el = document.getElementById('mentionPicker');
-    if (el) el.style.display = 'none';
+    if (el) { el.classList.remove('open'); el.style.display = 'none'; }
 }
 function mentionRender() {
     const st = MENTION_ST; if (!st) return;
@@ -5720,18 +5721,25 @@ function mentionRender() {
     const list = CONTACTS.filter(c => !q || String(c.name).toLowerCase().includes(q) || String(c.remark || '').toLowerCase().includes(q));
     const box = mentionPicker();
     const item = c => {
-        const av = c.avatar ? `<img src="${esc(c.avatar)}" alt="">` : `<span>${esc(String(c.remark || c.name || '?').slice(0, 1))}</span>`;
+        const src = c.avatar || DEFAULT_CHAR_AVATAR;
+        const img = src ? `<img src="${esc(src)}" alt="" onerror="this.remove()">` : '';
+        const ini = esc(c.ini || String(c.remark || c.name || '?').slice(0, 1));
         const sub = c.remark ? `<i>${esc(c.name)}</i>` : '';
-        return `<button type="button" class="mention-item" data-id="${esc(c.id)}"><span class="mention-av">${av}</span><span class="mention-txt"><b>${esc(c.remark || c.name)}</b>${sub}</span></button>`;
+        return `<button type="button" class="mention-item wp-morph-item" data-id="${esc(c.id)}"><span class="mention-av">${img}<span class="mention-ini">${ini}</span></span><span class="mention-txt"><b>${esc(c.remark || c.name)}</b>${sub}</span></button>`;
     };
     box.innerHTML = `<div class="mention-head">提及联系人</div>` + (list.length
         ? list.map(item).join('')
         : '<div class="mention-empty">没有匹配的联系人</div>');
     const r = st.el.getBoundingClientRect();
-    box.style.left = Math.min(Math.max(8, r.left), window.innerWidth - Math.min(260, window.innerWidth - 16) - 8) + 'px';
+    const W = Math.min(240, window.innerWidth - 16);
+    box.style.position = 'fixed';
+    box.style.width = W + 'px';
+    box.style.height = 'auto';
+    box.style.left = Math.min(Math.max(8, r.left), window.innerWidth - W - 8) + 'px';
     box.style.top = 'auto';
     box.style.bottom = (window.innerHeight - r.top + 6) + 'px';
     box.style.display = 'block';
+    box.classList.add('open');
 }
 function mentionPick(id) {
     const st = MENTION_ST; if (!st) return;
