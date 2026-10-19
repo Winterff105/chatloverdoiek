@@ -67,7 +67,7 @@ function applyAutoComments(post, list) {
 
 /* 评论计入共同记忆：评论者一定记；如果被评论的是联系人发的帖子，被评论的联系人也记 */
 function recordCommentMemory(commenter, post, text) {
-    const excerpt = (post.text || '').trim() || '一张照片';
+    const excerpt = momentTextWithNames(post.text).trim() || '一张照片';
     const author = CONTACTS.find(x => x.id === post.by && x.id !== commenter.id) || null;
     if (!author) {
         addCommonMemory(commenter, `{char}在{user}的朋友圈（${excerpt}）下评论：${text}`, post.id);
@@ -95,6 +95,7 @@ async function momentSyncAll() {
             const pct = Math.round(mfPctOf(c) * (lastH !== null && lastH < 24 ? 0.4 : 1));
             // 概率由代码掷骰子决定：没中就不调用模型，省额度；中了才让模型写内容
             if (Math.random() * 100 >= pct) continue;
+            // 联系人之间没有世界连线时，互相不可见，也不能互相评论或回复。
             const viewers = CONTACTS.filter(x => x.id !== c.id && worldTiedPair(c.id, x.id)).map(x => ({ name: x.name, persona: x.persona || '' }));
             const feed = POSTS.filter(p => momentVisibleTo(p, c)).slice(0, 20).map(p => ({
                 id: p.id, author: momentAuthor(p.by).name, text: plainMentions(p.text),
@@ -6183,8 +6184,8 @@ async function momentFetchFor(p) {
     momentFetchTimer = null;
     if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('朋友圈没有调取：请先在「设置 → API」保存接口配置'); return; }
     if (momentFetchBusy) { scheduleMomentFetch(p); return; }
-    const who = momentViewerList(p).filter(x => x.id !== p.by);
-    if (!who.length) { toast('朋友圈没有调取：没有能看到这条的联系人'); return; }
+    const who = momentViewerList(p).filter(x => x.id !== p.by && !((p.comments || []).some(cm => cm.by === x.id)));
+    if (!who.length) { toast('朋友圈没有调取：没有新的联系人可以评论'); return; }
     momentFetchBusy = true;
     MOMENT_UNSEEN = false;
     refreshChatBadge();
