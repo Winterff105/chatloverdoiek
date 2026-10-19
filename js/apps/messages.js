@@ -134,7 +134,7 @@ function mfSliderHTML(k, f, label, val, lo, hi, unit, first) {
         <input type="range" min="${lo}" max="${hi}" value="${val}" data-mf-k="${k}" data-mf-f="${f}" data-mf-u="${unit}" style="--p:${pct}%"></div>`;
 }
 function mfBlockHTML(k, v) {
-    return mfSliderHTML(k, 'pct', '发布概率 <button class="mf-info" data-mf-info aria-label="说明">!</button>', v.pct, 0, 100, '%', true)
+    return mfSliderHTML(k, 'pct', '发布概率 <button class="mf-info mf-pct-info" data-mf-info aria-label="说明">!</button>', v.pct, 0, 100, '%', true)
          + '<div class="mf-note" hidden>每次调取时，联系人按这个概率考虑要不要发朋友圈，最终还是要看聊天记录。24 小时内刚发过的，概率会自动降低，避免总是同一个人在发。</div>'
          + `<div class="mf-extra-row"><span>允许回看旧朋友圈</span><button class="mf-info" data-mf-old-info aria-label="会消耗额度">!</button><button class="mf-tg ${v.oldOn !== false ? 'on' : ''}" data-mf-old-tg="${k}" aria-label="允许回看旧朋友圈"></button></div>`
          + '<div class="mf-note" data-mf-old-note hidden>开启后，聊天过程中或空闲调取时，可能额外调用模型，让该联系人随机点赞或评论以前可见的朋友圈，会消耗 API 额度。</div>';
