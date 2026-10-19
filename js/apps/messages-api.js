@@ -506,6 +506,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const userName = window.MESSAGES_USER_NAME || 'user';
     const ctx = (recentMsgs || []).map(m => `${m.me ? userName : contact.name}：${m.text}`).join('\n') || '（暂无聊天记录）';
     const cur = (existing || []).length ? existing.map(e => `${e.name}：${e.text}`).join('\n') : '（还没有人评论）';
+    const whose = post && post.posterKind === 'me' ? '你自己' : (post && post.posterKind === 'other' ? `${post.posterName}` : '用户');
     const names = [...new Set((existing || []).map(e => e.name))].filter(n => n && n !== contact.name);
     const system = [
       ROLEPLAY_PROMPT,
@@ -514,14 +515,16 @@ Respond to what was just said, and let topic changes happen naturally, without e
       contact.persona ? `${fillU('{char}设定')}：${contact.persona}` : '',
       window.MESSAGES_USER_PERSONA ? `${fillU('{user}设定')}：${window.MESSAGES_USER_PERSONA}` : '',
       contact.relation ? `与用户的关系：${contact.relation}` : '',
+      momentOptsBlock(contact),
       '【朋友圈评论】',
-      '你正在看用户刚发的一条朋友圈，像真人一样自然地说几句话。长短由你自己决定，可以只说一句，也可以多说几句，想怎么说就怎么说。',
+      '你是来评论的，不是发帖的人。你正在看一条刚发的朋友圈，像真人一样自然地说几句话。长短由你自己决定，可以只说一句，也可以多说几句，想怎么说就怎么说。',
       '你可以接着评论区里别人的话往下说，也可以直接回复评论区里的某个人，这时在 to 字段写上对方的名字，名字只能从可以回复的人里选；不需要回复就写空字符串。',
       '不要使用任何标点符号和表情符号，需要停顿或分开的地方用空格代替。',
+      '评论区里已经出现的词和句式不要照搬，换自己的说法，也不要每条都用同样的开头。',
       '只输出一个 JSON 对象，不要输出其他文字，也不要使用代码块，格式固定为：{"like":true或false,"comment":"评论内容，不评论就写空字符串","to":"要回复的人的名字，没有就写空字符串"}'
     ].filter(Boolean).join('\n');
     const when = new Date();
-    const user = `你们最近的聊天：\n${ctx}\n\n用户刚发的朋友圈（${when.getHours()}时${when.getMinutes()}分）：\n${String(post && post.text || '').trim() || '（只发了照片）'}\n\n评论区现在的内容：\n${cur}\n\n可以回复的人：${names.join('、') || '无'}`;
+    const user = `你们最近的聊天：\n${ctx}\n\n${whose}刚发的朋友圈（${when.getHours()}时${when.getMinutes()}分）：\n${String(post && post.text || '').trim() || '（只发了照片）'}\n\n评论区现在的内容：\n${cur}\n\n可以回复的人：${names.join('、') || '无'}`;
     let response;
     try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
     catch (e) { throw new Error(String((e && e.message) || e)); }
@@ -589,6 +592,18 @@ Respond to what was just said, and let topic changes happen naturally, without e
     return Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content);
   }
 
+  /* 朋友圈也带上联系人勾选的防八股 / 防油腻等选项，和主聊天一致 */
+  function momentOptsBlock(contact) {
+    const getPT = k => (typeof window.getChatPromptText === 'function' ? window.getChatPromptText(k) : '');
+    const T = {
+      ai: '避免八股套话和模板化的客套句式，说话要具体、自然。',
+      greasy: '语气自然不油腻，不用过度亲昵的称呼和暧昧措辞。',
+      threat: getPT('threat'), fake: getPT('fake'), macho: getPT('macho')
+    };
+    const list = (contact.promptOpts || []).map(k => T[k]).filter(Boolean);
+    return list.length ? ['【额外要求】'].concat(list).join('\n') : '';
+  }
+
   /* 朋友圈自主发布：读取聊天记录，由角色自己决定要不要发；pct 只是倾向参考 */
   async function momentAutoPost(contact, recentMsgs, pct, win) {
     win = win || {};
@@ -597,6 +612,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const viewers = Array.isArray(win.viewers) ? win.viewers.filter(v => v && v.name) : [];
     const lines = [
       '【朋友圈自主发布】',
+      `你就是${contact.name || '你'}，这条朋友圈是你自己发的。发布之后，你仍然可以在自己的朋友圈里回复别人的评论，但不要用别人的名字写评论，也不要把自己写成另一个评论的人。`,
       win.decided ? `这次已经决定发一条朋友圈（发帖概率 ${pct}%，本次已命中），请直接根据你们最近的聊天写出内容，输出 post:true。` : `你可以自己决定此刻要不要发一条朋友圈。你发朋友圈的倾向大约是 ${pct}%，但最终要看你们最近的聊天记录：有值得分享的事、心情或变化就发；没有就不发。`,
       win.lastH == null ? '你还从没发过朋友圈。' : `距离你上次发朋友圈已过 ${Math.floor(win.lastH)} 小时。`,
       `这次发的概率约为 ${pct}%。刚发过的内容不要重复，也不要每次都用同样的句式。`,
@@ -611,7 +627,9 @@ Respond to what was just said, and let topic changes happen naturally, without e
     } else {
       lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容"}；不发时格式：{"post":false}');
     }
-    const sys = lines.join('\n');
+    const recent = Array.isArray(win.recentPosts) ? win.recentPosts.filter(Boolean).slice(0, 5) : [];
+    if (recent.length) lines.push('你最近发过的朋友圈：\n' + recent.map(t => '- ' + String(t).slice(0, 60)).join('\n') + '\n这次换个说法，不要重复上面的词、句式和开头。');
+    const sys = [ROLEPLAY_PROMPT, momentOptsBlock(contact), lines.join('\n')].filter(Boolean).join('\n\n');
     const persona = contact.persona ? `你的设定：${fillU(contact.persona)}` : '';
     const ctx = (recentMsgs || []).map(m => `${m.me ? userName : contact.name}：${String(m.text || '')}`).join('\n') || '（暂无聊天记录）';
     const raw = await complete([sys, persona].filter(Boolean).join('\n\n'), `你们最近的聊天：\n${ctx}`);

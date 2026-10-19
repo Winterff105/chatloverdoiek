@@ -4400,7 +4400,7 @@
 
 /* ---------------- 朋友圈调取气泡 + 聊天室角标 ---------------- */
 .messages-app #tabbar .tab[data-tab="moments"]{position:relative}
-.messages-app .mq-thought{position:absolute;left:50%;width:0;bottom:calc(100% - 18px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:6}
+.messages-app .mq-thought{position:absolute;left:50%;width:0;bottom:calc(100% - 3px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;opacity:0;pointer-events:none;transition:opacity .3s ease;z-index:6}
 .messages-app .mq-thought.mq-on{opacity:1}
 .messages-app .mq-thought.mq-fade{opacity:0}
 .messages-app .mq-pill{position:relative;flex-shrink:0;width:72px;height:30px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 12px rgba(0,0,0,.05);font-size:12px;font-weight:600;color:#161616;white-space:nowrap;transition:width .55s cubic-bezier(.2,.8,.2,1),height .55s cubic-bezier(.2,.8,.2,1),transform .55s cubic-bezier(.2,.8,.2,1),background .3s ease,color .3s ease,box-shadow .3s ease,border-color .3s ease}
@@ -5173,3 +5173,6 @@
 .messages-app .mf-vis-pop-s{ font-size:11.5px; color:#8E8E93; margin:4px 0 10px; }
 .messages-app .mf-vis-pop-n{ font-size:14px; padding:8px 0; border-top:.5px solid #F0F0F3; }
 .messages-app .mf-vis-pop-x{ margin-top:10px; width:100%; border:0; border-radius:12px; padding:10px; background:#F2F2F7; color:#111; font-size:13px; cursor:pointer; }
+
+/* 自定义模块编辑页：返回键 */
+#cdCustomModCard .ar-close{ height:40px; border:0; border-radius:999px; background:#eef1f5; color:#4b535d; font-size:14px; cursor:pointer; }

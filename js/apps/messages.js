@@ -93,7 +93,7 @@ async function momentSyncAll() {
             // 概率由代码掷骰子决定：没中就不调用模型，省额度；中了才让模型写内容
             if (Math.random() * 100 >= pct) continue;
             const viewers = CONTACTS.filter(x => x.id !== c.id).map(x => ({ name: x.name, persona: x.persona || '' }));
-            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, decided: true });
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => p.text).filter(Boolean) });
             if (r) { allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo })); allPosters.push(c); posted++; }
         }
     } catch (e) { showApiError(e); }
@@ -5151,10 +5151,15 @@ function momentAuthor(by) {
     if (by && by !== 'self') { const c = IDENTITIES.find(x => x.id === by); if (c) return { name: c.name, avatar: c.avatar || ME.avatar || DEFAULT_CHAT_AVATAR }; }
     const ct = CONTACTS.find(x => x.id === by); if (ct) return { name: ct.name, avatar: ct.avatar || DEFAULT_CHAR_AVATAR };
     if (by && DELETED_NAMES[by]) return { name: `${DELETED_NAMES[by]}（已删除）`, avatar: '' };
+    if (by && by !== 'self' && by !== ACTIVE_ID) return { name: '未知联系人', avatar: DEFAULT_CHAR_AVATAR };
     const a = activeIdentity();
     const myAv = (a && a.avatar) || ME.avatar;
     const myName = (a && a.name) || ME.name;
     return { name: myName, avatar: MOMENT_AVATAR || myAv || DEFAULT_MOMENT_AVATAR };
+}
+function posterView(p, c) {
+    const kind = p.by === c.id ? 'me' : (CONTACTS.find(x => x.id === p.by) ? 'other' : 'user');
+    return Object.assign({}, p, { posterKind: kind, posterName: momentAuthor(p.by).name });
 }
 function momentAvatarHtml(a, size) {
     const src = a.avatar || DEFAULT_CHAR_AVATAR;
@@ -5529,7 +5534,7 @@ async function momentCommentAiReply(cid, p) {
     let replied = false;
     try {
         const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: cm.text }));
-        const r = await window.MessagesAPI.momentWordReply(c, p, (c.msgs || []).slice(-30), existing);
+        const r = await window.MessagesAPI.momentWordReply(c, posterView(p, c), (c.msgs || []).slice(-30), existing);
         if (r.comment) {
             p.comments = p.comments || [];
             p.comments.push({ by: c.id, text: r.comment, t: Date.now(), to: ACTIVE_ID });
@@ -5795,7 +5800,7 @@ function showApiError(e) {
 /* 评论名字胶囊；有回复关系时显示“名字 回复 名字” */
 function cmtNameHtml(c) {
     const a = momentAuthor(c.by).name;
-    if (!c.to) return `<b class="mf-cmt-name">${esc(a)}</b>`;
+    if (!c.to || c.to === c.by) return `<b class="mf-cmt-name">${esc(a)}</b>`;
     return `<b class="mf-cmt-name">${esc(a)}</b><span class="mf-cmt-to">回复</span><b class="mf-cmt-name">${esc(momentAuthor(c.to).name)}</b>`;
 }
 function renderMoments() {
@@ -5961,17 +5966,24 @@ async function momentFetchFor(p) {
     for (const c of who) {
         try {
             const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: cm.text }));
-            const r = await window.MessagesAPI.momentWordReply(c, p, (c.msgs || []).slice(-30), existing);
+            const r = await window.MessagesAPI.momentWordReply(c, posterView(p, c), (c.msgs || []).slice(-30), existing);
             p.likes = p.likes || []; p.comments = p.comments || [];
             if (r.like && !p.likes.includes(c.id)) {
                 p.likes.push(c.id);
                 addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下点赞`, p.id);
             }
             if (r.comment) {
-                const hit = r.to ? existing.find(e => e.name === r.to && e.id !== c.id) : null;
+                const normN = x => String(x || '').replace(/\s+/g, '').toLowerCase();
+                const cand = existing.filter(e => e.id !== c.id && e.name);
+                let hit = r.to ? cand.find(e => normN(e.name) === normN(r.to)) || null : null;
+                if (!hit && r.comment) { const m = String(r.comment).trim().match(/^@(\S+)/); if (m) hit = cand.find(e => normN(e.name) === normN(m[1])) || null; }
                 p.comments.push({ by: c.id, text: r.comment, t: Date.now(), to: hit ? hit.id : undefined });
                 fresh.push(c);
                 recordCommentMemory(c, p, r.comment);
+                if (hit) {
+                    const target = CONTACTS.find(x => x.id === hit.id);
+                    if (target && target.id !== c.id) addCommonMemory(target, `${c.name}在${momentAuthor(p.by).name}的朋友圈（${excerpt}）下回复了${target.name}：${r.comment}`, p.id);
+                }
             }
             persistContacts(); persistMoments(); renderMoments();
         } catch (e) { showApiError(e); }
