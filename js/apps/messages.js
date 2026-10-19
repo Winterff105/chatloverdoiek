@@ -97,7 +97,8 @@ async function momentSyncAll() {
             if (Math.random() * 100 >= pct) continue;
             // 联系人之间没有世界连线时，互相不可见，也不能互相评论或回复。
             const viewers = CONTACTS.filter(x => x.id !== c.id && worldTiedPair(c.id, x.id)).map(x => ({ name: x.name, persona: x.persona || '' }));
-            const feed = POSTS.filter(p => momentVisibleTo(p, c)).slice(0, 20).map(p => ({
+            const oldOn = ((cfg.per[c.id] || {}).oldOn !== false) && cfg.oldOn !== false;
+            const feed = oldOn ? POSTS.filter(p => momentVisibleTo(p, c)).slice(0, 20).map(p => ({
                 id: p.id, author: momentAuthor(p.by).name, text: plainMentions(p.text),
                 comments: (p.comments || []).slice(-8).map(cm => `${momentAuthor(cm.by).name}：${plainMentions(cm.text)}`).join('；')
             }));
@@ -134,12 +135,14 @@ function mfSliderHTML(k, f, label, val, lo, hi, unit, first) {
 }
 function mfBlockHTML(k, v) {
     return mfSliderHTML(k, 'pct', '发布概率 <button class="mf-info" data-mf-info aria-label="说明">!</button>', v.pct, 0, 100, '%', true)
-         + '<div class="mf-note" hidden>每次调取时，联系人按这个概率考虑要不要发朋友圈，最终还是要看聊天记录。24 小时内刚发过的，概率会自动降低，避免总是同一个人在发。</div>';
+         + '<div class="mf-note" hidden>每次调取时，联系人按这个概率考虑要不要发朋友圈，最终还是要看聊天记录。24 小时内刚发过的，概率会自动降低，避免总是同一个人在发。</div>'
+         + `<div class="mf-extra-row"><span>允许回看旧朋友圈</span><button class="mf-info" data-mf-old-info aria-label="会消耗额度">!</button><button class="mf-tg ${v.oldOn !== false ? 'on' : ''}" data-mf-old-tg="${k}" aria-label="允许回看旧朋友圈"></button></div>`
+         + '<div class="mf-note" data-mf-old-note hidden>开启后，聊天过程中或空闲调取时，可能额外调用模型，让该联系人随机点赞或评论以前可见的朋友圈，会消耗 API 额度。</div>';
 }
 function mfRowHTML(c, cfg) {
     const per = cfg.per[c.id] || {};
     const on = per.on !== false;
-    const v = { pct: mfField(c, 'pct') };
+    const v = { pct: mfField(c, 'pct'), oldOn: ((cfg.per[c.id] || {}).oldOn) !== false };
     return `<div class="mf-ctc ${on ? '' : 'off'}">
         <div class="mf-ctc-top"><div class="mf-ava mf-ava-img"><img src="${mfEsc(c.avatar || DEFAULT_CHAR_AVATAR)}" alt="" onerror="this.parentNode.textContent='${mfEsc(mfInitial(c))}'"></div>
           <div class="mf-ctc-name">${mfEsc(mfName(c))}</div>
@@ -151,7 +154,7 @@ function renderMomentFreq() {
     const cfg = mfLoad();
     const body = document.getElementById('mfBody');
     if (!body) return;
-    const g = { pct: cfg.pct };
+    const g = { pct: cfg.pct, oldOn: cfg.oldOn !== false };
     body.innerHTML = `
         <div class="mf-label">全局默认</div>
         <div class="mf-panel">
@@ -195,6 +198,15 @@ function mfInit() {
           <div class="edit-body mf-body" id="mfBody"></div>`;
         host.appendChild(sec);
         sec.addEventListener('click', e => {
+            const old = e.target.closest('[data-mf-old-tg]');
+            if (old) {
+                const cfg = mfLoad(), k = old.dataset.mfOldTg;
+                if (k === 'global') cfg.oldOn = cfg.oldOn === false;
+                else { cfg.per[k] = cfg.per[k] || {}; cfg.per[k].oldOn = cfg.per[k].oldOn === false; }
+                mfSave(cfg); renderMomentFreq(); return;
+            }
+            const info = e.target.closest('[data-mf-old-info]');
+            if (info) { const n = info.closest('.mf-ctc, .mf-panel').querySelector('[data-mf-old-note]'); if (n) n.hidden = !n.hidden; return; }
             const t = e.target.closest('[data-mf-tg]'); if (!t) return;
             const cfg = mfLoad(), k = t.dataset.mfTg;
             if (k === 'global') cfg.on = !cfg.on;
@@ -6190,33 +6202,28 @@ async function momentFetchFor(p) {
     MOMENT_UNSEEN = false;
     refreshChatBadge();
     showMomentLoading();
-    const excerpt = (p.text || '').trim() || '一张照片';
+    const excerpt = momentTextWithNames(p.text).trim() || '一张照片';
     const fresh = [];
-    for (const c of who) {
-        try {
-            const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }));
-            const r = await window.MessagesAPI.momentWordReply(c, posterView(p, c), (c.msgs || []).slice(-30), existing);
-            p.likes = p.likes || []; p.comments = p.comments || [];
-            if (r.like && !p.likes.includes(c.id)) {
-                p.likes.push(c.id);
-                addCommonMemory(c, `{char}在{user}的朋友圈（${excerpt}）下点赞`, p.id);
-            }
-            if (r.comment) {
-                const normN = x => String(x || '').replace(/\s+/g, '').toLowerCase();
-                const cand = existing.filter(e => e.id !== c.id && e.name);
-                let hit = r.to ? cand.find(e => normN(e.name) === normN(r.to)) || null : null;
-                if (!hit && r.comment) { const m = String(r.comment).trim().match(/^@(\S+)/); if (m) hit = cand.find(e => normN(e.name) === normN(m[1])) || null; }
-                p.comments.push({ by: c.id, text: r.comment, t: Date.now(), to: hit ? hit.id : undefined });
-                fresh.push(c);
-                recordCommentMemory(c, p, r.comment);
-                if (hit) {
-                    const target = CONTACTS.find(x => x.id === hit.id);
-                    if (target && target.id !== c.id) addCommonMemory(target, `${c.name}在${momentAuthor(p.by).name}的朋友圈（${excerpt}）下回复了${target.name}：${r.comment}`, p.id);
-                }
-            }
-            persistContacts(); persistMoments(); renderMoments();
-        } catch (e) { showApiError(e); }
-    }
+    try {
+        const actors = who.map(c => ({ id: c.id, name: c.name, persona: c.persona || '' }));
+        const recentMap = Object.fromEntries(who.map(c => [c.id, (c.msgs || []).slice(-30).map(m => `${m.me ? momentUserName() : c.name}：${m.text}`).join('\n')]));
+        const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }));
+        const results = await window.MessagesAPI.momentBatchWordReply(Object.assign({}, posterView(p, who[0]), text: plainMentions(p.text)), actors, recentMap);
+        const byId = new Map(who.map(c => [String(c.id), c]));
+        p.likes = p.likes || []; p.comments = p.comments || [];
+        results.forEach(r => {
+            const c = byId.get(String(r.actorId)); if (!c) return;
+            if (r.like && !p.likes.includes(c.id)) { p.likes.push(c.id); addCommonMemory(c, `{char}在${momentAuthor(p.by).name}的朋友圈（${excerpt}）下点赞`, p.id); }
+            if (!r.comment) return;
+            const cand = existing.filter(e => e.id !== c.id && e.name);
+            const normN = x => String(x || '').replace(/\s+/g, '').toLowerCase();
+            const hit = r.to ? cand.find(e => normN(e.name) === normN(r.to)) || null : null;
+            p.comments.push({ by: c.id, text: r.comment, t: Date.now(), to: hit ? hit.id : undefined });
+            fresh.push(c); recordCommentMemory(c, p, r.comment);
+            if (hit) { const target = CONTACTS.find(x => x.id === hit.id); if (target && target.id !== c.id) addCommonMemory(target, `${c.name}在${momentAuthor(p.by).name}的朋友圈（${excerpt}）下回复了${target.name}：${r.comment}`, p.id); }
+        });
+        persistContacts(); persistMoments(); renderMoments();
+    } catch (e) { showApiError(e); }
     momentFetchBusy = false;
     if (!fresh.length) { toast('这次调取没有人评论'); const poster = CONTACTS.find(x => x.id === p.by); notePosterDone(poster ? [poster] : []); return; }
     showMomentDone(fresh);

@@ -543,6 +543,32 @@ Respond to what was just said, and let topic changes happen naturally, without e
     return { like: o.like === true || o.like === 'true', comment: String(o.comment || '').trim(), to: to && to !== contact.name ? to : '' };
   }
 
+  /* 一次性调取整条朋友圈评论区：一次请求决定所有可见联系人的点赞、评论和回复，避免按联系人重复消耗额度。 */
+  async function momentBatchWordReply(post, actors, recentMap) {
+    const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
+    const list = Array.isArray(actors) ? actors.filter(x => x && x.id && x.name) : [];
+    const existing = (post && post.comments || []).map(e => `${e.name || ''}：${e.text || ''}`).join('；') || '无';
+    const actorText = list.map(x => `- actorId=${x.id}｜姓名=${x.name}｜人设=${String(x.persona || '').slice(0, 120)}`).join('\n');
+    const system = [ROLEPLAY_PROMPT, '【朋友圈评论区一次性调取】',
+      '你要一次性替下面所有有权限看到这条朋友圈的联系人做决定。每个 actor 最多点赞一次、评论一次；不想互动就 like=false 且 comment 为空。绝对不要替未列出的联系人发言。',
+      '只能回复评论区已经出现的人，to 必须填写已有评论者姓名，否则为空。不要使用标点或表情。',
+      '只输出 JSON：{"items":[{"actorId":"联系人ID","like":true或false,"comment":"评论，没有就空","to":"已有评论者姓名，没有就空"}]}', actorText
+    ].join('\n');
+    const user = `朋友圈发布者：${post.posterName || post.author || '用户'}\n朋友圈内容：${String(post.text || '').trim() || '（照片）'}\n已有评论：${existing}\n最近聊天上下文：${JSON.stringify(recentMap || {})}`;
+    let response;
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
+    catch (e) { throw new Error(String((e && e.message) || e)); }
+    const rawTxt = await response.text().catch(() => '');
+    if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
+    let data = {}; try { data = JSON.parse(rawTxt); } catch (_) {}
+    const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    let t = (Array.isArray(content) ? content.map(x => x.text || '').join('') : String(content || '')).trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
+    const a = t.indexOf('{'), b = t.lastIndexOf('}'); if (a >= 0 && b > a) t = t.slice(a, b + 1);
+    let o = null; try { o = JSON.parse(t); } catch (_) {}
+    const allowed = new Set(list.map(x => String(x.id)));
+    return (o && Array.isArray(o.items) ? o.items : []).map(x => ({ actorId: String(x.actorId || ''), like: x.like === true || x.like === 'true', comment: String(x.comment || '').trim().slice(0, 120), to: String(x.to || '').trim() })).filter(x => allowed.has(x.actorId));
+  }
+
   /* 朋友圈评论被用户回复后，角色单独私聊回复用户：顺便发几条由角色决定，条数范围用聊天室设置 */
   async function momentDmReply(contact, post, userText, quoteText, recentMsgs, limits) {
     const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
@@ -663,5 +689,5 @@ Respond to what was just said, and let topic changes happen naturally, without e
     })).filter(x => x.postId) : [];
     return { text: String(o.text || '').trim(), comments, vis, visTo, interactions };
   }
-  window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentDmReply, momentAutoPost };
+  window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentBatchWordReply, momentDmReply, momentAutoPost };
 })();
