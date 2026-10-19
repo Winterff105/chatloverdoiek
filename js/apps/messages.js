@@ -38,7 +38,7 @@ function mfLastPostH(c) {
 }
 
 function postContactMoment(c, text, comments, meta) {
-    const post = { id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5), text, t: Date.now(), by: c.id, vis: (meta && meta.vis) || 'all', visTo: ((meta && meta.visTo) || []).map(n => (CONTACTS.find(x => x.name === n) || {}).id).filter(Boolean), likes: [], comments: [], imgs: [] };
+    const post = { id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5), text, t: Date.now(), by: c.id, vis: (meta && meta.vis) || 'all', visTo: ((meta && meta.visTo) || []).map(n => (CONTACTS.find(x => x.name === n) || {}).id).filter(Boolean), likes: [], comments: [], imgs: [], interactionFetched: false };
     POSTS.unshift(post);
     persistMoments();
     renderMoments();
@@ -101,7 +101,7 @@ async function momentSyncAll() {
             const feed = oldOn ? POSTS.filter(p => momentVisibleTo(p, c)).slice(0, 20).map(p => ({
                 id: p.id, author: momentAuthor(p.by).name, text: plainMentions(p.text),
                 comments: (p.comments || []).slice(-8).map(cm => `${momentAuthor(cm.by).name}：${plainMentions(cm.text)}`).join('；')
-            }));
+            })) : [];
             const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r) {
                 allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo }));
@@ -6195,6 +6195,7 @@ function scheduleMomentFetch(p) {
 async function momentFetchFor(p) {
     momentFetchTimer = null;
     if (!window.MessagesAPI || !window.MessagesAPI.isConfigured()) { toast('朋友圈没有调取：请先在「设置 → API」保存接口配置'); return; }
+    if (p && p.interactionFetched) { toast('这条朋友圈已经调取过评论区'); return; }
     if (momentFetchBusy) { scheduleMomentFetch(p); return; }
     const who = momentViewerList(p).filter(x => x.id !== p.by && !((p.comments || []).some(cm => cm.by === x.id)));
     if (!who.length) { toast('朋友圈没有调取：没有新的联系人可以评论'); return; }
@@ -6208,7 +6209,7 @@ async function momentFetchFor(p) {
         const actors = who.map(c => ({ id: c.id, name: c.name, persona: c.persona || '' }));
         const recentMap = Object.fromEntries(who.map(c => [c.id, (c.msgs || []).slice(-30).map(m => `${m.me ? momentUserName() : c.name}：${m.text}`).join('\n')]));
         const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }));
-        const results = await window.MessagesAPI.momentBatchWordReply(Object.assign({}, posterView(p, who[0]), text: plainMentions(p.text)), actors, recentMap);
+        const results = await window.MessagesAPI.momentBatchWordReply(Object.assign({}, posterView(p, who[0]), { text: plainMentions(p.text) }), actors, recentMap);
         const byId = new Map(who.map(c => [String(c.id), c]));
         p.likes = p.likes || []; p.comments = p.comments || [];
         results.forEach(r => {
@@ -6222,6 +6223,7 @@ async function momentFetchFor(p) {
             fresh.push(c); recordCommentMemory(c, p, r.comment);
             if (hit) { const target = CONTACTS.find(x => x.id === hit.id); if (target && target.id !== c.id) addCommonMemory(target, `${c.name}在${momentAuthor(p.by).name}的朋友圈（${excerpt}）下回复了${target.name}：${r.comment}`, p.id); }
         });
+        p.interactionFetched = true;
         persistContacts(); persistMoments(); renderMoments();
     } catch (e) { showApiError(e); }
     momentFetchBusy = false;
