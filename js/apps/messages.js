@@ -5729,6 +5729,22 @@ function mentionClose() {
     const el = document.getElementById('mentionPicker');
     if (el) { el.classList.remove('open'); el.style.display = 'none'; }
 }
+function mentionCaretRect(el, caret) {
+    if (!el || typeof el.selectionStart !== 'number') return el ? el.getBoundingClientRect() : null;
+    const cs = getComputedStyle(el);
+    const mirror = document.createElement('div');
+    mirror.style.cssText = `position:fixed;left:${el.getBoundingClientRect().left}px;top:${el.getBoundingClientRect().top}px;width:${el.clientWidth}px;height:auto;visibility:hidden;white-space:pre-wrap;overflow-wrap:break-word;word-break:${cs.wordBreak};box-sizing:border-box;`;
+    ['font','fontSize','fontFamily','fontWeight','lineHeight','letterSpacing','padding','border','textAlign','textIndent'].forEach(k => { mirror.style[k] = cs[k]; });
+    const before = document.createTextNode(el.value.slice(0, caret));
+    const marker = document.createElement('span'); marker.textContent = '\\u200b';
+    mirror.appendChild(before); mirror.appendChild(marker);
+    document.body.appendChild(mirror);
+    const mr = marker.getBoundingClientRect();
+    const er = el.getBoundingClientRect();
+    const out = { left: er.left, top: mr.top, bottom: mr.bottom, right: er.right };
+    mirror.remove();
+    return out;
+}
 function mentionRender() {
     const st = MENTION_ST; if (!st) return;
     const q = st.query.trim().toLowerCase();
@@ -5744,7 +5760,8 @@ function mentionRender() {
     box.innerHTML = `<div class="mention-head">提及联系人</div>` + (list.length
         ? list.map(item).join('')
         : '<div class="mention-empty">没有匹配的联系人</div>');
-    const r = st.el.getBoundingClientRect();
+    // 以当前光标所在的文字行作为定位点，列表紧贴“输入 @ 后的文字”下面。
+    const r = mentionCaretRect(st.el, st.caret) || st.el.getBoundingClientRect();
     const W = Math.min(176, window.innerWidth - 16);
     box.style.width = W + 'px';
     box.style.left = Math.min(Math.max(8, r.left), window.innerWidth - W - 8) + 'px';
