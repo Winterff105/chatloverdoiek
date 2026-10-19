@@ -619,6 +619,15 @@ Respond to what was just said, and let topic changes happen naturally, without e
       `这次发的概率约为 ${pct}%。刚发过的内容不要重复，也不要每次都用同样的句式。`,
       '朋友圈内容要像真人平时随手发的那样，简短自然，不解释，不使用任何符号。'
     ];
+    const feed = Array.isArray(win.feed) ? win.feed : [];
+    if (feed.length) {
+      lines.push('【可回看的朋友圈】下面是你现在能看到的朋友圈。你可以回忆并评论其中一条，也可以只点赞；不想互动就不互动。评论最多一条，postId 只能从下面列表选择。');
+      lines.push(feed.map(p => `- postId=${p.id}｜发布者=${p.author}｜内容=${p.text || '（照片）'}｜已有评论=${p.comments || '无'}`).join('\n'));
+      lines.push('你也可以在评论中艾特用户：使用固定标记 @[user]，不要把用户当前昵称写进标记；用户改名后仍按这个标记识别。');
+      lines.push('允许的输出格式：{"post":true/false,"text":"新朋友圈内容","vis":"all或some或self或user","visTo":["名字"],"comments":[{"name":"评论人名字","text":"评论内容"}],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"要回复的名字，没有就空字符串"}]}。你自己发的新帖仍用 post；对已有帖子的互动放 interactions。');
+    } else {
+      lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容"}；不发时格式：{"post":false}');
+    }
     if (viewers.length) {
       lines.push('发布后，下面这些人也会看到这条朋友圈。你可以替他们决定要不要评论：每人最多一条，很短，像真人随手回的一句；不想评论的人就不要写。评论人的名字只能用下面列出的。');
       lines.push('可能评论的人：\n' + viewers.map(v => `- ${v.name}${v.persona ? `（${String(v.persona).slice(0, 80)}）` : ''}`).join('\n'));
@@ -638,14 +647,20 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const x = t.indexOf('{'), y = t.lastIndexOf('}');
     if (x >= 0 && y > x) t = t.slice(x, y + 1);
     let o = null; try { o = JSON.parse(t); } catch (_) { throw new Error('朋友圈调取没有解析出结果，请重试'); }
-    if (!o || !o.post || !String(o.text || '').trim()) return null;
+    if (!o || (!o.post && !Array.isArray(o.interactions))) return null;
     const vis = ['all', 'some', 'self', 'user'].includes(o.vis) ? o.vis : 'all';
     const visTo = vis === 'some' ? (Array.isArray(o.visTo) ? o.visTo : []).map(n => String(n || '').trim()).filter(n => viewers.some(v => v.name === n)) : [];
     const canSee = name => vis === 'all' || (vis === 'some' && visTo.includes(name));
     const comments = (vis === 'self' || vis === 'user') ? [] : (Array.isArray(o.comments) ? o.comments : [])
       .map(c => ({ name: String((c && c.name) || '').trim(), text: String((c && c.text) || '').trim() }))
       .filter(c => c.name && c.text && viewers.some(v => v.name === c.name) && canSee(c.name));
-    return { text: String(o.text).trim(), comments, vis, visTo };
+    const interactions = Array.isArray(o.interactions) ? o.interactions.map(x => ({
+      postId: String((x && x.postId) || '').trim(),
+      like: x && (x.like === true || x.like === 'true'),
+      comment: String((x && x.comment) || '').trim().slice(0, 120),
+      to: String((x && x.to) || '').trim()
+    })).filter(x => x.postId) : [];
+    return { text: String(o.text || '').trim(), comments, vis, visTo, interactions };
   }
   window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentDmReply, momentAutoPost };
 })();

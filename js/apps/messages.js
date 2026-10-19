@@ -96,8 +96,29 @@ async function momentSyncAll() {
             // 概率由代码掷骰子决定：没中就不调用模型，省额度；中了才让模型写内容
             if (Math.random() * 100 >= pct) continue;
             const viewers = CONTACTS.filter(x => x.id !== c.id && worldTiedPair(c.id, x.id)).map(x => ({ name: x.name, persona: x.persona || '' }));
-            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
-            if (r) { allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo })); allPosters.push(c); posted++; }
+            const feed = POSTS.filter(p => momentVisibleTo(p, c)).slice(0, 20).map(p => ({
+                id: p.id, author: momentAuthor(p.by).name, text: plainMentions(p.text),
+                comments: (p.comments || []).slice(-8).map(cm => `${momentAuthor(cm.by).name}：${plainMentions(cm.text)}`).join('；')
+            }));
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
+            if (r) {
+                allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo }));
+                const byId = new Map(POSTS.map(p => [p.id, p]));
+                (r.interactions || []).forEach(it => {
+                    const p = byId.get(it.postId);
+                    if (!p || !momentVisibleTo(p, c)) return;
+                    p.likes = p.likes || []; p.comments = p.comments || [];
+                    if (it.like && !p.likes.includes(c.id)) { p.likes.push(c.id); addCommonMemory(c, `{char}在${momentAuthor(p.by).name}的朋友圈（${momentTextWithNames(p.text) || '一张照片'}）下点赞`, p.id); }
+                    if (it.comment) {
+                        const target = CONTACTS.find(x => x.name === it.to);
+                        p.comments.push({ by: c.id, text: it.comment.replace(/@\[user\]/g, '@[user]'), t: Date.now(), to: target ? target.id : undefined });
+                        recordCommentMemory(c, p, it.comment);
+                        allCommenters.push(c);
+                    }
+                });
+                persistContacts(); persistMoments(); renderMoments();
+                allPosters.push(c); posted++;
+            }
         }
     } catch (e) { showApiError(e); }
     if (btn) btn.classList.remove('spin');
@@ -5817,7 +5838,8 @@ function mentionHtml(str) {
     const re = /@\[([^\]]+)\]/g;
     while ((m = re.exec(src))) {
         out += esc(src.slice(last, m.index));
-        const c = CONTACTS.find(x => String(x.id) === m[1]);
+        const id = m[1];
+        const c = id === 'user' ? { remark: momentUserName(), name: momentUserName() } : CONTACTS.find(x => String(x.id) === id);
         out += `<span class="mf-at">@${esc(c ? (c.remark || c.name) : '未知')}</span>`;
         last = re.lastIndex;
     }
@@ -5826,8 +5848,7 @@ function mentionHtml(str) {
 /* 给角色看的文字：标记换成名字（不是备注） */
 function plainMentions(str) {
     return String(str == null ? '' : str).replace(/@\[([^\]]+)\]/g, (_, id) => {
-        const c = CONTACTS.find(x => String(x.id) === id);
-        return c ? '@' + c.name : '@未知';
+        return '@' + mentionTargetName(id);
     });
 }
 function mvListHtml() {
@@ -6109,28 +6130,31 @@ function momentVisibleTo(p, c) {
     return !!c && momentViewerList(p).some(x => String(x.id) === String(c.id));
 }
 /* 把朋友圈正文中的内部 @ 标记还原成永久保存的联系人名字；删除帖子后也不会丢名字。 */
+function momentUserName() { return window.MESSAGES_USER_NAME || ME.name || '用户'; }
+function mentionTargetName(id) {
+    if (String(id) === 'user' || String(id) === String(ME.id)) return momentUserName();
+    const c = CONTACTS.find(x => String(x.id) === String(id));
+    return c ? c.name : '未知联系人';
+}
 function momentTextWithNames(text) {
-    return String(text || '').replace(/@\[([^\]]+)\]/g, (_, id) => {
-        const c = CONTACTS.find(x => String(x.id) === String(id));
-        return c ? '@' + c.name : '@未知联系人';
-    });
+    return String(text || '').replace(/@\[([^\]]+)\]/g, (_, id) => '@' + mentionTargetName(id));
 }
 /* 朋友圈 @：被艾特的人看到 {char}；同一条朋友圈的其他可见联系人也记录被@到的具体联系人 */
 function noteMentionMemory(text, src, kind) {
     const ids = [];
     String(text || '').replace(/@\[([^\]]+)\]/g, (_, id) => { if (!ids.includes(id)) ids.push(id); return _; });
-    const targets = ids.map(id => CONTACTS.find(x => String(x.id) === id)).filter(Boolean);
+    const targets = ids.map(id => id === 'user' ? { id: 'user', name: momentUserName() } : CONTACTS.find(x => String(x.id) === id)).filter(Boolean);
     if (!targets.length) return;
     const post = POSTS.find(p => p.id === src);
     const viewers = post ? momentViewerList(post) : targets;
     const where = kind === 'post' ? '在朋友圈发的动态里' : '在朋友圈评论里';
     for (const viewer of viewers) {
         const body = String(text).replace(/@\[([^\]]+)\]/g, (_, id) => {
-            const mentioned = CONTACTS.find(x => String(x.id) === id);
+            const mentioned = id === 'user' ? { id: 'user', name: momentUserName() } : CONTACTS.find(x => String(x.id) === id);
             if (!mentioned) return '@未知联系人';
-            return mentioned.id === viewer.id ? '@{char}' : '@' + mentioned.name;
+            return String(mentioned.id) === String(viewer.id) ? '@{char}' : '@' + mentioned.name;
         });
-        const mentionedNames = targets.map(c => c.id === viewer.id ? '{char}' : c.name).join('、');
+        const mentionedNames = targets.map(c => String(c.id) === String(viewer.id) ? '{char}' : c.name).join('、');
         addCommonMemory(viewer, `{user}${where}@了${mentionedNames}：${body}`, src);
     }
     persistContacts();
