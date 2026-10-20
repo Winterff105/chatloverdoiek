@@ -4420,7 +4420,6 @@
 .messages-app .mq-sa:first-child{margin-left:0}
 .messages-app .mq-sa .av{width:30px;height:30px;border-radius:6px;border:2px solid #fff;margin:0;font-size:12px}
 .messages-app .mq-sa.mq-lead .av{width:34px;height:34px;font-size:13px}
-.messages-app .mq-sa.mq-bk::after{content:"";position:absolute;inset:0;border-radius:6px;background:rgba(120,120,120,var(--m,.5));pointer-events:none}
 .messages-app .mq-nmsg{font-size:12px;font-weight:600;color:#A3345E;white-space:nowrap;background:#fff;border-radius:999px;padding:4px 8px}
 .messages-app .mq-dot{flex-shrink:0;width:14px;height:14px;border-radius:50%;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 1px 4px rgba(0,0,0,.05);transition:background .3s ease,box-shadow .3s ease}
 .messages-app .mq-thought.mq-done .mq-dot{background:#FCEAF1;border-color:transparent;box-shadow:none}

@@ -298,7 +298,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
   }
 
   /* 返回值：消息字符串数组，每一项对应一个气泡 */
-  async function replyFor(contact, instruction, limit) {
+  async function replyFor(contact, instruction, limit, feed) {
     const c = config(); if (!isConfigured()) throw new Error('请先返回主界面，在「设置 → API」里保存接口地址、密钥和模型');
     const memCount = (contact.mem && contact.mem.ctx) || 30;
     const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
@@ -342,6 +342,12 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const cmMid = cmBlocks.mid;
     const cmLow = cmBlocks.low;
 
+    // 旧朋友圈：让角色能对可见的旧朋友圈点赞或评论；只有写进 momentInteractions 才算真的执行
+    const feedBlock = (Array.isArray(feed) && feed.length) ? [
+      '【可回看的旧朋友圈】以下是你现在能看到的朋友圈。你可以在回复时顺便对其中任意几条点赞或评论，不想互动就不做。',
+      feed.map(p => `- postId=${p.id}｜发布者=${p.author}｜内容=${p.text || '（照片）'}｜已有评论=${p.comments || '无'}`).join('\n'),
+      '【重要】只有写进 JSON 的 momentInteractions 才算真的点赞或评论。如果台词里说“我回了/点赞了某条朋友圈”，必须同时在 momentInteractions 里写出对应的 postId，否则等于没做，不要这样说。postId 必须逐字复制上面的 ID。不互动就让 momentInteractions 为空数组。'
+    ].join('\n') : '';
     // 系统核心底层人设与对话环境
     const systemCoreText = [
       ROLEPLAY_PROMPT,
@@ -359,6 +365,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
       contact.speech ? `说话风格：${contact.speech}` : '',
       contact.backstory ? `背景经历：${contact.backstory}` : '',
       contact.relation ? `与你的关系：${contact.relation}` : '',
+      feedBlock,
       hasNarr ? '以【旁白】开头的内容是旁白，描写动作、神态或环境，不是对话，也不是对方说的话。' : '',
       worldTiesBlock(contact),
       timeBlockOf(contact),
@@ -643,7 +650,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
       '【朋友圈自主发布】',
       `你就是${contact.name || '你'}，这条朋友圈是你自己发的。发布之后，你仍然可以在自己的朋友圈里回复别人的评论，但不要用别人的名字写评论，也不要把自己写成另一个评论的人。`,
       '你可以自主决定是否对可见的旧朋友圈做点赞或评论；没有自然动机时就不要互动。不要为了完成任务强行发帖、点赞或评论。',
-      win.decided ? `这次已经决定发一条朋友圈（发帖概率 ${pct}%，本次已命中），请直接根据你们最近的聊天写出内容，输出 post:true。` : `你可以自己决定此刻要不要发一条朋友圈。你发朋友圈的倾向大约是 ${pct}%，但最终要看你们最近的聊天记录：有值得分享的事、心情或变化就发；没有就不发。`,
+      win.decided ? `这次已经决定发一条朋友圈（发帖概率 ${pct}%，本次已命中），请根据你们最近的聊天写出内容，输出 post:true。发新朋友圈的同时，仍可以按下面的要求在 interactions 里回复旧朋友圈。` : `你可以自己决定此刻要不要发一条朋友圈。你发朋友圈的倾向大约是 ${pct}%，但最终要看你们最近的聊天记录：有值得分享的事、心情或变化就发；没有就不发。`,
       win.lastH == null ? '你还从没发过朋友圈。' : `距离你上次发朋友圈已过 ${Math.floor(win.lastH)} 小时。`,
       `这次发的概率约为 ${pct}%。刚发过的内容不要重复，也不要每次都用同样的句式。`,
       '朋友圈内容要像真人平时随手发的那样，简短自然，不解释，不使用任何符号。'
