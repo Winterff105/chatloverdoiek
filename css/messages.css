@@ -4552,6 +4552,8 @@
 /* ---------------- 聊天里的旁白：居中，浅灰斜体，比气泡小一号（颜色/大小/斜体来自旁白设置） ---------------- */
 .messages-app .narr-row{ display:flex; justify-content:center; padding:6px 18px; }
 .messages-app .narr-row .narr{ max-width:86%; text-align:center; line-height:1.5; color:#9A9AA0; font-style:italic; font-size:13.5px; }
+.messages-app .moment-event-row{display:flex;justify-content:center;padding:6px 18px;}
+.messages-app .moment-event-row span{display:inline-flex;align-items:center;min-height:24px;padding:3px 12px;border-radius:999px;background:#F2F2F2;color:#8E8E93;font-size:11px;line-height:1.35;white-space:normal;text-align:center;}
 
 /* 旁白弹窗：紧凑行布局 */
 .messages-app .mq-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:34px; }

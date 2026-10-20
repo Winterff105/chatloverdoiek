@@ -76,6 +76,17 @@ function recordCommentMemory(commenter, post, text) {
     addCommonMemory(commenter, `{char}在${author.name}的朋友圈（${excerpt}）下评论：${text}`, post.id);
     addCommonMemory(author, `${commenter.name}在{char}的朋友圈（${excerpt}）下评论：${text}`, post.id);
 }
+/* 朋友圈互动在聊天室里显示为独立事件胶囊，不混入普通台词或旁白。 */
+function addMomentChatEvent(c, text) {
+    if (!c || !text) return;
+    c.msgs = c.msgs || [];
+    c.msgs.push({ me: false, text: String(text), t: nowTime(), ts: Date.now(), momentEvent: true });
+    c.time = nowTime();
+    if (activeId !== c.id) c.unread = (c.unread || 0) + 1;
+    persistContacts();
+    if (activeId === c.id) renderThread({ noAnim: true });
+    renderChats();
+}
 
 async function momentSyncAll() {
     const cfg = mfLoad();
@@ -116,6 +127,7 @@ async function momentSyncAll() {
                         const target = CONTACTS.find(x => x.name === it.to);
                         p.comments.push({ by: c.id, text: it.comment.replace(/@\[user\]/g, '@[user]'), t: Date.now(), to: target ? target.id : undefined });
                         recordCommentMemory(c, p, it.comment);
+                        addMomentChatEvent(c, `${c.name}在${momentAuthor(p.by).name}的朋友圈下评论了`);
                         allCommenters.push(c);
                     }
                 });
@@ -2753,6 +2765,10 @@ function renderThread(opts) {
     const startIdx = Math.max(0, totalMsgs - threadLimit);
     for (let i = startIdx; i < totalMsgs; i++) {
         const m = c.msgs[i];
+        if (m.momentEvent) {
+            html += `<div class="moment-event-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><span>${esc(m.text)}</span></div>`;
+            continue;
+        }
         if (m.narr) {
             html += `<div class="narr-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><div class="narr" style="color:${NARR.color};font-size:${NARR.size}px;font-style:${NARR.italic ? 'italic' : 'normal'}">${esc(m.text)}</div></div>`;
             continue;
@@ -6226,6 +6242,7 @@ async function momentFetchFor(p) {
             const hit = r.to ? cand.find(e => normN(e.name) === normN(r.to)) || null : null;
             p.comments.push({ by: c.id, text: r.comment, t: Date.now(), to: hit ? hit.id : undefined });
             fresh.push(c); recordCommentMemory(c, p, r.comment);
+            addMomentChatEvent(c, `${c.name}在${momentAuthor(p.by).name}的朋友圈下评论了`);
             if (hit) { const target = CONTACTS.find(x => x.id === hit.id); if (target && target.id !== c.id) addCommonMemory(target, `${c.name}在${momentAuthor(p.by).name}的朋友圈（${excerpt}）下回复了${target.name}：${r.comment}`, p.id); }
         });
         p.interactionFetched = true;
