@@ -115,7 +115,7 @@ async function momentSyncAll() {
             })) : [];
             const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r) {
-                if (r.text) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo }));
+                if (r.post && r.text) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo }));
                 const byId = new Map(POSTS.map(p => [p.id, p]));
                 (r.interactions || []).forEach(it => {
                     const p = byId.get(it.postId);

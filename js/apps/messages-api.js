@@ -687,7 +687,8 @@ Respond to what was just said, and let topic changes happen naturally, without e
       comment: String((x && x.comment) || '').trim().slice(0, 120),
       to: String((x && x.to) || '').trim()
     })).filter(x => x.postId) : [];
-    return { text: String(o.text || '').trim(), comments, vis, visTo, interactions };
+    const text = String(o.text || '').trim();
+    return { post: o.post === true || o.post === 'true', text, comments, vis, visTo, interactions };
   }
   window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentBatchWordReply, momentDmReply, momentAutoPost };
 })();
