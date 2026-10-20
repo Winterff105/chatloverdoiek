@@ -105,7 +105,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
   const FORMAT_PROMPT = [
     '【输出格式：优先级最高，高于以上所有角色要求】',
     '1. 只输出一个 JSON 对象，不要输出任何其他文字、解释、标题、Markdown 或代码块。',
-    '2. 格式固定为：{"messages":["第一条消息","第二条消息"],"heart":{"env":"","mood":"","outfit":"","aff":0,"said":""}}',
+    '2. 格式固定为：{"messages":["第一条消息","第二条消息"],"heart":{"env":"","mood":"","outfit":"","aff":0,"said":""},"momentInteractions":[]}',
     '3. 【气泡条数与旁白穿插规则】messages 数组中包含台词气泡和旁白项。台词气泡条数必须严格遵循后续指示的数量范围；当开启旁白时，以【旁白】开头的描写项独立成条，可以且应当【自由穿插在任意台词气泡之前、之间或最后】（不计入台词条数限制），用于细腻描摹动作、神态与环境停顿。严禁将多句话合并进同一个气泡。',
     '4. 台词气泡中只写角色说出口的话（不要带人名、时间或括号动作）。旁白必须单独成条且严格以【旁白】作为前缀，绝不可敷衍简写，字数必须充实细腻。',
     '5. 一条消息内部需要换行时，在 JSON 字符串里用 \\n 表示；不要把多条消息合并进同一个字符串。',
@@ -228,6 +228,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     out.trans = cleaned.map(it => it.trans);
     out.heart = normHeart(obj && !Array.isArray(obj) ? obj.heart : null);
     out.moment = (obj && !Array.isArray(obj) && typeof obj.moment === 'string' && obj.moment.trim()) ? { text: obj.moment.trim() } : null;
+    out.momentInteractions = (obj && !Array.isArray(obj) && Array.isArray(obj.momentInteractions)) ? obj.momentInteractions.map(x => ({ postId: String(x.postId || '').trim(), like: x.like === true || x.like === 'true', comment: String(x.comment || '').trim().slice(0, 120), to: String(x.to || '').trim() })).filter(x => x.postId && (x.like || x.comment)) : [];
     return out;
   }
 
@@ -641,6 +642,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const lines = [
       '【朋友圈自主发布】',
       `你就是${contact.name || '你'}，这条朋友圈是你自己发的。发布之后，你仍然可以在自己的朋友圈里回复别人的评论，但不要用别人的名字写评论，也不要把自己写成另一个评论的人。`,
+      '你可以自主决定是否对可见的旧朋友圈做点赞或评论；没有自然动机时就不要互动。不要为了完成任务强行发帖、点赞或评论。',
       win.decided ? `这次已经决定发一条朋友圈（发帖概率 ${pct}%，本次已命中），请直接根据你们最近的聊天写出内容，输出 post:true。` : `你可以自己决定此刻要不要发一条朋友圈。你发朋友圈的倾向大约是 ${pct}%，但最终要看你们最近的聊天记录：有值得分享的事、心情或变化就发；没有就不发。`,
       win.lastH == null ? '你还从没发过朋友圈。' : `距离你上次发朋友圈已过 ${Math.floor(win.lastH)} 小时。`,
       `这次发的概率约为 ${pct}%。刚发过的内容不要重复，也不要每次都用同样的句式。`,
@@ -648,10 +650,10 @@ Respond to what was just said, and let topic changes happen naturally, without e
     ];
     const feed = Array.isArray(win.feed) ? win.feed : [];
     if (feed.length) {
-      lines.push('【可回看的朋友圈】下面是你现在能看到的朋友圈。你可以回忆并评论其中一条，也可以只点赞；不想互动就不互动。评论最多一条，postId 只能从下面列表选择。');
+      lines.push('【可回看的朋友圈】下面是你现在能看到的朋友圈。你可以自主决定是否与其中任意一条互动：可以不互动，也可以点赞或评论多条；评论数量、点赞数量都不设上限，只要符合角色性格和当下动机即可。每条互动的 postId 只能从下面列表选择。');
       lines.push(feed.map(p => `- postId=${p.id}｜发布者=${p.author}｜内容=${p.text || '（照片）'}｜已有评论=${p.comments || '无'}${p.commentItems && p.commentItems.length ? '｜评论明细=' + p.commentItems.map(cm => `${cm.name}：${cm.text}`).join('；') : ''}`).join('\n'));
       lines.push('你也可以在评论中艾特用户：使用固定标记 @[user]，不要把用户当前昵称写进标记；用户改名后仍按这个标记识别。');
-      lines.push('【重要：旧朋友圈互动必须可执行】如果你决定评论已有朋友圈，必须把评论写进 interactions 数组，不能只在普通文字里说“我评论了”。postId 必须逐字复制下面 feed 中的 postId；不要改大小写、不要截断、不要写发布者名字代替 ID。每个旧朋友圈最多一条 interaction。like=true 表示点赞，comment 写实际要显示的评论文字；只点赞时 comment 为空。即使不发新帖，post 也必须为 false，但 interactions 仍可有内容。只输出 JSON，不要解释、不要输出“我评论了”等额外文字。示例：{"post":false,"interactions":[{"postId":"m123","like":false,"comment":"今天也太有意思了","to":""}]}。');
+      lines.push('【重要：旧朋友圈互动必须可执行】如果你决定评论已有朋友圈，必须把评论写进 interactions 数组，不能只在普通文字里说“我评论了”。postId 必须逐字复制下面 feed 中的 postId；不要改大小写、不要截断、不要写发布者名字代替 ID。每个旧朋友圈最多一条 interaction，但可以自由选择多条不同旧朋友圈。like=true 表示点赞，comment 写实际要显示的评论文字；只点赞时 comment 为空。即使不发新帖，post 也必须为 false，但 interactions 仍可有内容。只输出 JSON，不要解释、不要输出“我评论了”等额外文字。示例：{"post":false,"interactions":[{"postId":"m123","like":false,"comment":"今天也太有意思了","to":""}]}。');
     } else {
       lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容"}；不发时格式：{"post":false}');
     }

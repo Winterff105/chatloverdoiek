@@ -77,6 +77,27 @@ function recordCommentMemory(commenter, post, text) {
     addCommonMemory(author, `${commenter.name}在{char}的朋友圈（${excerpt}）下评论：${text}`, post.id);
 }
 /* 朋友圈互动在聊天室里显示为独立事件胶囊，不混入普通台词或旁白。 */
+function applyChatMomentInteractions(c, list) {
+    if (!c || !Array.isArray(list) || !list.length) return;
+    const byId = new Map(POSTS.map(p => [String(p.id), p]));
+    let changed = false;
+    list.forEach(it => {
+        const p = byId.get(String(it.postId || '').trim());
+        if (!p || !momentVisibleTo(p, c)) return;
+        p.likes = p.likes || []; p.comments = p.comments || [];
+        const already = p.comments.some(cm => String(cm.by) === String(c.id));
+        let acted = false;
+        if (it.like && !p.likes.includes(c.id)) { p.likes.push(c.id); addCommonMemory(c, `{char}在${momentAuthor(p.by).name}的朋友圈下点赞`, p.id); acted = true; }
+        if (it.comment && !already) {
+            const target = CONTACTS.find(x => x.name === it.to && x.id !== c.id && momentVisibleTo(p, x));
+            p.comments.push({ by: c.id, text: String(it.comment), t: Date.now(), to: target ? target.id : undefined });
+            recordCommentMemory(c, p, it.comment); acted = true;
+        }
+        if (acted) { addMomentChatEvent(c, `${c.name}在${momentAuthor(p.by).name}的朋友圈下${it.comment ? '评论了' : '点赞了'}`); changed = true; }
+    });
+    if (changed) { persistContacts(); persistMoments(); renderMoments(); }
+}
+
 function addMomentChatEvent(c, text) {
     if (!c || !text) return;
     c.msgs = c.msgs || [];
@@ -3043,6 +3064,7 @@ async function pullReply() {
         const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0));
         const heart = replies.heart || null;
         if (replies.moment && replies.moment.text && mfAllowed(c)) postContactMoment(c, replies.moment.text);
+        applyChatMomentInteractions(c, replies.momentInteractions || []);
         c._typing = false;
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const capCur = document.querySelector('.messages-app .send-capsule'); if (capCur) capCur.classList.remove('pulling');
