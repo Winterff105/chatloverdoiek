@@ -95,43 +95,42 @@
         render();
     }
     function unmount() { document.getElementById('quickCruiseBall')?.remove(); document.getElementById('quickCruisePanel')?.remove(); state.open = false; }
-    function placePanel(ball, panel) {
+    function placePanel(ball, panel, reset = false) {
         if (!ball || !panel) return;
         const r = ball.getBoundingClientRect();
-        const gap = 12;
-        const pad = 10;
+        const gap = 12, pad = 10;
         const ballW = Math.max(1, r.width), ballH = Math.max(1, r.height);
-        const sideW = Math.min(300, innerWidth - pad * 2);
-        const naturalH = Math.min(panel.scrollHeight || 260, innerHeight - pad * 2);
-        const spaces = {
-            right: { w: innerWidth - r.right - gap - pad, h: innerHeight - pad * 2 },
-            left: { w: r.left - gap - pad, h: innerHeight - pad * 2 },
-            bottom: { w: innerWidth - pad * 2, h: innerHeight - r.bottom - gap - pad },
-            top: { w: innerWidth - pad * 2, h: r.top - gap - pad }
-        };
-        const fits = key => spaces[key].w >= Math.min(sideW, 220) && spaces[key].h >= Math.min(naturalH, 180);
-        let side = ['right', 'left', 'bottom', 'top'].find(fits);
-        if (!side) side = Object.keys(spaces).sort((a, b) => (spaces[b].w * spaces[b].h) - (spaces[a].w * spaces[a].h))[0];
-        const maxW = Math.max(160, Math.min(sideW, spaces[side].w));
-        const maxH = Math.max(120, Math.min(naturalH, spaces[side].h));
-        panel.style.width = maxW + 'px';
-        panel.style.maxHeight = maxH + 'px';
-        let left, top;
-        if (side === 'right') {
-            left = r.right + gap; top = r.top + ballH / 2 - maxH / 2;
-        } else if (side === 'left') {
-            left = r.left - maxW - gap; top = r.top + ballH / 2 - maxH / 2;
-        } else if (side === 'bottom') {
-            left = r.left + ballW / 2 - maxW / 2; top = r.bottom + gap;
-        } else {
-            left = r.left + ballW / 2 - maxW / 2; top = r.top - maxH - gap;
+        let side = reset ? null : panel.dataset.anchorSide;
+        let maxW = reset ? 0 : parseFloat(panel.dataset.panelWidth || '0');
+        let maxH = reset ? 0 : parseFloat(panel.dataset.panelHeight || '0');
+        if (!side || !maxW || !maxH) {
+            const sideW = Math.min(300, innerWidth - pad * 2);
+            const naturalH = Math.min(panel.scrollHeight || 260, innerHeight - pad * 2);
+            const spaces = {
+                right: { w: innerWidth - r.right - gap - pad, h: innerHeight - pad * 2 },
+                left: { w: r.left - gap - pad, h: innerHeight - pad * 2 },
+                bottom: { w: innerWidth - pad * 2, h: innerHeight - r.bottom - gap - pad },
+                top: { w: innerWidth - pad * 2, h: r.top - gap - pad }
+            };
+            const fits = key => spaces[key].w >= Math.min(sideW, 220) && spaces[key].h >= Math.min(naturalH, 180);
+            side = ['right', 'left', 'bottom', 'top'].find(fits) || Object.keys(spaces).sort((a, b) => (spaces[b].w * spaces[b].h) - (spaces[a].w * spaces[a].h))[0];
+            maxW = Math.max(160, Math.min(sideW, spaces[side].w));
+            maxH = Math.max(120, Math.min(naturalH, spaces[side].h));
+            panel.dataset.anchorSide = side;
+            panel.dataset.panelWidth = String(maxW);
+            panel.dataset.panelHeight = String(maxH);
+            panel.style.width = maxW + 'px';
+            panel.style.maxHeight = maxH + 'px';
         }
+        let left, top;
+        if (side === 'right') { left = r.right + gap; top = r.top + ballH / 2 - maxH / 2; }
+        else if (side === 'left') { left = r.left - maxW - gap; top = r.top + ballH / 2 - maxH / 2; }
+        else if (side === 'bottom') { left = r.left + ballW / 2 - maxW / 2; top = r.bottom + gap; }
+        else { left = r.left + ballW / 2 - maxW / 2; top = r.top - maxH - gap; }
         left = Math.max(pad, Math.min(innerWidth - maxW - pad, left));
         top = Math.max(pad, Math.min(innerHeight - maxH - pad, top));
-        panel.style.left = left + 'px';
-        panel.style.top = top + 'px';
-        panel.style.right = 'auto';
-        panel.style.bottom = 'auto';
+        panel.style.left = left + 'px'; panel.style.top = top + 'px';
+        panel.style.right = 'auto'; panel.style.bottom = 'auto';
     }
     function bindDrag(ball) {
         let down = null, moved = false;
@@ -140,6 +139,8 @@
         const end = () => { if (moved) { const r=ball.getBoundingClientRect(); state.pos={x:r.left,y:r.top}; localStorage.setItem(POS_KEY,JSON.stringify(state.pos)); } down=null; };
         ball.addEventListener('pointerup',end); ball.addEventListener('pointercancel',end);
         ball.addEventListener('pointermove', () => { const p = document.getElementById('quickCruisePanel'); if (state.open && p) requestAnimationFrame(() => placePanel(ball, p)); });
+        ball.addEventListener('pointerdown', () => { const p = document.getElementById('quickCruisePanel'); if (state.open && p) p.classList.add('qc-dragging'); });
+        ball.addEventListener('pointerup', () => { const p = document.getElementById('quickCruisePanel'); if (p) p.classList.remove('qc-dragging'); });
     }
     function render() {
         const ball = document.getElementById('quickCruiseBall'); if (ball) ball.classList.toggle('qc-busy', state.records.some(r=>r.status==='调取中'));
@@ -148,11 +149,13 @@
         if (!panel) { panel=document.createElement('section'); panel.id='quickCruisePanel'; document.body.appendChild(panel); }
         panel.classList.add('open');
         const ballForPanel = document.getElementById('quickCruiseBall');
+        if (!panel.dataset.anchorSide) panel.dataset.anchorSide = '';
+
         const names = [...new Map(state.records.map(r=>[r.contactId || r.contactName || 'unknown', nameOf(r)])).entries()];
         const tabs = [['all','All'], ...names.map(x=>[x[0],x[1]])];
         const list = state.records.filter(r=>state.active==='all' || (r.contactId||r.contactName||'unknown')===state.active);
         panel.innerHTML = `<div class="qc-head"><div><div class="qc-title">Quick Cruise</div><div class="qc-sub">Latency · Response · Tokens</div></div><button class="qc-close" type="button">Close</button></div><div class="qc-tabs">${tabs.map(([k,n])=>`<button class="qc-tab ${state.active===k?'on':''}" data-qc-tab="${esc(k)}">${esc(n)}</button>`).join('')}</div><div class="qc-list">${list.length?list.map(card).join(''):'<div class="qc-empty">Model calls will appear here</div>'}</div>`;
-        placePanel(ballForPanel, panel);
+        placePanel(ballForPanel, panel, !panel.dataset.panelWidth);
         panel.querySelector('.qc-close').onclick=()=>{state.open=false;render();};
         panel.querySelectorAll('[data-qc-tab]').forEach(b=>b.onclick=()=>{state.active=b.dataset.qcTab;render();});
         window.addEventListener('resize', () => { if (state.open) placePanel(ballForPanel, panel); }, { once: true });
