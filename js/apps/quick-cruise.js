@@ -97,7 +97,7 @@
     function mount() {
         ensureStyle(); installFetchProbe();
         let ball = document.getElementById('quickCruiseBall');
-        if (!ball) { ball = document.createElement('button'); ball.id = 'quickCruiseBall'; ball.type = 'button'; ball.title = 'Quick Cruise'; ball.innerHTML = `<img src="${IMG}" alt="Quick Cruise">`; document.body.appendChild(ball); bindDrag(ball); ball.addEventListener('pointerup', e => { if (ball.dataset.moved) { delete ball.dataset.moved; return; } if (!state.glowSide) { state.glowSide = 1; state.presetOpen = true; } else if (state.glowSide === 1) { state.glowSide = 2; state.presetOpen = false; state.open = true; } else { state.open = !state.open; } render(); }); }
+        if (!ball) { ball = document.createElement('button'); ball.id = 'quickCruiseBall'; ball.type = 'button'; ball.title = 'Quick Cruise'; ball.innerHTML = `<img src="${IMG}" alt="Quick Cruise">`; document.body.appendChild(ball); bindDrag(ball); ball.addEventListener('click', e => { e.preventDefault(); if (ball.dataset.moved) { delete ball.dataset.moved; return; } if (!state.glowSide) { state.glowSide = 1; state.presetOpen = true; state.open = false; } else if (state.glowSide === 1) { state.glowSide = 2; state.presetOpen = false; state.open = true; } else { state.open = !state.open; } render(); }); }
         if (state.pos) { ball.style.left = state.pos.x + 'px'; ball.style.top = state.pos.y + 'px'; ball.style.right = 'auto'; ball.style.bottom = 'auto'; } else { ball.style.right = '14px'; ball.style.bottom = '116px'; }
         render();
     }
@@ -119,7 +119,7 @@
         placePresetPanel(ball, p);
         p.querySelector('#qcpPreset').onchange = () => { const x = presets[+p.querySelector('#qcpPreset').value]; if (x) { p.querySelector('#qcpModel').innerHTML = `<option>${esc(x.model || 'Current model')}</option>`; } };
         p.querySelector('#qcpUse').onclick = () => { const i = +p.querySelector('#qcpPreset').value; const x = presets[i]; if (!x) return; localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({name:x.name,url:x.url,key:x.key,model:p.querySelector('#qcpModel').value || x.model,temperature:x.temperature,thinking:x.thinking,updatedAt:Date.now()})); toast('Global preset updated'); };
-        p.querySelector('#qcpFetch').onclick = () => { if (typeof window.fetchModelsFromEndpoint === 'function') toast('Open API settings to fetch models'); else toast('Model fetch unavailable'); };
+        p.querySelector('#qcpFetch').onclick = async () => { const x = presets[+p.querySelector('#qcpPreset').value]; if (!x) return; try { const base=String(x.url||'').replace(/\/+$/,'').replace(/\/chat\/completions$/i,''); const res=await fetch(base+'/models',{headers:{Authorization:'Bearer '+String(x.key||'')}}); const data=await res.json(); const ids=(Array.isArray(data.data)?data.data:[]).map(m=>String(m.id||m)).filter(Boolean); p.querySelector('#qcpModel').innerHTML=ids.map(id=>`<option>${esc(id)}</option>`).join('')||`<option>${esc(x.model||'Current model')}</option>`; toast('Models loaded'); } catch(e) { toast('Model fetch failed'); } };
     }
 
     function placePanel(ball, panel, reset = false) {
