@@ -1676,7 +1676,7 @@ async function fetchSettingsModels(e) {
         fillModelSelect(select, ids, select.value);
         document.getElementById('settingsModelSelectBox').classList.add('show');
     } catch (err) {
-        alert((err && err.message) || '获取模型列表失败');
+        showSettingsToast((err && err.message) || '获取模型列表失败');
     } finally {
         btn.disabled = false;
         btn.innerHTML = original;
@@ -1691,7 +1691,7 @@ async function fetchPresetModels(id) {
         const ids = await fetchModelsFromEndpoint(url, key);
         fillModelSelect(select, ids, select.value);
     } catch (err) {
-        alert((err && err.message) || '获取模型列表失败');
+        showSettingsToast((err && err.message) || '获取模型列表失败');
     }
 }
 
@@ -1800,7 +1800,7 @@ function updateSettingsPresetData(id) {
     const url = document.getElementById(`edit-url-${id}`).value.trim();
     const key = document.getElementById(`edit-key-${id}`).value.trim();
     const model = document.getElementById(`edit-model-${id}`).value;
-    if (!model) { alert('请先点 Fetch 获取模型列表，并选择一个模型'); return; }
+    if (!model) { showSettingsToast('请先点 Fetch 获取模型列表，并选择一个模型'); return; }
 
     const target = settingsApiPresets.find(p => p.id === id);
     if (target) {
@@ -1810,7 +1810,7 @@ function updateSettingsPresetData(id) {
         target.model = model;
         if (settingsApiPresets[settingsActivePresetIndex] === target) publishActiveSettingsApi(target);
         saveSettingsApiPresets();
-        alert(`预设 "${name}" 更新成功！`);
+        showSettingsToast(`预设 "${name}" 更新成功！`);
         renderSettingsPresetsList();
         updateSettingsActivePresetBadge();
     }
@@ -1818,7 +1818,7 @@ function updateSettingsPresetData(id) {
 
 function cycleSettingsPreset() {
     if (settingsApiPresets.length === 0) {
-        alert('请先保存至少一个 API 预设');
+        showSettingsToast('请先保存至少一个 API 预设');
         return;
     }
     settingsActivePresetIndex = (settingsActivePresetIndex + 1) % settingsApiPresets.length;
