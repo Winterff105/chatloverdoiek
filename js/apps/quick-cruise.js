@@ -97,7 +97,7 @@
     function mount() {
         ensureStyle(); installFetchProbe();
         let ball = document.getElementById('quickCruiseBall');
-        if (!ball) { ball = document.createElement('button'); ball.id = 'quickCruiseBall'; ball.type = 'button'; ball.title = 'Quick Cruise'; ball.innerHTML = `<img src="${IMG}" alt="Quick Cruise">`; document.body.appendChild(ball); bindDrag(ball); ball.addEventListener('click', e => { e.preventDefault(); if (ball.dataset.moved) { delete ball.dataset.moved; return; } if (!state.glowSide) { state.glowSide = 1; state.presetOpen = true; state.open = false; } else if (state.glowSide === 1) { state.glowSide = 2; state.presetOpen = false; state.open = true; } else { state.open = !state.open; } render(); }); }
+        if (!ball) { ball = document.createElement('button'); ball.id = 'quickCruiseBall'; ball.type = 'button'; ball.title = 'Quick Cruise'; ball.innerHTML = `<img src="${IMG}" alt="Quick Cruise">`; document.body.appendChild(ball); bindDrag(ball); ball.addEventListener('click', e => { e.preventDefault(); if (ball.dataset.moved) { delete ball.dataset.moved; return; } if (!state.glowSide || state.glowSide === 2) { state.glowSide = 1; state.presetOpen = true; state.open = false; } else { state.glowSide = 2; state.presetOpen = false; state.open = true; } render(); }); }
         if (state.pos) { ball.style.left = state.pos.x + 'px'; ball.style.top = state.pos.y + 'px'; ball.style.right = 'auto'; ball.style.bottom = 'auto'; } else { ball.style.right = '14px'; ball.style.bottom = '116px'; }
         render();
     }
