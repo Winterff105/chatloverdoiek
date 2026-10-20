@@ -111,7 +111,8 @@ async function momentSyncAll() {
             const oldOn = ((cfg.per[c.id] || {}).oldOn !== false) && cfg.oldOn !== false;
             const feed = oldOn ? POSTS.filter(p => momentVisibleTo(p, c)).slice(0, 20).map(p => ({
                 id: p.id, author: momentAuthor(p.by).name, text: plainMentions(p.text),
-                comments: (p.comments || []).slice(-8).map(cm => `${momentAuthor(cm.by).name}：${plainMentions(cm.text)}`).join('；')
+                comments: (p.comments || []).slice(-8).map(cm => `${momentAuthor(cm.by).name}：${plainMentions(cm.text)}`).join('；') || '无',
+                commentItems: (p.comments || []).slice(-8).map(cm => ({ name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }))
             })) : [];
             const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r && (r.post || (r.interactions && r.interactions.length))) {

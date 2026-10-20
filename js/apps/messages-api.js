@@ -649,9 +649,9 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const feed = Array.isArray(win.feed) ? win.feed : [];
     if (feed.length) {
       lines.push('【可回看的朋友圈】下面是你现在能看到的朋友圈。你可以回忆并评论其中一条，也可以只点赞；不想互动就不互动。评论最多一条，postId 只能从下面列表选择。');
-      lines.push(feed.map(p => `- postId=${p.id}｜发布者=${p.author}｜内容=${p.text || '（照片）'}｜已有评论=${p.comments || '无'}`).join('\n'));
+      lines.push(feed.map(p => `- postId=${p.id}｜发布者=${p.author}｜内容=${p.text || '（照片）'}｜已有评论=${p.comments || '无'}${p.commentItems && p.commentItems.length ? '｜评论明细=' + p.commentItems.map(cm => `${cm.name}：${cm.text}`).join('；') : ''}`).join('\n'));
       lines.push('你也可以在评论中艾特用户：使用固定标记 @[user]，不要把用户当前昵称写进标记；用户改名后仍按这个标记识别。');
-      lines.push('【重要】如果你评论已有朋友圈，必须把评论写进 interactions 数组，postId 必须原样使用上面列出的 ID；不能只在普通文字里说“我评论了”。如果不发新帖，post 必须为 false，但 interactions 仍可有内容。格式：{"post":true/false,"text":"新朋友圈内容","vis":"all或some或self或user","visTo":["名字"],"comments":[{"name":"评论人名字","text":"评论内容"}],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。');
+      lines.push('【重要：旧朋友圈互动必须可执行】如果你决定评论已有朋友圈，必须把评论写进 interactions 数组，不能只在普通文字里说“我评论了”。postId 必须逐字复制下面 feed 中的 postId；不要改大小写、不要截断、不要写发布者名字代替 ID。每个旧朋友圈最多一条 interaction。like=true 表示点赞，comment 写实际要显示的评论文字；只点赞时 comment 为空。即使不发新帖，post 也必须为 false，但 interactions 仍可有内容。只输出 JSON，不要解释、不要输出“我评论了”等额外文字。示例：{"post":false,"interactions":[{"postId":"m123","like":false,"comment":"今天也太有意思了","to":""}]}。');
     } else {
       lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容"}；不发时格式：{"post":false}');
     }
@@ -686,7 +686,13 @@ Respond to what was just said, and let topic changes happen naturally, without e
       like: x && (x.like === true || x.like === 'true'),
       comment: String((x && x.comment) || '').trim().slice(0, 120),
       to: String((x && x.to) || '').trim()
-    })).filter(x => x.postId) : [];
+    })).filter(x => x.postId && (x.like || x.comment)) : [];
+    // 兼容模型把单条旧朋友圈互动放在 interaction 字段，而不是 interactions 数组。
+    if (!interactions.length && o.interaction && typeof o.interaction === 'object') {
+      const x = o.interaction;
+      const one = { postId: String(x.postId || '').trim(), like: x.like === true || x.like === 'true', comment: String(x.comment || '').trim().slice(0, 120), to: String(x.to || '').trim() };
+      if (one.postId && (one.like || one.comment)) interactions.push(one);
+    }
     const text = String(o.text || '').trim();
     const post = o.post === true || o.post === 'true';
     return { post, text, comments, vis, visTo, interactions };
