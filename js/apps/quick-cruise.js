@@ -99,19 +99,35 @@
         if (!ball || !panel) return;
         const r = ball.getBoundingClientRect();
         const gap = 12;
-        const w = Math.min(300, innerWidth - 20);
-        const h = Math.min(panel.scrollHeight || 260, innerHeight - 20);
-        const candidates = [
-            { left: r.right + gap, top: r.top + r.height / 2 - h / 2 },
-            { left: r.left - w - gap, top: r.top + r.height / 2 - h / 2 },
-            { left: r.left + r.width / 2 - w / 2, top: r.bottom + gap },
-            { left: r.left + r.width / 2 - w / 2, top: r.top - h - gap }
-        ];
-        const overlaps = p => !(p.left + w <= r.left - 1 || p.left >= r.right + 1 || p.top + h <= r.top - 1 || p.top >= r.bottom + 1);
-        let chosen = candidates.find(p => p.left >= 10 && p.left + w <= innerWidth - 10 && p.top >= 10 && p.top + h <= innerHeight - 10 && !overlaps(p));
-        if (!chosen) chosen = candidates.find(p => !overlaps(p)) || candidates[0];
-        const left = Math.max(10, Math.min(innerWidth - w - 10, chosen.left));
-        const top = Math.max(10, Math.min(innerHeight - h - 10, chosen.top));
+        const pad = 10;
+        const ballW = Math.max(1, r.width), ballH = Math.max(1, r.height);
+        const sideW = Math.min(300, innerWidth - pad * 2);
+        const naturalH = Math.min(panel.scrollHeight || 260, innerHeight - pad * 2);
+        const spaces = {
+            right: { w: innerWidth - r.right - gap - pad, h: innerHeight - pad * 2 },
+            left: { w: r.left - gap - pad, h: innerHeight - pad * 2 },
+            bottom: { w: innerWidth - pad * 2, h: innerHeight - r.bottom - gap - pad },
+            top: { w: innerWidth - pad * 2, h: r.top - gap - pad }
+        };
+        const fits = key => spaces[key].w >= Math.min(sideW, 220) && spaces[key].h >= Math.min(naturalH, 180);
+        let side = ['right', 'left', 'bottom', 'top'].find(fits);
+        if (!side) side = Object.keys(spaces).sort((a, b) => (spaces[b].w * spaces[b].h) - (spaces[a].w * spaces[a].h))[0];
+        const maxW = Math.max(160, Math.min(sideW, spaces[side].w));
+        const maxH = Math.max(120, Math.min(naturalH, spaces[side].h));
+        panel.style.width = maxW + 'px';
+        panel.style.maxHeight = maxH + 'px';
+        let left, top;
+        if (side === 'right') {
+            left = r.right + gap; top = r.top + ballH / 2 - maxH / 2;
+        } else if (side === 'left') {
+            left = r.left - maxW - gap; top = r.top + ballH / 2 - maxH / 2;
+        } else if (side === 'bottom') {
+            left = r.left + ballW / 2 - maxW / 2; top = r.bottom + gap;
+        } else {
+            left = r.left + ballW / 2 - maxW / 2; top = r.top - maxH - gap;
+        }
+        left = Math.max(pad, Math.min(innerWidth - maxW - pad, left));
+        top = Math.max(pad, Math.min(innerHeight - maxH - pad, top));
         panel.style.left = left + 'px';
         panel.style.top = top + 'px';
         panel.style.right = 'auto';
