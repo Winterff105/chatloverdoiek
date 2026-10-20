@@ -98,14 +98,20 @@
     function placePanel(ball, panel) {
         if (!ball || !panel) return;
         const r = ball.getBoundingClientRect();
-        const gap = 10;
+        const gap = 12;
         const w = Math.min(300, innerWidth - 20);
         const h = Math.min(panel.scrollHeight || 260, innerHeight - 20);
-        let left = r.left + r.width + gap;
-        if (left + w > innerWidth - 10) left = r.left - w - gap;
-        if (left < 10) left = Math.max(10, Math.min(innerWidth - w - 10, r.left + r.width / 2 - w / 2));
-        let top = r.top + r.height / 2 - h / 2;
-        top = Math.max(10, Math.min(innerHeight - h - 10, top));
+        const candidates = [
+            { left: r.right + gap, top: r.top + r.height / 2 - h / 2 },
+            { left: r.left - w - gap, top: r.top + r.height / 2 - h / 2 },
+            { left: r.left + r.width / 2 - w / 2, top: r.bottom + gap },
+            { left: r.left + r.width / 2 - w / 2, top: r.top - h - gap }
+        ];
+        const overlaps = p => !(p.left + w <= r.left - 1 || p.left >= r.right + 1 || p.top + h <= r.top - 1 || p.top >= r.bottom + 1);
+        let chosen = candidates.find(p => p.left >= 10 && p.left + w <= innerWidth - 10 && p.top >= 10 && p.top + h <= innerHeight - 10 && !overlaps(p));
+        if (!chosen) chosen = candidates.find(p => !overlaps(p)) || candidates[0];
+        const left = Math.max(10, Math.min(innerWidth - w - 10, chosen.left));
+        const top = Math.max(10, Math.min(innerHeight - h - 10, chosen.top));
         panel.style.left = left + 'px';
         panel.style.top = top + 'px';
         panel.style.right = 'auto';
@@ -127,17 +133,17 @@
         panel.classList.add('open');
         const ballForPanel = document.getElementById('quickCruiseBall');
         const names = [...new Map(state.records.map(r=>[r.contactId || r.contactName || 'unknown', nameOf(r)])).entries()];
-        const tabs = [['all','全部'], ...names.map(x=>[x[0],x[1]])];
+        const tabs = [['all','All'], ...names.map(x=>[x[0],x[1]])];
         const list = state.records.filter(r=>state.active==='all' || (r.contactId||r.contactName||'unknown')===state.active);
-        panel.innerHTML = `<div class="qc-head"><div><div class="qc-title">快速巡航</div><div class="qc-sub">每轮耗时 · 返回内容 · Token</div></div><button class="qc-close" type="button">关闭</button></div><div class="qc-tabs">${tabs.map(([k,n])=>`<button class="qc-tab ${state.active===k?'on':''}" data-qc-tab="${esc(k)}">${esc(n)}</button>`).join('')}</div><div class="qc-list">${list.length?list.map(card).join(''):'<div class="qc-empty">开启后会在这里记录每次模型调取</div>'}</div>`;
+        panel.innerHTML = `<div class="qc-head"><div><div class="qc-title">Quick Cruise</div><div class="qc-sub">Latency · Response · Tokens</div></div><button class="qc-close" type="button">Close</button></div><div class="qc-tabs">${tabs.map(([k,n])=>`<button class="qc-tab ${state.active===k?'on':''}" data-qc-tab="${esc(k)}">${esc(n)}</button>`).join('')}</div><div class="qc-list">${list.length?list.map(card).join(''):'<div class="qc-empty">Model calls will appear here</div>'}</div>`;
         placePanel(ballForPanel, panel);
         panel.querySelector('.qc-close').onclick=()=>{state.open=false;render();};
         panel.querySelectorAll('[data-qc-tab]').forEach(b=>b.onclick=()=>{state.active=b.dataset.qcTab;render();});
         window.addEventListener('resize', () => { if (state.open) placePanel(ballForPanel, panel); }, { once: true });
         panel.querySelectorAll('[data-qc-copy]').forEach(b=>b.onclick=()=>{const r=state.records.find(x=>x.id===b.dataset.qcCopy); if(r) copy(r.content || r.raw);});
     }
-    function card(r) { const t=r.tokens||{}; return `<article class="qc-card"><div class="qc-meta"><span><b>${esc(nameOf(r))}</b> · ${esc(r.model||'模型')}</span><span>${r.status==='调取中'?'调取中':(r.seconds==null?'—':r.seconds.toFixed(2)+' 秒')}</span></div><div class="qc-stats"><span>状态：${esc(r.status)}</span><span>总 TK：${t.total==null?'—':t.total}</span><span>输入：${t.input==null?'—':t.input}</span><span>输出：${t.output==null?'—':t.output}</span></div><div class="qc-content">${esc(r.content || r.raw || '等待返回…')}</div><div class="qc-actions"><button class="qc-copy" data-qc-copy="${esc(r.id)}">复制全部返回</button></div></article>`; }
-    function copy(text) { if(navigator.clipboard?.writeText) navigator.clipboard.writeText(String(text)).then(()=>toast('已复制全部返回')).catch(()=>toast('复制失败')); else toast('当前浏览器不支持复制'); }
+    function card(r) { const t=r.tokens||{}; return `<article class="qc-card"><div class="qc-meta"><span><b>${esc(nameOf(r))}</b> · ${esc(r.model||'模型')}</span><span>${r.status==='调取中'?'调取中':(r.seconds==null?'—':r.seconds.toFixed(2)+' 秒')}</span></div><div class="qc-stats"><span>Status: ${esc(r.status)}</span><span>Total TK: ${t.total==null?'—':t.total}</span><span>Input: ${t.input==null?'—':t.input}</span><span>Output: ${t.output==null?'—':t.output}</span></div><div class="qc-content">${esc(r.content || r.raw || 'Waiting for response…')}</div><div class="qc-actions"><button class="qc-copy" data-qc-copy="${esc(r.id)}">Copy Full Response</button></div></article>`; }
+    function copy(text) { if(navigator.clipboard?.writeText) navigator.clipboard.writeText(String(text)).then(()=>toast('Copied')).catch(()=>toast('Copy failed')); else toast('Clipboard unavailable'); }
     window.addEventListener('DOMContentLoaded', () => { const sw=document.getElementById('quickCruiseSwitch'); if(sw) sw.classList.toggle('active',state.enabled); if(state.enabled) mount(); });
     if (state.enabled) mount();
 })();
