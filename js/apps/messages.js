@@ -78,9 +78,10 @@ function recordCommentMemory(commenter, post, text) {
 }
 /* 朋友圈互动在聊天室里显示为独立事件胶囊，不混入普通台词或旁白。 */
 function applyChatMomentInteractions(c, list) {
-    if (!c || !Array.isArray(list) || !list.length) return;
+    if (!c || !Array.isArray(list) || !list.length) return [];
     const byId = new Map(POSTS.map(p => [String(p.id), p]));
     let changed = false;
+    let actedAny = false;
     list.forEach(it => {
         const p = byId.get(String(it.postId || '').trim());
         if (!p || !momentVisibleTo(p, c)) return;
@@ -93,9 +94,10 @@ function applyChatMomentInteractions(c, list) {
             p.comments.push({ by: c.id, text: String(it.comment), t: Date.now(), to: target ? target.id : undefined });
             recordCommentMemory(c, p, it.comment); acted = true;
         }
-        if (acted) { addMomentChatEvent(c, `${c.name}在${momentAuthor(p.by).name}的朋友圈下${it.comment ? '评论了' : '点赞了'}`); changed = true; }
+        if (acted) { addMomentChatEvent(c, `${c.name}在${momentAuthor(p.by).name}的朋友圈下${it.comment ? '评论了' : '点赞了'}`); changed = true; actedAny = true; }
     });
     if (changed) { persistContacts(); persistMoments(); renderMoments(); }
+    return actedAny ? [c] : [];
 }
 
 function addMomentChatEvent(c, text) {
@@ -125,8 +127,8 @@ async function momentSyncAll() {
             if (!mfAllowed(c)) continue;
             const lastH = mfLastPostH(c);
             const pct = Math.round(mfPctOf(c) * (lastH !== null && lastH < 24 ? 0.4 : 1));
-            // 概率由代码掷骰子决定：没中就不调用模型，省额度；中了才让模型写内容
-            if (Math.random() * 100 >= pct) continue;
+            // 概率由代码掷骰子决定：中了才让模型发新朋友圈；没中也可能回看旧朋友圈做点赞评论
+            const hitPost = Math.random() * 100 < pct;
             // 联系人之间没有世界连线时，互相不可见，也不能互相评论或回复。
             const viewers = CONTACTS.filter(x => x.id !== c.id && worldTiedPair(c.id, x.id)).map(x => ({ name: x.name, persona: x.persona || '' }));
             const oldOn = ((cfg.per[c.id] || {}).oldOn !== false) && cfg.oldOn !== false;
@@ -135,7 +137,8 @@ async function momentSyncAll() {
                 comments: (p.comments || []).slice(-8).map(cm => `${momentAuthor(cm.by).name}：${plainMentions(cm.text)}`).join('；') || '无',
                 commentItems: (p.comments || []).slice(-8).map(cm => ({ name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }))
             })) : [];
-            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
+            if (!hitPost && !feed.length) continue;
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r && (r.post || (r.interactions && r.interactions.length))) {
                 if (r.post && r.text) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo }));
                 const byId = new Map(POSTS.map(p => [p.id, p]));
@@ -3038,6 +3041,16 @@ async function deliverMsgs(c, parts) {
     }
 }
 
+/* 聊天回复时可供互动的旧朋友圈（受“允许回看旧朋友圈”开关控制） */
+function oldMomentFeedOf(c) {
+    const cfg = mfLoad();
+    const oldOn = ((cfg.per[c.id] || {}).oldOn !== false) && cfg.oldOn !== false;
+    if (!oldOn) return [];
+    return POSTS.filter(p => momentVisibleTo(p, c)).slice(0, 20).map(p => ({
+        id: p.id, author: momentAuthor(p.by).name, text: plainMentions(p.text),
+        comments: (p.comments || []).slice(-8).map(cm => `${momentAuthor(cm.by).name}：${plainMentions(cm.text)}`).join('；') || '无'
+    }));
+}
 let pullTimer = null;
 async function pullReply() {
     const c = CONTACTS.find(x => x.id === activeId);
@@ -3061,10 +3074,11 @@ async function pullReply() {
         const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 "moment" 字段，值为朋友圈文字；不发就不要写这个字段。' : '') + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
-        const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0));
+        const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0), oldMomentFeedOf(c));
         const heart = replies.heart || null;
         if (replies.moment && replies.moment.text && mfAllowed(c)) postContactMoment(c, replies.moment.text);
-        applyChatMomentInteractions(c, replies.momentInteractions || []);
+        const acted = applyChatMomentInteractions(c, replies.momentInteractions || []) || [];
+        if (acted.length) notePosterDone(acted);
         c._typing = false;
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const capCur = document.querySelector('.messages-app .send-capsule'); if (capCur) capCur.classList.remove('pulling');

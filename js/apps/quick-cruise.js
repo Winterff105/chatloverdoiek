@@ -115,39 +115,11 @@
         let p = document.getElementById('quickCruisePresetPanel');
         if (!state.presetOpen) { if (p) p.remove(); return; }
         if (!p) { p = document.createElement('section'); p.id = 'quickCruisePresetPanel'; document.body.appendChild(p); }
-        const presets = (window.settingsApiPresets || []).length ? window.settingsApiPresets : (() => { try { const list = JSON.parse(localStorage.getItem('forever_settings_api_presets_v1') || '[]'); return Array.isArray(list) ? list : []; } catch (_) { return []; } })();
-        let activeApi = {};
-        try { activeApi = JSON.parse(localStorage.getItem('whatever_settings_active_api_v1') || '{}') || {}; } catch (_) {}
-        const activeIndex = presets.findIndex(x => x && ((activeApi.name && x.name === activeApi.name) || (activeApi.url && x.url === activeApi.url && activeApi.model && x.model === activeApi.model)));
-        p.innerHTML = `<div class="qcp-title">Preset Control</div><label class="qcp-label">API Preset</label><select class="qcp-select" id="qcpPreset">${presets.map((x,i)=>`<option value="${i}" ${i === activeIndex ? 'selected' : ''}>${esc(x.name || `Preset ${i + 1}`)}</option>`).join('') || '<option value="">No presets</option>'}</select><label class="qcp-label">Model</label><select class="qcp-select" id="qcpModel"><option>${esc(activeApi.model || (activeIndex >= 0 && presets[activeIndex] && presets[activeIndex].model) || 'Current model')}</option></select><div class="qcp-row"><button class="qcp-btn primary" id="qcpUse">Use Globally</button><button class="qcp-btn" id="qcpFetch">Fetch Models</button></div><div class="qcp-hint">Choose a preset or model here. The selected API becomes the global active configuration.</div>`;
+        const presets = (window.settingsApiPresets || []).length ? window.settingsApiPresets : (() => { try { return JSON.parse(localStorage.getItem('forever_settings_api_presets_v1') || '[]'); } catch (_) { return []; } })();
+        p.innerHTML = `<div class="qcp-title">Preset Control</div><label class="qcp-label">API Preset</label><select class="qcp-select" id="qcpPreset">${presets.map((x,i)=>`<option value="${i}">${esc(x.name)}</option>`).join('') || '<option>No presets</option>'}</select><label class="qcp-label">Model</label><select class="qcp-select" id="qcpModel"><option>${esc((JSON.parse(localStorage.getItem('whatever_settings_active_api_v1')||'{}').model)||'Current model')}</option></select><div class="qcp-row"><button class="qcp-btn primary" id="qcpUse">Use Globally</button><button class="qcp-btn" id="qcpFetch">Fetch Models</button></div><div class="qcp-hint">Choose a preset or model here. The selected API becomes the global active configuration.</div>`;
         placePresetPanel(ball, p);
-        const applyPreset = (x) => {
-            if (!x) return false;
-            const model = p.querySelector('#qcpModel').value || x.model || '';
-            localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({
-                name: String(x.name || ''),
-                url: String(x.url || '').trim(),
-                key: String(x.key || '').trim(),
-                model: String(model),
-                temperature: typeof x.temperature === 'number' && isFinite(x.temperature) ? x.temperature : 0.8,
-                thinking: ['low', 'medium', 'high'].includes(x.thinking) ? x.thinking : '',
-                updatedAt: Date.now()
-            }));
-            return true;
-        };
-        p.querySelector('#qcpPreset').onchange = () => {
-            const x = presets[+p.querySelector('#qcpPreset').value];
-            if (!x) return;
-            p.querySelector('#qcpModel').innerHTML = `<option>${esc(x.model || 'Current model')}</option>`;
-            // 预设下拉框就是切换操作；不再要求用户额外点击一次按钮。
-            applyPreset(x);
-            toast(`Preset switched: ${x.name}`);
-        };
-        p.querySelector('#qcpUse').onclick = () => {
-            const x = presets[+p.querySelector('#qcpPreset').value];
-            if (!applyPreset(x)) return;
-            toast('Global preset updated');
-        };
+        p.querySelector('#qcpPreset').onchange = () => { const x = presets[+p.querySelector('#qcpPreset').value]; if (x) { p.querySelector('#qcpModel').innerHTML = `<option>${esc(x.model || 'Current model')}</option>`; } };
+        p.querySelector('#qcpUse').onclick = () => { const i = +p.querySelector('#qcpPreset').value; const x = presets[i]; if (!x) return; localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({name:x.name,url:x.url,key:x.key,model:p.querySelector('#qcpModel').value || x.model,temperature:x.temperature,thinking:x.thinking,updatedAt:Date.now()})); toast('Global preset updated'); };
         p.querySelector('#qcpFetch').onclick = async () => { const x = presets[+p.querySelector('#qcpPreset').value]; if (!x) return; try { const base=String(x.url||'').replace(/\/+$/,'').replace(/\/chat\/completions$/i,''); const res=await fetch(base+'/models',{headers:{Authorization:'Bearer '+String(x.key||'')}}); const data=await res.json(); const ids=(Array.isArray(data.data)?data.data:[]).map(m=>String(m.id||m)).filter(Boolean); p.querySelector('#qcpModel').innerHTML=ids.map(id=>`<option>${esc(id)}</option>`).join('')||`<option>${esc(x.model||'Current model')}</option>`; toast('Models loaded'); } catch(e) { toast('Model fetch failed'); } };
         const follow = () => { if (state.presetOpen) placePresetPanel(ball, p); };
         ball.addEventListener('pointermove', follow);

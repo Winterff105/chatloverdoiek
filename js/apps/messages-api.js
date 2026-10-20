@@ -220,7 +220,9 @@ Respond to what was just said, and let topic changes happen naturally, without e
       if (a >= 0 && b > a) obj = tryJson(fixRawNewlines(t.slice(a, b + 1)));
     }
     let list = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.messages) ? obj.messages : null);
-    if (!list) list = t.split('|||');
+    // 解析失败或结构不对时，不把 JSON 原文当台词显示
+    const looksJson = /^\s*[\{\[]/.test(t) || /"(messages|momentInteractions|moment|heart)"\s*:/.test(t);
+    if (!list) list = (obj != null || looksJson) ? [] : t.split('|||');
     const cleaned = list.map(x => {
       if (x && typeof x === 'object') return { text: cleanOne(x.text, name), trans: String(x.trans || '').trim() };
       return { text: cleanOne(x, name), trans: '' };
@@ -228,8 +230,25 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const out = cleaned.map(it => it.text);
     out.trans = cleaned.map(it => it.trans);
     out.heart = normHeart(obj && !Array.isArray(obj) ? obj.heart : null);
-    out.moment = (obj && !Array.isArray(obj) && typeof obj.moment === 'string' && obj.moment.trim()) ? { text: obj.moment.trim() } : null;
-    out.momentInteractions = (obj && !Array.isArray(obj) && Array.isArray(obj.momentInteractions)) ? obj.momentInteractions.map(x => ({ postId: String(x.postId || '').trim(), like: x.like === true || x.like === 'true', comment: String(x.comment || '').trim().slice(0, 120), to: String(x.to || '').trim() })).filter(x => x.postId && (x.like || x.comment)) : [];
+    // moment 兼容字符串、{text} / {content} 对象；JSON 解析失败时从原文里捞出 "moment" 字符串
+    let mv = '';
+    if (obj && !Array.isArray(obj)) {
+      const m = obj.moment;
+      mv = typeof m === 'string' ? m : (m && typeof m === 'object' ? (m.text || m.content || '') : '');
+    } else if (obj == null) {
+      const mm = t.match(/"moment"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (mm) { try { mv = JSON.parse('"' + mm[1] + '"'); } catch (_) { mv = mm[1]; } }
+    }
+    mv = String(mv || '').trim();
+    out.moment = mv ? { text: mv } : null;
+    // 互动：JSON 正常时直接读；解析失败时逐条从原文里捞出 {"postId"...} 对象
+    let miRaw = (obj && !Array.isArray(obj) && Array.isArray(obj.momentInteractions)) ? obj.momentInteractions : null;
+    if (!miRaw && obj == null) {
+      miRaw = [];
+      const re = /\{[^{}]*"postId"[^{}]*\}/g; let m;
+      while ((m = re.exec(t))) { try { miRaw.push(JSON.parse(fixRawNewlines(m[0]))); } catch (_) {} }
+    }
+    out.momentInteractions = (miRaw && miRaw.length) ? miRaw.map(x => ({ postId: String(x.postId || '').trim(), like: x.like === true || x.like === 'true', comment: String(x.comment || '').trim().slice(0, 120), to: String(x.to || '').trim() })).filter(x => x.postId && (x.like || x.comment)) : [];
     return out;
   }
 
@@ -345,7 +364,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
 
     // 旧朋友圈：让角色能对可见的旧朋友圈点赞或评论；只有写进 momentInteractions 才算真的执行
     const feedBlock = (Array.isArray(feed) && feed.length) ? [
-      '【可回看的旧朋友圈】以下是你现在能看到的朋友圈。你可以在回复时顺便对其中任意几条点赞或评论，不想互动就不做。',
+      '【可回看的旧朋友圈】以下是你现在能看到的朋友圈。你可以在回复时顺便对其中任意几条点赞或评论。如果对方在聊天里让你回复、评论或点赞朋友圈，这次就必须至少写出一条对应的互动，不能只在台词里说。否则不想互动就不做。',
       feed.map(p => `- postId=${p.id}｜发布者=${p.author}｜内容=${p.text || '（照片）'}｜已有评论=${p.comments || '无'}`).join('\n'),
       '【重要】只有写进 JSON 的 momentInteractions 才算真的点赞或评论。如果台词里说“我回了/点赞了某条朋友圈”，必须同时在 momentInteractions 里写出对应的 postId，否则等于没做，不要这样说。postId 必须逐字复制上面的 ID。不互动就让 momentInteractions 为空数组。'
     ].join('\n') : '';
