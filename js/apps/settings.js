@@ -159,11 +159,11 @@ function getSettingsAppHTML() {
                             </div>
                             <div class="row-text-group">
                                 <span class="row-label">快速巡航</span>
-                                <span class="row-note mono-font">Turbo Cruise</span>
+                                <span class="row-note mono-font">Turbo Cruise · 调用观测面板</span>
                             </div>
                         </div>
                         <div class="row-right">
-                            <div class="ios-switch active" onclick="event.stopPropagation(); this.classList.toggle('active');"></div>
+                            <div class="ios-switch" id="quickCruiseSwitch" onclick="event.stopPropagation(); toggleQuickCruise(this)"></div>
                         </div>
                     </div>
                 </div>
@@ -494,6 +494,8 @@ function getSettingsAppHTML() {
 async function initSettingsApp() {
     settingsCurrentPanel = 'main';
     restoreActiveSettingsApi();
+    const quickCruiseSwitch = document.getElementById('quickCruiseSwitch');
+    if (quickCruiseSwitch && localStorage.getItem('whatever_quick_cruise_enabled_v1') === '1') quickCruiseSwitch.classList.add('active');
     renderSettingsPresetsList();
     updateSettingsActivePresetBadge();
     renderPwaIconGrid();

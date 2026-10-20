@@ -872,6 +872,7 @@ function bindThreadScroll() {
 }
 function openChat(id) {
     const c = CONTACTS.find(x => x.id === id);
+    if (window.CruiseTrace && typeof window.CruiseTrace.setContext === 'function') window.CruiseTrace.setContext(c);
     if (!c) return;
     activeId = id;
     threadLimit = 35;
@@ -892,6 +893,7 @@ function openChat(id) {
     renderChats();
 }
 function closeChat() {
+    if (window.CruiseTrace && typeof window.CruiseTrace.setContext === 'function') window.CruiseTrace.setContext(null);
     clearTimeout(typingTimer);
     document.getElementById('chatView').classList.remove('open');
     refreshChatBadge();
