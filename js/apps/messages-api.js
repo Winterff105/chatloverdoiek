@@ -651,7 +651,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
       lines.push('【可回看的朋友圈】下面是你现在能看到的朋友圈。你可以回忆并评论其中一条，也可以只点赞；不想互动就不互动。评论最多一条，postId 只能从下面列表选择。');
       lines.push(feed.map(p => `- postId=${p.id}｜发布者=${p.author}｜内容=${p.text || '（照片）'}｜已有评论=${p.comments || '无'}`).join('\n'));
       lines.push('你也可以在评论中艾特用户：使用固定标记 @[user]，不要把用户当前昵称写进标记；用户改名后仍按这个标记识别。');
-      lines.push('允许的输出格式：{"post":true/false,"text":"新朋友圈内容","vis":"all或some或self或user","visTo":["名字"],"comments":[{"name":"评论人名字","text":"评论内容"}],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"要回复的名字，没有就空字符串"}]}。你自己发的新帖仍用 post；对已有帖子的互动放 interactions。');
+      lines.push('【重要】如果你评论已有朋友圈，必须把评论写进 interactions 数组，postId 必须原样使用上面列出的 ID；不能只在普通文字里说“我评论了”。如果不发新帖，post 必须为 false，但 interactions 仍可有内容。格式：{"post":true/false,"text":"新朋友圈内容","vis":"all或some或self或user","visTo":["名字"],"comments":[{"name":"评论人名字","text":"评论内容"}],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。');
     } else {
       lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容"}；不发时格式：{"post":false}');
     }
@@ -688,7 +688,8 @@ Respond to what was just said, and let topic changes happen naturally, without e
       to: String((x && x.to) || '').trim()
     })).filter(x => x.postId) : [];
     const text = String(o.text || '').trim();
-    return { post: o.post === true || o.post === 'true', text, comments, vis, visTo, interactions };
+    const post = o.post === true || o.post === 'true';
+    return { post, text, comments, vis, visTo, interactions };
   }
   window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentBatchWordReply, momentDmReply, momentAutoPost };
 })();
