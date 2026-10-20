@@ -6334,10 +6334,12 @@ function placeMomentBubble(t) {
     if (!root || !tab || !t) return;
     const rr = root.getBoundingClientRect(), tr = tab.getBoundingClientRect();
     // 固定以朋友圈图标中心为基准，和其他底栏提示保持同一高度。
+    // 固定：中心线卡在底栏上边缘，调取中 / 调取完成高度变化也不会移动
     t.style.left = (tr.left + tr.width / 2 - rr.left) + 'px';
-    t.style.bottom = (rr.bottom - tr.top - 1) + 'px';
+    t.style.top = (tr.top - rr.top) + 'px';
+    t.style.bottom = 'auto';
     t.style.marginBottom = '0';
-    t.style.transform = 'translateX(-50%)';
+    t.style.transform = 'translate(-50%,-50%)';
 }
 function showMomentLoading() {
     const t = momentBubbleEl(); if (!t) return;

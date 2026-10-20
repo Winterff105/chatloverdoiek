@@ -366,7 +366,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const feedBlock = (Array.isArray(feed) && feed.length) ? [
       '【可回看的旧朋友圈】以下是你现在能看到的朋友圈。你可以在回复时顺便对其中任意几条点赞或评论。如果对方在聊天里让你回复、评论或点赞朋友圈，这次就必须至少写出一条对应的互动，不能只在台词里说。否则不想互动就不做。',
       feed.map(p => `- postId=${p.id}｜发布者=${p.author}｜内容=${p.text || '（照片）'}｜已有评论=${p.comments || '无'}`).join('\n'),
-      '【重要】只有写进 JSON 的 momentInteractions 才算真的点赞或评论。如果台词里说“我回了/点赞了某条朋友圈”，必须同时在 momentInteractions 里写出对应的 postId，否则等于没做，不要这样说。postId 必须逐字复制上面的 ID。不互动就让 momentInteractions 为空数组。'
+      '【重要】只有写进 JSON 的 momentInteractions 才算真的点赞或评论。如果台词里说“我回了/点赞了某条朋友圈”，必须同时在 momentInteractions 里写出对应的 postId，否则等于没做，不要这样说。postId 必须逐字复制上面的 ID。要回复别人在这条朋友圈下的某条评论，就在那条互动里写 to 字段，填对方的名字（只能是评论明细里出现过的人），comment 写回复内容。不互动就让 momentInteractions 为空数组。'
     ].join('\n') : '';
     // 系统核心底层人设与对话环境
     const systemCoreText = [
