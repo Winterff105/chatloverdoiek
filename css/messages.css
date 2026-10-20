@@ -4404,7 +4404,7 @@
 .messages-app .mq-thought.mq-on{opacity:1}
 .messages-app .mq-thought.mq-fade{opacity:0}
 .messages-app .mq-pill{position:relative;flex-shrink:0;width:72px;height:40px;border-radius:999px;background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 4px 12px rgba(0,0,0,.05);font-size:12px;font-weight:600;color:#161616;white-space:nowrap;transition:width .55s cubic-bezier(.2,.8,.2,1),height .55s cubic-bezier(.2,.8,.2,1),transform .55s cubic-bezier(.2,.8,.2,1),background .3s ease,color .3s ease,box-shadow .3s ease,border-color .3s ease}
-.messages-app .mq-thought.mq-done .mq-pill{width:218px;height:40px;transform:translateX(-59px);background:#FCEAF1;color:#A3345E;border-color:transparent;box-shadow:none}
+.messages-app .mq-thought.mq-done .mq-pill{width:218px;height:40px;transform:none;background:#FCEAF1;color:#A3345E;border-color:transparent;box-shadow:none}
 .messages-app .mq-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:6px;transition:opacity .2s ease}
 .messages-app .mq-rest{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-start;padding-left:27px;gap:10px;opacity:0;transition:opacity .25s ease .35s}
 .messages-app .mq-thought.mq-done .mq-wait{opacity:0}

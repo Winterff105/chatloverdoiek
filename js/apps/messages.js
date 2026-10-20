@@ -6334,7 +6334,7 @@ function placeMomentBubble(t) {
     if (!root || !tab || !t) return;
     const rr = root.getBoundingClientRect(), tr = tab.getBoundingClientRect();
     t.style.left = (tr.left + tr.width / 2 - rr.left) + 'px';
-    t.style.bottom = (rr.bottom - tr.top + 14) + 'px';
+    t.style.bottom = (rr.bottom - tr.top - 1) + 'px';
 }
 function showMomentLoading() {
     const t = momentBubbleEl(); if (!t) return;
