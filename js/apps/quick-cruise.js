@@ -81,9 +81,9 @@
         const s = document.createElement('style'); s.id = 'quickCruiseStyle'; s.textContent = `
             #quickCruiseBall{position:fixed;z-index:99990;width:72px;height:72px;padding:0;border:0;border-radius:0;overflow:visible;box-shadow:none;touch-action:none;cursor:grab;background:transparent;appearance:none;-webkit-appearance:none}
             #quickCruiseBall img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;filter:none}
-            #quickCruiseBall.qc-glow-right::after,#quickCruiseBall.qc-glow-left::after{content:"";position:absolute;top:12%;bottom:12%;width:5px;border-radius:999px;pointer-events:none}
-            #quickCruiseBall.qc-glow-right::after{right:0;background:rgba(255,255,255,.48);box-shadow:0 0 12px 4px rgba(0,0,0,.7)}
-            #quickCruiseBall.qc-glow-left::after{left:0;background:rgba(255,255,255,.78);box-shadow:0 0 12px 4px rgba(255,255,255,.85)}
+            #quickCruiseBall.qc-glow-right::after,#quickCruiseBall.qc-glow-left::after{content:"";position:absolute;top:16%;bottom:16%;width:18px;border-radius:999px;pointer-events:none;filter:blur(5px);opacity:.72}
+            #quickCruiseBall.qc-glow-right::after{right:-5px;background:radial-gradient(ellipse at right,rgba(0,0,0,.72) 0,rgba(0,0,0,.34) 38%,transparent 78%)}
+            #quickCruiseBall.qc-glow-left::after{left:-5px;background:radial-gradient(ellipse at left,rgba(255,255,255,.92) 0,rgba(255,255,255,.42) 38%,transparent 78%)}
             #quickCruisePresetPanel{position:fixed;z-index:2147483001;width:min(300px,calc(100vw - 20px));max-height:70vh;overflow:auto;padding:14px;color:#111;background:rgba(255,255,255,.78);border:1px solid rgba(255,255,255,.9);border-radius:20px;backdrop-filter:blur(20px);font:12px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
             .qcp-title{font-family:"Snell Roundhand","Segoe Script",cursive;font-size:23px;font-style:italic}.qcp-label{display:block;margin:8px 0 4px;font-size:10px;color:#555}.qcp-select,.qcp-input{width:100%;min-height:30px;border:1px solid rgba(0,0,0,.14);border-radius:9px;background:rgba(255,255,255,.65);padding:5px 8px;box-sizing:border-box}.qcp-row{display:flex;gap:6px;margin-top:8px}.qcp-btn{flex:1;border:0;border-radius:999px;padding:6px 8px;background:rgba(0,0,0,.1);font-size:11px}.qcp-btn.primary{background:#111;color:#fff}.qcp-hint{margin-top:8px;color:#666;font-size:10px}
             #quickCruiseBall.qc-busy{animation:none}
@@ -103,12 +103,13 @@
     }
     function unmount() { document.getElementById('quickCruiseBall')?.remove(); document.getElementById('quickCruisePanel')?.remove(); document.getElementById('quickCruisePresetPanel')?.remove(); state.open = false; state.presetOpen = false; }
     function placePresetPanel(ball, panel) {
+        if (!ball || !panel) return;
         const r = ball.getBoundingClientRect();
         const w = Math.min(300, innerWidth - 20), h = Math.min(panel.scrollHeight || 260, innerHeight - 20), gap = 12;
         let left = r.right + gap;
         if (left + w > innerWidth - 10) left = r.left - w - gap;
         let top = Math.max(10, Math.min(innerHeight - h - 10, r.top + r.height / 2 - h / 2));
-        panel.style.width = w + 'px'; panel.style.left = Math.max(10, left) + 'px'; panel.style.top = top + 'px';
+        panel.style.width = w + 'px'; panel.style.left = Math.max(10, left) + 'px'; panel.style.top = top + 'px'; panel.style.right='auto'; panel.style.bottom='auto';
     }
     function renderPresetPanel(ball) {
         let p = document.getElementById('quickCruisePresetPanel');
@@ -120,6 +121,8 @@
         p.querySelector('#qcpPreset').onchange = () => { const x = presets[+p.querySelector('#qcpPreset').value]; if (x) { p.querySelector('#qcpModel').innerHTML = `<option>${esc(x.model || 'Current model')}</option>`; } };
         p.querySelector('#qcpUse').onclick = () => { const i = +p.querySelector('#qcpPreset').value; const x = presets[i]; if (!x) return; localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({name:x.name,url:x.url,key:x.key,model:p.querySelector('#qcpModel').value || x.model,temperature:x.temperature,thinking:x.thinking,updatedAt:Date.now()})); toast('Global preset updated'); };
         p.querySelector('#qcpFetch').onclick = async () => { const x = presets[+p.querySelector('#qcpPreset').value]; if (!x) return; try { const base=String(x.url||'').replace(/\/+$/,'').replace(/\/chat\/completions$/i,''); const res=await fetch(base+'/models',{headers:{Authorization:'Bearer '+String(x.key||'')}}); const data=await res.json(); const ids=(Array.isArray(data.data)?data.data:[]).map(m=>String(m.id||m)).filter(Boolean); p.querySelector('#qcpModel').innerHTML=ids.map(id=>`<option>${esc(id)}</option>`).join('')||`<option>${esc(x.model||'Current model')}</option>`; toast('Models loaded'); } catch(e) { toast('Model fetch failed'); } };
+        const follow = () => { if (state.presetOpen) placePresetPanel(ball, p); };
+        ball.addEventListener('pointermove', follow);
     }
 
     function placePanel(ball, panel, reset = false) {
@@ -169,7 +172,20 @@
         ball.addEventListener('pointerdown', () => { const p = document.getElementById('quickCruisePanel'); if (state.open && p) p.classList.add('qc-dragging'); });
         ball.addEventListener('pointerup', () => { const p = document.getElementById('quickCruisePanel'); if (p) p.classList.remove('qc-dragging'); });
     }
+    function bindOutsideClose() {
+        if (document.__qcOutsideBound) return;
+        document.__qcOutsideBound = true;
+        document.addEventListener('pointerdown', e => {
+            const ball = document.getElementById('quickCruiseBall');
+            const panel = document.getElementById('quickCruisePanel');
+            const preset = document.getElementById('quickCruisePresetPanel');
+            if (e.target === ball || e.target.closest?.('#quickCruiseBall') || e.target.closest?.('#quickCruisePanel') || e.target.closest?.('#quickCruisePresetPanel')) return;
+            state.open = false; state.presetOpen = false;
+            panel?.remove(); preset?.remove();
+        }, true);
+    }
     function render() {
+        bindOutsideClose();
         const ball = document.getElementById('quickCruiseBall'); if (ball) { ball.classList.toggle('qc-busy', state.records.some(r=>r.status==='调取中')); ball.classList.toggle('qc-glow-right', state.glowSide === 1); ball.classList.toggle('qc-glow-left', state.glowSide === 2); }
         let panel = document.getElementById('quickCruisePanel');
         renderPresetPanel(ball);
