@@ -118,16 +118,29 @@ async function momentSyncAll() {
                 if (r.post && r.text) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo }));
                 const byId = new Map(POSTS.map(p => [p.id, p]));
                 (r.interactions || []).forEach(it => {
-                    const p = byId.get(it.postId);
+                    const p = byId.get(String(it.postId || '').trim());
                     if (!p || !momentVisibleTo(p, c)) return;
                     p.likes = p.likes || []; p.comments = p.comments || [];
+                    const excerpt = momentTextWithNames(p.text).trim() || '一张照片';
+                    let didLike = false;
+                    let didComment = false;
                     const existingIds = new Set(p.comments.map(cm => cm.by));
-                    if (it.like && !p.likes.includes(c.id)) { p.likes.push(c.id); addCommonMemory(c, `{char}在${momentAuthor(p.by).name}的朋友圈（${momentTextWithNames(p.text) || '一张照片'}）下点赞`, p.id); }
+                    if (it.like && !p.likes.includes(c.id)) {
+                        p.likes.push(c.id);
+                        addCommonMemory(c, `{char}在${momentAuthor(p.by).name}的朋友圈（${excerpt}）下点赞`, p.id);
+                        didLike = true;
+                    }
                     if (it.comment && !existingIds.has(c.id)) {
-                        const target = CONTACTS.find(x => x.name === it.to);
-                        p.comments.push({ by: c.id, text: it.comment.replace(/@\[user\]/g, '@[user]'), t: Date.now(), to: target ? target.id : undefined });
+                        const target = CONTACTS.find(x => x.name === it.to && x.id !== c.id && momentVisibleTo(p, x));
+                        p.comments.push({ by: c.id, text: String(it.comment).replace(/@\[user\]/g, '@[user]'), t: Date.now(), to: target ? target.id : undefined });
                         recordCommentMemory(c, p, it.comment);
-                        addMomentChatEvent(c, `${c.name}在${momentAuthor(p.by).name}的朋友圈下评论了`);
+                        if (target) addCommonMemory(target, `${c.name}在${momentAuthor(p.by).name}的朋友圈（${excerpt}）下回复了${target.name}：${it.comment}`, p.id);
+                        didComment = true;
+                    }
+                    // 旧朋友圈互动也必须进入聊天室胶囊；点赞和评论都算一次新事件。
+                    if (didLike || didComment) {
+                        const action = didLike && didComment ? '点赞并评论了' : (didLike ? '点赞了' : '评论了');
+                        addMomentChatEvent(c, `${c.name}在${momentAuthor(p.by).name}的朋友圈下${action}`);
                         allCommenters.push(c);
                     }
                 });
