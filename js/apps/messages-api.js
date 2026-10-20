@@ -660,9 +660,9 @@ Respond to what was just said, and let topic changes happen naturally, without e
       lines.push('可能评论的人：\n' + viewers.map(v => `- ${v.name}${v.persona ? `（${String(v.persona).slice(0, 80)}）` : ''}`).join('\n'));
       lines.push('【可见范围】由你自己决定这条朋友圈给谁看：all 所有人都能看；some 只给你指定的人看（名字写在 visTo 里，只能从上面列表选）；self 只有你自己看；user 只给用户看。');
       lines.push('评论只能来自能看到这条朋友圈的人：vis 为 self 或 user 时 comments 必须为空数组；vis 为 some 时评论人只能是 visTo 里的人。');
-      lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容","vis":"all或some或self或user","visTo":["名字"],"comments":[{"name":"评论人名字","text":"评论内容"}]}；没有人评论时 comments 为空数组；不发时格式：{"post":false}');
+      lines.push('只输出 JSON，不要任何其他文字。格式固定为：{"post":true或false,"text":"新朋友圈内容","vis":"all或some或self或user","visTo":["名字"],"comments":[{"name":"评论人名字","text":"评论内容"}],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。不发新帖时 post=false，但仍可通过 interactions 回复旧朋友圈；没有互动时 interactions 为空数组。');
     } else {
-      lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容"}；不发时格式：{"post":false}');
+      lines.push('只输出 JSON，不要任何其他文字。格式固定为：{"post":true或false,"text":"新朋友圈内容","vis":"all或some或self或user","visTo":["名字"],"comments":[],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。');
     }
     const recent = Array.isArray(win.recentPosts) ? win.recentPosts.filter(Boolean).slice(0, 5) : [];
     if (recent.length) lines.push('你最近发过的朋友圈：\n' + recent.map(t => '- ' + String(t).slice(0, 60)).join('\n') + '\n这次换个说法，不要重复上面的词、句式和开头。');

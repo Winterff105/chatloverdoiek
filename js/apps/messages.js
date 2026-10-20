@@ -104,14 +104,15 @@ async function momentSyncAll() {
             })) : [];
             const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, decided: true, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r) {
-                allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo }));
+                if (r.text) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo }));
                 const byId = new Map(POSTS.map(p => [p.id, p]));
                 (r.interactions || []).forEach(it => {
                     const p = byId.get(it.postId);
                     if (!p || !momentVisibleTo(p, c)) return;
                     p.likes = p.likes || []; p.comments = p.comments || [];
+                    const existingIds = new Set(p.comments.map(cm => cm.by));
                     if (it.like && !p.likes.includes(c.id)) { p.likes.push(c.id); addCommonMemory(c, `{char}在${momentAuthor(p.by).name}的朋友圈（${momentTextWithNames(p.text) || '一张照片'}）下点赞`, p.id); }
-                    if (it.comment) {
+                    if (it.comment && !existingIds.has(c.id)) {
                         const target = CONTACTS.find(x => x.name === it.to);
                         p.comments.push({ by: c.id, text: it.comment.replace(/@\[user\]/g, '@[user]'), t: Date.now(), to: target ? target.id : undefined });
                         recordCommentMemory(c, p, it.comment);
