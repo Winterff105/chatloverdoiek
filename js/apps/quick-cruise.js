@@ -79,13 +79,13 @@
     function ensureStyle() {
         if (document.getElementById('quickCruiseStyle')) return;
         const s = document.createElement('style'); s.id = 'quickCruiseStyle'; s.textContent = `
-            #quickCruiseBall{position:fixed;z-index:99990;width:96px;height:96px;padding:12px;box-sizing:border-box;border:0;border-radius:0;overflow:visible;box-shadow:none;touch-action:none;cursor:grab;background:transparent;appearance:none;-webkit-appearance:none}
+            #quickCruiseBall{position:fixed;z-index:99990;width:72px;height:72px;padding:0;border:0;border-radius:0;overflow:visible;box-shadow:none;touch-action:none;cursor:grab;background:transparent;appearance:none;-webkit-appearance:none}
             #quickCruiseBall img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;filter:none}
             #quickCruiseBall.qc-glow-right::after,#quickCruiseBall.qc-glow-left::after{content:"";position:absolute;top:16%;bottom:16%;width:18px;border-radius:999px;pointer-events:none;filter:blur(5px);opacity:.72}
             #quickCruiseBall.qc-glow-right::after{display:none}
             #quickCruiseBall.qc-glow-left::after{left:-5px;background:radial-gradient(ellipse at left,rgba(255,255,255,.92) 0,rgba(255,255,255,.42) 38%,transparent 78%)}
             #quickCruisePresetPanel{position:fixed;z-index:2147483001;width:min(300px,calc(100vw - 20px));max-height:70vh;overflow:auto;padding:14px;color:#111;background:rgba(255,255,255,.78);border:1px solid rgba(255,255,255,.9);border-radius:20px;backdrop-filter:blur(20px);font:12px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
-            .qcp-title{font-family:"Snell Roundhand","Segoe Script",cursive;font-size:23px;font-style:italic}.qcp-label{display:block;margin:8px 0 4px;font-size:10px;color:#555}.qcp-select,.qcp-input{width:100%;min-height:30px;border:1px solid rgba(0,0,0,.14);border-radius:9px;background:rgba(255,255,255,.65);padding:5px 8px;box-sizing:border-box}.qcp-row{display:flex;gap:6px;margin-top:8px}.qcp-btn{flex:1;border:0;border-radius:999px;padding:6px 8px;background:rgba(0,0,0,.1);font-size:11px}.qcp-btn.primary{background:#111;color:#fff}.qcp-hint{margin-top:8px;color:#666;font-size:10px}.qcp-dd{position:relative}.qcp-dd-btn{width:100%;min-height:30px;border:1px solid rgba(0,0,0,.14);border-radius:9px;background:rgba(255,255,255,.65);padding:5px 26px 5px 8px;box-sizing:border-box;text-align:left;font:inherit;color:#111;position:relative;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.qcp-dd-btn::after{content:"";position:absolute;right:11px;top:50%;width:5px;height:5px;border-right:1.5px solid #111;border-bottom:1.5px solid #111;transform:translateY(-70%) rotate(45deg)}.qcp-dd-list{margin-top:4px;max-height:180px;overflow:auto;border-radius:10px;background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.08);padding:4px}.qcp-dd-list[hidden]{display:none}.qcp-dd-item{padding:6px 8px;border-radius:7px;cursor:pointer;font-size:11px}.qcp-dd-item:hover{background:rgba(0,0,0,.06)}.qcp-dd-item.on{background:#111;color:#fff}
+            .qcp-title{font-family:"Snell Roundhand","Segoe Script",cursive;font-size:23px;font-style:italic}.qcp-label{display:block;margin:8px 0 4px;font-size:10px;color:#555}.qcp-select,.qcp-input{width:100%;min-height:30px;border:1px solid rgba(0,0,0,.14);border-radius:9px;background:rgba(255,255,255,.65);padding:5px 8px;box-sizing:border-box}.qcp-row{display:flex;gap:6px;margin-top:8px}.qcp-btn{flex:1;border:0;border-radius:999px;padding:6px 8px;background:rgba(0,0,0,.1);font-size:11px}.qcp-btn.primary{background:#111;color:#fff}.qcp-hint{margin-top:8px;color:#666;font-size:10px}
             #quickCruiseBall.qc-busy{animation:none}
             @keyframes qcPulse{50%{filter:none}}
             #quickCruisePanel{position:fixed;z-index:2147483000;width:min(300px,calc(100vw - 20px));max-height:72vh;background:rgba(20,20,24,.96);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:22px;box-shadow:0 20px 60px rgba(0,0,0,.42);backdrop-filter:blur(22px);display:none;overflow:hidden;font:13px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
@@ -98,132 +98,31 @@
         ensureStyle(); installFetchProbe();
         let ball = document.getElementById('quickCruiseBall');
         if (!ball) { ball = document.createElement('button'); ball.id = 'quickCruiseBall'; ball.type = 'button'; ball.title = 'Quick Cruise'; ball.innerHTML = `<img src="${IMG}" alt="Quick Cruise">`; document.body.appendChild(ball); bindDrag(ball); ball.addEventListener('click', e => { e.preventDefault(); if (ball.dataset.moved) { delete ball.dataset.moved; return; } if (!state.glowSide || state.glowSide === 2) { state.glowSide = 1; state.presetOpen = true; state.open = false; } else { state.glowSide = 2; state.presetOpen = false; state.open = true; } render(); }); }
-        if (state.pos) { ball.style.left = state.pos.x + 'px'; ball.style.top = state.pos.y + 'px'; ball.style.right = 'auto'; ball.style.bottom = 'auto'; } else { ball.style.right = '2px'; ball.style.bottom = '104px'; }
+        if (state.pos) { ball.style.left = state.pos.x + 'px'; ball.style.top = state.pos.y + 'px'; ball.style.right = 'auto'; ball.style.bottom = 'auto'; } else { ball.style.right = '14px'; ball.style.bottom = '116px'; }
         render();
     }
     function unmount() { document.getElementById('quickCruiseBall')?.remove(); document.getElementById('quickCruisePanel')?.remove(); document.getElementById('quickCruisePresetPanel')?.remove(); state.open = false; state.presetOpen = false; }
     function placePresetPanel(ball, panel) {
         if (!ball || !panel) return;
         const r = ball.getBoundingClientRect();
-        const w = Math.min(300, innerWidth - 20), gap = 8;
-        const h = Math.min(panel.scrollHeight || 260, innerHeight - 20);
-        // 水平：与悬浮球中心对齐，并限制在屏幕内
-        let left = r.left + r.width / 2 - w / 2;
-        left = Math.max(10, Math.min(innerWidth - w - 10, left));
-        // 垂直：优先放在悬浮球正上方；上方放不下就放到下方
-        let top = r.top - h - gap;
-        if (top < 10) top = r.bottom + gap;
-        top = Math.max(10, Math.min(innerHeight - h - 10, top));
-        panel.style.width = w + 'px';
-        panel.style.left = left + 'px';
-        panel.style.top = top + 'px';
-        panel.style.right = 'auto';
-        panel.style.bottom = 'auto';
-    }
-    /* ---- 预设面板：只创建一次，之后只更新选项，不再整块重建（避免选择被重置） ---- */
-    let qcpSel = { preset: 0, model: '' };
-    let qcpModelCache = {};
-    function qcpPresets() {
-        if (Array.isArray(window.settingsApiPresets) && window.settingsApiPresets.length) return window.settingsApiPresets;
-        try { return JSON.parse(localStorage.getItem('forever_settings_api_presets_v1') || '[]') || []; } catch (_) { return []; }
-    }
-    function qcpModelsFor(i, presets) {
-        const x = presets[i] || {};
-        const list = (qcpModelCache[i] || []).slice();
-        if (x.model && !list.includes(x.model)) list.unshift(x.model);
-        return list.length ? list : ['Current model'];
-    }
-    function qcpDdHtml(key) {
-        return `<div class="qcp-dd"><button type="button" class="qcp-dd-btn" data-dd-btn="${key}"></button><div class="qcp-dd-list" data-dd-list="${key}" hidden></div></div>`;
-    }
-    function qcpRefresh(p) {
-        const presets = qcpPresets();
-        if (qcpSel.preset >= presets.length || qcpSel.preset < 0) qcpSel.preset = 0;
-        const models = presets.length ? qcpModelsFor(qcpSel.preset, presets) : ['Current model'];
-        if (!models.includes(qcpSel.model)) qcpSel.model = models[0];
-        const fill = (key, pairs, selected) => {
-            const hit = pairs.find(pr => pr[0] === selected) || pairs[0];
-            p.querySelector(`[data-dd-btn="${key}"]`).textContent = hit ? hit[1] : '—';
-            p.querySelector(`[data-dd-list="${key}"]`).innerHTML = pairs.map(([v, label]) =>
-                `<div class="qcp-dd-item${v === selected ? ' on' : ''}" data-dd-item="${key}" data-v="${esc(v)}">${esc(label)}</div>`).join('');
-        };
-        const presetPairs = presets.length ? presets.map((x, i) => [String(i), x.name || 'Untitled']) : [['-1', 'No presets']];
-        fill('preset', presetPairs, String(qcpSel.preset));
-        fill('model', models.map(m => [m, m]), qcpSel.model);
-    }
-    function qcpBuild(ball) {
-        let p = document.getElementById('quickCruisePresetPanel');
-        if (p) return p;
-        p = document.createElement('section'); p.id = 'quickCruisePresetPanel';
-        p.innerHTML = `<div class="qcp-title">Preset Control</div>`
-            + `<div class="qcp-label">API Preset</div>${qcpDdHtml('preset')}`
-            + `<div class="qcp-label">Model</div>${qcpDdHtml('model')}`
-            + `<div class="qcp-row"><button class="qcp-btn primary" id="qcpUse">Use Globally</button><button class="qcp-btn" id="qcpFetch">Fetch Models</button></div>`
-            + `<div class="qcp-hint">Choose a preset or model here. The selected API becomes the global active configuration.</div>`;
-        document.body.appendChild(p);
-        p.addEventListener('click', async e => {
-            const btn = e.target.closest('[data-dd-btn]');
-            if (btn) {
-                const list = p.querySelector(`[data-dd-list="${btn.dataset.ddBtn}"]`);
-                const willOpen = list.hidden;
-                p.querySelectorAll('[data-dd-list]').forEach(l => l.hidden = true);
-                list.hidden = !willOpen;
-                return;
-            }
-            const item = e.target.closest('[data-dd-item]');
-            if (item) {
-                if (item.dataset.ddItem === 'preset') {
-                    const i = +item.dataset.v;
-                    if (i < 0) return;
-                    qcpSel.preset = i; qcpSel.model = '';
-                } else {
-                    qcpSel.model = item.dataset.v;
-                }
-                p.querySelectorAll('[data-dd-list]').forEach(l => l.hidden = true);
-                qcpRefresh(p);
-                return;
-            }
-            if (e.target.closest('#qcpUse')) {
-                const presets = qcpPresets(); const x = presets[qcpSel.preset];
-                if (!x) { toast('No presets'); return; }
-                localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({ name: x.name, url: x.url, key: x.key, model: qcpSel.model || x.model, temperature: x.temperature, thinking: x.thinking, updatedAt: Date.now() }));
-                toast('Global preset updated');
-                return;
-            }
-            if (e.target.closest('#qcpFetch')) {
-                const presets = qcpPresets(); const i = qcpSel.preset; const x = presets[i];
-                if (!x) return;
-                try {
-                    const base = String(x.url || '').replace(/\/+$/, '').replace(/\/chat\/completions$/i, '');
-                    const res = await fetch(base + '/models', { headers: { Authorization: 'Bearer ' + String(x.key || '') } });
-                    const data = await res.json();
-                    const ids = (Array.isArray(data.data) ? data.data : []).map(m => String(m.id || m)).filter(Boolean);
-                    qcpModelCache[i] = ids;
-                    qcpSel.model = ids[0] || qcpSel.model;
-                    qcpRefresh(p);
-                    toast('Models loaded');
-                } catch (err) { toast('Model fetch failed'); }
-            }
-        });
-        if (!window.__qcpFollowBound) {
-            window.__qcpFollowBound = true;
-            // 悬浮球被拖动时，预设面板跟着走（全局只绑定一次）
-            const reflow = () => {
-                const pp = document.getElementById('quickCruisePresetPanel'); const bb = document.getElementById('quickCruiseBall');
-                if (pp && bb && state.presetOpen) placePresetPanel(bb, pp);
-            };
-            document.addEventListener('pointermove', reflow, true);
-            window.addEventListener('resize', reflow);
-        }
-        return p;
+        const w = Math.min(300, innerWidth - 20), h = Math.min(panel.scrollHeight || 260, innerHeight - 20), gap = 12;
+        let left = r.right + gap;
+        if (left + w > innerWidth - 10) left = r.left - w - gap;
+        let top = Math.max(10, Math.min(innerHeight - h - 10, r.top + r.height / 2 - h / 2));
+        panel.style.width = w + 'px'; panel.style.left = Math.max(10, left) + 'px'; panel.style.top = top + 'px'; panel.style.right='auto'; panel.style.bottom='auto';
     }
     function renderPresetPanel(ball) {
         let p = document.getElementById('quickCruisePresetPanel');
         if (!state.presetOpen) { if (p) p.remove(); return; }
-        const isNew = !p;
-        p = qcpBuild(ball);
-        qcpRefresh(p);
-        if (isNew) placePresetPanel(ball, p);
+        if (!p) { p = document.createElement('section'); p.id = 'quickCruisePresetPanel'; document.body.appendChild(p); }
+        const presets = (window.settingsApiPresets || []).length ? window.settingsApiPresets : (() => { try { return JSON.parse(localStorage.getItem('forever_settings_api_presets_v1') || '[]'); } catch (_) { return []; } })();
+        p.innerHTML = `<div class="qcp-title">Preset Control</div><label class="qcp-label">API Preset</label><select class="qcp-select" id="qcpPreset">${presets.map((x,i)=>`<option value="${i}">${esc(x.name)}</option>`).join('') || '<option>No presets</option>'}</select><label class="qcp-label">Model</label><select class="qcp-select" id="qcpModel"><option>${esc((JSON.parse(localStorage.getItem('whatever_settings_active_api_v1')||'{}').model)||'Current model')}</option></select><div class="qcp-row"><button class="qcp-btn primary" id="qcpUse">Use Globally</button><button class="qcp-btn" id="qcpFetch">Fetch Models</button></div><div class="qcp-hint">Choose a preset or model here. The selected API becomes the global active configuration.</div>`;
+        placePresetPanel(ball, p);
+        p.querySelector('#qcpPreset').onchange = () => { const x = presets[+p.querySelector('#qcpPreset').value]; if (x) { p.querySelector('#qcpModel').innerHTML = `<option>${esc(x.model || 'Current model')}</option>`; } };
+        p.querySelector('#qcpUse').onclick = () => { const i = +p.querySelector('#qcpPreset').value; const x = presets[i]; if (!x) return; localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({name:x.name,url:x.url,key:x.key,model:p.querySelector('#qcpModel').value || x.model,temperature:x.temperature,thinking:x.thinking,updatedAt:Date.now()})); toast('Global preset updated'); };
+        p.querySelector('#qcpFetch').onclick = async () => { const x = presets[+p.querySelector('#qcpPreset').value]; if (!x) return; try { const base=String(x.url||'').replace(/\/+$/,'').replace(/\/chat\/completions$/i,''); const res=await fetch(base+'/models',{headers:{Authorization:'Bearer '+String(x.key||'')}}); const data=await res.json(); const ids=(Array.isArray(data.data)?data.data:[]).map(m=>String(m.id||m)).filter(Boolean); p.querySelector('#qcpModel').innerHTML=ids.map(id=>`<option>${esc(id)}</option>`).join('')||`<option>${esc(x.model||'Current model')}</option>`; toast('Models loaded'); } catch(e) { toast('Model fetch failed'); } };
+        const follow = () => { if (state.presetOpen) placePresetPanel(ball, p); };
+        ball.addEventListener('pointermove', follow);
     }
 
     function placePanel(ball, panel, reset = false) {
@@ -265,8 +164,8 @@
     }
     function bindDrag(ball) {
         let down = null, moved = false;
-        ball.addEventListener('pointerdown', e => { down = {x:e.clientX,y:e.clientY}; moved = false; delete ball.dataset.moved; ball.setPointerCapture?.(e.pointerId); });
-        ball.addEventListener('pointermove', e => { if (!down) return; const dx=e.clientX-down.x,dy=e.clientY-down.y; if(Math.hypot(dx,dy)<8)return; moved=true; ball.dataset.moved='1'; ball.style.left=Math.max(4,Math.min(innerWidth-100,e.clientX-48))+'px'; ball.style.top=Math.max(8,Math.min(innerHeight-100,e.clientY-48))+'px'; ball.style.right='auto'; ball.style.bottom='auto'; });
+        ball.addEventListener('pointerdown', e => { down = {x:e.clientX,y:e.clientY}; moved = false; ball.setPointerCapture?.(e.pointerId); });
+        ball.addEventListener('pointermove', e => { if (!down) return; const dx=e.clientX-down.x,dy=e.clientY-down.y; if(Math.hypot(dx,dy)<5)return; moved=true; ball.dataset.moved='1'; ball.style.left=Math.max(4,Math.min(innerWidth-76,e.clientX-36))+'px'; ball.style.top=Math.max(8,Math.min(innerHeight-76,e.clientY-36))+'px'; ball.style.right='auto'; ball.style.bottom='auto'; });
         const end = () => { if (moved) { const r=ball.getBoundingClientRect(); state.pos={x:r.left,y:r.top}; localStorage.setItem(POS_KEY,JSON.stringify(state.pos)); } down=null; };
         ball.addEventListener('pointerup',end); ball.addEventListener('pointercancel',end);
         ball.addEventListener('pointermove', () => { const p = document.getElementById('quickCruisePanel'); if (state.open && p) requestAnimationFrame(() => placePanel(ball, p)); });
