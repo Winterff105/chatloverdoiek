@@ -147,13 +147,14 @@ async function momentSyncAll() {
             const viewers = CONTACTS.filter(x => x.id !== c.id && worldTiedPair(c.id, x.id)).map(x => ({ name: x.name, persona: x.persona || '' }));
             const oldOn = ((cfg.per[c.id] || {}).oldOn !== false) && cfg.oldOn !== false;
             const feed = oldOn ? POSTS.filter(p => momentVisibleTo(p, c)).slice(0, 20).map(p => ({
-                id: p.id, author: momentAuthor(p.by).name, text: plainMentions(p.text),
+                id: p.id, imgKeys: keysOfPost(p), author: momentAuthor(p.by).name, text: plainMentions(p.text),
                 comments: (p.comments || []).slice(-8).map(cm => `${momentAuthor(cm.by).name}：${plainMentions(cm.text)}`).join('；') || '无',
                 commentItems: (p.comments || []).slice(-8).map(cm => ({ name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }))
             })) : [];
             if (!hitPost && !feed.length) continue;
-            const stealPool = stealPoolOf(c);
-            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, allowPhoto: cfg.img !== false, stealable: stealPool.map(x => x.desc || '一张照片'), decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
+            const stealPool = stealPoolOf(c).slice(0, 4);
+            await primeKeys([...stealPool.map(x => x.key), ...feed.flatMap(p => p.imgKeys || [])]);
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, allowPhoto: cfg.img !== false, stealable: stealPool.map(x => x.desc || '一张照片'), stealableKeys: stealPool.map(x => x.key), decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r && (r.post || (r.interactions && r.interactions.length))) {
                 const shotKey = r.post && r.chatShot ? await saveChatShot(c) : null;
                 const stolen = r.post ? pickStolenPhoto(r, stealPool) : null;
@@ -1399,6 +1400,16 @@ function hydrateChatPhotos(box) {
     });
 }
 /* char 偷照片：从用户发过的朋友圈照片、用户在聊天里发的照片中随机挑一张 */
+/* 朋友圈图片：帖子里的照片和截图 */
+function keysOfPost(p) { return p ? [...(p.imgs || []), p.chatShotKey].filter(Boolean) : []; }
+/* 把图片数据读进内存（数据库里读不到时也不影响文字请求），并让 messages-api 能取到 */
+async function primeKeys(keys) {
+    window.MESSAGES_PHOTO_GET = k => MOMENT_IMG_CACHE[k] || '';
+    for (const k of keys || []) {
+        if (!k || MOMENT_IMG_CACHE[k]) continue;
+        try { const v = window.DB ? await window.DB.load(k, '') : ''; if (v) MOMENT_IMG_CACHE[k] = v; } catch (_) {}
+    }
+}
 function stealPoolOf(c) {
     const pool = [];
     POSTS.forEach(p => { if (!CONTACTS.find(x => x.id === p.by)) (p.imgs || []).forEach((k, i) => pool.push({ key: k, desc: (p.imgDesc || [])[i] || '' })); });
@@ -3242,7 +3253,7 @@ function oldMomentFeedOf(c) {
     const oldOn = ((cfg.per[c.id] || {}).oldOn !== false) && cfg.oldOn !== false;
     if (!oldOn) return [];
     return POSTS.filter(p => momentVisibleTo(p, c)).slice(0, 20).map(p => ({
-        id: p.id, author: momentAuthor(p.by).name, text: plainMentions(p.text),
+        id: p.id, imgKeys: keysOfPost(p), author: momentAuthor(p.by).name, text: plainMentions(p.text),
         comments: (p.comments || []).slice(-8).map(cm => `${momentAuthor(cm.by).name}：${plainMentions(cm.text)}`).join('；') || '无'
     }));
 }
@@ -5689,6 +5700,7 @@ async function charPrivateReply(cid, p, userText, quoteText) {
     const o = chatOptsOf(c);
     const ctxN = (c.mem && c.mem.ctx) || 30;   // 上下文条数跟聊天一样
     try {
+        await primeKeys(keysOfPost(p));
         const r = await window.MessagesAPI.momentDmReply(c, p, userText, quoteText, (c.msgs || []).slice(-ctxN), { min: o.min, max: o.max });
         if (!r || !r.send || !r.texts.length) return;
         deliverMsgs(c, r.texts);
@@ -5864,6 +5876,7 @@ async function momentCommentAiReply(cid, p) {
     let replied = false;
     try {
         const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }));
+        await primeKeys(keysOfPost(p));
         const r = await window.MessagesAPI.momentWordReply(c, posterView(p, c), (c.msgs || []).slice(-30), existing);
         if (r.comment) {
             p.comments = p.comments || [];
@@ -6656,6 +6669,7 @@ async function momentFetchFor(p) {
         const actors = who.map(c => ({ id: c.id, name: c.name, persona: c.persona || '' }));
         const recentMap = Object.fromEntries(who.map(c => [c.id, (c.msgs || []).slice(-30).map(m => `${m.me ? momentUserName() : c.name}：${m.text}`).join('\n')]));
         const existing = (p.comments || []).map(cm => ({ id: cm.by, name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }));
+        await primeKeys(keysOfPost(p));
         const results = await window.MessagesAPI.momentBatchWordReply(Object.assign({}, posterView(p, who[0]), { text: plainMentions(p.text) }), actors, recentMap);
         const byId = new Map(who.map(c => [String(c.id), c]));
         p.likes = p.likes || []; p.comments = p.comments || [];

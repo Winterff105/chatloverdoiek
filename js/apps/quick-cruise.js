@@ -123,9 +123,17 @@
     /* ---- 预设面板：只创建一次，之后只更新选项，不再整块重建（避免选择被重置） ---- */
     let qcpSel = { preset: 0, model: '' };
     let qcpModelCache = {};
+    /* 预设只认设置页存的那一份（每次都从存储读，不缓存） */
     function qcpPresets() {
-        if (Array.isArray(window.settingsApiPresets) && window.settingsApiPresets.length) return window.settingsApiPresets;
         try { return JSON.parse(localStorage.getItem('forever_settings_api_presets_v1') || '[]') || []; } catch (_) { return []; }
+    }
+    /* 按全局生效的 API 配置，把悬浮球面板的选择对齐（按名字匹配，不用索引） */
+    function qcpSyncFromActive() {
+        let act = null;
+        try { act = JSON.parse(localStorage.getItem('whatever_settings_active_api_v1') || 'null'); } catch (_) {}
+        if (!act) return;
+        const idx = qcpPresets().findIndex(x => x.name === act.name);
+        if (idx >= 0) { qcpSel.preset = idx; qcpSel.model = act.model || ''; }
     }
     function qcpModelsFor(i, presets) {
         const x = presets[i] || {};
@@ -186,7 +194,12 @@
             if (e.target.closest('#qcpUse')) {
                 const presets = qcpPresets(); const x = presets[qcpSel.preset];
                 if (!x) { toast('No presets'); return; }
-                localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({ name: x.name, url: x.url, key: x.key, model: qcpSel.model || x.model, temperature: x.temperature, thinking: x.thinking, updatedAt: Date.now() }));
+                const useModel = qcpSel.model || x.model;
+                localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({ name: x.name, url: x.url, key: x.key, model: useModel, temperature: x.temperature, thinking: x.thinking, updatedAt: Date.now() }));
+                // 同时把模型写回设置页的预设列表，两边保持一致
+                const list = qcpPresets(); const at = list.findIndex(y => y.name === x.name);
+                if (at >= 0 && useModel) { list[at].model = useModel; try { localStorage.setItem('forever_settings_api_presets_v1', JSON.stringify(list)); } catch (_) {} }
+                window.dispatchEvent(new Event('settings-api-changed'));
                 toast('Global preset updated');
                 return;
             }
@@ -217,11 +230,19 @@
         }
         return p;
     }
+    window.addEventListener('settings-api-changed', () => {
+        qcpSyncFromActive();
+        const pp = document.getElementById('quickCruisePresetPanel'); if (pp) qcpRefresh(pp);
+    });
+    window.addEventListener('storage', e => {
+        if (e.key === 'whatever_settings_active_api_v1' || e.key === 'forever_settings_api_presets_v1') window.dispatchEvent(new Event('settings-api-changed'));
+    });
     function renderPresetPanel(ball) {
         let p = document.getElementById('quickCruisePresetPanel');
         if (!state.presetOpen) { if (p) p.remove(); return; }
         const isNew = !p;
         p = qcpBuild(ball);
+        if (isNew) qcpSyncFromActive();
         qcpRefresh(p);
         if (isNew) placePresetPanel(ball, p);
     }

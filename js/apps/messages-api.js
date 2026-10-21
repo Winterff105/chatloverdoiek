@@ -516,6 +516,14 @@ Respond to what was just said, and let topic changes happen naturally, without e
     '不是每条都要点赞或评论；不愿意的时候就都不做。评论要像真人随手一句，简短口语化，不要客套话，不要解释自己。',
     '只输出一个 JSON 对象，不要输出任何其他文字、解释或代码块，格式固定为：{"like":true或false,"comment":"评论内容，没有评论就写空字符串"}'
   ].join('\n');
+  /* 朋友圈相关请求带上图片：照片和截图的图片数据由 MESSAGES_PHOTO_GET 取出，最多 6 张 */
+function postImageKeys(post) { return post ? [...(post.imgs || []), post.chatShotKey].filter(Boolean) : []; }
+function userMsgWithImages(text, keys) {
+    const urls = (keys || []).slice(0, 6).map(k => (typeof window.MESSAGES_PHOTO_GET === 'function' ? window.MESSAGES_PHOTO_GET(k) : '') || '').filter(Boolean);
+    if (!urls.length) return { role: 'user', content: text };
+    return { role: 'user', content: [{ type: 'text', text }, ...urls.map(url => ({ type: 'image_url', image_url: { url } }))] };
+}
+
   async function momentReply(contact, post) {
     const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
     const fillU = t => String(t || '').split('{{char}}').join(contact.name || '').split('{{user}}').join(window.MESSAGES_USER_NAME || 'user');
@@ -532,7 +540,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const when = post && post.t ? new Date(post.t) : new Date();
     const user = `这是用户刚发的朋友圈（${when.getHours()}时${when.getMinutes()}分）：\n${String(post && post.text || '').trim() || '（只发了照片）'}`;
     let response;
-    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, userMsgWithImages(user, postImageKeys(post))] }, 0.8)) }); }
     catch (e) { throw new Error(String((e && e.message) || e)); }
     const rawTxt = await response.text().catch(() => '');
     if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
@@ -576,7 +584,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const when = new Date();
     const user = `你们最近的聊天：\n${ctx}\n\n${whose}刚发的朋友圈（${when.getHours()}时${when.getMinutes()}分）：\n${String(post && post.text || '').trim() || '（只发了照片）'}\n\n评论区现在的内容：\n${cur}\n\n可以回复的人：${names.join('、') || '无'}`;
     let response;
-    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, userMsgWithImages(user, postImageKeys(post))] }, 0.8)) }); }
     catch (e) { throw new Error(String((e && e.message) || e)); }
     const rawTxt = await response.text().catch(() => '');
     if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
@@ -604,7 +612,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     ].join('\n');
     const user = `朋友圈发布者：${post.posterName || post.author || '用户'}\n朋友圈内容：${String(post.text || '').trim() || '（照片）'}\n已有评论：${existing}\n最近聊天上下文：${JSON.stringify(recentMap || {})}`;
     let response;
-    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, userMsgWithImages(user, postImageKeys(post))] }, 0.8)) }); }
     catch (e) { throw new Error(String((e && e.message) || e)); }
     const rawTxt = await response.text().catch(() => '');
     if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
@@ -639,7 +647,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     ].filter(Boolean).join('\n');
     const user = `你们最近的聊天：\n${ctx}\n\n朋友圈内容：${String(post && post.text || '').trim() || '（只发了照片）'}\n你在评论区说的话：${quoteText || ''}\n用户在评论区回复你：${userText}`;
     let response;
-    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, 0.8)) }); }
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: system }, userMsgWithImages(user, postImageKeys(post))] }, 0.8)) }); }
     catch (e) { throw new Error(String((e && e.message) || e)); }
     const rawTxt = await response.text().catch(() => '');
     if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
@@ -655,10 +663,10 @@ Respond to what was just said, and let topic changes happen naturally, without e
   }
 
   /* 记忆总结：单次请求，返回模型原文 */
-  async function complete(systemText, userText) {
+  async function complete(systemText, userText, imageKeys) {
     const c = config(); if (!isConfigured()) throw new Error('请先在「设置 → API」保存接口配置');
     let response;
-    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: systemText }, { role: 'user', content: userText }] }, 0.4)) }); }
+    try { response = await fetch(c.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey }, body: JSON.stringify(withTuning({ model: c.model, messages: [{ role: 'system', content: systemText }, userMsgWithImages(userText, imageKeys)] }, 0.4)) }); }
     catch (e) { throw new Error(String((e && e.message) || e)); }
     const rawTxt = await response.text().catch(() => '');
     if (!response.ok) throw new Error(rawTxt || `HTTP ${response.status} ${response.statusText || ''}`.trim());
@@ -724,7 +732,8 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const sys = [ROLEPLAY_PROMPT, momentOptsBlock(contact), worldTiesBlock(contact), lines.join('\n')].filter(Boolean).join('\n\n');
     const persona = contact.persona ? `你的设定：${fillU(contact.persona)}` : '';
     const ctx = (recentMsgs || []).map(m => `${m.me ? userName : contact.name}：${String(m.text || '')}`).join('\n') || '（暂无聊天记录）';
-    const raw = await complete([sys, persona].filter(Boolean).join('\n\n'), `你们最近的聊天：\n${ctx}`);
+    const imageKeys = [...(win.stealableKeys || []), ...feed.flatMap(p => p.imgKeys || [])];
+    const raw = await complete([sys, persona].filter(Boolean).join('\n\n'), `你们最近的聊天：\n${ctx}`, imageKeys);
     let t = String(raw || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
     const x = t.indexOf('{'), y = t.lastIndexOf('}');
     if (x >= 0 && y > x) t = t.slice(x, y + 1);

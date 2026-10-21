@@ -720,6 +720,7 @@ function publishActiveSettingsApi(preset) {
             updatedAt: Date.now()
         }));
     } catch (e) { console.warn('[Settings API] 无法同步 API 配置到聊天模块', e); }
+    window.dispatchEvent(new Event('settings-api-changed'));
 }
 function restoreActiveSettingsApi() {
     loadSettingsApiPresets();
@@ -3394,4 +3395,15 @@ function togglePwaIconPanel() {
 document.addEventListener('DOMContentLoaded', () => {
     captureOriginalPwaLinks();
     applyCurrentPwaIcon();
+});
+
+/* 悬浮球（快速巡航）与设置页共用同一套 API 预设：任一边改动后，另一边立即刷新 */
+function refreshSettingsApiFromStorage() {
+    restoreActiveSettingsApi();
+    if (document.getElementById('settingsActivePresetBadge')) updateSettingsActivePresetBadge();
+    if (document.getElementById('settingsPresetsListBox')) renderSettingsPresetsList();
+}
+window.addEventListener('settings-api-changed', refreshSettingsApiFromStorage);
+window.addEventListener('storage', e => {
+    if (e.key === 'whatever_settings_active_api_v1' || e.key === SETTINGS_PRESETS_KEY) refreshSettingsApiFromStorage();
 });
