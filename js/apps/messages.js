@@ -19,6 +19,7 @@ function mfLoad() {
         pct: typeof c.pct === 'number' ? c.pct : 30,
         maxH: typeof c.maxH === 'number' ? c.maxH : 24,
         img: c.img !== false,
+        shotN: typeof c.shotN === 'number' ? c.shotN : 8,
         per: c.per || {}
     };
 }
@@ -224,6 +225,7 @@ function renderMomentFreq() {
             <button class="mf-tg ${cfg.on ? 'on' : ''}" data-mf-tg="global" aria-label="开关"></button></div>
           ${mfBlockHTML('global', g)}
           <div class="mf-extra-row"><span>允许发图片</span><button class="mf-tg ${cfg.img !== false ? 'on' : ''}" data-mf-img-tg="1" aria-label="允许发图片"></button></div>
+          ${mfSliderHTML('global', 'shotN', '聊天截图条数', cfg.shotN, 1, 30, '条', false)}
         </div>
         <div class="mf-label">每个联系人</div>
         <div class="mf-panel">${CONTACTS.length ? CONTACTS.map((c, i) => (i ? '<div class="mf-dash-line"></div>' : '') + mfRowHTML(c, cfg)).join('') : '<div class="mf-empty">还没有联系人</div>'}</div>
@@ -2857,13 +2859,16 @@ function timeDivHtml(c, i, startIdx) {
     return '';
 }
 /* 聊天记录卡片：圆气泡 + 小圆尾巴 + 头像；右边是角色（me 为 true），左边是 user */
-function chatCardHtml(list, withName, userName, timeText) {
-    const ini = v => esc((String(v || '').trim().charAt(0) || '?').toUpperCase());
-    const rows = (list || []).map(m => `<div class="sc-row${m.me ? ' me' : ''}">${m.me ? '' : `<span class="sc-av them">${ini(userName)}</span>`}<span class="sc-bub">${esc(m.text)}</span>${m.me ? `<span class="sc-av self">${ini(withName)}</span>` : ''}</div>`).join('');
+function cardAv(src, label, cls) {
+    if (src) return `<span class="sc-av ${cls}"><img src="${esc(src)}" alt=""></span>`;
+    return `<span class="sc-av ${cls}">${esc((String(label || '').trim().charAt(0) || '?').toUpperCase())}</span>`;
+}
+function chatCardHtml(list, withName, userName, timeText, withSrc, userSrc) {
+    const rows = (list || []).map(m => `<div class="sc-row${m.me ? ' me' : ''}">${m.me ? '' : cardAv(userSrc, userName, 'them')}<span class="sc-bub">${esc(m.text)}</span>${m.me ? cardAv(withSrc, withName, 'self') : ''}</div>`).join('');
     return `<div class="sc-card"><div class="sc-top">${esc(withName || '')}</div><div class="sc-body">${rows}</div><div class="sc-time">${esc(timeText || '')}</div></div>`;
 }
-function shotMsgHtml(m, i) {
-    return `<div class="mrow${m.me ? ' me' : ''}" data-i="${i}"><div class="sp"></div>${chatCardHtml(m.shot, m.shotWith, momentUserName(), m.t)}</div>`;
+function shotMsgHtml(m, i, c) {
+    return `<div class="mrow${m.me ? ' me' : ''}" data-i="${i}"><div class="sp"></div>${chatCardHtml(m.shot, m.shotWith, momentUserName(), m.t, (c && (c.avatar || DEFAULT_CHAR_AVATAR)), selfCardSrc())}</div>`;
 }
 function renderThread(opts) {
     const c = CONTACTS.find(x => x.id === activeId);
@@ -2881,7 +2886,7 @@ function renderThread(opts) {
     const startIdx = Math.max(0, totalMsgs - threadLimit);
     for (let i = startIdx; i < totalMsgs; i++) {
         const m = c.msgs[i];
-        if (m.shot) { html += shotMsgHtml(m, i); continue; }
+        if (m.shot) { html += shotMsgHtml(m, i, c); continue; }
         if (m.momentEvent) {
             html += `<div class="moment-event-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><span>${esc(m.text)}</span></div>`;
             continue;
@@ -6195,8 +6200,8 @@ function cmtNameHtml(c) {
 /* 聊天室截图：取最近几条真实聊天（去掉旁白），发帖时存下快照 */
 function snapshotChatRoom(c) {
     return (c.msgs || [])
-        .filter(m => m && m.text && !/^【旁白】/.test(String(m.text)))
-        .slice(-8)
+        .filter(m => m && m.text && !m.narr && !m.momentEvent && !/^【旁白】/.test(String(m.text)))
+        .slice(-mfLoad().shotN)
         .map(m => ({ me: !m.me, text: plainMentions(String(m.text)).replace(/[\r\n]+/g, ' ') }));
 }
 /* 真截图：加载 html2canvas（cdnjs，版本固定 1.4.1） */
@@ -6276,7 +6281,12 @@ async function saveChatShot(c) {
 }
 /* 聊天室截图卡片：模拟聊天室样式（顶部对方名字，我方黑色靠右，对方浅灰靠左） */
 function chatShotHtml(p) {
-    return chatCardHtml(p.chatShot, p.chatShotWith, momentUserName(), fmtMoment(p.t));
+    const c = CONTACTS.find(x => x.id === p.by);
+    return chatCardHtml(p.chatShot, p.chatShotWith, momentUserName(), fmtMoment(p.t), (c && (c.avatar || DEFAULT_CHAR_AVATAR)), selfCardSrc());
+}
+function selfCardSrc() {
+    const a = activeIdentity();
+    return (a && a.avatar) || ME.avatar || '';
 }
 function renderMoments() {
     const frame = document.getElementById('momentsFrame');
