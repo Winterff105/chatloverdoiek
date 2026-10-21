@@ -5294,3 +5294,21 @@
 .messages-app .moment-event-row{ margin:4px 0 !important; }
 .messages-app .moment-event-row + .mrow,
 .messages-app .mrow + .moment-event-row{ margin-top:4px !important; }
+
+/* ===== 经典黑底栏：尺寸与默认玻璃底栏一致，只把颜色换成黑色 ===== */
+.messages-app .tabbar:not(.glass) .capsule{
+    height:56px !important; min-height:56px !important; padding:0 10px !important;
+    border-radius:999px !important; background:#111 !important;
+    box-shadow:0 12px 26px rgba(0,0,0,.16) !important;
+}
+.messages-app .tabbar:not(.glass) .tab{
+    width:42px !important; height:42px !important; min-height:42px !important;
+    border-radius:999px !important;
+}
+.messages-app .tabbar:not(.glass) .tab svg{ width:18px !important; height:18px !important; stroke:#fff !important; }
+.messages-app .tabbar:not(.glass) .tab.on{ background:rgba(255,255,255,.14) !important; }
+
+/* ===== 底部黑色胶囊提示：纵向压矮，横向不变 ===== */
+.messages-app .toast{
+    padding:6px 14px !important; font-size:12px !important; line-height:1.2 !important;
+}
