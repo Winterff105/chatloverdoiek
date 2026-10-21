@@ -6133,7 +6133,7 @@ function loadHtml2Canvas() {
     });
 }
 /* 在屏幕外临时画一张聊天室（不带遮罩和毛玻璃），拍成 PNG 后立即移除 */
-async function captureChatShot(c) {
+async function captureChatShot(c, q = 0.9) {
     const h2c = await loadHtml2Canvas();
     const rows = snapshotChatRoom(c).map(m => `<div style="display:flex;justify-content:${m.me ? 'flex-end' : 'flex-start'}"><span style="max-width:75%;padding:6px 10px;border-radius:12px;font-size:12px;line-height:1.5;word-break:break-all;background:${m.me ? '#111' : '#EFEFF2'};color:${m.me ? '#fff' : '#111'}">${esc(m.text)}</span></div>`).join('');
     const el = document.createElement('div');
@@ -6142,17 +6142,28 @@ async function captureChatShot(c) {
     document.body.appendChild(el);
     try {
         const canvas = await h2c(el, { backgroundColor: '#FAFAFB', scale: 1, useCORS: true, logging: false });
-        return canvas.toDataURL('image/jpeg', 0.9);
+        return canvas.toDataURL('image/jpeg', q);
     } finally { el.remove(); }
 }
 /* 拍照并存入数据库；失败返回 null，由调用方退回模拟卡片 */
 async function saveChatShot(c) {
-    try {
-        const url = await captureChatShot(c);
-        const key = 'mshot_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-        if (window.DB && await window.DB.save(key, url)) { MOMENT_IMG_CACHE[key] = url; toast('聊天室截图已发布'); return key; }
-    } catch (e) { console.warn('[聊天室截图]', e); toast('截图失败：' + String((e && e.message) || e).slice(0, 60) + '，已改用模拟卡片'); return null; }
-    toast('截图保存失败（存储空间不足？），已改用模拟卡片');
+    const key = 'mshot_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+    let lastUrl = null, lastErr = null;
+    for (const q of [0.9, 0.6]) {
+        try {
+            lastUrl = await captureChatShot(c, q);
+            const ok = window.DB && (DB.saveLarge ? await DB.saveLarge(key, lastUrl) : await DB.save(key, lastUrl));
+            if (ok) { MOMENT_IMG_CACHE[key] = lastUrl; toast('聊天室截图已发布'); return key; }
+            lastErr = new Error('数据库写入失败');
+        } catch (e) { lastErr = e; console.warn('[聊天室截图]', e); }
+    }
+    // 数据库写不进去：只留在内存里，本次运行有效，刷新后图片会消失
+    if (lastUrl) {
+        MOMENT_IMG_CACHE[key] = lastUrl;
+        toast('数据库写入失败，截图只保存在本次运行中，刷新后会消失');
+        return key;
+    }
+    toast('截图失败：' + String((lastErr && lastErr.message) || lastErr).slice(0, 60) + '，已改用模拟卡片');
     return null;
 }
 /* 聊天室截图卡片：模拟聊天室样式（顶部对方名字，我方黑色靠右，对方浅灰靠左） */
