@@ -44,6 +44,8 @@ function postContactMoment(c, text, comments, meta) {
     POSTS.unshift(post);
     persistMoments();
     renderMoments();
+    if (meta && meta.chatShotKey) { post.chatShotKey = meta.chatShotKey; persistMoments(); renderMoments(); }
+    else if (meta && meta.chatShot) { post.chatShot = snapshotChatRoom(c); post.chatShotWith = dispName(c); persistMoments(); renderMoments(); }
     const excerpt = (text || '').trim() || '一张照片';
     addCommonMemory(c, `{char}发了一条朋友圈（${excerpt}）`, post.id);
     persistContacts();
@@ -142,7 +144,8 @@ async function momentSyncAll() {
             if (!hitPost && !feed.length) continue;
             const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, allowPhoto: cfg.img !== false, decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r && (r.post || (r.interactions && r.interactions.length))) {
-                if (r.post && (r.text || (r.photos && r.photos.length))) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo, photos: r.photos || [] }));
+                const shotKey = r.post && r.chatShot ? await saveChatShot(c) : null;
+                if (r.post && (r.text || (r.photos && r.photos.length) || r.chatShot)) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo, photos: r.photos || [], chatShot: r.chatShot && !shotKey, chatShotKey: shotKey }));
                 const byId = new Map(POSTS.map(p => [p.id, p]));
                 (r.interactions || []).forEach(it => {
                     const p = byId.get(String(it.postId || '').trim());
@@ -6033,24 +6036,49 @@ function pickMomentPhotos() {
     };
     input.click();
 }
-function openMomentPhoto(pid, i) {
+/* 邮票：自动加「」，输入里的括号会去掉 */
+function fmtStamp(t) { return '「' + String(t || '').replace(/[「」（）()]/g, '') + '」'; }
+function stampInner(t) {
+    const img = t && t.k ? `<img data-mkey="${t.k}" alt="">` : '';
+    const txt = t && t.d ? `<div class="mf-stamp-text">${esc(fmtStamp(t.d))}</div>` : '';
+    return img + txt;
+}
+/* 点开照片：左右滑动查看每一张邮票 */
+function openMomentPhoto(pid, start) {
     const p = POSTS.find(x => x.id === pid);
     if (!p) return;
-    const key = (p.imgs || [])[i];
-    const desc = (p.imgDesc || [])[i] || '';
-    if (!key && !desc) return;
+    const imgs = p.imgs || [], descs = p.imgDesc || [];
+    const n = Math.max(imgs.length, descs.length);
+    if (!n) return;
     const old = document.getElementById('mfPhotoView'); if (old) old.remove();
     const root = document.querySelector('.messages-app') || document.body;
     const m = document.createElement('div');
     m.id = 'mfPhotoView'; m.className = 'mf-pv';
-    m.innerHTML = `<div class="mf-pv-card"><div class="mf-pv-img"><img alt=""></div>${desc ? `<div class="mf-pv-desc">（${esc(desc)}）</div>` : ''}</div>`;
-    m.addEventListener('click', () => m.remove());
+    const slides = Array.from({ length: n }, (_, x) => {
+        const k = imgs[x];
+        const img = k ? `<img data-pvkey="${k}" alt="">` : '';
+        const txt = descs[x] ? `<div class="mf-stamp-text">${esc(fmtStamp(descs[x]))}</div>` : '';
+        return `<div class="mf-pv-slide"><div class="mf-stamp mf-pv-stamp">${img}${txt}</div></div>`;
+    }).join('');
+    m.innerHTML = `<div class="mf-pv-track">${slides}</div><div class="mf-pv-count">${(start || 0) + 1} / ${n}</div>`;
+    m.addEventListener('click', e => { if (e.target === m) m.remove(); });
     root.appendChild(m);
-    const img = m.querySelector('img');
-    if (!key) { m.querySelector('.mf-pv-img').innerHTML = '<div class="mf-tk-ph mf-pv-ph"><span>照片</span></div>'; return; }
-    if (MOMENT_IMG_CACHE[key]) { img.src = MOMENT_IMG_CACHE[key]; return; }
-    Promise.resolve(window.DB ? window.DB.load(key, '') : '').then(v => {
-        if (v) { MOMENT_IMG_CACHE[key] = v; img.src = v; }
+    const track = m.querySelector('.mf-pv-track');
+    const count = m.querySelector('.mf-pv-count');
+    track.addEventListener('scroll', () => {
+        const idx = Math.round(track.scrollLeft / (track.clientWidth || 1));
+        count.textContent = (idx + 1) + ' / ' + n;
+    });
+    requestAnimationFrame(() => {
+        const sl = track.children[start || 0];
+        if (sl) track.scrollLeft = sl.offsetLeft;
+    });
+    m.querySelectorAll('img[data-pvkey]').forEach(img => {
+        const k = img.dataset.pvkey;
+        if (MOMENT_IMG_CACHE[k]) { img.src = MOMENT_IMG_CACHE[k]; return; }
+        Promise.resolve(window.DB ? window.DB.load(k, '') : '').then(v => {
+            if (v) { MOMENT_IMG_CACHE[k] = v; img.src = v; }
+        });
     });
 }
 function hydrateMomentImages() {
@@ -6083,6 +6111,51 @@ function cmtNameHtml(c) {
     if (!c.to || c.to === c.by) return `<b class="mf-cmt-name">${esc(a)}</b>`;
     return `<b class="mf-cmt-name">${esc(a)}</b><span class="mf-cmt-to">回复</span><b class="mf-cmt-name">${esc(momentAuthor(c.to).name)}</b>`;
 }
+/* 聊天室截图：取最近几条真实聊天（去掉旁白），发帖时存下快照 */
+function snapshotChatRoom(c) {
+    return (c.msgs || [])
+        .filter(m => m && m.text && !/^【旁白】/.test(String(m.text)))
+        .slice(-8)
+        .map(m => ({ me: !!m.me, text: plainMentions(String(m.text)).replace(/[\r\n]+/g, ' ') }));
+}
+/* 真截图：加载 html2canvas（cdnjs，版本固定 1.4.1） */
+function loadHtml2Canvas() {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    return new Promise((res, rej) => {
+        const sc = document.createElement('script');
+        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+        sc.onload = () => (window.html2canvas ? res(window.html2canvas) : rej(new Error('html2canvas 未就绪')));
+        sc.onerror = () => rej(new Error('html2canvas 加载失败'));
+        document.head.appendChild(sc);
+    });
+}
+/* 在屏幕外临时画一张聊天室（不带遮罩和毛玻璃），拍成 PNG 后立即移除 */
+async function captureChatShot(c) {
+    const h2c = await loadHtml2Canvas();
+    const rows = snapshotChatRoom(c).map(m => `<div style="display:flex;justify-content:${m.me ? 'flex-end' : 'flex-start'}"><span style="max-width:75%;padding:6px 10px;border-radius:12px;font-size:12px;line-height:1.5;word-break:break-all;background:${m.me ? '#111' : '#EFEFF2'};color:${m.me ? '#fff' : '#111'}">${esc(m.text)}</span></div>`).join('');
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:-9999px;top:0;width:300px;background:#FAFAFB;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;';
+    el.innerHTML = `<div style="text-align:center;font-size:12px;font-weight:600;color:#111;padding:8px 10px;background:#F4F4F6;border-bottom:1px solid #EDEDF0">${esc(dispName(c))}</div><div style="display:flex;flex-direction:column;gap:6px;padding:10px">${rows}</div><div style="text-align:right;font-size:10px;color:#A0A0A6;padding:0 10px 8px">${fmtMoment(Date.now())}</div>`;
+    document.body.appendChild(el);
+    try {
+        const canvas = await h2c(el, { backgroundColor: '#FAFAFB', scale: 2 });
+        return canvas.toDataURL('image/png');
+    } finally { el.remove(); }
+}
+/* 拍照并存入数据库；失败返回 null，由调用方退回模拟卡片 */
+async function saveChatShot(c) {
+    try {
+        const url = await captureChatShot(c);
+        const key = 'mshot_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+        if (window.DB && await window.DB.save(key, url)) { MOMENT_IMG_CACHE[key] = url; return key; }
+    } catch (e) { console.warn('[聊天室截图]', e); }
+    return null;
+}
+/* 聊天室截图卡片：模拟聊天室样式（顶部对方名字，我方黑色靠右，对方浅灰靠左） */
+function chatShotHtml(p) {
+    const rows = (p.chatShot || []).map(m => `<div class="mf-shot-row${m.me ? ' me' : ''}"><span class="mf-shot-bub">${esc(m.text)}</span></div>`).join('');
+    return `<div class="mf-shot"><div class="mf-shot-top">${esc(p.chatShotWith || '')}</div><div class="mf-shot-body">${rows}</div><div class="mf-shot-time">${fmtMoment(p.t)}</div></div>`;
+}
 function renderMoments() {
     const frame = document.getElementById('momentsFrame');
     if (!frame) return;
@@ -6098,7 +6171,9 @@ function renderMoments() {
         const descs = p.imgDesc || [];
         const cnt = Math.max(imgs.length, descs.length);
         const tickets = Array.from({ length: cnt }, (_, ii) => ({ k: imgs[ii], d: descs[ii] }));
-        const photos = cnt ? `<div class="mf-tickets">${tickets.map((t, ii) => `<div class="mf-ticket" onclick="openMomentPhoto('${p.id}', ${ii})">${t.d ? `<div class="mf-tk-desc">（${esc(t.d)}）</div>` : ''}<div class="mf-tk-img${t.k ? '' : ' mf-tk-ph'}">${t.k ? `<img data-mkey="${t.k}" alt="">` : '<span>照片</span>'}</div></div>`).join('')}</div>` : '';
+        const photos = cnt ? (cnt > 4
+            ? `<div class="mf-fold" onclick="openMomentPhoto('${p.id}', 0)">${[0, 1, 2].filter(x => x < cnt).map(x => `<div class="mf-stamp mf-l${x}">${stampInner(tickets[x])}</div>`).join('')}<span class="mf-fold-badge">${cnt} 张</span></div>`
+            : `<div class="mf-grid">${tickets.map((t, ii) => `<button class="mf-stamp" type="button" onclick="openMomentPhoto('${p.id}', ${ii})">${stampInner(t)}</button>`).join('')}</div>`) : '';
         const cmtOpen = MOMENT_CMT_OPEN[p.id] !== undefined ? MOMENT_CMT_OPEN[p.id] : cmts.length > 0;
         const inlineBar = MOMENT_INPUT_OPEN[p.id] ? `<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="${esc(momentInlinePh(p.id))}"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div>` : '';
         const cmtBlock = cmtOpen
@@ -6110,7 +6185,7 @@ function renderMoments() {
                 <button class="mf-del" type="button" onclick="deleteMoment('${p.id}')">删除</button>
             </div>
             ${p.text ? `<div class="mf-card-text">${mentionHtml(p.text)}</div>` : ''}
-            ${photos}
+            ${photos}${p.chatShotKey ? `<div class="mf-shot-real"><img data-mkey="${p.chatShotKey}" alt=""></div>` : (p.chatShot ? chatShotHtml(p) : '')}
             ${momentCapsuleHTML(p)}
             <div class="mf-card-foot">
                 <button class="mf-act ${liked ? 'on' : ''}" type="button" onclick="toggleMomentLike('${p.id}')">${HEART}<span>${likes.length || ''}</span></button>

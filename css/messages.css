@@ -5356,3 +5356,50 @@
 
 /* ===== 预览文字再上移 2px ===== */
 .messages-app #chatList .row .bottom{ margin-top:-4px; }
+
+
+/* ===== 朋友圈邮票：1:1 方形、四边齿孔、黑灰底纹；四个一排；超过 4 张叠成文件夹 ===== */
+.messages-app .mf-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:10px; }
+.messages-app .mf-stamp{
+    position:relative; width:100%; aspect-ratio:1/1; padding:8px; margin:0; border:0; border-radius:3px;
+    background-color:#F6F6F6; background-image:repeating-linear-gradient(45deg, rgba(0,0,0,.03) 0 1px, transparent 1px 4px);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; box-sizing:border-box;
+    -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath fill-rule='evenodd' fill='black' d='M0 0H100V100H0ZM5.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM5.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 8a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 8a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM13.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM13.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 16a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 16a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM21.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM21.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 24a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 24a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM29.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM29.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 32a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 32a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM37.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM37.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 40a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 40a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM45.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM45.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 48a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 48a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM53.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM53.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 56a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 56a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM61.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM61.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 64a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 64a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM69.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM69.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 72a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 72a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM77.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM77.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 80a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 80a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM85.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM85.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 88a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 88a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM93.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM93.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 96a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 96a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0Z'/%3E%3C/svg%3E");
+            mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath fill-rule='evenodd' fill='black' d='M0 0H100V100H0ZM5.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM5.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 8a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 8a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM13.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM13.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 16a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 16a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM21.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM21.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 24a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 24a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM29.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM29.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 32a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 32a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM37.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM37.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 40a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 40a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM45.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM45.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 48a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 48a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM53.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM53.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 56a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 56a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM61.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM61.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 64a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 64a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM69.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM69.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 72a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 72a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM77.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM77.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 80a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 80a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM85.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM85.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 88a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 88a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM93.4 0a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM93.4 100a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM-2.6 96a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0ZM97.4 96a2.6 2.6 0 1 0 5.2 0a2.6 2.6 0 1 0 -5.2 0Z'/%3E%3C/svg%3E");
+    -webkit-mask-size:100% 100%; mask-size:100% 100%; -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+    box-shadow:0 1px 4px rgba(0,0,0,.15);
+}
+.messages-app .mf-stamp img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.messages-app .mf-stamp-text{
+    position:relative; color:#555; font-size:10px; font-style:italic; line-height:1.5; text-align:center; word-break:break-all;
+    display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; text-overflow:ellipsis; max-height:100%;
+}
+.messages-app .mf-fold{ position:relative; width:calc((100% - 18px) / 4); aspect-ratio:1/1; margin:10px 0 0 14px; cursor:pointer; }
+.messages-app .mf-fold .mf-stamp{ position:absolute; inset:0; width:100%; }
+.messages-app .mf-fold .mf-l0{ transform:rotate(-5deg); z-index:1; }
+.messages-app .mf-fold .mf-l1{ transform:rotate(4deg) translate(3px,3px); z-index:2; }
+.messages-app .mf-fold .mf-l2{ transform:rotate(-1deg) translate(-2px,5px); z-index:3; }
+.messages-app .mf-fold-badge{ position:absolute; right:-4px; bottom:-8px; z-index:4; background:#111; color:#fff; font-size:11px; padding:1px 8px; border-radius:999px; }
+/* 详情：横向滑动，每张是大号方形邮票 */
+.messages-app .mf-pv{ position:absolute; inset:0; z-index:700; display:flex; flex-direction:column; justify-content:center; background:rgba(0,0,0,.7); }
+.messages-app .mf-pv-track{ display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none; -webkit-overflow-scrolling:touch; }
+.messages-app .mf-pv-track::-webkit-scrollbar{ display:none; }
+.messages-app .mf-pv-slide{ flex:0 0 100%; scroll-snap-align:center; display:flex; align-items:center; justify-content:center; padding:0 22px; box-sizing:border-box; }
+.messages-app .mf-pv-stamp{ width:min(80%,320px); padding:18px; border-radius:5px; }
+.messages-app .mf-pv-stamp .mf-stamp-text{ font-size:17px; line-height:1.7; -webkit-line-clamp:unset; display:block; overflow:visible; max-height:none; }
+.messages-app .mf-pv-count{ text-align:center; color:#fff; font-size:13px; margin-top:18px; letter-spacing:1px; }
+
+
+/* ===== 朋友圈聊天室截图卡片 ===== */
+.messages-app .mf-shot{ margin-top:10px; border-radius:12px; overflow:hidden; background:#FAFAFB; border:1px solid #E6E6EA; }
+.messages-app .mf-shot-top{ text-align:center; font-size:12px; font-weight:600; color:#111; padding:8px 10px; border-bottom:1px solid #EDEDF0; background:#F4F4F6; }
+.messages-app .mf-shot-body{ display:flex; flex-direction:column; gap:6px; padding:10px; }
+.messages-app .mf-shot-row{ display:flex; justify-content:flex-start; }
+.messages-app .mf-shot-row.me{ justify-content:flex-end; }
+.messages-app .mf-shot-bub{ max-width:75%; padding:6px 10px; border-radius:12px; background:#EFEFF2; color:#111; font-size:12px; line-height:1.5; word-break:break-all; }
+.messages-app .mf-shot-row.me .mf-shot-bub{ background:#111; color:#fff; }
+.messages-app .mf-shot-time{ text-align:right; font-size:10px; color:#A0A0A6; padding:0 10px 8px; }
+
+/* 真实截图：整张图按原比例显示 */
+.messages-app .mf-shot-real{ margin-top:10px; border-radius:12px; overflow:hidden; border:1px solid #E6E6EA; }
+.messages-app .mf-shot-real img{ display:block; width:100%; height:auto; }
