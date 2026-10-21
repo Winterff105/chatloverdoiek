@@ -6807,6 +6807,7 @@ Object.assign(__messagesHandlers, {clearQuote, onRoomFontSize, openCssHelp, copy
 __messagesHandlers.setTransOpt = setTransOpt;
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 Object.assign(window, { openMomentFreq, closeMomentFreq, momentSyncAll });
+Object.assign(window, { openMomentPhoto, showVisPeek });
 
 /* ---------------- 心声：头像下的爱心 · 心声弹窗 · 波浪线切换 · 收藏柜 · 设置 ---------------- */
 const HEART_SET_KEY = 'heart_popup_settings_v1';
