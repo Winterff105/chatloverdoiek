@@ -6141,8 +6141,8 @@ async function captureChatShot(c) {
     el.innerHTML = `<div style="text-align:center;font-size:12px;font-weight:600;color:#111;padding:8px 10px;background:#F4F4F6;border-bottom:1px solid #EDEDF0">${esc(dispName(c))}</div><div style="display:flex;flex-direction:column;gap:6px;padding:10px">${rows}</div><div style="text-align:right;font-size:10px;color:#A0A0A6;padding:0 10px 8px">${fmtMoment(Date.now())}</div>`;
     document.body.appendChild(el);
     try {
-        const canvas = await h2c(el, { backgroundColor: '#FAFAFB', scale: 2 });
-        return canvas.toDataURL('image/png');
+        const canvas = await h2c(el, { backgroundColor: '#FAFAFB', scale: 1, useCORS: true, logging: false });
+        return canvas.toDataURL('image/jpeg', 0.9);
     } finally { el.remove(); }
 }
 /* 拍照并存入数据库；失败返回 null，由调用方退回模拟卡片 */
@@ -6151,8 +6151,8 @@ async function saveChatShot(c) {
         const url = await captureChatShot(c);
         const key = 'mshot_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
         if (window.DB && await window.DB.save(key, url)) { MOMENT_IMG_CACHE[key] = url; toast('聊天室截图已发布'); return key; }
-    } catch (e) { console.warn('[聊天室截图]', e); }
-    toast('截图失败，已改用模拟卡片');
+    } catch (e) { console.warn('[聊天室截图]', e); toast('截图失败：' + String((e && e.message) || e).slice(0, 60) + '，已改用模拟卡片'); return null; }
+    toast('截图保存失败（存储空间不足？），已改用模拟卡片');
     return null;
 }
 /* 聊天室截图卡片：模拟聊天室样式（顶部对方名字，我方黑色靠右，对方浅灰靠左） */

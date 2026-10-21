@@ -5411,3 +5411,9 @@
 .messages-app .send-capsule.pulling{ justify-content:center !important; }
 .messages-app .send-capsule.pulling .pull{ width:auto !important; padding:0 !important; flex:0 0 auto; display:flex !important; align-items:center; justify-content:center; margin:0 auto; }
 .messages-app .send-capsule.pulling .pull svg{ display:block; margin:0 auto; }
+
+/* 调取中：隐藏发送按钮和分隔线，只留调取图标并居中 */
+.messages-app .send-capsule.pulling .send,
+.messages-app .send-capsule.pulling .cap-split{ display:none !important; width:0 !important; }
+.messages-app .send-capsule.pulling .pull{ width:100% !important; height:100% !important; display:flex !important; align-items:center !important; justify-content:center !important; margin:0 !important; padding:0 !important; }
+.messages-app .send-capsule.pulling .pull svg{ margin:0 !important; }
