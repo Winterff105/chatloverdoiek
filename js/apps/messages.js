@@ -3290,7 +3290,13 @@ async function pullReply() {
         const startLen = c.msgs.length;
         await deliverMsgs(c, parts);
         attachHeart(c, heart, startLen); persistContacts();
-        if (replies.shot) { c.msgs.push({ me: false, text: '', shot: snapshotChatRoom(c, replies.shotN), shotWith: replies.shotTitle || momentUserName(), t: nowTime(), ts: Date.now() }); persistContacts(); }
+        if (replies.shot) {
+            const shotKey = await saveChatShot(c);
+            const shotMsg = shotKey
+                ? { me: false, text: '', photo: shotKey, t: nowTime(), ts: Date.now() }
+                : { me: false, text: '', shot: snapshotChatRoom(c, replies.shotN), shotWith: replies.shotTitle || momentUserName(), t: nowTime(), ts: Date.now() };
+            c.msgs.push(shotMsg); persistContacts();
+        }
         if (activeId === c.id) renderThread({noAnim:true});
         maybeAutoSummary(c);
     } catch (e) { c._typing = false; const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
@@ -6391,9 +6397,19 @@ async function captureChatShot(c, q = 0.9) {
     return cv.toDataURL('image/jpeg', q);
 }
 /* 拍照并存入数据库；失败返回 null，由调用方退回模拟卡片 */
+/* 真截图：拍下聊天室存入本地数据库，返回 key；失败返回 null，调用方退回文字卡片 */
 async function saveChatShot(c) {
-    // 不再写数据库：返回 null，调用方会改用聊天记录卡片（数据直接存在朋友圈/消息里）
-    return null;
+    try {
+        const url = await captureChatShot(c);
+        if (!url) return null;
+        const key = 'cphoto_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+        if (window.DB) await window.DB.save(key, url);
+        MOMENT_IMG_CACHE[key] = url;
+        return key;
+    } catch (err) {
+        console.warn('[截图]', err);
+        return null;
+    }
 }
 /* 聊天室截图卡片：模拟聊天室样式（顶部对方名字，我方黑色靠右，对方浅灰靠左） */
 function chatShotHtml(p) {

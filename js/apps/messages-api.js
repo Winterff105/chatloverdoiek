@@ -416,14 +416,14 @@ Respond to what was just said, and let topic changes happen naturally, without e
       const history = [];
       const slice = (contact.msgs || []).slice(-memCount);
       // 只把最近 4 张照片的图片真正发给模型，更早的照片用文字占位，避免请求过大
-      const imgKeys = new Set(slice.filter(m => m && m.photo).slice(-4).map(m => m.photo));
+      const imgKeys = new Set(slice.filter(m => m && m.photo && m.me).slice(-4).map(m => m.photo));
       for (const m of slice) {
         const tl = msgTimeLabel(m);
         const qp = m.quote && m.quote.text ? `(引用${m.quote.me ? '{{user}}' : '{{char}}'}的消息「${String(m.quote.text).slice(0, 80)}」) ` : '';
         const head = (tl ? `[${tl}] ` : '') + qp + (m.narr ? '【旁白】' : '');
         const role = m.me ? 'user' : 'assistant';
         if (m.photo) {
-          const url = imgKeys.has(m.photo) && typeof window.MESSAGES_PHOTO_GET === 'function' ? (window.MESSAGES_PHOTO_GET(m.photo) || '') : '';
+          const url = m.me && imgKeys.has(m.photo) && typeof window.MESSAGES_PHOTO_GET === 'function' ? (window.MESSAGES_PHOTO_GET(m.photo) || '') : '';
           history.push({ role, content: url ? [{ type: 'text', text: head + '[照片]' }, { type: 'image_url', image_url: { url } }] : head + '[照片]' });
           continue;
         }
