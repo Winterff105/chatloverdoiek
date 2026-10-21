@@ -1379,7 +1379,7 @@ function showMsgMenu(row) {
     mmBuildMenu(el);
     const ov = document.getElementById('mmOverlay');
     ov.querySelectorAll('.mm-hl').forEach(n => n.remove());
-    const bubble = row.querySelector('.bubble') || row.querySelector('.narr');
+    const bubble = row.querySelector('.bubble') || row.querySelector('.narr') || row.querySelector('.moment-event-row span') || row.querySelector('span');
     if (bubble) {
         // 被长按的消息：在遮罩上方复制一份，位置、颜色、字体、边框与原气泡一致
         const hr = ov.getBoundingClientRect(), br = bubble.getBoundingClientRect();
@@ -1509,7 +1509,7 @@ function mmExitMulti() {
     mmRefreshSel();
 }
 function mmRefreshSel() {
-    document.querySelectorAll('#thread .mrow, #thread .narr-row').forEach(r => r.classList.toggle('sel', MM.sel.has(Number(r.dataset.i))));
+    document.querySelectorAll('#thread .mrow, #thread .narr-row, #thread .moment-event-row').forEach(r => r.classList.toggle('sel', MM.sel.has(Number(r.dataset.i))));
 }
 function mmBarEl() {
     let b = document.getElementById('mmBar');
@@ -1548,7 +1548,7 @@ function bindMsgMenu() {
     const cancel = () => { clearTimeout(MM.timer); MM.timer = null; };
     box.addEventListener('pointerdown', e => {
         hideMsgMenu();
-        const row = e.target.closest && e.target.closest('.mrow, .narr-row');
+        const row = e.target.closest && e.target.closest('.mrow, .narr-row, .moment-event-row');
         if (!row || row.classList.contains('typing')) return;
         MM.sx = e.clientX; MM.sy = e.clientY;
         cancel();
@@ -1558,11 +1558,11 @@ function bindMsgMenu() {
         if (MM.timer && Math.hypot(e.clientX - MM.sx, e.clientY - MM.sy) > 8) cancel();
     });
     ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => box.addEventListener(t, cancel));
-    box.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.mrow, .narr-row')) e.preventDefault(); });
+    box.addEventListener('contextmenu', e => { if (e.target.closest && e.target.closest('.mrow, .narr-row, .moment-event-row')) e.preventDefault(); });
     box.addEventListener('click', e => {
         if (MM.mode !== 'multi') return;
         if (e.target.closest && e.target.closest('#mmSelectToTip')) return;
-        const row = e.target.closest && e.target.closest('.mrow, .narr-row');
+        const row = e.target.closest && e.target.closest('.mrow, .narr-row, .moment-event-row');
         if (!row) return;
         const i = Number(row.dataset.i);
         MM.lastClicked = i;
@@ -1583,7 +1583,7 @@ function bindMsgMenu() {
         mmRefreshSel(); mmBarUpdate();
     });
     document.addEventListener('pointerdown', e => {
-        if (!e.target.closest('.mm-menu') && !e.target.closest('.mrow, .narr-row') && !e.target.closest('#mmSelectToTip')) {
+        if (!e.target.closest('.mm-menu') && !e.target.closest('.mrow, .narr-row, .moment-event-row') && !e.target.closest('#mmSelectToTip')) {
             hideMsgMenu();
             hideSelectToTip();
         }
