@@ -6271,23 +6271,7 @@ async function captureChatShot(c, q = 0.9) {
 }
 /* 拍照并存入数据库；失败返回 null，由调用方退回模拟卡片 */
 async function saveChatShot(c) {
-    const key = 'mshot_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-    let lastUrl = null, lastErr = null;
-    for (const q of [0.9, 0.6]) {
-        try {
-            lastUrl = await captureChatShot(c, q);
-            const ok = window.DB && (DB.saveLarge ? await DB.saveLarge(key, lastUrl) : await DB.save(key, lastUrl));
-            if (ok) { MOMENT_IMG_CACHE[key] = lastUrl; toast('聊天室截图已发布'); return key; }
-            lastErr = new Error('数据库写入失败');
-        } catch (e) { lastErr = e; console.warn('[聊天室截图]', e); }
-    }
-    // 数据库写不进去：只留在内存里，本次运行有效，刷新后图片会消失
-    if (lastUrl) {
-        MOMENT_IMG_CACHE[key] = lastUrl;
-        toast('数据库写入失败（' + String((window.DB && DB.lastError) || '原因未知').slice(0, 80) + '），截图只保存在本次运行中');
-        return key;
-    }
-    toast('截图失败：' + String((lastErr && lastErr.message) || lastErr).slice(0, 60) + '，已改用模拟卡片');
+    // 不再写数据库：返回 null，调用方会改用聊天记录卡片（数据直接存在朋友圈/消息里）
     return null;
 }
 /* 聊天室截图卡片：模拟聊天室样式（顶部对方名字，我方黑色靠右，对方浅灰靠左） */
