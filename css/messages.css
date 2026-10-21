@@ -5403,3 +5403,6 @@
 /* 真实截图：整张图按原比例显示 */
 .messages-app .mf-shot-real{ margin-top:10px; border-radius:12px; overflow:hidden; border:1px solid #E6E6EA; }
 .messages-app .mf-shot-real img{ display:block; width:100%; height:auto; }
+
+/* 邮票内侧虚线框（定稿样式） */
+.messages-app .mf-stamp::before{ content:""; position:absolute; inset:5px; border:1px dashed rgba(0,0,0,.22); border-radius:1px; pointer-events:none; }
