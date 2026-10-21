@@ -333,6 +333,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const memBlock = buildMemBlock(contact.memories || [], fillU);
     const wbBlock = worldBookBlockOf(contact, (contact.msgs || []).slice(-memCount), fillU);
     const hasNarr = (contact.msgs || []).slice(-memCount).some(m => m.narr);
+    const hasPhoto = (contact.msgs || []).slice(-memCount).some(m => m && m.photo);
     const getPromptText = k => (typeof window.getChatPromptText === 'function' ? window.getChatPromptText(k) : '');
     const PROMPT_OPT_TEXT = {
         ai: '避免八股套话和模板化的客套句式，说话要具体、自然。',
@@ -395,6 +396,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
       contact.relation ? `与你的关系：${contact.relation}` : '',
       feedBlock,
       hasNarr ? '以【旁白】开头的内容是旁白，描写动作、神态或环境，不是对话，也不是对方说的话。' : '',
+      hasPhoto ? '【照片】对话记录里标注“[照片]”的消息附带了用户发来的图片，请真实看图，并在回复里自然地回应图片内容。' : '',
       worldTiesBlock(contact),
       timeBlockOf(contact),
       QUOTE_RULE,
@@ -412,10 +414,20 @@ Respond to what was just said, and let topic changes happen naturally, without e
     // 上下文历史流消息装配
     function buildHistoryMessages() {
       const history = [];
-      for (const m of (contact.msgs || []).slice(-memCount)) {
+      const slice = (contact.msgs || []).slice(-memCount);
+      // 只把最近 4 张照片的图片真正发给模型，更早的照片用文字占位，避免请求过大
+      const imgKeys = new Set(slice.filter(m => m && m.photo).slice(-4).map(m => m.photo));
+      for (const m of slice) {
         const tl = msgTimeLabel(m);
         const qp = m.quote && m.quote.text ? `(引用${m.quote.me ? '{{user}}' : '{{char}}'}的消息「${String(m.quote.text).slice(0, 80)}」) ` : '';
-        history.push({ role: m.me ? 'user' : 'assistant', content: (tl ? `[${tl}] ` : '') + qp + (m.narr ? '【旁白】' : '') + String(m.text || '') });
+        const head = (tl ? `[${tl}] ` : '') + qp + (m.narr ? '【旁白】' : '');
+        const role = m.me ? 'user' : 'assistant';
+        if (m.photo) {
+          const url = imgKeys.has(m.photo) && typeof window.MESSAGES_PHOTO_GET === 'function' ? (window.MESSAGES_PHOTO_GET(m.photo) || '') : '';
+          history.push({ role, content: url ? [{ type: 'text', text: head + '[照片]' }, { type: 'image_url', image_url: { url } }] : head + '[照片]' });
+          continue;
+        }
+        history.push({ role, content: head + String(m.text || '') });
       }
       return history;
     }
@@ -684,7 +696,6 @@ Respond to what was just said, and let topic changes happen naturally, without e
       '朋友圈内容要像真人平时随手发的那样，简短自然，不解释，不使用任何符号。'
     ];
     lines.push('发新朋友圈时，你还可以把你们的聊天室截图发出来：在 JSON 里写 "chatShot":true，text 作为截图上方的配文；不截图写 false。若截图，另写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给对方的备注（截图顶部显示的名字）。');
-    lines.push('如果你想偷拍用户发过的照片（用户在朋友圈或聊天里发过的照片）发到你的朋友圈，写 "steal":true，并在 photos 里写你对这张照片的描述（约 15 个字）；不偷就不要写这个字段。');
     if (win.allowPhoto) lines.push('发新朋友圈时可以配照片：photos 字段是照片描述的数组，每张照片一句话、约 15 个字，像真人随手拍的（如“窗边的咖啡”）。你自己决定发几张，可以 0 张，最多 9 张；不配照片就写空数组 []。');
     const feed = Array.isArray(win.feed) ? win.feed : [];
     if (feed.length) {
@@ -703,6 +714,10 @@ Respond to what was just said, and let topic changes happen naturally, without e
       lines.push('只输出 JSON，不要任何其他文字。格式固定为：{"post":true或false,"text":"新朋友圈内容","photos":["每张照片的描述"]（不配照片写 []）,"vis":"all或some或self或user","visTo":["名字"],"comments":[{"name":"评论人名字","text":"评论内容"}],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。不发新帖时 post=false，但仍可通过 interactions 回复旧朋友圈；没有互动时 interactions 为空数组。');
     } else {
       lines.push('只输出 JSON，不要任何其他文字。格式固定为：{"post":true或false,"text":"新朋友圈内容","photos":["每张照片的描述"]（不配照片写 []）,"vis":"all或some或self或user","visTo":["名字"],"comments":[],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。');
+    }
+    if (win.stealable && win.stealable.length) {
+      lines.push('【偷拍照片】下面是你能偷拍的照片（用户发过的朋友圈照片，或聊天里用户发来的照片），序号从 1 开始：\n' + win.stealable.map((d, i) => `${i + 1}. ${String(d).slice(0, 30)}`).join('\n'));
+      lines.push('如果你这次要发朋友圈（post:true），并想偷拍其中一张，就在 JSON 顶层加上 "steal":序号（例如 "steal":2），并在 photos 里写你自己对这张照片的描述（约 15 个字）；不偷就写 "steal":0。');
     }
     const recent = Array.isArray(win.recentPosts) ? win.recentPosts.filter(Boolean).slice(0, 5) : [];
     if (recent.length) lines.push('你最近发过的朋友圈：\n' + recent.map(t => '- ' + String(t).slice(0, 60)).join('\n') + '\n这次换个说法，不要重复上面的词、句式和开头。');
@@ -738,8 +753,9 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const rawPhotos = Array.isArray(o.photos) ? o.photos : (typeof o.photo === 'string' && o.photo.trim() ? [o.photo] : []);
     const photos = win.allowPhoto ? rawPhotos.map(x => String(x || '').trim().slice(0, 30)).filter(Boolean).slice(0, 9) : [];
     const chatShot = o.chatShot === true || o.chatShot === 'true';
-    const steal = o.steal === true || o.steal === 'true';
-    return { post, text, photos, chatShot, steal, shotN: Number(o.shotN) || undefined, shotTitle: String(o.shotTitle || '').trim().slice(0, 20), comments, vis, visTo, interactions };
+    const stealIdx = (typeof o.steal === 'number' || /^\d+$/.test(String(o.steal == null ? '' : o.steal))) && Number(o.steal) >= 1 ? Math.floor(Number(o.steal)) : null;
+    const steal = o.steal === true || o.steal === 'true' || stealIdx != null;
+    return { post, text, photos, chatShot, steal, stealIdx, shotN: Number(o.shotN) || undefined, shotTitle: String(o.shotTitle || '').trim().slice(0, 20), comments, vis, visTo, interactions };
   }
   window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentBatchWordReply, momentDmReply, momentAutoPost };
 })();

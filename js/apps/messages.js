@@ -152,10 +152,11 @@ async function momentSyncAll() {
                 commentItems: (p.comments || []).slice(-8).map(cm => ({ name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }))
             })) : [];
             if (!hitPost && !feed.length) continue;
-            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, allowPhoto: cfg.img !== false, decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
+            const stealPool = stealPoolOf(c);
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, allowPhoto: cfg.img !== false, stealable: stealPool.map(x => x.desc || '一张照片'), decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r && (r.post || (r.interactions && r.interactions.length))) {
                 const shotKey = r.post && r.chatShot ? await saveChatShot(c) : null;
-                const stolen = r.post ? pickStolenPhoto(r, c) : null;
+                const stolen = r.post ? pickStolenPhoto(r, stealPool) : null;
                 if (r.post && (r.text || (r.photos && r.photos.length) || r.chatShot || stolen)) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo, photos: r.photos || [], chatShot: r.chatShot && !shotKey, chatShotKey: shotKey, shotN: r.shotN, shotTitle: r.shotTitle, stolenKeys: stolen ? stolen.imgs : null, stolenDesc: stolen ? stolen.desc : '' }));
                 const byId = new Map(POSTS.map(p => [p.id, p]));
                 (r.interactions || []).forEach(it => {
@@ -1372,8 +1373,23 @@ function pickChatPhoto() {
     };
     input.click();
 }
-function photoMsgHtml(m, i) {
-    return `<div class="mrow${m.me ? ' me' : ''}" data-i="${i}"><div class="sp"></div><div class="bubble g-single chat-photo"><img data-ckey="${m.photo}" alt=""></div></div>`;
+function photoMsgHtml(m, i, c, avo) {
+    const prev = c.msgs[i - 1] || null;
+    const newGroup = !prev || prev.narr || prev.momentEvent || prev.me !== m.me;
+    const showAv = avo.scope === 'all' || newGroup;
+    let side;
+    if (m.me) side = (avo.me && showAv) ? `<div class="av-col"><span class="avf">${selfAvatarHtml('sm')}</span></div>` : (avo.me ? '<div style="width:32px;flex-shrink:0"></div>' : '');
+    else side = (avo.them && showAv) ? `<div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div>` : '<div class="sp"></div>';
+    return `<div class="mrow${m.me ? ' me' : ''}" data-i="${i}">${side}<div class="bubble g-single chat-photo"><img data-ckey="${m.photo}" alt=""></div></div>`;
+}
+/* 发给模型前，把聊天里最近照片的图片数据读进内存 */
+async function preloadChatPhotos(c) {
+    if (!c || !Array.isArray(c.msgs)) return;
+    const n = (c.mem && c.mem.ctx) || 30;
+    const keys = c.msgs.slice(-n).filter(m => m && m.photo && !MOMENT_IMG_CACHE[m.photo]).map(m => m.photo);
+    for (const k of keys) {
+        try { const v = window.DB ? await window.DB.load(k, '') : ''; if (v) MOMENT_IMG_CACHE[k] = v; } catch (_) {}
+    }
 }
 function hydrateChatPhotos(box) {
     box.querySelectorAll('img[data-ckey]').forEach(img => {
@@ -1383,13 +1399,16 @@ function hydrateChatPhotos(box) {
     });
 }
 /* char 偷照片：从用户发过的朋友圈照片、用户在聊天里发的照片中随机挑一张 */
-function pickStolenPhoto(r, c) {
-    if (!r || !r.steal) return null;
+function stealPoolOf(c) {
     const pool = [];
     POSTS.forEach(p => { if (!CONTACTS.find(x => x.id === p.by)) (p.imgs || []).forEach((k, i) => pool.push({ key: k, desc: (p.imgDesc || [])[i] || '' })); });
-    if (c && Array.isArray(c.msgs)) c.msgs.forEach(m => { if (m && m.me && m.photo) pool.push({ key: m.photo, desc: '' }); });
-    if (!pool.length) return null;
-    const pick = pool[Math.floor(Math.random() * pool.length)];
+    if (c && Array.isArray(c.msgs)) c.msgs.forEach(m => { if (m && m.me && m.photo) pool.push({ key: m.photo, desc: '聊天里用户发来的一张照片' }); });
+    return pool;
+}
+function pickStolenPhoto(r, pool) {
+    if (!r || !r.steal || !pool || !pool.length) return null;
+    const idx = (Number.isInteger(r.stealIdx) && r.stealIdx >= 1 && r.stealIdx <= pool.length) ? r.stealIdx - 1 : Math.floor(Math.random() * pool.length);
+    const pick = pool[idx];
     return { imgs: [pick.key], desc: pick.desc || (r.photos && r.photos[0]) || '' };
 }
 /* 朋友圈 ⇄ 记忆：角色发朋友圈时写入的那条记忆与朋友圈绑定 */
@@ -2978,7 +2997,7 @@ function renderThread(opts) {
     const startIdx = Math.max(0, totalMsgs - threadLimit);
     for (let i = startIdx; i < totalMsgs; i++) {
         const m = c.msgs[i];
-        if (m.photo) { html += photoMsgHtml(m, i); continue; }
+        if (m.photo) { html += photoMsgHtml(m, i, c, avo); continue; }
         if (m.shot) { html += shotMsgHtml(m, i, c); continue; }
         if (m.momentEvent) {
             html += `<div class="moment-event-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><span>${esc(m.text)}</span></div>`;
@@ -3250,6 +3269,8 @@ async function pullReply() {
         const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + ' 【聊天室截图】如果你想把你们的聊天记录截图发给用户，在 JSON 顶层加上 "shot":true，并写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给用户的备注（截图顶部显示的名字）；不发就不要写这些字段。' + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
+        await preloadChatPhotos(c);
+        window.MESSAGES_PHOTO_GET = k => MOMENT_IMG_CACHE[k] || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0), oldMomentFeedOf(c));
         const heart = replies.heart || null;
         if (replies.moment && (replies.moment.text || (replies.moment.photos || []).length || replies.moment.chatShot) && mfAllowed(c)) {

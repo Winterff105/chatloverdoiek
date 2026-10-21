@@ -5512,8 +5512,12 @@
 .ext-ico{ width:46px !important; height:46px !important; border-radius:14px !important; }
 .ext-ico svg{ width:20px !important; height:20px !important; }
 
-/* 联系人设定底部 save 按钮：纵向缩短 */
-.messages-app .edit-actions .save{ height:36px !important; min-height:36px !important; }
+/* 联系人设定底部 save 按钮：纵向加长到 95px（只改高度） */
+.messages-app .edit-actions .save{ height:95px !important; min-height:95px !important; }
 
-/* 联系人设定 · 人设页底部的保存（完成）按钮：纵向缩短 */
-.messages-app .persona-done{ height:42px !important; min-height:42px !important; }
+/* 联系人设定 · 人设页底部的保存（完成）按钮：从上沿缩短到 58px，底边不动，票券缺口居中 */
+.messages-app .persona-done{
+    height:58px !important; min-height:58px !important;
+    -webkit-mask-image: radial-gradient(circle at 0px 29px, transparent 6px, black 6.5px), radial-gradient(circle at 100% 29px, transparent 6px, black 6.5px) !important;
+            mask-image: radial-gradient(circle at 0px 29px, transparent 6px, black 6.5px), radial-gradient(circle at 100% 29px, transparent 6px, black 6.5px) !important;
+}
