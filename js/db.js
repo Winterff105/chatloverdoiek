@@ -86,6 +86,25 @@ const DB = {
         }
     },
 
+    /* 大文件（如聊天室截图）只写 IndexedDB，不回退 localStorage（容量只有几 MB，很容易满） */
+    async saveLarge(key, value) {
+        try {
+            const db = await this.init();
+            if (!db) return false;
+            await new Promise((resolve, reject) => {
+                const tx = db.transaction(this.storeName, 'readwrite');
+                tx.objectStore(this.storeName).put(value, key);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+                tx.onabort = () => reject(tx.error || new Error('transaction aborted'));
+            });
+            return true;
+        } catch (e) {
+            console.warn('[DB] 大文件保存失败:', key, e && e.name);
+            return false;
+        }
+    },
+
     async load(key, defaultValue = null) {
         try {
             const db = await this.init();
