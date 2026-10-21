@@ -5487,3 +5487,33 @@
 /* 聊天记录截图：气泡纵向缩短；角色气泡纯黑 */
 .messages-app .sc-bub{ padding-top:3px !important; padding-bottom:3px !important; }
 .messages-app .sc-row.me .sc-bub{ background:#111111 !important; color:#FFFFFF !important; border:1px solid #111111 !important; }
+
+/* 点开看大图：邮票放大 */
+.messages-app .mf-pv-stamp{ width:min(88vw,420px) !important; padding:24px !important; border-radius:6px !important; }
+.messages-app .mf-pv-stamp .mf-stamp-text{ font-size:19px !important; line-height:1.7 !important; }
+
+/* 输入框：+ 按钮 */
+.messages-app .ext-plus{ flex:0 0 auto; width:34px; height:34px; border-radius:50%; border:0; background:rgba(0,0,0,.06); color:#111; font-size:20px; line-height:1; display:grid; place-items:center; margin-right:6px; cursor:pointer; transition:transform .2s ease, background .2s ease; }
+.messages-app .ext-plus.on{ transform:rotate(45deg); background:rgba(0,0,0,.12); }
+/* 输入框上方的透明白面板：从输入框上方往上滑出 */
+.ext-panel{ position:fixed; left:12px; right:12px; z-index:200; display:grid; grid-template-columns:repeat(4,1fr); gap:12px; padding:14px 12px; border-radius:20px; background:rgba(255,255,255,.66); -webkit-backdrop-filter:blur(14px) saturate(140%); backdrop-filter:blur(14px) saturate(140%); box-shadow:0 10px 30px rgba(0,0,0,.12); opacity:0; transform:translateY(18px); pointer-events:none; transition:opacity .22s ease, transform .26s cubic-bezier(.2,.8,.2,1); }
+.ext-panel.open{ opacity:1; transform:none; pointer-events:auto; }
+.ext-item{ display:flex; flex-direction:column; align-items:center; gap:6px; background:none; border:0; padding:0; font-size:11px; color:#333; cursor:pointer; font-family:inherit; }
+.ext-ico{ width:50px; height:50px; border-radius:16px; background:rgba(255,255,255,.8); display:grid; place-items:center; box-shadow:0 2px 6px rgba(0,0,0,.06); }
+
+/* 聊天里的照片消息 */
+.messages-app .chat-photo{ padding:4px !important; background:#FFFFFF !important; border:1px solid #E6E6EA; }
+.messages-app .chat-photo img{ display:block; max-width:180px; max-height:220px; border-radius:10px; }
+
+
+/* 透明面板：与底部上拉菜单同样的 5 列、46px 图标、字号和间距 */
+.ext-panel{ grid-template-columns:repeat(5, minmax(0,1fr)) !important; gap:6px !important; padding:12px 14px !important; justify-items:center; }
+.ext-item{ font-size:10.5px !important; gap:6px !important; }
+.ext-ico{ width:46px !important; height:46px !important; border-radius:14px !important; }
+.ext-ico svg{ width:20px !important; height:20px !important; }
+
+/* 联系人设定底部 save 按钮：纵向加长到 95px（只改高度） */
+.messages-app .edit-actions .save{ height:95px !important; min-height:95px !important; }
+
+/* 联系人设定 · 人设页底部的保存（完成）按钮：纵向加长到 95px */
+.messages-app .persona-done{ height:95px !important; min-height:95px !important; }

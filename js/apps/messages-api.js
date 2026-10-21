@@ -237,7 +237,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     if (obj && !Array.isArray(obj)) {
       const m = obj.moment;
       mv = typeof m === 'string' ? m : (m && typeof m === 'object' ? (m.text || m.content || '') : '');
-      if (m && typeof m === 'object' && Array.isArray(m.photos)) mph = m.photos.map(x => String(x || '').trim().slice(0, 60)).filter(Boolean).slice(0, 9);
+      if (m && typeof m === 'object' && Array.isArray(m.photos)) mph = m.photos.map(x => String(x || '').trim().slice(0, 30)).filter(Boolean).slice(0, 9);
       if (m && typeof m === 'object' && (m.chatShot === true || m.chatShot === 'true')) mcs = true;
     } else if (obj == null) {
       const mm = t.match(/"moment"\s*:\s*"((?:[^"\\]|\\.)*)"/);
@@ -684,7 +684,8 @@ Respond to what was just said, and let topic changes happen naturally, without e
       '朋友圈内容要像真人平时随手发的那样，简短自然，不解释，不使用任何符号。'
     ];
     lines.push('发新朋友圈时，你还可以把你们的聊天室截图发出来：在 JSON 里写 "chatShot":true，text 作为截图上方的配文；不截图写 false。若截图，另写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给对方的备注（截图顶部显示的名字）。');
-    if (win.allowPhoto) lines.push('发新朋友圈时可以配照片：photos 字段是照片描述的数组，每张照片一句话，像真人随手拍的（如“窗边的咖啡”）。你自己决定发几张，可以 0 张，最多 9 张；不配照片就写空数组 []。');
+    lines.push('如果你想偷拍用户发过的照片（用户在朋友圈或聊天里发过的照片）发到你的朋友圈，写 "steal":true，并在 photos 里写你对这张照片的描述（约 15 个字）；不偷就不要写这个字段。');
+    if (win.allowPhoto) lines.push('发新朋友圈时可以配照片：photos 字段是照片描述的数组，每张照片一句话、约 15 个字，像真人随手拍的（如“窗边的咖啡”）。你自己决定发几张，可以 0 张，最多 9 张；不配照片就写空数组 []。');
     const feed = Array.isArray(win.feed) ? win.feed : [];
     if (feed.length) {
       lines.push('【可回看的朋友圈】下面是你现在能看到的朋友圈。你可以自主决定是否与其中任意一条互动：可以不互动，也可以点赞或评论多条；评论数量、点赞数量都不设上限，只要符合角色性格和当下动机即可。每条互动的 postId 只能从下面列表选择。');
@@ -735,9 +736,10 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const text = String(o.text || '').trim();
     const post = o.post === true || o.post === 'true';
     const rawPhotos = Array.isArray(o.photos) ? o.photos : (typeof o.photo === 'string' && o.photo.trim() ? [o.photo] : []);
-    const photos = win.allowPhoto ? rawPhotos.map(x => String(x || '').trim().slice(0, 60)).filter(Boolean).slice(0, 9) : [];
+    const photos = win.allowPhoto ? rawPhotos.map(x => String(x || '').trim().slice(0, 30)).filter(Boolean).slice(0, 9) : [];
     const chatShot = o.chatShot === true || o.chatShot === 'true';
-    return { post, text, photos, chatShot, shotN: Number(o.shotN) || undefined, shotTitle: String(o.shotTitle || '').trim().slice(0, 20), comments, vis, visTo, interactions };
+    const steal = o.steal === true || o.steal === 'true';
+    return { post, text, photos, chatShot, steal, shotN: Number(o.shotN) || undefined, shotTitle: String(o.shotTitle || '').trim().slice(0, 20), comments, vis, visTo, interactions };
   }
   window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentBatchWordReply, momentDmReply, momentAutoPost };
 })();

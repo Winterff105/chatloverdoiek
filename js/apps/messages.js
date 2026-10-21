@@ -41,6 +41,10 @@ function mfLastPostH(c) {
 function postContactMoment(c, text, comments, meta) {
     const photos = ((meta && meta.photos) || []).map(x => String(x || '').trim()).filter(Boolean).slice(0, 9);
     const post = { id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5), text, t: Date.now(), by: c.id, vis: (meta && meta.vis) || 'all', visTo: ((meta && meta.visTo) || []).map(n => (CONTACTS.find(x => x.name === n) || {}).id).filter(Boolean), likes: [], comments: [], imgs: [], imgDesc: photos, interactionFetched: false };
+    if (meta && meta.stolenKeys && meta.stolenKeys.length) {
+        post.imgs = meta.stolenKeys.slice(0, 9); post.stolen = true;
+        post.imgDesc = [meta.stolenDesc || photos[0] || ''];
+    }
     POSTS.unshift(post);
     persistMoments();
     renderMoments();
@@ -151,7 +155,8 @@ async function momentSyncAll() {
             const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, allowPhoto: cfg.img !== false, decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r && (r.post || (r.interactions && r.interactions.length))) {
                 const shotKey = r.post && r.chatShot ? await saveChatShot(c) : null;
-                if (r.post && (r.text || (r.photos && r.photos.length) || r.chatShot)) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo, photos: r.photos || [], chatShot: r.chatShot && !shotKey, chatShotKey: shotKey, shotN: r.shotN, shotTitle: r.shotTitle }));
+                const stolen = r.post ? pickStolenPhoto(r, c) : null;
+                if (r.post && (r.text || (r.photos && r.photos.length) || r.chatShot || stolen)) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo, photos: r.photos || [], chatShot: r.chatShot && !shotKey, chatShotKey: shotKey, shotN: r.shotN, shotTitle: r.shotTitle, stolenKeys: stolen ? stolen.imgs : null, stolenDesc: stolen ? stolen.desc : '' }));
                 const byId = new Map(POSTS.map(p => [p.id, p]));
                 (r.interactions || []).forEach(it => {
                     const p = byId.get(String(it.postId || '').trim());
@@ -1348,6 +1353,45 @@ function memDeletePreset() {
     m.presetIdx = -1; m.instr = DEFAULT_SUMMARY_INSTR;
     persistContacts(); memSetInstrText(m.instr); memRenderPresetBar(); toast('已删除预设');
 }
+/* 聊天里选图：作为用户的照片消息发到当前聊天 */
+function pickChatPhoto() {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
+    const input = makeFilePicker();
+    input.type = 'file'; input.accept = 'image/*';
+    input.onchange = async () => {
+        const f = input.files && input.files[0]; if (!f) return;
+        try {
+            const url = await compressImage(f, 800);
+            const key = 'cphoto_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+            const ok = window.DB ? await window.DB.save(key, url) : false;
+            MOMENT_IMG_CACHE[key] = url;
+            c.msgs.push({ me: true, text: '', photo: key, t: nowTime(), ts: Date.now() });
+            c.time = nowTime(); persistContacts(); renderThread(); renderChats();
+            if (!ok) toast('照片只保存在本次运行中');
+        } catch (e) { toast('照片读取失败'); }
+    };
+    input.click();
+}
+function photoMsgHtml(m, i) {
+    return `<div class="mrow${m.me ? ' me' : ''}" data-i="${i}"><div class="sp"></div><div class="bubble g-single chat-photo"><img data-ckey="${m.photo}" alt=""></div></div>`;
+}
+function hydrateChatPhotos(box) {
+    box.querySelectorAll('img[data-ckey]').forEach(img => {
+        const k = img.dataset.ckey;
+        if (MOMENT_IMG_CACHE[k]) { img.src = MOMENT_IMG_CACHE[k]; return; }
+        Promise.resolve(window.DB ? window.DB.load(k, '') : '').then(v => { if (v) { MOMENT_IMG_CACHE[k] = v; img.src = v; } });
+    });
+}
+/* char 偷照片：从用户发过的朋友圈照片、用户在聊天里发的照片中随机挑一张 */
+function pickStolenPhoto(r, c) {
+    if (!r || !r.steal) return null;
+    const pool = [];
+    POSTS.forEach(p => { if (!CONTACTS.find(x => x.id === p.by)) (p.imgs || []).forEach((k, i) => pool.push({ key: k, desc: (p.imgDesc || [])[i] || '' })); });
+    if (c && Array.isArray(c.msgs)) c.msgs.forEach(m => { if (m && m.me && m.photo) pool.push({ key: m.photo, desc: '' }); });
+    if (!pool.length) return null;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    return { imgs: [pick.key], desc: pick.desc || (r.photos && r.photos[0]) || '' };
+}
 /* 朋友圈 ⇄ 记忆：角色发朋友圈时写入的那条记忆与朋友圈绑定 */
 function isPostMemory(m) {
     return !!(m && m.src && (m.postLink || /^\{char\}发了一条朋友圈（/.test(m.text || '')));
@@ -1356,12 +1400,13 @@ function isPostMemory(m) {
 function dropPostLocal(pid) {
     const p = POSTS.find(x => x.id === pid);
     if (!p) return [];
+    const ownKeys = p.stolen ? [] : [...(p.imgs || [])];
     CONTACTS.forEach(x => {
         if (x.memories) x.memories = x.memories.filter(m => m.src !== pid);
         if (Array.isArray(x.msgs)) x.msgs = x.msgs.filter(m => !(m.momentEvent && String(m.momentPostId || '') === String(pid)));
     });
     POSTS = POSTS.filter(x => x.id !== pid);
-    return [...(p.imgs || []), ...(p.chatShotKey ? [p.chatShotKey] : [])];
+    return [...ownKeys, ...(p.chatShotKey ? [p.chatShotKey] : [])];
 }
 async function removeDbKeys(keys) {
     if (!window.DB) return;
@@ -2933,6 +2978,7 @@ function renderThread(opts) {
     const startIdx = Math.max(0, totalMsgs - threadLimit);
     for (let i = startIdx; i < totalMsgs; i++) {
         const m = c.msgs[i];
+        if (m.photo) { html += photoMsgHtml(m, i); continue; }
         if (m.shot) { html += shotMsgHtml(m, i, c); continue; }
         if (m.momentEvent) {
             html += `<div class="moment-event-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><span>${esc(m.text)}</span></div>`;
@@ -2968,6 +3014,7 @@ function renderThread(opts) {
         html += `<div class="mrow typing mrow-new" id="typingRow"><div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div><div class="ct-bubble">${ctSvgHtml('ct-chat')}</div></div>`;
     }
     box.innerHTML = html;
+    hydrateChatPhotos(box);
     box.dataset.chat = c.id;
     box.dataset.count = c.msgs.length;
     if (!opts || !opts.prepend) {
@@ -6155,7 +6202,7 @@ function pickMomentPhotos() {
                 const img = await compressImage(f, 1200);
                 const d = window.prompt('给这张照片写一句描述（可留空）', '');
                 PENDING_IMGS.push(img);
-                PENDING_DESCS.push(String(d || '').trim().slice(0, 80));
+                PENDING_DESCS.push(String(d || '').trim().slice(0, 30));
             }
             catch (e) { toast('有一张照片读取失败'); }
         }
@@ -6684,7 +6731,7 @@ function deleteMoment(id) {
             }
             persistContacts();
         }
-        if (p && p.imgs && window.DB) { for (const k of p.imgs) await window.DB.remove(k); }
+        if (p && p.imgs && !p.stolen && window.DB) { for (const k of p.imgs) await window.DB.remove(k); }
         // 用户删除朋友圈时，聊天室里由这条朋友圈产生的提示胶囊也一并移除。
         CONTACTS.forEach(x => {
             if (Array.isArray(x.msgs)) x.msgs = x.msgs.filter(m => !(m.momentEvent && String(m.momentPostId || '') === String(id)));
@@ -6801,7 +6848,37 @@ function markSaveCancelButtons() {
 }
 markSaveCancelButtons();
 initComposerGesture();
+setTimeout(ensureExtPanel, 0);
 
+/* 输入框：“+”按钮 → 输入框上方滑出的透明白面板（占位按钮，以后做功能） */
+const EXT_ITEMS = [['图片','M4 5h16v14H4z M4 16l5-5 4 4 3-3 4 4'],['拍照','M4 8h4l2-3h4l2 3h4v11H4z M12 11a3 3 0 1 0 0.01 0'],['语音','M12 4v10M8 10v2a4 4 0 0 0 8 0v-2M12 18v3'],['位置','M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z M12 11a2 2 0 1 0 0.01 0'],['红包','M5 4h14v16H5z M5 11h14'],['转账','M4 9h16M4 15h16M8 5l-4 4 4 4M16 11l4 4-4 4'],['文件','M7 3h7l5 5v13H7z M14 3v5h5'],['更多','M5 12h.01M12 12h.01M19 12h.01']];
+function ensureExtPanel() {
+    if (document.getElementById('extPanel')) return;
+    const box = document.querySelector('.messages-app');
+    const menu = document.getElementById('quickMenu');
+    if (!box || !menu) return;
+    const panel = document.createElement('div');
+    panel.className = 'ext-panel'; panel.id = 'extPanel';
+    panel.innerHTML = EXT_ITEMS.map(([label, d]) => `<button class="ext-item" type="button" data-ext="${label}"><span class="ext-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#333" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></span><span>${label}</span></button>`).join('');
+    document.body.appendChild(panel);
+    // 跟随底部上拉菜单：菜单滑出时，透明面板也从输入框上方一起滑出；菜单收起时一起收起
+    const sync = () => {
+        const show = menu.classList.contains('show');
+        if (show) {
+            const comp = box.querySelector('.composer');
+            const r = comp ? comp.getBoundingClientRect() : null;
+            panel.style.bottom = r ? (window.innerHeight - r.top + 24) + 'px' : '136px';
+        }
+        panel.classList.toggle('open', show);
+    };
+    new MutationObserver(sync).observe(menu, { attributes: true, attributeFilter: ['class'] });
+    panel.addEventListener('click', e => {
+        const b = e.target.closest('[data-ext]'); if (!b) return;
+        if (b.dataset.ext === '图片') { toggleQuickMenu(false); pickChatPhoto(); return; }
+        toast(b.dataset.ext + '即将推出');
+    });
+    sync();
+}
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
 Object.assign(__messagesHandlers, {clearQuote, onRoomFontSize, openCssHelp, copyCssHelp, closeHeartPop, addPresetFromInput, presetNameKey, togglePresetPick, pickCssPreset, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 __messagesHandlers.setTransOpt = setTransOpt;
