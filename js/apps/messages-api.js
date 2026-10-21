@@ -245,6 +245,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     }
     mv = String(mv || '').trim();
     out.moment = (mv || mph.length || mcs) ? { text: mv, photos: mph, chatShot: mcs } : null;
+    out.shot = !!(obj && !Array.isArray(obj) && (obj.shot === true || obj.shot === 'true'));
     // 互动：JSON 正常时直接读；解析失败时逐条从原文里捞出 {"postId"...} 对象
     let miRaw = (obj && !Array.isArray(obj) && Array.isArray(obj.momentInteractions)) ? obj.momentInteractions : null;
     if (!miRaw && obj == null) {

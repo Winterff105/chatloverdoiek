@@ -5417,3 +5417,36 @@
 .messages-app .send-capsule.pulling .cap-split{ display:none !important; width:0 !important; }
 .messages-app .send-capsule.pulling .pull{ width:100% !important; height:100% !important; display:flex !important; align-items:center !important; justify-content:center !important; margin:0 !important; padding:0 !important; }
 .messages-app .send-capsule.pulling .pull svg{ margin:0 !important; }
+
+/* ===== 记忆：展开框；聊天记录：右边角色、左边 user ===== */
+.messages-app .mem-fold{ border:1px solid #E6E6EA; border-radius:12px; background:#FAFAFB; padding:8px 10px; }
+.messages-app .mem-fold-sum{ cursor:pointer; list-style:none; font-size:13px; color:#111; line-height:1.5; }
+.messages-app .mem-fold-sum::-webkit-details-marker{ display:none; }
+.messages-app .mem-fold-sum::after{ content:"▸"; float:right; color:#8E8E8E; margin-left:6px; }
+.messages-app .mem-fold[open] .mem-fold-sum::after{ content:"▾"; }
+.messages-app .mem-fold-body{ margin-top:8px; }
+.messages-app .mem-chatlog{ display:flex; flex-direction:column; gap:6px; margin-top:8px; padding:8px; background:#F4F4F6; border-radius:10px; }
+.messages-app .mem-cl-row{ display:flex; justify-content:flex-start; }
+.messages-app .mem-cl-row.self{ justify-content:flex-end; }
+.messages-app .mem-cl-bub{ max-width:75%; padding:5px 9px; border-radius:10px; background:#EFEFF2; color:#111; font-size:12px; line-height:1.5; word-break:break-all; }
+.messages-app .mem-cl-row.self .mem-cl-bub{ background:#111; color:#fff; }
+
+/* 聊天记录截图背景：纯白 */
+.messages-app .mf-shot, .messages-app .mf-shot-real{ background:#FFFFFF; }
+
+/* ===== 聊天记录卡片：圆气泡 + 小圆尾巴 + 头像 ===== */
+.messages-app .sc-card{ border:1px solid #EDEDF0; border-radius:14px; background:#FFFFFF; overflow:hidden; margin-top:8px; }
+.messages-app .sc-top{ text-align:center; font-size:12px; font-weight:600; color:#3A4650; padding:8px 10px; border-bottom:1px dashed rgba(58,70,80,.22); }
+.messages-app .sc-body{ display:flex; flex-direction:column; gap:10px; padding:12px 10px; }
+.messages-app .sc-row{ display:flex; align-items:flex-end; gap:6px; }
+.messages-app .sc-row.me{ justify-content:flex-end; }
+.messages-app .sc-av{ flex:0 0 auto; width:26px; height:26px; border-radius:50%; display:grid; place-items:center; font-size:11px; font-weight:700; }
+.messages-app .sc-av.them{ background:#E4E4E8; color:#555; }
+.messages-app .sc-av.self{ background:#111; color:#fff; }
+.messages-app .sc-bub{ position:relative; max-width:66%; padding:7px 12px; margin:0 8px; border-radius:999px; font-size:12px; line-height:1.5; word-break:break-all; background:#F7F7F7; color:#111; }
+.messages-app .sc-bub::after{ content:""; position:absolute; left:-7px; bottom:2px; width:8px; height:8px; border-radius:50%; background:inherit; }
+.messages-app .sc-row.me .sc-bub{ background:#111; color:#fff; }
+.messages-app .sc-row.me .sc-bub::after{ left:auto; right:-7px; }
+.messages-app .sc-time{ text-align:right; font-size:10px; color:#A0A0A6; padding:0 10px 8px; }
+/* 聊天室时间分隔 */
+.messages-app .tdiv{ text-align:center; font-size:10px; color:#A0A0A6; margin:10px 0 4px; }

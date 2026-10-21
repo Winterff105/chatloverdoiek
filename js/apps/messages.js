@@ -49,6 +49,11 @@ function postContactMoment(c, text, comments, meta) {
     const excerpt = (text || '').trim() || '一张照片';
     addCommonMemory(c, `{char}发了一条朋友圈（${excerpt}）`, post.id);
     if (c.memories && c.memories[0]) c.memories[0].postLink = post.id;
+    if (meta && (meta.chatShot || meta.chatShotKey) && c.memories && c.memories[0]) {
+        const log = snapshotChatRoom(c);
+        c.memories[0].chatLog = log;
+        c.memories[0].text = '{char}发了一条朋友圈（聊天室截图：' + log.slice(-6).map(m => (m.me ? '{char}' : '{user}') + '：' + m.text).join(' | ') + '）';
+    }
     persistContacts();
     if (Array.isArray(comments)) return applyAutoComments(post, comments);
     scheduleMomentFetch(post);
@@ -1183,7 +1188,7 @@ function memItemHtml(x) {
     const body = editing
         ? `<textarea class="mem-edit-ta" id="memEditTa" rows="4">${esc(x.text)}</textarea>
            <div class="mem-btns"><button class="mem-btn" type="button" data-act="editCancel">取消</button><button class="mem-btn mem-primary-sm" type="button" data-act="editSave" data-id="${x.id}">保存</button></div>`
-        : `<div class="mem-text"><span class="mem-stamp">${esc(x.label || '')}</span> ${esc(x.text)}</div>
+        : `<details class="mem-fold"><summary class="mem-fold-sum"><span class="mem-stamp">${esc(x.label || '')}</span> ${esc(String(x.text || '').slice(0, 30))}${String(x.text || '').length > 30 ? '…' : ''}</summary><div class="mem-fold-body"><div class="mem-text">${esc(x.text)}</div>${x.chatLog && x.chatLog.length ? chatLogMemHtml(x.chatLog) : ''}</div></details>
            ${x.points && x.points.length ? `<div class="mem-points">${x.points.map(p => `<div>- ${esc(p)}</div>`).join('')}</div>` : ''}
            ${x.relation ? `<div class="mem-rel"><span>关系与感情</span>${esc(x.relation)}</div>` : ''}
            ${x.keys && x.keys.length ? `<div class="mem-keys">${x.keys.map(k => `<em>${esc(k)}</em>`).join('')}</div>` : ''}`;
@@ -1212,6 +1217,10 @@ function memAddFormHtml() {
     </div>`;
 }
 /* 只重写滚动区里的内容，并保留主记忆各级的展开状态 */
+/* 记忆里的聊天记录：右边是角色（自己），左边是 user */
+function chatLogMemHtml(log) {
+    return `<div class="mem-chatlog">${log.map(m => `<div class="mem-cl-row${m.me ? ' self' : ''}"><span class="mem-cl-bub">${esc(m.text)}</span></div>`).join('')}</div>`;
+}
 function memRenderBody() {
     const page = memMount(); const c = curMemContact(); if (!page || !c) return;
     const box = page.querySelector('[data-role="body"]');
@@ -2836,6 +2845,26 @@ function bindChatDrop() {
     cap.dataset.dropBound = '1';
     cap.addEventListener('click', toggleChatDrop);
 }
+/* 聊天室时间分隔：间隔超过 10 分钟显示；旧消息没有时间戳时，可见范围第一条显示日期和时间 */
+const CHAT_TIME_GAP = 10 * 60 * 1000;
+function timeDivHtml(c, i, startIdx) {
+    const m = c.msgs[i]; const prev = i > 0 ? c.msgs[i - 1] : null;
+    if (m.ts) {
+        if (prev && prev.ts && m.ts - prev.ts < CHAT_TIME_GAP) return '';
+        return `<div class="tdiv">${esc(fmtMoment(m.ts))}</div>`;
+    }
+    if (i === startIdx) return `<div class="tdiv">${esc(memDateLabel())} ${esc(m.t || '')}</div>`;
+    return '';
+}
+/* 聊天记录卡片：圆气泡 + 小圆尾巴 + 头像；右边是角色（me 为 true），左边是 user */
+function chatCardHtml(list, withName, userName, timeText) {
+    const ini = v => esc((String(v || '').trim().charAt(0) || '?').toUpperCase());
+    const rows = (list || []).map(m => `<div class="sc-row${m.me ? ' me' : ''}">${m.me ? '' : `<span class="sc-av them">${ini(userName)}</span>`}<span class="sc-bub">${esc(m.text)}</span>${m.me ? `<span class="sc-av self">${ini(withName)}</span>` : ''}</div>`).join('');
+    return `<div class="sc-card"><div class="sc-top">${esc(withName || '')}</div><div class="sc-body">${rows}</div><div class="sc-time">${esc(timeText || '')}</div></div>`;
+}
+function shotMsgHtml(m, i) {
+    return `<div class="mrow${m.me ? ' me' : ''}" data-i="${i}"><div class="sp"></div>${chatCardHtml(m.shot, m.shotWith, momentUserName(), m.t)}</div>`;
+}
 function renderThread(opts) {
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c) return;
@@ -2852,6 +2881,7 @@ function renderThread(opts) {
     const startIdx = Math.max(0, totalMsgs - threadLimit);
     for (let i = startIdx; i < totalMsgs; i++) {
         const m = c.msgs[i];
+        if (m.shot) { html += shotMsgHtml(m, i); continue; }
         if (m.momentEvent) {
             html += `<div class="moment-event-row ${i >= shownCount ? 'mrow-new' : ''}" data-i="${i}"><span>${esc(m.text)}</span></div>`;
             continue;
@@ -2880,7 +2910,7 @@ function renderThread(opts) {
             if (trc.style === 'box') { trCls = ' tr-box'; trHtml = `<div class="trans-float${trc.auto ? ' open' : ''}" onclick="event.stopPropagation();this.classList.toggle('open')">${esc(m.trans)}</div>`; }
             else { trCls = ' tr-dash' + (trc.auto ? ' open' : ''); trAttr = ' onclick="this.classList.toggle(\'open\')"'; trHtml = `<div class="trans-dash">${esc(m.trans)}</div>`; }
         }
-        html += `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > startIdx ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}${trCls}"${fsInline}${trAttr}>${qHtml}${esc(m.text)}${trHtml}</div>${meta}</div>`;
+        html += timeDivHtml(c, i, startIdx) + `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > startIdx ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}${trCls}"${fsInline}${trAttr}>${qHtml}${esc(m.text)}${trHtml}</div>${meta}</div>`;
     }
     if (c._typing) {
         html += `<div class="mrow typing mrow-new" id="typingRow"><div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div><div class="ct-bubble">${ctSvgHtml('ct-chat')}</div></div>`;
@@ -3118,7 +3148,7 @@ async function pullReply() {
     c._typing = true; renderChats();
     try {
         const countDesc = o.min === o.max ? `本次对话台词气泡必须精确输出 ${o.min} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）` : `本次对话台词气泡必须输出 ${o.min} 到 ${o.max} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）`;
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + narrInstruction();
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + ' 【聊天室截图】如果你想把你们的聊天记录截图发给用户，在 JSON 顶层加上 "shot":true（截图内容由系统取自最近的聊天，不占台词条数）；不发就不要写这个字段。' + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0), oldMomentFeedOf(c));
@@ -3140,6 +3170,7 @@ async function pullReply() {
         const startLen = c.msgs.length;
         await deliverMsgs(c, parts);
         attachHeart(c, heart, startLen); persistContacts();
+        if (replies.shot) { c.msgs.push({ me: false, text: '', shot: snapshotChatRoom(c), shotWith: dispName(c), t: nowTime(), ts: Date.now() }); persistContacts(); }
         if (activeId === c.id) renderThread({noAnim:true});
         maybeAutoSummary(c);
     } catch (e) { c._typing = false; const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
@@ -6166,7 +6197,7 @@ function snapshotChatRoom(c) {
     return (c.msgs || [])
         .filter(m => m && m.text && !/^【旁白】/.test(String(m.text)))
         .slice(-8)
-        .map(m => ({ me: !!m.me, text: plainMentions(String(m.text)).replace(/[\r\n]+/g, ' ') }));
+        .map(m => ({ me: !m.me, text: plainMentions(String(m.text)).replace(/[\r\n]+/g, ' ') }));
 }
 /* 真截图：加载 html2canvas（cdnjs，版本固定 1.4.1） */
 function loadHtml2Canvas() {
@@ -6181,16 +6212,62 @@ function loadHtml2Canvas() {
 }
 /* 在屏幕外临时画一张聊天室（不带遮罩和毛玻璃），拍成 PNG 后立即移除 */
 async function captureChatShot(c, q = 0.9) {
-    const h2c = await loadHtml2Canvas();
-    const rows = snapshotChatRoom(c).map(m => `<div style="display:flex;justify-content:${m.me ? 'flex-end' : 'flex-start'}"><span style="max-width:75%;padding:6px 10px;border-radius:12px;font-size:12px;line-height:1.5;word-break:break-all;background:${m.me ? '#111' : '#EFEFF2'};color:${m.me ? '#fff' : '#111'}">${esc(m.text)}</span></div>`).join('');
-    const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;left:-9999px;top:0;width:300px;background:#FAFAFB;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;';
-    el.innerHTML = `<div style="text-align:center;font-size:12px;font-weight:600;color:#111;padding:8px 10px;background:#F4F4F6;border-bottom:1px solid #EDEDF0">${esc(dispName(c))}</div><div style="display:flex;flex-direction:column;gap:6px;padding:10px">${rows}</div><div style="text-align:right;font-size:10px;color:#A0A0A6;padding:0 10px 8px">${fmtMoment(Date.now())}</div>`;
-    document.body.appendChild(el);
-    try {
-        const canvas = await h2c(el, { backgroundColor: '#FAFAFB', scale: 1, useCORS: true, logging: false });
-        return canvas.toDataURL('image/jpeg', q);
-    } finally { el.remove(); }
+    // 不依赖外部脚本：直接用画布把聊天室画成一张 JPEG 图片
+    const rows = snapshotChatRoom(c);
+    const W = 300, S = 2, PAD = 10, HEAD = 40, LH = 18, BUB_MAX = 210;
+    const FONT = '12px -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif';
+    const meas = document.createElement('canvas').getContext('2d');
+    meas.font = FONT;
+    const wrap = text => {
+        const lines = []; let line = '';
+        for (const ch of String(text || '')) {
+            const t = line + ch;
+            if (line && meas.measureText(t).width > BUB_MAX - 20) { lines.push(line); line = ch; } else line = t;
+        }
+        lines.push(line);
+        return lines;
+    };
+    const items = []; let y = HEAD + 10;
+    for (const m of rows) {
+        const lines = wrap(m.text);
+        const tw = Math.max(...lines.map(l => meas.measureText(l).width));
+        const bw = Math.min(BUB_MAX, tw + 20), bh = lines.length * LH + 12;
+        items.push({ m, lines, bw, bh, y });
+        y += bh + 6;
+    }
+    const H = y + 28;
+    const cv = document.createElement('canvas');
+    cv.width = W * S; cv.height = H * S;
+    const ctx = cv.getContext('2d');
+    ctx.scale(S, S);
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#F4F4F6'; ctx.fillRect(0, 0, W, HEAD);
+    ctx.fillStyle = '#EDEDF0'; ctx.fillRect(0, HEAD - 1, W, 1);
+    ctx.fillStyle = '#111111'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '600 ' + FONT;
+    ctx.fillText(String(dispName(c) || ''), W / 2, HEAD / 2);
+    const rr = (x, y0, w, h, r) => {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y0);
+        ctx.arcTo(x + w, y0, x + w, y0 + h, r);
+        ctx.arcTo(x + w, y0 + h, x, y0 + h, r);
+        ctx.arcTo(x, y0 + h, x, y0, r);
+        ctx.arcTo(x, y0, x + w, y0, r);
+        ctx.closePath();
+    };
+    ctx.font = FONT; ctx.textAlign = 'left';
+    for (const it of items) {
+        const x = it.m.me ? W - PAD - it.bw : PAD;
+        ctx.fillStyle = it.m.me ? '#111111' : '#EFEFF2';
+        rr(x, it.y, it.bw, it.bh, 12); ctx.fill();
+        ctx.fillStyle = it.m.me ? '#FFFFFF' : '#111111';
+        it.lines.forEach((l, i) => ctx.fillText(l, x + 10, it.y + 6 + LH * i + LH / 2));
+    }
+    ctx.fillStyle = '#A0A0A6';
+    ctx.font = '10px -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(fmtMoment(Date.now()), W - PAD, H - 12);
+    return cv.toDataURL('image/jpeg', q);
 }
 /* 拍照并存入数据库；失败返回 null，由调用方退回模拟卡片 */
 async function saveChatShot(c) {
@@ -6215,8 +6292,7 @@ async function saveChatShot(c) {
 }
 /* 聊天室截图卡片：模拟聊天室样式（顶部对方名字，我方黑色靠右，对方浅灰靠左） */
 function chatShotHtml(p) {
-    const rows = (p.chatShot || []).map(m => `<div class="mf-shot-row${m.me ? ' me' : ''}"><span class="mf-shot-bub">${esc(m.text)}</span></div>`).join('');
-    return `<div class="mf-shot"><div class="mf-shot-top">${esc(p.chatShotWith || '')}</div><div class="mf-shot-body">${rows}</div><div class="mf-shot-time">${fmtMoment(p.t)}</div></div>`;
+    return chatCardHtml(p.chatShot, p.chatShotWith, momentUserName(), fmtMoment(p.t));
 }
 function renderMoments() {
     const frame = document.getElementById('momentsFrame');
