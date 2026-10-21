@@ -19,7 +19,6 @@ function mfLoad() {
         pct: typeof c.pct === 'number' ? c.pct : 30,
         maxH: typeof c.maxH === 'number' ? c.maxH : 24,
         img: c.img !== false,
-        shotN: typeof c.shotN === 'number' ? c.shotN : 8,
         per: c.per || {}
     };
 }
@@ -46,12 +45,12 @@ function postContactMoment(c, text, comments, meta) {
     persistMoments();
     renderMoments();
     if (meta && meta.chatShotKey) { post.chatShotKey = meta.chatShotKey; persistMoments(); renderMoments(); }
-    else if (meta && meta.chatShot) { post.chatShot = snapshotChatRoom(c); post.chatShotWith = dispName(c); persistMoments(); renderMoments(); }
+    else if (meta && meta.chatShot) { post.chatShot = snapshotChatRoom(c, meta.shotN); post.chatShotWith = meta.shotTitle || momentUserName(); persistMoments(); renderMoments(); }
     const excerpt = (text || '').trim() || '一张照片';
     addCommonMemory(c, `{char}发了一条朋友圈（${excerpt}）`, post.id);
     if (c.memories && c.memories[0]) c.memories[0].postLink = post.id;
     if (meta && (meta.chatShot || meta.chatShotKey) && c.memories && c.memories[0]) {
-        const log = snapshotChatRoom(c);
+        const log = snapshotChatRoom(c, meta.shotN);
         c.memories[0].chatLog = log;
         c.memories[0].text = '{char}发了一条朋友圈（聊天室截图：' + log.slice(-6).map(m => (m.me ? '{char}' : '{user}') + '：' + m.text).join(' | ') + '）';
     }
@@ -152,7 +151,7 @@ async function momentSyncAll() {
             const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, allowPhoto: cfg.img !== false, decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r && (r.post || (r.interactions && r.interactions.length))) {
                 const shotKey = r.post && r.chatShot ? await saveChatShot(c) : null;
-                if (r.post && (r.text || (r.photos && r.photos.length) || r.chatShot)) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo, photos: r.photos || [], chatShot: r.chatShot && !shotKey, chatShotKey: shotKey }));
+                if (r.post && (r.text || (r.photos && r.photos.length) || r.chatShot)) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo, photos: r.photos || [], chatShot: r.chatShot && !shotKey, chatShotKey: shotKey, shotN: r.shotN, shotTitle: r.shotTitle }));
                 const byId = new Map(POSTS.map(p => [p.id, p]));
                 (r.interactions || []).forEach(it => {
                     const p = byId.get(String(it.postId || '').trim());
@@ -225,7 +224,6 @@ function renderMomentFreq() {
             <button class="mf-tg ${cfg.on ? 'on' : ''}" data-mf-tg="global" aria-label="开关"></button></div>
           ${mfBlockHTML('global', g)}
           <div class="mf-extra-row"><span>允许发图片</span><button class="mf-tg ${cfg.img !== false ? 'on' : ''}" data-mf-img-tg="1" aria-label="允许发图片"></button></div>
-          ${mfSliderHTML('global', 'shotN', '聊天截图条数', cfg.shotN, 1, 30, '条', false)}
         </div>
         <div class="mf-label">每个联系人</div>
         <div class="mf-panel">${CONTACTS.length ? CONTACTS.map((c, i) => (i ? '<div class="mf-dash-line"></div>' : '') + mfRowHTML(c, cfg)).join('') : '<div class="mf-empty">还没有联系人</div>'}</div>
@@ -2640,6 +2638,54 @@ function openCustomModulePopup() {
     }
 }
 
+/* 防八股弹窗底部的导出 / 导入 */
+const CD_ICO_EXPORT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>';
+const CD_ICO_IMPORT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>';
+function cdIoBar(modal) {
+    const io = document.createElement('div');
+    io.className = 'cd-io';
+    io.innerHTML = `<button class="cd-io-btn" type="button" data-cdio="export" aria-label="导出" title="导出">${CD_ICO_EXPORT}</button><button class="cd-io-btn" type="button" data-cdio="import" aria-label="导入" title="导入">${CD_ICO_IMPORT}</button>`;
+    io.addEventListener('click', e => {
+        const b = e.target.closest('[data-cdio]'); if (!b) return;
+        if (b.dataset.cdio === 'export') cdExportSettings();
+        else cdImportSettings(modal);
+    });
+    return io;
+}
+function cdExportSettings() {
+    const v = readChatPromptSettings();
+    const blob = new Blob([JSON.stringify(Object.assign({ kind: 'anti-cliche-settings', version: 1 }, v), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = '防八股设置.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('已导出防八股设置');
+}
+function cdImportSettings(modal) {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = 'application/json,.json';
+    input.onchange = async () => {
+        const f = input.files && input.files[0]; if (!f) return;
+        try {
+            const d = JSON.parse(await f.text());
+            if (!d || !Array.isArray(d.words)) throw new Error('文件格式不对');
+            const lv = d.priorityLevels && typeof d.priorityLevels === 'object' ? d.priorityLevels : {};
+            const levels = {};
+            d.words.forEach(w => { levels[w] = ['high', 'medium', 'low'].includes(lv[w]) ? lv[w] : 'medium'; });
+            saveChatPromptSettings({
+                enabled: d.enabled !== false, words: d.words, priorityLevels: levels,
+                disabledWords: (d.disabledWords || []).filter(w => d.words.includes(w)),
+                customWords: (d.customWords || []).filter(w => d.words.includes(w)),
+                customReasons: d.customReasons && typeof d.customReasons === 'object' ? d.customReasons : {},
+                priority: d.words.filter(w => levels[w] === 'high')
+            });
+            modal.remove();
+            openChatPromptSettings('ai');
+            toast('防八股设置已导入');
+        } catch (e) { toast('导入失败：' + ((e && e.message) || '文件不对')); }
+    };
+    input.click();
+}
 function openChatPromptSettings(k) {
     if (k === 'greasy') { openGreasyPanPopup(); return; }
     if (k === 'threat' || k === 'fake' || k === 'macho') { openChatPromptTextPopup(k); return; }
@@ -2659,6 +2705,7 @@ function openChatPromptSettings(k) {
     modal._cdCustomWords = new Set(v.customWords || []);
     modal._cdCustomReasons = Object.assign({}, v.customReasons || {});
     document.body.appendChild(modal);
+    modal.appendChild(cdIoBar(modal));
     requestAnimationFrame(()=>requestAnimationFrame(()=>modal.classList.add('is-visible')));
     const close=()=>{modal.classList.remove('is-visible');modal.classList.add('is-leaving');setTimeout(()=>modal.remove(),220);};
     modal.querySelector('.cd-settings-close').onclick=close;
@@ -3153,7 +3200,7 @@ async function pullReply() {
     c._typing = true; renderChats();
     try {
         const countDesc = o.min === o.max ? `本次对话台词气泡必须精确输出 ${o.min} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）` : `本次对话台词气泡必须输出 ${o.min} 到 ${o.max} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）`;
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + ' 【聊天室截图】如果你想把你们的聊天记录截图发给用户，在 JSON 顶层加上 "shot":true（截图内容由系统取自最近的聊天，不占台词条数）；不发就不要写这个字段。' + narrInstruction();
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + ' 【聊天室截图】如果你想把你们的聊天记录截图发给用户，在 JSON 顶层加上 "shot":true，并写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给用户的备注（截图顶部显示的名字）；不发就不要写这些字段。' + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0), oldMomentFeedOf(c));
@@ -3162,7 +3209,7 @@ async function pullReply() {
             let shotKey = null;
             try { shotKey = replies.moment.chatShot ? await saveChatShot(c) : null; }
             catch (err) { console.warn('[截图]', err); toast('截图出错：' + describeErr(err)); }
-            postContactMoment(c, replies.moment.text, [], { photos: replies.moment.photos || [], chatShot: !!replies.moment.chatShot && !shotKey, chatShotKey: shotKey });
+            postContactMoment(c, replies.moment.text, [], { photos: replies.moment.photos || [], chatShot: !!replies.moment.chatShot && !shotKey, chatShotKey: shotKey, shotN: replies.moment.shotN, shotTitle: replies.moment.shotTitle });
         }
         const acted = applyChatMomentInteractions(c, replies.momentInteractions || []) || [];
         if (acted.length) notePosterDone(acted);
@@ -3175,7 +3222,7 @@ async function pullReply() {
         const startLen = c.msgs.length;
         await deliverMsgs(c, parts);
         attachHeart(c, heart, startLen); persistContacts();
-        if (replies.shot) { c.msgs.push({ me: false, text: '', shot: snapshotChatRoom(c), shotWith: dispName(c), t: nowTime(), ts: Date.now() }); persistContacts(); }
+        if (replies.shot) { c.msgs.push({ me: false, text: '', shot: snapshotChatRoom(c, replies.shotN), shotWith: replies.shotTitle || momentUserName(), t: nowTime(), ts: Date.now() }); persistContacts(); }
         if (activeId === c.id) renderThread({noAnim:true});
         maybeAutoSummary(c);
     } catch (e) { c._typing = false; const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
@@ -6198,10 +6245,11 @@ function cmtNameHtml(c) {
     return `<b class="mf-cmt-name">${esc(a)}</b><span class="mf-cmt-to">回复</span><b class="mf-cmt-name">${esc(momentAuthor(c.to).name)}</b>`;
 }
 /* 聊天室截图：取最近几条真实聊天（去掉旁白），发帖时存下快照 */
-function snapshotChatRoom(c) {
+function snapshotChatRoom(c, n) {
+    const cnt = Math.max(1, Math.min(30, parseInt(n, 10) || 8));
     return (c.msgs || [])
         .filter(m => m && m.text && !m.narr && !m.momentEvent && !/^【旁白】/.test(String(m.text)))
-        .slice(-mfLoad().shotN)
+        .slice(-cnt)
         .map(m => ({ me: !m.me, text: plainMentions(String(m.text)).replace(/[\r\n]+/g, ' ') }));
 }
 /* 真截图：加载 html2canvas（cdnjs，版本固定 1.4.1） */

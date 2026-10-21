@@ -244,8 +244,11 @@ Respond to what was just said, and let topic changes happen naturally, without e
       if (mm) { try { mv = JSON.parse('"' + mm[1] + '"'); } catch (_) { mv = mm[1]; } }
     }
     mv = String(mv || '').trim();
-    out.moment = (mv || mph.length || mcs) ? { text: mv, photos: mph, chatShot: mcs } : null;
+    const mo = obj && !Array.isArray(obj) && obj.moment && typeof obj.moment === 'object' ? obj.moment : {};
+    out.moment = (mv || mph.length || mcs) ? { text: mv, photos: mph, chatShot: mcs, shotN: Number(mo.shotN || (obj && obj.shotN)) || undefined, shotTitle: String(mo.shotTitle || (obj && obj.shotTitle) || '').trim().slice(0, 20) } : null;
     out.shot = !!(obj && !Array.isArray(obj) && (obj.shot === true || obj.shot === 'true'));
+    out.shotN = obj && !Array.isArray(obj) ? (Number(obj.shotN) || undefined) : undefined;
+    out.shotTitle = obj && !Array.isArray(obj) ? String(obj.shotTitle || '').trim().slice(0, 20) : '';
     // 互动：JSON 正常时直接读；解析失败时逐条从原文里捞出 {"postId"...} 对象
     let miRaw = (obj && !Array.isArray(obj) && Array.isArray(obj.momentInteractions)) ? obj.momentInteractions : null;
     if (!miRaw && obj == null) {
@@ -680,7 +683,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
       `这次发的概率约为 ${pct}%。刚发过的内容不要重复，也不要每次都用同样的句式。`,
       '朋友圈内容要像真人平时随手发的那样，简短自然，不解释，不使用任何符号。'
     ];
-    lines.push('发新朋友圈时，你还可以把你们的聊天室截图发出来：在 JSON 里写 "chatShot":true，text 作为截图上方的配文；不截图写 false。');
+    lines.push('发新朋友圈时，你还可以把你们的聊天室截图发出来：在 JSON 里写 "chatShot":true，text 作为截图上方的配文；不截图写 false。若截图，另写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给对方的备注（截图顶部显示的名字）。');
     if (win.allowPhoto) lines.push('发新朋友圈时可以配照片：photos 字段是照片描述的数组，每张照片一句话，像真人随手拍的（如“窗边的咖啡”）。你自己决定发几张，可以 0 张，最多 9 张；不配照片就写空数组 []。');
     const feed = Array.isArray(win.feed) ? win.feed : [];
     if (feed.length) {
@@ -734,7 +737,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const rawPhotos = Array.isArray(o.photos) ? o.photos : (typeof o.photo === 'string' && o.photo.trim() ? [o.photo] : []);
     const photos = win.allowPhoto ? rawPhotos.map(x => String(x || '').trim().slice(0, 60)).filter(Boolean).slice(0, 9) : [];
     const chatShot = o.chatShot === true || o.chatShot === 'true';
-    return { post, text, photos, chatShot, comments, vis, visTo, interactions };
+    return { post, text, photos, chatShot, shotN: Number(o.shotN) || undefined, shotTitle: String(o.shotTitle || '').trim().slice(0, 20), comments, vis, visTo, interactions };
   }
   window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentBatchWordReply, momentDmReply, momentAutoPost };
 })();
