@@ -3079,12 +3079,15 @@ async function pullReply() {
     c._typing = true; renderChats();
     try {
         const countDesc = o.min === o.max ? `本次对话台词气泡必须精确输出 ${o.min} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）` : `本次对话台词气泡必须输出 ${o.min} 到 ${o.max} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）`;
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。' : '') + narrInstruction();
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0), oldMomentFeedOf(c));
         const heart = replies.heart || null;
-        if (replies.moment && (replies.moment.text || (replies.moment.photos || []).length) && mfAllowed(c)) postContactMoment(c, replies.moment.text, [], { photos: replies.moment.photos || [] });
+        if (replies.moment && (replies.moment.text || (replies.moment.photos || []).length || replies.moment.chatShot) && mfAllowed(c)) {
+            const shotKey = replies.moment.chatShot ? await saveChatShot(c) : null;
+            postContactMoment(c, replies.moment.text, [], { photos: replies.moment.photos || [], chatShot: !!replies.moment.chatShot && !shotKey, chatShotKey: shotKey });
+        }
         const acted = applyChatMomentInteractions(c, replies.momentInteractions || []) || [];
         if (acted.length) notePosterDone(acted);
         c._typing = false;
@@ -6147,8 +6150,9 @@ async function saveChatShot(c) {
     try {
         const url = await captureChatShot(c);
         const key = 'mshot_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-        if (window.DB && await window.DB.save(key, url)) { MOMENT_IMG_CACHE[key] = url; return key; }
+        if (window.DB && await window.DB.save(key, url)) { MOMENT_IMG_CACHE[key] = url; toast('聊天室截图已发布'); return key; }
     } catch (e) { console.warn('[聊天室截图]', e); }
+    toast('截图失败，已改用模拟卡片');
     return null;
 }
 /* 聊天室截图卡片：模拟聊天室样式（顶部对方名字，我方黑色靠右，对方浅灰靠左） */

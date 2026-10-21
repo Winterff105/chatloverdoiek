@@ -5406,3 +5406,8 @@
 
 /* 邮票内侧虚线框（定稿样式） */
 .messages-app .mf-stamp::before{ content:""; position:absolute; inset:5px; border:1px dashed rgba(0,0,0,.22); border-radius:1px; pointer-events:none; }
+
+/* 调取中的旋转图标：居中于胶囊 */
+.messages-app .send-capsule.pulling{ justify-content:center !important; }
+.messages-app .send-capsule.pulling .pull{ width:auto !important; padding:0 !important; flex:0 0 auto; display:flex !important; align-items:center; justify-content:center; margin:0 auto; }
+.messages-app .send-capsule.pulling .pull svg{ display:block; margin:0 auto; }

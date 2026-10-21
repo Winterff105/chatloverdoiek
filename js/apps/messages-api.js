@@ -233,16 +233,18 @@ Respond to what was just said, and let topic changes happen naturally, without e
     // moment 兼容字符串、{text} / {content} 对象；JSON 解析失败时从原文里捞出 "moment" 字符串
     let mv = '';
     let mph = [];
+    let mcs = false;
     if (obj && !Array.isArray(obj)) {
       const m = obj.moment;
       mv = typeof m === 'string' ? m : (m && typeof m === 'object' ? (m.text || m.content || '') : '');
       if (m && typeof m === 'object' && Array.isArray(m.photos)) mph = m.photos.map(x => String(x || '').trim().slice(0, 60)).filter(Boolean).slice(0, 9);
+      if (m && typeof m === 'object' && (m.chatShot === true || m.chatShot === 'true')) mcs = true;
     } else if (obj == null) {
       const mm = t.match(/"moment"\s*:\s*"((?:[^"\\]|\\.)*)"/);
       if (mm) { try { mv = JSON.parse('"' + mm[1] + '"'); } catch (_) { mv = mm[1]; } }
     }
     mv = String(mv || '').trim();
-    out.moment = (mv || mph.length) ? { text: mv, photos: mph } : null;
+    out.moment = (mv || mph.length || mcs) ? { text: mv, photos: mph, chatShot: mcs } : null;
     // 互动：JSON 正常时直接读；解析失败时逐条从原文里捞出 {"postId"...} 对象
     let miRaw = (obj && !Array.isArray(obj) && Array.isArray(obj.momentInteractions)) ? obj.momentInteractions : null;
     if (!miRaw && obj == null) {
