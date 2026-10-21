@@ -5477,3 +5477,13 @@
 .messages-app .sc-bub::after{ display:none !important; }
 /* 角色（右边）：实色边框 + 半透明底色 */
 .messages-app .sc-row.me .sc-bub{ background:rgba(17,17,17,.12) !important; color:#111 !important; border:1px solid #111 !important; }
+
+/* 记忆里的聊天记录：背景纯白，对方气泡无色调灰，角色气泡纯黑 */
+.messages-app .mem-chatlog{ background:#FFFFFF !important; }
+.messages-app #memPage .mem-chatlog{ background:#FFFFFF !important; }
+.messages-app #memPage .mem-cl-row:not(.self) .mem-cl-bub{ background:#EEEEEE !important; }
+.messages-app #memPage .mem-cl-row.self .mem-cl-bub{ background:#111111 !important; }
+
+/* 聊天记录截图：气泡纵向缩短；角色气泡纯黑 */
+.messages-app .sc-bub{ padding-top:3px !important; padding-bottom:3px !important; }
+.messages-app .sc-row.me .sc-bub{ background:#111111 !important; color:#FFFFFF !important; border:1px solid #111111 !important; }
