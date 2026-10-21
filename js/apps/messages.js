@@ -3124,7 +3124,9 @@ async function pullReply() {
         const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0), oldMomentFeedOf(c));
         const heart = replies.heart || null;
         if (replies.moment && (replies.moment.text || (replies.moment.photos || []).length || replies.moment.chatShot) && mfAllowed(c)) {
-            const shotKey = replies.moment.chatShot ? await saveChatShot(c) : null;
+            let shotKey = null;
+            try { shotKey = replies.moment.chatShot ? await saveChatShot(c) : null; }
+            catch (err) { console.warn('[截图]', err); toast('截图出错：' + describeErr(err)); }
             postContactMoment(c, replies.moment.text, [], { photos: replies.moment.photos || [], chatShot: !!replies.moment.chatShot && !shotKey, chatShotKey: shotKey });
         }
         const acted = applyChatMomentInteractions(c, replies.momentInteractions || []) || [];
@@ -6135,8 +6137,14 @@ function hydrateMomentImages() {
 }
 
 /* API 报错弹窗：显示接口返回的原始内容 */
+/* 把任意抛出的东西变成可读的文字（不再只显示“未知错误”） */
+function describeErr(e) {
+    if (e instanceof Error) return (e.name || 'Error') + ': ' + (e.message || '(无消息)') + (e.stack ? '\n' + String(e.stack).split('\n').slice(0, 3).join('\n') : '');
+    if (e && typeof e === 'object') { if (e.message) return String(e.message); try { return JSON.stringify(e).slice(0, 300); } catch (_) { return Object.prototype.toString.call(e); } }
+    return e === undefined ? '抛出了 undefined（没有错误信息）' : (e === null ? '抛出了 null（没有错误信息）' : String(e));
+}
 function showApiError(e) {
-    const msg = String((e && e.message) || e || '未知错误');
+    const msg = describeErr(e);
     const root = document.querySelector('.messages-app');
     if (!root) { toast(msg); return; }
     const old = document.getElementById('apiErrMask'); if (old) old.remove();
