@@ -5312,3 +5312,6 @@
 .messages-app .toast{
     padding:6px 14px !important; font-size:12px !important; line-height:1.2 !important;
 }
+
+/* ===== 朋友圈大头像下方名字：上移 4px，紧贴头像下方，不被头像遮住 ===== */
+.messages-app .mf-name{ padding-top:18px !important; }
