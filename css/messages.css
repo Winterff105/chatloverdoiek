@@ -5256,12 +5256,12 @@
 
 /* ===== 最终微调：底栏恢复原尺寸；仅保留其他黑色胶囊的压矮处理 ===== */
 .messages-app .tabbar:not(.glass) .capsule{
-    height:28px !important; min-height:28px !important; padding:0 6px !important;
+    height:40px !important; min-height:40px !important; padding:0 8px !important;
 }
 .messages-app .tabbar:not(.glass) .tab{
-    width:40px !important; height:28px !important; min-height:28px !important;
+    width:46px !important; height:42px !important; min-height:42px !important;
 }
-.messages-app .tabbar:not(.glass) .tab svg{ width:17px !important; height:17px !important; }
+.messages-app .tabbar:not(.glass) .tab svg{ width:19px !important; height:19px !important; }
 .messages-app .tabbar.glass .capsule{
     height:56px !important; min-height:56px !important; padding:0 10px !important;
 }
