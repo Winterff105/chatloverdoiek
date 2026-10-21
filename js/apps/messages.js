@@ -48,6 +48,7 @@ function postContactMoment(c, text, comments, meta) {
     else if (meta && meta.chatShot) { post.chatShot = snapshotChatRoom(c); post.chatShotWith = dispName(c); persistMoments(); renderMoments(); }
     const excerpt = (text || '').trim() || '一张照片';
     addCommonMemory(c, `{char}发了一条朋友圈（${excerpt}）`, post.id);
+    if (c.memories && c.memories[0]) c.memories[0].postLink = post.id;
     persistContacts();
     if (Array.isArray(comments)) return applyAutoComments(post, comments);
     scheduleMomentFetch(post);
@@ -867,8 +868,11 @@ function deleteContact() {
     if (!editingContactId) return;
     const gone = CONTACTS.find(c => c.id === editingContactId);
     if (gone) { DELETED_NAMES[gone.id] = gone.name; saveDeletedNames(); }
+    const keys = [];
+    POSTS.filter(p => p.by === editingContactId).map(p => p.id).forEach(pid => keys.push(...dropPostLocal(pid)));
     CONTACTS = CONTACTS.filter(c => c.id !== editingContactId);
-    persistContacts();
+    persistContacts(); persistMoments(); renderMoments();
+    removeDbKeys(keys);
     toast('联系人已删除');
     closeContactEditor();
     renderContacts();
@@ -1335,7 +1339,42 @@ function memDeletePreset() {
     m.presetIdx = -1; m.instr = DEFAULT_SUMMARY_INSTR;
     persistContacts(); memSetInstrText(m.instr); memRenderPresetBar(); toast('已删除预设');
 }
-function memDelete(id) { const c = curMemContact(); if (!c) return; c.memories = (c.memories || []).filter(y => y.id !== id); persistContacts(); memRenderBody(); }
+/* 朋友圈 ⇄ 记忆：角色发朋友圈时写入的那条记忆与朋友圈绑定 */
+function isPostMemory(m) {
+    return !!(m && m.src && (m.postLink || /^\{char\}发了一条朋友圈（/.test(m.text || '')));
+}
+/* 只在内存里移除一条朋友圈及其关联记忆、聊天提示，返回需要从数据库删除的照片 key */
+function dropPostLocal(pid) {
+    const p = POSTS.find(x => x.id === pid);
+    if (!p) return [];
+    CONTACTS.forEach(x => {
+        if (x.memories) x.memories = x.memories.filter(m => m.src !== pid);
+        if (Array.isArray(x.msgs)) x.msgs = x.msgs.filter(m => !(m.momentEvent && String(m.momentPostId || '') === String(pid)));
+    });
+    POSTS = POSTS.filter(x => x.id !== pid);
+    return [...(p.imgs || []), ...(p.chatShotKey ? [p.chatShotKey] : [])];
+}
+async function removeDbKeys(keys) {
+    if (!window.DB) return;
+    for (const k of keys) await window.DB.remove(k);
+}
+function removePostCascade(pid) {
+    const keys = dropPostLocal(pid);
+    persistContacts(); persistMoments(); renderMoments(); renderChats();
+    if (activeId) renderThread({ noAnim: true });
+    removeDbKeys(keys);
+}
+function memDelete(id) {
+    const c = curMemContact(); if (!c) return;
+    const m = (c.memories || []).find(y => y.id === id);
+    if (isPostMemory(m) && POSTS.some(p => p.id === m.src)) {
+        askConfirm('删除记忆', '这条记忆对应一条朋友圈，删除后朋友圈也会一起删掉。', '删除', () => {
+            removePostCascade(m.src); memRenderBody();
+        });
+        return;
+    }
+    c.memories = (c.memories || []).filter(y => y.id !== id); persistContacts(); memRenderBody();
+}
 
 /* ---------------- 长按消息菜单：编辑 / 复制 / 删除 / 多选 ---------------- */
 function mmHost() { return document.querySelector('.messages-app'); }
@@ -6160,7 +6199,7 @@ async function saveChatShot(c) {
     // 数据库写不进去：只留在内存里，本次运行有效，刷新后图片会消失
     if (lastUrl) {
         MOMENT_IMG_CACHE[key] = lastUrl;
-        toast('数据库写入失败，截图只保存在本次运行中，刷新后会消失');
+        toast('数据库写入失败（' + String((window.DB && DB.lastError) || '原因未知').slice(0, 80) + '），截图只保存在本次运行中');
         return key;
     }
     toast('截图失败：' + String((lastErr && lastErr.message) || lastErr).slice(0, 60) + '，已改用模拟卡片');

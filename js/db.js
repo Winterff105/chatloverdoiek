@@ -15,11 +15,12 @@ const DB = {
         if (this.dbInstance) return Promise.resolve(this.dbInstance);
         if (this._opening) return this._opening;
         this._opening = new Promise((resolve) => {
-            if (!('indexedDB' in window)) { resolve(null); return; }
+            if (!('indexedDB' in window)) { this.lastError = 'IndexedDB 不存在（当前环境不支持）'; resolve(null); return; }
             let req;
             try {
                 req = indexedDB.open(this.dbName, this.version);
             } catch (e) {
+                this.lastError = 'indexedDB.open 抛错: ' + ((e && e.name) || '') + ' ' + ((e && e.message) || '');
                 resolve(null);
                 return;
             }
@@ -35,7 +36,8 @@ const DB = {
                 this._requestPersist();
                 resolve(db);
             };
-            req.onerror = () => resolve(null);
+            req.onerror = () => { this.lastError = 'indexedDB.open 失败: ' + ((req.error && req.error.name) || 'unknown') + ' ' + ((req.error && req.error.message) || ''); resolve(null); };
+            req.onblocked = () => { this.lastError = 'indexedDB 被其他页面阻塞'; };
         });
         // 打开失败时允许下一次调用重试
         this._opening.then((db) => { if (!db) this._opening = null; });
@@ -90,7 +92,7 @@ const DB = {
     async saveLarge(key, value) {
         try {
             const db = await this.init();
-            if (!db) return false;
+            if (!db) { this.lastError = this.lastError || 'IndexedDB 无法打开'; return false; }
             await new Promise((resolve, reject) => {
                 const tx = db.transaction(this.storeName, 'readwrite');
                 tx.objectStore(this.storeName).put(value, key);
@@ -98,9 +100,11 @@ const DB = {
                 tx.onerror = () => reject(tx.error);
                 tx.onabort = () => reject(tx.error || new Error('transaction aborted'));
             });
+            this.lastError = '';
             return true;
         } catch (e) {
-            console.warn('[DB] 大文件保存失败:', key, e && e.name);
+            this.lastError = '写入失败: ' + ((e && e.name) || '') + ' ' + ((e && e.message) || '');
+            console.warn('[DB] 大文件保存失败:', key, this.lastError);
             return false;
         }
     },
