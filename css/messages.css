@@ -5458,3 +5458,22 @@
 .cd-io{ position:fixed; left:50%; bottom:calc(22px + env(safe-area-inset-bottom,0px)); transform:translateX(-50%); display:flex; gap:18px; z-index:10; }
 .cd-io-btn{ width:46px; height:46px; border-radius:50%; border:0; background:#111; color:#fff; display:grid; place-items:center; box-shadow:0 6px 16px rgba(0,0,0,.2); cursor:pointer; padding:0; }
 .cd-io-btn:active{ transform:scale(.94); }
+
+/* 禁用词弹窗：去掉双闪动画，改为平滑淡入 */
+@keyframes cdOverlayFade{from{opacity:0}to{opacity:1}}
+@keyframes cdPanelFade{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
+.cd-settings-overlay.is-visible{animation:cdOverlayFade .2s ease-out both !important;}
+.cd-settings-overlay.is-visible .cd-settings{animation:cdPanelFade .22s ease-out both !important;}
+
+/* 两个圆按钮上移 */
+.cd-io{ bottom:calc(96px + env(safe-area-inset-bottom,0px)) !important; }
+
+/* 聊天记录（记忆）：黑气泡里的文字用白色，覆盖 #memPage * 的全局颜色 */
+.messages-app #memPage .mem-cl-row.self .mem-cl-bub{ color:#FFFFFF !important; }
+.messages-app #memPage .mem-cl-row:not(.self) .mem-cl-bub{ color:#111111 !important; }
+
+/* 聊天记录截图：气泡改为纯方形，去掉小圆点尾巴 */
+.messages-app .sc-bub{ border-radius:0 !important; }
+.messages-app .sc-bub::after{ display:none !important; }
+/* 角色（右边）：实色边框 + 半透明底色 */
+.messages-app .sc-row.me .sc-bub{ background:rgba(17,17,17,.12) !important; color:#111 !important; border:1px solid #111 !important; }
