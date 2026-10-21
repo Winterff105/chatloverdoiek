@@ -18,6 +18,7 @@ function mfLoad() {
         on: c.on !== false,
         pct: typeof c.pct === 'number' ? c.pct : 30,
         maxH: typeof c.maxH === 'number' ? c.maxH : 24,
+        img: c.img !== false,
         per: c.per || {}
     };
 }
@@ -38,7 +39,8 @@ function mfLastPostH(c) {
 }
 
 function postContactMoment(c, text, comments, meta) {
-    const post = { id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5), text, t: Date.now(), by: c.id, vis: (meta && meta.vis) || 'all', visTo: ((meta && meta.visTo) || []).map(n => (CONTACTS.find(x => x.name === n) || {}).id).filter(Boolean), likes: [], comments: [], imgs: [], interactionFetched: false };
+    const photos = ((meta && meta.photos) || []).map(x => String(x || '').trim()).filter(Boolean).slice(0, 9);
+    const post = { id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5), text, t: Date.now(), by: c.id, vis: (meta && meta.vis) || 'all', visTo: ((meta && meta.visTo) || []).map(n => (CONTACTS.find(x => x.name === n) || {}).id).filter(Boolean), likes: [], comments: [], imgs: [], imgDesc: photos, interactionFetched: false };
     POSTS.unshift(post);
     persistMoments();
     renderMoments();
@@ -126,7 +128,7 @@ async function momentSyncAll() {
         for (const c of CONTACTS) {
             if (!mfAllowed(c)) continue;
             const lastH = mfLastPostH(c);
-            const pct = Math.round(mfPctOf(c) * (lastH !== null && lastH < 24 ? 0.4 : 1));
+            const pct = Math.round(mfPctOf(c));
             // 概率由代码掷骰子决定：中了才让模型发新朋友圈；没中也可能回看旧朋友圈做点赞评论
             const hitPost = Math.random() * 100 < pct;
             // 联系人之间没有世界连线时，互相不可见，也不能互相评论或回复。
@@ -138,9 +140,9 @@ async function momentSyncAll() {
                 commentItems: (p.comments || []).slice(-8).map(cm => ({ name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }))
             })) : [];
             if (!hitPost && !feed.length) continue;
-            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, allowPhoto: cfg.img !== false, decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
             if (r && (r.post || (r.interactions && r.interactions.length))) {
-                if (r.post && r.text) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo }));
+                if (r.post && (r.text || (r.photos && r.photos.length))) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo, photos: r.photos || [] }));
                 const byId = new Map(POSTS.map(p => [p.id, p]));
                 (r.interactions || []).forEach(it => {
                     const p = byId.get(String(it.postId || '').trim());
@@ -186,7 +188,7 @@ function mfSliderHTML(k, f, label, val, lo, hi, unit, first) {
 }
 function mfBlockHTML(k, v) {
     return mfSliderHTML(k, 'pct', '发布概率 <button class="mf-info mf-pct-info" data-mf-info aria-label="说明">!</button>', v.pct, 0, 100, '%', true)
-         + '<div class="mf-note" hidden>每次调取时，联系人按这个概率考虑要不要发朋友圈，最终还是要看聊天记录。24 小时内刚发过的，概率会自动降低，避免总是同一个人在发。</div>'
+         + '<div class="mf-note" hidden>每次调取时，联系人按这个概率考虑要不要发朋友圈，最终还是要看聊天记录。</div>'
          + `<div class="mf-extra-row"><span>允许回看旧朋友圈</span><button class="mf-info" data-mf-old-info aria-label="会消耗额度">!</button><button class="mf-tg ${v.oldOn !== false ? 'on' : ''}" data-mf-old-tg="${k}" aria-label="允许回看旧朋友圈"></button></div>`
          + '<div class="mf-note" data-mf-old-note hidden>开启后，聊天过程中或空闲调取时，可能额外调用模型，让该联系人随机点赞或评论以前可见的朋友圈，会消耗 API 额度。</div>';
 }
@@ -212,6 +214,7 @@ function renderMomentFreq() {
           <div class="mf-row"><div class="mf-row-text"><div class="mf-row-t">允许联系人自主发朋友圈</div></div>
             <button class="mf-tg ${cfg.on ? 'on' : ''}" data-mf-tg="global" aria-label="开关"></button></div>
           ${mfBlockHTML('global', g)}
+          <div class="mf-extra-row"><span>允许发图片</span><button class="mf-tg ${cfg.img !== false ? 'on' : ''}" data-mf-img-tg="1" aria-label="允许发图片"></button></div>
         </div>
         <div class="mf-label">每个联系人</div>
         <div class="mf-panel">${CONTACTS.length ? CONTACTS.map((c, i) => (i ? '<div class="mf-dash-line"></div>' : '') + mfRowHTML(c, cfg)).join('') : '<div class="mf-empty">还没有联系人</div>'}</div>
@@ -258,6 +261,8 @@ function mfInit() {
             }
             const info = e.target.closest('[data-mf-old-info]');
             if (info) { const n = info.closest('.mf-ctc, .mf-panel').querySelector('[data-mf-old-note]'); if (n) n.hidden = !n.hidden; return; }
+            const im = e.target.closest('[data-mf-img-tg]');
+            if (im) { const cfg = mfLoad(); cfg.img = cfg.img === false; mfSave(cfg); renderMomentFreq(); return; }
             const t = e.target.closest('[data-mf-tg]'); if (!t) return;
             const cfg = mfLoad(), k = t.dataset.mfTg;
             if (k === 'global') cfg.on = !cfg.on;
@@ -5992,6 +5997,7 @@ function clearMomentVis() {
 
 /* ---------------- 朋友圈：真正的照片上传 ---------------- */
 let PENDING_IMGS = [];            // 发布前选好的照片（压缩后的 dataURL）
+let PENDING_DESCS = [];           // 与 PENDING_IMGS 一一对应的照片描述（可为空）
 const MOMENT_IMG_CACHE = {};      // 已经从数据库读出来的照片
 function renderPendingPhotos() {
     const box = document.getElementById('mcPhotos');
@@ -6002,6 +6008,7 @@ function renderPendingPhotos() {
 }
 function removePendingPhoto(i) {
     PENDING_IMGS.splice(i, 1);
+    PENDING_DESCS.splice(i, 1);
     renderPendingPhotos();
 }
 function pickMomentPhotos() {
@@ -6014,12 +6021,37 @@ function pickMomentPhotos() {
     input.onchange = async () => {
         const files = Array.from(input.files || []).slice(0, room);
         for (const f of files) {
-            try { PENDING_IMGS.push(await compressImage(f, 1200)); }
+            try {
+                const img = await compressImage(f, 1200);
+                const d = window.prompt('给这张照片写一句描述（可留空）', '');
+                PENDING_IMGS.push(img);
+                PENDING_DESCS.push(String(d || '').trim().slice(0, 80));
+            }
             catch (e) { toast('有一张照片读取失败'); }
         }
         renderPendingPhotos();
     };
     input.click();
+}
+function openMomentPhoto(pid, i) {
+    const p = POSTS.find(x => x.id === pid);
+    if (!p) return;
+    const key = (p.imgs || [])[i];
+    const desc = (p.imgDesc || [])[i] || '';
+    if (!key && !desc) return;
+    const old = document.getElementById('mfPhotoView'); if (old) old.remove();
+    const root = document.querySelector('.messages-app') || document.body;
+    const m = document.createElement('div');
+    m.id = 'mfPhotoView'; m.className = 'mf-pv';
+    m.innerHTML = `<div class="mf-pv-card"><div class="mf-pv-img"><img alt=""></div>${desc ? `<div class="mf-pv-desc">（${esc(desc)}）</div>` : ''}</div>`;
+    m.addEventListener('click', () => m.remove());
+    root.appendChild(m);
+    const img = m.querySelector('img');
+    if (!key) { m.querySelector('.mf-pv-img').innerHTML = '<div class="mf-tk-ph mf-pv-ph"><span>照片</span></div>'; return; }
+    if (MOMENT_IMG_CACHE[key]) { img.src = MOMENT_IMG_CACHE[key]; return; }
+    Promise.resolve(window.DB ? window.DB.load(key, '') : '').then(v => {
+        if (v) { MOMENT_IMG_CACHE[key] = v; img.src = v; }
+    });
 }
 function hydrateMomentImages() {
     if (!window.DB) return;
@@ -6063,7 +6095,10 @@ function renderMoments() {
         const imgs = p.imgs || [];
         const liked = likes.indexOf(ACTIVE_ID) >= 0;
         const preview = cmts.slice(0, 2).map((c, ci) => `<div class="mf-cmt-line" data-pid="${p.id}" data-ci="${ci}">${cmtNameHtml(c)}<span class="mf-cmt-time">${fmtMoment(c.t)}</span><span class="mf-cmt-text">${mentionHtml(c.text)}</span></div>`).join('');
-        const photos = imgs.length ? `<div class="mf-imgs n${Math.min(imgs.length, 3)}">${imgs.map(k => `<img class="mf-img" data-mkey="${k}" alt="">`).join('')}</div>` : '';
+        const descs = p.imgDesc || [];
+        const cnt = Math.max(imgs.length, descs.length);
+        const tickets = Array.from({ length: cnt }, (_, ii) => ({ k: imgs[ii], d: descs[ii] }));
+        const photos = cnt ? `<div class="mf-tickets">${tickets.map((t, ii) => `<div class="mf-ticket" onclick="openMomentPhoto('${p.id}', ${ii})">${t.d ? `<div class="mf-tk-desc">（${esc(t.d)}）</div>` : ''}<div class="mf-tk-img${t.k ? '' : ' mf-tk-ph'}">${t.k ? `<img data-mkey="${t.k}" alt="">` : '<span>照片</span>'}</div></div>`).join('')}</div>` : '';
         const cmtOpen = MOMENT_CMT_OPEN[p.id] !== undefined ? MOMENT_CMT_OPEN[p.id] : cmts.length > 0;
         const inlineBar = MOMENT_INPUT_OPEN[p.id] ? `<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="${esc(momentInlinePh(p.id))}"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div>` : '';
         const cmtBlock = cmtOpen
@@ -6130,7 +6165,7 @@ function openMomentComposer() {
     const who = momentAuthor(ACTIVE_ID);
     MOMENT_VIS = 'public';
     MOMENT_VIS_TO = [];
-    PENDING_IMGS = [];
+    PENDING_IMGS = []; PENDING_DESCS = [];
     m.querySelector('.fm-body').innerHTML = `
         <div class="mc-top"><span class="mc-title">${PLANE_SVG}<span>发朋友圈</span></span></div>
         <div class="mc-who">${momentAvatarHtml(who, 'sm')}<span class="mc-who-name">${esc(who.name)}</span></div>
@@ -6166,14 +6201,14 @@ async function publishMoment() {
     }
     const post = { id, text, t: Date.now(), by: ACTIVE_ID, vis: MOMENT_VIS,
         visTo: MOMENT_VIS === 'some' ? MOMENT_VIS_TO.filter(x => worldTiedPair(ACTIVE_ID, x)) : [],
-        likes: [], comments: [], imgs };
+        likes: [], comments: [], imgs, imgDesc: PENDING_DESCS.slice(0, imgs.length) };
     POSTS.unshift(post);
     noteMentionMemory(text, post.id, 'post');
     // 用户发帖本身也要进入能看到这条朋友圈的联系人共同记忆。
     const excerpt = momentTextWithNames(text).trim() || '一张照片';
     momentViewerList(post).forEach(c => addCommonMemory(c, `{user}在朋友圈发了一条动态（${excerpt}）`, post.id));
     persistContacts();
-    PENDING_IMGS = [];
+    PENDING_IMGS = []; PENDING_DESCS = [];
     persistMoments(); closeFullMask(); renderMoments(); toast('已发布');
     scheduleMomentFetch(post);   // 发完 3 秒后开始调取，能看到的联系人各回一个词
 }

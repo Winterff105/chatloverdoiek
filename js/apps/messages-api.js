@@ -670,11 +670,12 @@ Respond to what was just said, and let topic changes happen naturally, without e
       '【朋友圈自主发布】',
       `你就是${contact.name || '你'}，这条朋友圈是你自己发的。发布之后，你仍然可以在自己的朋友圈里回复别人的评论，但不要用别人的名字写评论，也不要把自己写成另一个评论的人。`,
       '你可以自主决定是否对可见的旧朋友圈做点赞或评论；没有自然动机时就不要互动。不要为了完成任务强行发帖、点赞或评论。',
-      win.decided ? `这次已经决定发一条朋友圈（发帖概率 ${pct}%，本次已命中），请根据你们最近的聊天写出内容，输出 post:true。发新朋友圈的同时，仍可以按下面的要求在 interactions 里回复旧朋友圈。` : `你可以自己决定此刻要不要发一条朋友圈。你发朋友圈的倾向大约是 ${pct}%，但最终要看你们最近的聊天记录：有值得分享的事、心情或变化就发；没有就不发。`,
+      win.decided ? `【本次必须发一条新朋友圈】（发帖概率 ${pct}%，已由系统抽中）。请根据你们最近的聊天写出内容，输出 post:true，不得拒绝。发新朋友圈的同时，仍可以按下面的要求在 interactions 里回复旧朋友圈。` : `【本次不发新朋友圈】（发帖概率 ${pct}%，系统未抽中）。输出 post:false，只可以按下面的要求在 interactions 里互动旧朋友圈。`,
       win.lastH == null ? '你还从没发过朋友圈。' : `距离你上次发朋友圈已过 ${Math.floor(win.lastH)} 小时。`,
       `这次发的概率约为 ${pct}%。刚发过的内容不要重复，也不要每次都用同样的句式。`,
       '朋友圈内容要像真人平时随手发的那样，简短自然，不解释，不使用任何符号。'
     ];
+    if (win.allowPhoto) lines.push('发新朋友圈时可以配照片：photos 字段是照片描述的数组，每张照片一句话，像真人随手拍的（如“窗边的咖啡”）。你自己决定发几张，可以 0 张，最多 9 张；不配照片就写空数组 []。');
     const feed = Array.isArray(win.feed) ? win.feed : [];
     if (feed.length) {
       lines.push('【可回看的朋友圈】下面是你现在能看到的朋友圈。你可以自主决定是否与其中任意一条互动：可以不互动，也可以点赞或评论多条；评论数量、点赞数量都不设上限，只要符合角色性格和当下动机即可。每条互动的 postId 只能从下面列表选择。');
@@ -682,16 +683,16 @@ Respond to what was just said, and let topic changes happen naturally, without e
       lines.push('你也可以在评论中艾特用户：使用固定标记 @[user]，不要把用户当前昵称写进标记；用户改名后仍按这个标记识别。');
       lines.push('【重要：旧朋友圈互动必须可执行】如果你决定评论已有朋友圈，必须把评论写进 interactions 数组，不能只在普通文字里说“我评论了”。postId 必须逐字复制下面 feed 中的 postId；不要改大小写、不要截断、不要写发布者名字代替 ID。每个旧朋友圈最多一条 interaction，但可以自由选择多条不同旧朋友圈。like=true 表示点赞，comment 写实际要显示的评论文字；只点赞时 comment 为空。即使不发新帖，post 也必须为 false，但 interactions 仍可有内容。只输出 JSON，不要解释、不要输出“我评论了”等额外文字。示例：{"post":false,"interactions":[{"postId":"m123","like":false,"comment":"今天也太有意思了","to":""}]}。');
     } else {
-      lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容"}；不发时格式：{"post":false}');
+      lines.push('只输出 JSON，不要任何其他文字。发布时格式：{"post":true,"text":"朋友圈内容","photos":["每张照片的描述"]（不配照片写 []）}；不发时格式：{"post":false}');
     }
     if (viewers.length) {
       lines.push('发布后，下面这些人也会看到这条朋友圈。你可以替他们决定要不要评论：每人最多一条，很短，像真人随手回的一句；不想评论的人就不要写。评论人的名字只能用下面列出的。');
       lines.push('可能评论的人：\n' + viewers.map(v => `- ${v.name}${v.persona ? `（${String(v.persona).slice(0, 80)}）` : ''}`).join('\n'));
       lines.push('【可见范围】由你自己决定这条朋友圈给谁看：all 所有人都能看；some 只给你指定的人看（名字写在 visTo 里，只能从上面列表选）；self 只有你自己看；user 只给用户看。');
       lines.push('评论只能来自能看到这条朋友圈的人：vis 为 self 或 user 时 comments 必须为空数组；vis 为 some 时评论人只能是 visTo 里的人。');
-      lines.push('只输出 JSON，不要任何其他文字。格式固定为：{"post":true或false,"text":"新朋友圈内容","vis":"all或some或self或user","visTo":["名字"],"comments":[{"name":"评论人名字","text":"评论内容"}],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。不发新帖时 post=false，但仍可通过 interactions 回复旧朋友圈；没有互动时 interactions 为空数组。');
+      lines.push('只输出 JSON，不要任何其他文字。格式固定为：{"post":true或false,"text":"新朋友圈内容","photos":["每张照片的描述"]（不配照片写 []）,"vis":"all或some或self或user","visTo":["名字"],"comments":[{"name":"评论人名字","text":"评论内容"}],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。不发新帖时 post=false，但仍可通过 interactions 回复旧朋友圈；没有互动时 interactions 为空数组。');
     } else {
-      lines.push('只输出 JSON，不要任何其他文字。格式固定为：{"post":true或false,"text":"新朋友圈内容","vis":"all或some或self或user","visTo":["名字"],"comments":[],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。');
+      lines.push('只输出 JSON，不要任何其他文字。格式固定为：{"post":true或false,"text":"新朋友圈内容","photos":["每张照片的描述"]（不配照片写 []）,"vis":"all或some或self或user","visTo":["名字"],"comments":[],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。');
     }
     const recent = Array.isArray(win.recentPosts) ? win.recentPosts.filter(Boolean).slice(0, 5) : [];
     if (recent.length) lines.push('你最近发过的朋友圈：\n' + recent.map(t => '- ' + String(t).slice(0, 60)).join('\n') + '\n这次换个说法，不要重复上面的词、句式和开头。');
@@ -724,7 +725,9 @@ Respond to what was just said, and let topic changes happen naturally, without e
     }
     const text = String(o.text || '').trim();
     const post = o.post === true || o.post === 'true';
-    return { post, text, comments, vis, visTo, interactions };
+    const rawPhotos = Array.isArray(o.photos) ? o.photos : (typeof o.photo === 'string' && o.photo.trim() ? [o.photo] : []);
+    const photos = win.allowPhoto ? rawPhotos.map(x => String(x || '').trim().slice(0, 60)).filter(Boolean).slice(0, 9) : [];
+    return { post, text, photos, comments, vis, visTo, interactions };
   }
   window.MessagesAPI = { config, isConfigured, replyFor, parseMessages, complete, momentReply, momentWordReply, momentBatchWordReply, momentDmReply, momentAutoPost };
 })();
