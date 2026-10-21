@@ -5270,17 +5270,17 @@
 }
 .messages-app .tabbar.glass .tab svg{ width:18px !important; height:18px !important; }
 .messages-app .send-capsule{
-    height:28px !important; min-height:28px !important; width:60px !important;
-    padding:0 3px !important;
+    height:40px !important; min-height:40px !important; width:68px !important;
+    padding:0 !important;
 }
 .messages-app .send-capsule .send,
 .messages-app .send-capsule .pull,
 .messages-app .send-capsule .nb-entry{
-    width:27px !important; height:28px !important; min-height:28px !important;
+    width:33px !important; height:40px !important; min-height:40px !important;
 }
-.messages-app .send-capsule .cap-split{ height:11px !important; }
-.messages-app .send-capsule.pulling{ width:86px !important; height:28px !important; }
-.messages-app .send-capsule.pulling .pull{ width:58px !important; }
+.messages-app .send-capsule .cap-split{ height:14px !important; }
+.messages-app .send-capsule.pulling{ width:108px !important; height:40px !important; }
+.messages-app .send-capsule.pulling .pull{ width:72px !important; }
 /* 玻璃底栏不受黑色底栏压缩规则影响，恢复原来的 56px 高度 */
 .messages-app .tabbar.glass .capsule{ height:56px !important; min-height:56px !important; }
 .messages-app .tabbar.glass .tab{ width:42px !important; height:42px !important; min-height:42px !important; }
