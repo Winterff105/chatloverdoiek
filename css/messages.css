@@ -4561,8 +4561,8 @@
     margin-left:20px; margin-right:20px; margin-bottom:7px;
     padding:7px 11px;
 }
-.messages-app #chatList .row .name{ position:relative; top:4px; }
-.messages-app #chatList .row .time{ position:relative; top:4px; }
+.messages-app #chatList .row .name{ position:relative; top:7px; }
+.messages-app #chatList .row .time{ position:relative; top:7px; }
 .messages-app #chatList .row .bottom{ margin-top:5px; }
 
 /* 底部导航、发送/调取按钮等黑色胶囊：只缩短纵向，不改横向比例 */
@@ -5252,3 +5252,31 @@
 
 .mv-row.mv-off{ opacity:.45; }
 .messages-app .mf-at{ color:#111; font-weight:600; }
+
+
+/* ===== 最终微调：黑色底部胶囊收至贴合内容；事件胶囊与对面气泡彻底分组 ===== */
+.messages-app .tabbar .capsule{
+    height:28px !important; min-height:28px !important; padding:0 6px !important;
+}
+.messages-app .tabbar .tab{
+    width:40px !important; height:28px !important; min-height:28px !important;
+}
+.messages-app .tabbar .tab svg{ width:17px !important; height:17px !important; }
+.messages-app .send-capsule{
+    height:28px !important; min-height:28px !important; width:60px !important;
+    padding:0 3px !important;
+}
+.messages-app .send-capsule .send,
+.messages-app .send-capsule .pull,
+.messages-app .send-capsule .nb-entry{
+    width:27px !important; height:28px !important; min-height:28px !important;
+}
+.messages-app .send-capsule .cap-split{ height:11px !important; }
+.messages-app .send-capsule.pulling{ width:86px !important; height:28px !important; }
+.messages-app .send-capsule.pulling .pull{ width:58px !important; }
+.messages-app .login-btn{ height:36px !important; min-height:36px !important; }
+.messages-app .persona-done,
+.messages-app .sync-done{ height:40px !important; min-height:40px !important; }
+.messages-app .moment-event-row{ margin:4px 0 !important; }
+.messages-app .moment-event-row + .mrow,
+.messages-app .mrow + .moment-event-row{ margin-top:4px !important; }

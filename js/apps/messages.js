@@ -94,16 +94,16 @@ function applyChatMomentInteractions(c, list) {
             p.comments.push({ by: c.id, text: String(it.comment), t: Date.now(), to: target ? target.id : undefined });
             recordCommentMemory(c, p, it.comment); acted = true;
         }
-        if (acted) { addMomentChatEvent(c, `${dispName(c)}在${dispName(momentAuthor(p.by))}的朋友圈下${it.comment ? '评论了' : '点赞了'}`); changed = true; actedAny = true; }
+        if (acted) { addMomentChatEvent(c, `${dispName(c)}在${dispName(momentAuthor(p.by))}的朋友圈下${it.comment ? '评论了' : '点赞了'}`, p.id); changed = true; actedAny = true; }
     });
     if (changed) { persistContacts(); persistMoments(); renderMoments(); }
     return actedAny ? [c] : [];
 }
 
-function addMomentChatEvent(c, text) {
+function addMomentChatEvent(c, text, postId) {
     if (!c || !text) return;
     c.msgs = c.msgs || [];
-    c.msgs.push({ me: false, text: String(text), t: nowTime(), ts: Date.now(), momentEvent: true });
+    c.msgs.push({ me: false, text: String(text), t: nowTime(), ts: Date.now(), momentEvent: true, momentPostId: postId ? String(postId) : '' });
     c.time = nowTime();
     if (activeId !== c.id) c.unread = (c.unread || 0) + 1;
     persistContacts();
@@ -165,7 +165,7 @@ async function momentSyncAll() {
                     // 旧朋友圈互动也必须进入聊天室胶囊；点赞和评论都算一次新事件。
                     if (didLike || didComment) {
                         const action = didLike && didComment ? '点赞并评论了' : (didLike ? '点赞了' : '评论了');
-                        addMomentChatEvent(c, `${dispName(c)}在${dispName(momentAuthor(p.by))}的朋友圈下${action}`);
+                        addMomentChatEvent(c, `${dispName(c)}在${dispName(momentAuthor(p.by))}的朋友圈下${action}`, p.id);
                         allCommenters.push(c);
                     }
                 });
@@ -2817,8 +2817,8 @@ function renderThread(opts) {
         // 不会接着上一轮的形状继续连在一起。
         const prev = c.msgs[i - 1] || null;
         const next = c.msgs[i + 1] || null;
-        const newGroup = !prev || prev.narr || prev.me !== m.me;
-        const lastInGroup = !next || next.narr || next.me !== m.me;
+        const newGroup = !prev || prev.narr || prev.momentEvent || prev.me !== m.me;
+        const lastInGroup = !next || next.narr || next.momentEvent || next.me !== m.me;
         const meta = lastInGroup ? `<span class="mt">${esc(m.t)}</span>` : '';
         const showAv = avo.scope === 'all' || newGroup;
         const hv = (i === heartIdx) ? `<span class="hv-stack"><span class="hv-line"></span>${HEART_SVG}</span>` : '';
@@ -6395,8 +6395,15 @@ function deleteMoment(id) {
             persistContacts();
         }
         if (p && p.imgs && window.DB) { for (const k of p.imgs) await window.DB.remove(k); }
+        // 用户删除朋友圈时，聊天室里由这条朋友圈产生的提示胶囊也一并移除。
+        CONTACTS.forEach(x => {
+            if (Array.isArray(x.msgs)) x.msgs = x.msgs.filter(m => !(m.momentEvent && String(m.momentPostId || '') === String(id)));
+        });
+        persistContacts();
         POSTS = POSTS.filter(x => x.id !== id);
         persistMoments(); renderMoments();
+        if (activeId) renderThread({ noAnim: true });
+        renderChats();
     });
 }
 
