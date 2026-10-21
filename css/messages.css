@@ -5257,11 +5257,15 @@
 /* ===== 最终微调：底栏恢复原尺寸；仅保留其他黑色胶囊的压矮处理 ===== */
 .messages-app .tabbar:not(.glass) .capsule{
     height:40px !important; min-height:40px !important; padding:0 8px !important;
+    border-radius:999px !important; background:#111 !important;
+    box-shadow:0 12px 26px rgba(0,0,0,.16) !important;
 }
 .messages-app .tabbar:not(.glass) .tab{
     width:46px !important; height:42px !important; min-height:42px !important;
+    border-radius:999px !important;
 }
-.messages-app .tabbar:not(.glass) .tab svg{ width:19px !important; height:19px !important; }
+.messages-app .tabbar:not(.glass) .tab svg{ width:19px !important; height:19px !important; stroke:#fff !important; }
+.messages-app .tabbar:not(.glass) .tab.on{ background:rgba(255,255,255,.14) !important; }
 .messages-app .tabbar.glass .capsule{
     height:56px !important; min-height:56px !important; padding:0 10px !important;
 }
