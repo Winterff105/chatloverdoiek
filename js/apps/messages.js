@@ -94,7 +94,7 @@ function applyChatMomentInteractions(c, list) {
             p.comments.push({ by: c.id, text: String(it.comment), t: Date.now(), to: target ? target.id : undefined });
             recordCommentMemory(c, p, it.comment); acted = true;
         }
-        if (acted) { addMomentChatEvent(c, `${c.name}在${momentAuthor(p.by).name}的朋友圈下${it.comment ? '评论了' : '点赞了'}`); changed = true; actedAny = true; }
+        if (acted) { addMomentChatEvent(c, `${dispName(c)}在${dispName(momentAuthor(p.by))}的朋友圈下${it.comment ? '评论了' : '点赞了'}`); changed = true; actedAny = true; }
     });
     if (changed) { persistContacts(); persistMoments(); renderMoments(); }
     return actedAny ? [c] : [];
@@ -165,7 +165,7 @@ async function momentSyncAll() {
                     // 旧朋友圈互动也必须进入聊天室胶囊；点赞和评论都算一次新事件。
                     if (didLike || didComment) {
                         const action = didLike && didComment ? '点赞并评论了' : (didLike ? '点赞了' : '评论了');
-                        addMomentChatEvent(c, `${c.name}在${momentAuthor(p.by).name}的朋友圈下${action}`);
+                        addMomentChatEvent(c, `${dispName(c)}在${dispName(momentAuthor(p.by))}的朋友圈下${action}`);
                         allCommenters.push(c);
                     }
                 });
