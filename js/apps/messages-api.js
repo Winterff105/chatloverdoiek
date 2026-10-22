@@ -411,7 +411,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
     const stealBlock = stealList.length ? [
       '【偷拍照片】只有在你这次写 moment（发朋友圈）时才用到。下面是用户的照片，每张后面标了附图序号（附图在对话最后）：',
       ...stealList.map((d, i) => `${i + 1}. ${String(d).slice(0, 30)}（见附图${i + 1}）`),
-      '如果你发的朋友圈是偷拍其中一张，就在 moment 里写 "steal":序号，photos 写那张照片的描述；想发自己的新照片就写 "steal":0，photos 写新照片的描述。photos 里不要把上面列表里的照片当成新照片来写。'
+      '如果你发的朋友圈是偷拍其中一张，就在 moment 里写 "steal":序号，photos 写那张照片的描述（约 ' + (Number(window.MESSAGES_PHOTO_WORDS) || 30) + ' 个字）；想发自己的新照片就写 "steal":0，photos 写新照片的描述（约 ' + (Number(window.MESSAGES_PHOTO_WORDS) || 30) + ' 个字）。photos 里不要把上面列表里的照片当成新照片来写。'
     ].join('\n') : '';
     const protocolFormatText = [
       FORMAT_PROMPT,
@@ -715,7 +715,7 @@ function userMsgWithImages(text, keys) {
       '朋友圈内容要像真人平时随手发的那样，简短自然，不解释，不使用任何符号。'
     ];
     lines.push('发新朋友圈时，你还可以把你们的聊天室截图发出来：在 JSON 里写 "chatShot":true，text 作为截图上方的配文；不截图写 false。若截图，另写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给对方的备注（截图顶部显示的名字）。');
-    if (win.allowPhoto) lines.push('发新朋友圈时可以配照片：photos 字段是照片描述的数组，每张照片一句话、约 15 个字，像真人随手拍的（如“窗边的咖啡”）。你自己决定发几张，可以 0 张，最多 9 张；不配照片就写空数组 []。');
+    if (win.allowPhoto) lines.push('发新朋友圈时可以配照片：photos 字段是照片描述的数组，每张照片一句话、约 ' + (Number(window.MESSAGES_PHOTO_WORDS) || 30) + ' 个字，像真人随手拍的（如“窗边的咖啡”）。你自己决定发几张，可以 0 张，最多 9 张；不配照片就写空数组 []。');
     const feed = Array.isArray(win.feed) ? win.feed : [];
     if (feed.length) {
       lines.push('【可回看的朋友圈】下面是你现在能看到的朋友圈。你可以自主决定是否与其中任意一条互动：可以不互动，也可以点赞或评论多条；评论数量、点赞数量都不设上限，只要符合角色性格和当下动机即可。每条互动的 postId 只能从下面列表选择。');

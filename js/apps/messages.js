@@ -14,11 +14,13 @@ const MF_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" str
 function mfLoad() {
     let c = null; try { c = JSON.parse(localStorage.getItem(MF_KEY) || 'null'); } catch (_) {}
     c = c || {};
+    window.MESSAGES_PHOTO_WORDS = typeof c.words === 'number' ? c.words : 30;
     return {
         on: c.on !== false,
         pct: typeof c.pct === 'number' ? c.pct : 30,
         maxH: typeof c.maxH === 'number' ? c.maxH : 24,
         img: c.img !== false,
+        words: typeof c.words === 'number' ? c.words : 30,
         per: c.per || {}
     };
 }
@@ -226,6 +228,7 @@ function renderMomentFreq() {
     const body = document.getElementById('mfBody');
     if (!body) return;
     const g = { pct: cfg.pct, oldOn: cfg.oldOn !== false };
+    window.MESSAGES_PHOTO_WORDS = cfg.words;
     body.innerHTML = `
         <div class="mf-label">全局默认</div>
         <div class="mf-panel">
@@ -233,6 +236,7 @@ function renderMomentFreq() {
             <button class="mf-tg ${cfg.on ? 'on' : ''}" data-mf-tg="global" aria-label="开关"></button></div>
           ${mfBlockHTML('global', g)}
           <div class="mf-extra-row"><span>允许发图片</span><button class="mf-tg ${cfg.img !== false ? 'on' : ''}" data-mf-img-tg="1" aria-label="允许发图片"></button></div>
+          ${mfSliderHTML('global', 'words', '照片字数', cfg.words, 5, 80, '字', false)}
         </div>
         <div class="mf-label">每个联系人</div>
         <div class="mf-panel">${CONTACTS.length ? CONTACTS.map((c, i) => (i ? '<div class="mf-dash-line"></div>' : '') + mfRowHTML(c, cfg)).join('') : '<div class="mf-empty">还没有联系人</div>'}</div>
@@ -1454,7 +1458,7 @@ function removePostCascade(pid) {
 function memDelete(id) {
     const c = curMemContact(); if (!c) return;
     const m = (c.memories || []).find(y => y.id === id);
-    if (isPostMemory(m) && POSTS.some(p => p.id === m.src)) {
+    if (m && m.src && POSTS.some(p => p.id === m.src)) {
         askConfirm('删除记忆', '这条记忆对应一条朋友圈，删除后朋友圈也会一起删掉。', '删除', () => {
             removePostCascade(m.src); memRenderBody();
         });
@@ -1935,7 +1939,7 @@ function openCdWordEdit(modal, row) {
         <div class="cd-edit-actions"><button type="button" class="cd-edit-cancel">取消</button><button type="button" class="cd-edit-save">保存</button></div>
     </div>`;
     document.body.appendChild(box);
-    requestAnimationFrame(() => requestAnimationFrame(() => box.classList.add('is-visible')));
+    void box.offsetWidth; box.classList.add('is-visible');
     const close = () => { box.classList.remove('is-visible'); setTimeout(() => box.remove(), 200); };
     box.querySelector('.cd-edit-cancel').onclick = close;
     box.addEventListener('click', e => { if (e.target === box) close(); });

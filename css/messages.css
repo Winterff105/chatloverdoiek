@@ -3883,13 +3883,14 @@
 
 .cd-edit-overlay{ position: fixed; inset: 0; z-index: 2147483100; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.28); opacity: 0; transition: opacity .2s ease; }
 .cd-edit-overlay.is-visible{ opacity: 1; }
+.cd-edit-overlay{ transform: translateZ(0); backface-visibility: hidden; will-change: opacity; }
 .cd-edit-card{ width: min(300px, 84vw); padding: 18px 18px 14px; border-radius: 22px; background: rgba(250,250,250,.97); box-shadow: 0 12px 36px rgba(0,0,0,.18); display: flex; flex-direction: column; gap: 12px; font-family: inherit; }
 .cd-edit-title{ font-size: 15px; font-weight: 600; color: #111; text-align: center; }
 .cd-edit-label{ display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: #6E6E76; text-align: center; }
 .cd-edit-input{ height: 36px; border-radius: 12px; border: 0.5px solid rgba(0,0,0,.14); padding: 0 12px; font-size: 14px; color: #111; background: #fff; outline: none; font-family: inherit; text-align: center; width: 100%; box-sizing: border-box; }
 .cd-edit-actions{ display: flex; justify-content: center; gap: 10px; margin-top: 4px; }
-.cd-edit-actions button{ height: 34px; padding: 0 16px; border-radius: 999px; border: 0.5px solid rgba(0,0,0,.12); background: #fff; color: #111; font-size: 13px; cursor: pointer; font-family: inherit; }
-.cd-edit-actions .cd-edit-save{ background: #111; color: #fff; border-color: #111; }
+.cd-edit-actions button{ height: 34px; padding: 0 16px; border-radius: 999px; border: 1px solid rgba(0,0,0,.28); background: rgba(255,255,255,.45); color: #111; font-size: 13px; cursor: pointer; font-family: inherit; }
+.cd-edit-actions .cd-edit-save{ background: rgba(255,255,255,.45); color: #111; border-color: rgba(0,0,0,.28); }
 
 /* 禁用词：词条保持完整，右侧「| 原因」限定宽度，超出部分末尾省略号 */
 #cdPromptSettings .cd-word-label{ display: flex; align-items: center; flex: 1 1 0; min-width: 0; overflow: hidden; white-space: nowrap; }
