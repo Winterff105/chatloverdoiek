@@ -16,30 +16,55 @@ const DB = {
         if (this._opening) return this._opening;
         this._opening = new Promise((resolve) => {
             if (!('indexedDB' in window)) { this.lastError = 'IndexedDB 不存在（当前环境不支持）'; resolve(null); return; }
-            let req;
-            try {
-                req = indexedDB.open(this.dbName, this.version);
-            } catch (e) {
-                this.lastError = 'indexedDB.open 抛错: ' + ((e && e.name) || '') + ' ' + ((e && e.message) || '');
-                resolve(null);
-                return;
-            }
-            req.onupgradeneeded = (e) => {
-                const db = e.target.result;
-                if (!db.objectStoreNames.contains(this.storeName)) db.createObjectStore(this.storeName);
-            };
-            req.onsuccess = (e) => {
-                const db = e.target.result;
-                // 版本升级或其他页面需要时主动让出连接，避免卡住
+            let settled = false;
+            const done = (db) => { if (settled) return; settled = true; resolve(db); };
+            const finish = (db) => {
                 db.onversionchange = () => { db.close(); this.dbInstance = null; this._opening = null; };
                 this.dbInstance = db;
                 this._requestPersist();
-                resolve(db);
+                done(db);
             };
-            req.onerror = () => { this.lastError = 'indexedDB.open 失败: ' + ((req.error && req.error.name) || 'unknown') + ' ' + ((req.error && req.error.message) || ''); resolve(null); };
-            req.onblocked = () => { this.lastError = 'indexedDB 被其他页面阻塞'; };
+            const openAt = (version) => {
+                let req;
+                try {
+                    req = version ? indexedDB.open(this.dbName, version) : indexedDB.open(this.dbName);
+                } catch (e) {
+                    this.lastError = 'indexedDB.open 抛错: ' + ((e && e.name) || '') + ' ' + ((e && e.message) || '');
+                    done(null); return;
+                }
+                req.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(this.storeName)) db.createObjectStore(this.storeName);
+                };
+                req.onsuccess = (e) => {
+                    const db = e.target.result;
+                    if (db.objectStoreNames.contains(this.storeName)) { finish(db); return; }
+                    // 旧数据库里没有我们的表：升一个版本把表建上
+                    const next = db.version + 1;
+                    db.close();
+                    openAt(next);
+                };
+                req.onerror = () => {
+                    const name = (req.error && req.error.name) || '';
+                    // 库里已经是更高版本（旧版本留下的）：不指定版本，直接打开现有的库
+                    if (name === 'VersionError' && version) { openAt(0); return; }
+                    this.lastError = 'indexedDB.open 失败: ' + name + ' ' + ((req.error && req.error.message) || '');
+                    done(null);
+                };
+                req.onblocked = () => {
+                    // 被其他标签页占着：最多等 6 秒，之后给出提示，下次调用再重试
+                    setTimeout(() => {
+                        if (!this.dbInstance && !settled) {
+                            this.lastError = 'indexedDB 被其他页面占用，请关闭其他标签页后刷新';
+                            this._opening = null;
+                            done(null);
+                        }
+                    }, 6000);
+                };
+            };
+            // 不指定版本号：打开任何已有版本的库；缺表时再自动升级
+            openAt(0);
         });
-        // 打开失败时允许下一次调用重试
         this._opening.then((db) => { if (!db) this._opening = null; });
         return this._opening;
     },
