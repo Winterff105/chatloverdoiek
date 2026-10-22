@@ -725,7 +725,7 @@ function userMsgWithImages(text, keys) {
     }
     if (win.stealable && win.stealable.length) {
       lines.push('【偷拍照片】下面是你能偷拍的照片（用户发过的朋友圈照片，或聊天里用户发来的照片），序号从 1 开始：\n' + win.stealable.map((d, i) => `${i + 1}. ${String(d).slice(0, 30)}`).join('\n'));
-      lines.push('如果你这次要发朋友圈（post:true），并想偷拍其中一张，就在 JSON 顶层加上 "steal":序号（例如 "steal":2），并在 photos 里写你自己对这张照片的描述（约 15 个字）；不偷就写 "steal":0。');
+      lines.push('如果你这次要发朋友圈（post:true），由你自己决定：想偷拍上面列表里的一张，就写 "steal":序号，photos 写那张照片的描述；想发自己拍的新照片，就写 "steal":0，photos 写新照片的描述。photos 里不要把列表里的照片当成新照片来写。');
     }
     const recent = Array.isArray(win.recentPosts) ? win.recentPosts.filter(Boolean).slice(0, 5) : [];
     if (recent.length) lines.push('你最近发过的朋友圈：\n' + recent.map(t => '- ' + String(t).slice(0, 60)).join('\n') + '\n这次换个说法，不要重复上面的词、句式和开头。');
