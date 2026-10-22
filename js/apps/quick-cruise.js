@@ -46,6 +46,9 @@
             let parsed = null;
             try { parsed = typeof body === 'string' ? JSON.parse(body) : body; } catch (_) {}
             const looksLikeModel = /chat\/completions|responses/i.test(url) && parsed && (parsed.messages || parsed.input || parsed.model);
+            if (looksLikeModel && window.__activePullAbort && init && !init.signal) {
+                init = Object.assign({}, init, { signal: window.__activePullAbort.signal });
+            }
             if (!looksLikeModel || !state.enabled) return rawFetch(input, init);
             const ctx = currentContext() || {};
             const rec = { id: 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), contactId: ctx.id || '', contactName: ctx.name || '', startedAt: Date.now(), seconds: null, status: '调取中', tokens: null, content: '', raw: '', model: parsed.model || '', request: parsed, response: null };
@@ -85,7 +88,7 @@
             #quickCruiseBall.qc-glow-right::after{display:none}
             #quickCruiseBall.qc-glow-left::after{left:-5px;background:radial-gradient(ellipse at left,rgba(255,255,255,.92) 0,rgba(255,255,255,.42) 38%,transparent 78%)}
             #quickCruisePresetPanel{position:fixed;z-index:2147483001;width:min(300px,calc(100vw - 20px));max-height:70vh;overflow:auto;padding:14px;color:#111;background:rgba(255,255,255,.78);border:1px solid rgba(255,255,255,.9);border-radius:20px;backdrop-filter:blur(20px);font:12px/1.4 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
-            .qcp-title{font-family:"Snell Roundhand","Segoe Script",cursive;font-size:23px;font-style:italic}.qcp-label{display:block;margin:8px 0 4px;font-size:10px;color:#555}.qcp-select,.qcp-input{width:100%;min-height:30px;border:1px solid rgba(0,0,0,.14);border-radius:9px;background:rgba(255,255,255,.65);padding:5px 8px;box-sizing:border-box}.qcp-row{display:flex;gap:6px;margin-top:8px}.qcp-btn{flex:1;border:0;border-radius:999px;padding:6px 8px;background:rgba(0,0,0,.1);font-size:11px}.qcp-btn.primary{background:#111;color:#fff}.qcp-hint{margin-top:8px;color:#666;font-size:10px}.qcp-dd{position:relative}.qcp-dd-btn{width:100%;min-height:30px;border:1px solid rgba(0,0,0,.14);border-radius:9px;background:rgba(255,255,255,.65);padding:5px 26px 5px 8px;box-sizing:border-box;text-align:left;font:inherit;color:#111;position:relative;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.qcp-dd-btn::after{content:"";position:absolute;right:11px;top:50%;width:5px;height:5px;border-right:1.5px solid #111;border-bottom:1.5px solid #111;transform:translateY(-70%) rotate(45deg)}.qcp-dd-list{margin-top:4px;max-height:180px;overflow:auto;border-radius:10px;background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.08);padding:4px}.qcp-dd-list[hidden]{display:none}.qcp-dd-item{padding:6px 8px;border-radius:7px;cursor:pointer;font-size:11px}.qcp-dd-item:hover{background:rgba(0,0,0,.06)}.qcp-dd-item.on{background:#111;color:#fff}
+            .qcp-title{font-family:"Snell Roundhand","Segoe Script",cursive;font-size:23px;font-style:italic}.qcp-label{display:block;margin:8px 0 4px;font-size:10px;color:#555}.qcp-select,.qcp-input{width:100%;min-height:30px;border:1px solid rgba(0,0,0,.14);border-radius:9px;background:rgba(255,255,255,.65);padding:5px 8px;box-sizing:border-box}.qcp-row{display:flex;gap:6px;margin-top:8px}.qcp-btn{flex:1;border:0;border-radius:999px;padding:6px 8px;background:rgba(0,0,0,.1);font-size:11px;cursor:pointer}.qcp-btn.primary{background:#111;color:#fff}.qcp-hint{margin-top:8px;color:#666;font-size:10px}.qcp-dd{position:relative}.qcp-dd-btn{width:100%;min-height:30px;border:1px solid rgba(0,0,0,.14);border-radius:9px;background:rgba(255,255,255,.65);padding:5px 26px 5px 8px;box-sizing:border-box;text-align:left;font:inherit;color:#111;position:relative;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.qcp-dd-btn::after{content:"";position:absolute;right:11px;top:50%;width:5px;height:5px;border-right:1.5px solid #111;border-bottom:1.5px solid #111;transform:translateY(-70%) rotate(45deg)}.qcp-dd-list{margin-top:4px;max-height:180px;overflow:auto;border-radius:10px;background:rgba(255,255,255,.92);border:1px solid rgba(0,0,0,.08);padding:4px}.qcp-dd-list[hidden]{display:none}.qcp-dd-item{padding:6px 8px;border-radius:7px;cursor:pointer;font-size:11px} .qcp-dd-item:hover{background:rgba(0,0,0,.06)}.qcp-dd-item.on{background:#111;color:#fff}.qcp-think-seg{display:flex;gap:5px;padding:3px;border-radius:999px;background:rgba(0,0,0,.06);border:1px solid rgba(0,0,0,.08);box-sizing:border-box}.qcp-think-btn{flex:1;border:0;border-radius:999px;padding:5px 0;background:transparent;color:#444;font-size:11px;font-weight:600;cursor:pointer;transition:all .18s ease;outline:none;-webkit-tap-highlight-color:transparent;text-align:center}.qcp-think-btn.on{background:#111;color:#fff;border-radius:999px;box-shadow:0 2px 8px rgba(0,0,0,.22)}
             #quickCruiseBall.qc-busy{animation:none}
             @keyframes qcPulse{50%{filter:none}}
             #quickCruisePanel{position:fixed;z-index:2147483000;width:min(300px,calc(100vw - 20px));max-height:72vh;background:rgba(20,20,24,.96);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:22px;box-shadow:0 20px 60px rgba(0,0,0,.42);backdrop-filter:blur(22px);display:none;overflow:hidden;font:13px/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif}
@@ -121,7 +124,7 @@
         panel.style.bottom = 'auto';
     }
     /* ---- 预设面板：只创建一次，之后只更新选项，不再整块重建（避免选择被重置） ---- */
-    let qcpSel = { preset: 0, model: '' };
+    let qcpSel = { preset: 0, model: '', thinking: '' };
     let qcpModelCache = {};
     /* 预设只认设置页存的那一份（每次都从存储读，不缓存） */
     function qcpPresets() {
@@ -130,10 +133,18 @@
     /* 按全局生效的 API 配置，把悬浮球面板的选择对齐（按名字匹配，不用索引） */
     function qcpSyncFromActive() {
         let act = null;
-        try { act = JSON.parse(localStorage.getItem('whatever_settings_active_api_v1') || 'null'); } catch (_) {}
+        try { act = JSON.parse(localStorage.getItem('whatever_settings_active_api_v1') || localStorage.getItem('forever_settings_active_api_v1') || 'null'); } catch (_) {}
         if (!act) return;
-        const idx = qcpPresets().findIndex(x => x.name === act.name);
-        if (idx >= 0) { qcpSel.preset = idx; qcpSel.model = act.model || ''; }
+        const presets = qcpPresets();
+        const idx = presets.findIndex(x => x.name === act.name);
+        if (idx >= 0) {
+            qcpSel.preset = idx;
+            qcpSel.model = act.model || presets[idx].model || '';
+            const th = act.thinking !== undefined ? act.thinking : presets[idx].thinking;
+            qcpSel.thinking = ['low', 'medium', 'high'].includes(th) ? th : '';
+        } else {
+            qcpSel.thinking = ['low', 'medium', 'high'].includes(act.thinking) ? act.thinking : '';
+        }
     }
     function qcpModelsFor(i, presets) {
         const x = presets[i] || {};
@@ -144,11 +155,47 @@
     function qcpDdHtml(key) {
         return `<div class="qcp-dd"><button type="button" class="qcp-dd-btn" data-dd-btn="${key}"></button><div class="qcp-dd-list" data-dd-list="${key}" hidden></div></div>`;
     }
+    function qcpApplyGlobal(presets, idx, useModel, useThinking, silent) {
+        const x = presets[idx];
+        if (!x) return;
+        const finalModel = useModel || x.model || '';
+        const finalThinking = ['low', 'medium', 'high'].includes(useThinking) ? useThinking : '';
+        const payloadObj = {
+            name: x.name,
+            url: x.url,
+            key: x.key,
+            model: finalModel,
+            temperature: (typeof x.temperature === 'number' && isFinite(x.temperature)) ? x.temperature : 0.8,
+            thinking: finalThinking,
+            updatedAt: Date.now()
+        };
+        const payload = JSON.stringify(payloadObj);
+        try {
+            localStorage.setItem('whatever_settings_active_api_v1', payload);
+            localStorage.setItem('forever_settings_active_api_v1', payload);
+        } catch (_) {}
+        const list = qcpPresets();
+        const at = list.findIndex(y => y.name === x.name);
+        if (at >= 0) {
+            if (finalModel) list[at].model = finalModel;
+            list[at].thinking = finalThinking;
+            try { localStorage.setItem('forever_settings_api_presets_v1', JSON.stringify(list)); } catch (_) {}
+        }
+        if (typeof window.syncThinkingSeg === 'function') window.syncThinkingSeg(finalThinking);
+        const thInput = document.getElementById('settingsThinking');
+        if (thInput) thInput.value = finalThinking;
+        window.dispatchEvent(new Event('settings-api-changed'));
+        if (!silent) toast('Global preset updated');
+    }
     function qcpRefresh(p) {
         const presets = qcpPresets();
         if (qcpSel.preset >= presets.length || qcpSel.preset < 0) qcpSel.preset = 0;
+        const curPreset = presets[qcpSel.preset] || {};
         const models = presets.length ? qcpModelsFor(qcpSel.preset, presets) : ['Current model'];
         if (!models.includes(qcpSel.model)) qcpSel.model = models[0];
+        if (qcpSel.thinking === undefined) {
+            qcpSel.thinking = ['low', 'medium', 'high'].includes(curPreset.thinking) ? curPreset.thinking : '';
+        }
         const fill = (key, pairs, selected) => {
             const hit = pairs.find(pr => pr[0] === selected) || pairs[0];
             p.querySelector(`[data-dd-btn="${key}"]`).textContent = hit ? hit[1] : '—';
@@ -158,6 +205,9 @@
         const presetPairs = presets.length ? presets.map((x, i) => [String(i), x.name || 'Untitled']) : [['-1', 'No presets']];
         fill('preset', presetPairs, String(qcpSel.preset));
         fill('model', models.map(m => [m, m]), qcpSel.model);
+        p.querySelectorAll('[data-qcp-think]').forEach(b => {
+            b.classList.toggle('on', (b.dataset.qcpThink || '') === (qcpSel.thinking || ''));
+        });
     }
     function qcpBuild(ball) {
         let p = document.getElementById('quickCruisePresetPanel');
@@ -166,10 +216,30 @@
         p.innerHTML = `<div class="qcp-title">Preset Control</div>`
             + `<div class="qcp-label">API Preset</div>${qcpDdHtml('preset')}`
             + `<div class="qcp-label">Model</div>${qcpDdHtml('model')}`
+            + `<div class="qcp-label">思考力度 · Thinking</div>`
+            + `<div class="qcp-think-seg" id="qcpThinkSeg">`
+            + `<button type="button" class="qcp-think-btn" data-qcp-think="">关</button>`
+            + `<button type="button" class="qcp-think-btn" data-qcp-think="low">低</button>`
+            + `<button type="button" class="qcp-think-btn" data-qcp-think="medium">中</button>`
+            + `<button type="button" class="qcp-think-btn" data-qcp-think="high">高</button>`
+            + `</div>`
             + `<div class="qcp-row"><button class="qcp-btn primary" id="qcpUse">Use Globally</button><button class="qcp-btn" id="qcpFetch">Fetch Models</button></div>`
-            + `<div class="qcp-hint">Choose a preset or model here. The selected API becomes the global active configuration.</div>`;
+            + `<div class="qcp-hint">Choose a preset, model, or thinking level here.</div>`;
         document.body.appendChild(p);
         p.addEventListener('click', async e => {
+            const thBtn = e.target.closest('[data-qcp-think]');
+            if (thBtn) {
+                const val = thBtn.dataset.qcpThink || '';
+                qcpSel.thinking = val;
+                qcpRefresh(p);
+                const presets = qcpPresets();
+                if (presets[qcpSel.preset]) {
+                    qcpApplyGlobal(presets, qcpSel.preset, qcpSel.model || presets[qcpSel.preset].model, val, true);
+                } else if (typeof window.tuneThinkingPick === 'function') {
+                    window.tuneThinkingPick(val);
+                }
+                return;
+            }
             const btn = e.target.closest('[data-dd-btn]');
             if (btn) {
                 const list = p.querySelector(`[data-dd-list="${btn.dataset.ddBtn}"]`);
@@ -184,6 +254,9 @@
                     const i = +item.dataset.v;
                     if (i < 0) return;
                     qcpSel.preset = i; qcpSel.model = '';
+                    const presets = qcpPresets();
+                    const picked = presets[i] || {};
+                    qcpSel.thinking = ['low', 'medium', 'high'].includes(picked.thinking) ? picked.thinking : '';
                 } else {
                     qcpSel.model = item.dataset.v;
                 }
@@ -194,13 +267,7 @@
             if (e.target.closest('#qcpUse')) {
                 const presets = qcpPresets(); const x = presets[qcpSel.preset];
                 if (!x) { toast('No presets'); return; }
-                const useModel = qcpSel.model || x.model;
-                localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({ name: x.name, url: x.url, key: x.key, model: useModel, temperature: x.temperature, thinking: x.thinking, updatedAt: Date.now() }));
-                // 同时把模型写回设置页的预设列表，两边保持一致
-                const list = qcpPresets(); const at = list.findIndex(y => y.name === x.name);
-                if (at >= 0 && useModel) { list[at].model = useModel; try { localStorage.setItem('forever_settings_api_presets_v1', JSON.stringify(list)); } catch (_) {} }
-                window.dispatchEvent(new Event('settings-api-changed'));
-                toast('Global preset updated');
+                qcpApplyGlobal(presets, qcpSel.preset, qcpSel.model || x.model, qcpSel.thinking, false);
                 return;
             }
             if (e.target.closest('#qcpFetch')) {
@@ -244,45 +311,36 @@
         p = qcpBuild(ball);
         if (isNew) qcpSyncFromActive();
         qcpRefresh(p);
-        if (isNew) placePresetPanel(ball, p);
+        placePresetPanel(ball, p);
     }
 
-    function placePanel(ball, panel, reset = false) {
+    /* 固定只放在悬浮球上方或下方，不再左右弹出 */
+    function placePanel(ball, panel) {
         if (!ball || !panel) return;
         const r = ball.getBoundingClientRect();
-        const gap = 12, pad = 10;
-        const ballW = Math.max(1, r.width), ballH = Math.max(1, r.height);
-        let side = reset ? null : panel.dataset.anchorSide;
-        let maxW = reset ? 0 : parseFloat(panel.dataset.panelWidth || '0');
-        let maxH = reset ? 0 : parseFloat(panel.dataset.panelHeight || '0');
-        if (!side || !maxW || !maxH) {
-            const sideW = Math.min(300, innerWidth - pad * 2);
-            const naturalH = Math.min(panel.scrollHeight || 260, innerHeight - pad * 2);
-            const spaces = {
-                right: { w: innerWidth - r.right - gap - pad, h: innerHeight - pad * 2 },
-                left: { w: r.left - gap - pad, h: innerHeight - pad * 2 },
-                bottom: { w: innerWidth - pad * 2, h: innerHeight - r.bottom - gap - pad },
-                top: { w: innerWidth - pad * 2, h: r.top - gap - pad }
-            };
-            const fits = key => spaces[key].w >= Math.min(sideW, 220) && spaces[key].h >= Math.min(naturalH, 180);
-            side = ['right', 'left', 'bottom', 'top'].find(fits) || Object.keys(spaces).sort((a, b) => (spaces[b].w * spaces[b].h) - (spaces[a].w * spaces[a].h))[0];
-            maxW = Math.max(160, Math.min(sideW, spaces[side].w));
-            maxH = Math.max(120, Math.min(naturalH, spaces[side].h));
-            panel.dataset.anchorSide = side;
-            panel.dataset.panelWidth = String(maxW);
-            panel.dataset.panelHeight = String(maxH);
-            panel.style.width = maxW + 'px';
-            panel.style.maxHeight = maxH + 'px';
-        }
-        let left, top;
-        if (side === 'right') { left = r.right + gap; top = r.top + ballH / 2 - maxH / 2; }
-        else if (side === 'left') { left = r.left - maxW - gap; top = r.top + ballH / 2 - maxH / 2; }
-        else if (side === 'bottom') { left = r.left + ballW / 2 - maxW / 2; top = r.bottom + gap; }
-        else { left = r.left + ballW / 2 - maxW / 2; top = r.top - maxH - gap; }
-        left = Math.max(pad, Math.min(innerWidth - maxW - pad, left));
-        top = Math.max(pad, Math.min(innerHeight - maxH - pad, top));
-        panel.style.left = left + 'px'; panel.style.top = top + 'px';
-        panel.style.right = 'auto'; panel.style.bottom = 'auto';
+        const gap = 8, pad = 10;
+        const w = Math.min(300, innerWidth - pad * 2);
+        const topSpace = r.top - gap - pad;
+        const bottomSpace = innerHeight - r.bottom - gap - pad;
+        const side = (topSpace >= 220 || topSpace >= bottomSpace) ? 'top' : 'bottom';
+        const availH = Math.max(150, side === 'top' ? topSpace : bottomSpace);
+        const maxH = Math.min(Math.round(innerHeight * 0.68), availH);
+
+        panel.dataset.anchorSide = side;
+        panel.style.width = w + 'px';
+        panel.style.maxHeight = maxH + 'px';
+
+        const actualH = Math.min(panel.offsetHeight || panel.scrollHeight || 220, maxH);
+        let left = r.left + r.width / 2 - w / 2;
+        left = Math.max(pad, Math.min(innerWidth - w - pad, left));
+
+        let top = side === 'top' ? (r.top - actualH - gap) : (r.bottom + gap);
+        top = Math.max(pad, Math.min(innerHeight - actualH - pad, top));
+
+        panel.style.left = left + 'px';
+        panel.style.top = top + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
     }
     function bindDrag(ball) {
         let down = null, moved = false;

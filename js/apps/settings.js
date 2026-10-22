@@ -1,11 +1,14 @@
-/* 长按区域：禁用系统长按选中 / 长按菜单，防止样式被顶开 */
+/* 长按区域：禁用系统长按选中 / 长按菜单，防止样式被顶开，并增强思考力度选中高亮 */
 (function injectSettingsLongPressStyle() {
     if (document.getElementById('settingsLongPressStyle')) return;
     const st = document.createElement('style');
     st.id = 'settingsLongPressStyle';
     st.textContent = '#noirSettingsRoot, #noirSettingsRoot *, .wp-morph, .wp-morph *, .sb-morph, .sb-morph * { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; }'
         + ' #noirSettingsRoot input, #noirSettingsRoot textarea { -webkit-user-select:text; user-select:text; }'
-        + ' #noirSettingsRoot .settings-panel { overflow-x:hidden; }';
+        + ' #noirSettingsRoot .settings-panel { overflow-x:hidden; }'
+        + ' #noirSettingsRoot #settingsThinkingSeg button { position:relative; transition:all .18s ease; opacity:.62; }'
+        + ' #noirSettingsRoot #settingsThinkingSeg button.active { background:#ffffff !important; color:#09090b !important; font-weight:700 !important; opacity:1 !important; box-shadow:0 2px 10px rgba(255,255,255,.28), inset 0 0 0 1px rgba(255,255,255,.9) !important; transform:scale(1.02); }'
+        + ' #noirSettingsRoot.theme-light #settingsThinkingSeg button.active { background:#111114 !important; color:#ffffff !important; box-shadow:0 2px 8px rgba(0,0,0,.22) !important; }';
     document.head.appendChild(st);
     // 长按选中时浏览器会横向拖动内容：一旦设置页内有横向滚动，立即拉回
     document.addEventListener('scroll', e => {
@@ -524,6 +527,19 @@ function getSettingsAppHTML() {
 
 async function initSettingsApp() {
     settingsCurrentPanel = 'main';
+    // 优先同步渲染背景与主题，避免异步 await 导致界面白底/黑底闪烁
+    try {
+        const syncThemeMode = JSON.parse(localStorage.getItem('noir_os_settings_theme_mode') || '"auto"');
+        const syncTheme = resolveThemeClass(syncThemeMode);
+        const syncBgIdx = JSON.parse(localStorage.getItem('noir_os_settings_bg_index') || '1');
+        settingsCurrentBgIndex = typeof syncBgIdx === 'number' ? syncBgIdx : 1;
+        settingsCustomBg = JSON.parse(localStorage.getItem('noir_os_settings_bg_custom') || 'null');
+        settingsMaskTransparency = JSON.parse(localStorage.getItem('noir_os_settings_mask_transparency') || 'null');
+        applySettingsThemeClass(syncTheme, syncThemeMode);
+    } catch (_) {
+        applyCurrentSettingsBackground();
+    }
+
     restoreActiveSettingsApi();
     const quickCruiseSwitch = document.getElementById('quickCruiseSwitch');
     if (quickCruiseSwitch && localStorage.getItem('whatever_quick_cruise_enabled_v1') === '1') quickCruiseSwitch.classList.add('active');
@@ -547,11 +563,8 @@ async function initSettingsApp() {
         window.enableAdaptiveContrast = enableAdaptiveContrast;
         currentIconStyleMode = savedMode || 'dark';
 
-        // 1. 应用主题（统一入口，同时同步桌面、选项按钮和背景）
+        // 应用主题与对应深浅背景（内部已包含背景绘制，不重复触发）
         applySettingsThemeClass(savedTheme, themeMode);
-
-        // 2. 主题应用完毕后，再渲染背景及对应深浅遮罩
-        applyCurrentSettingsBackground();
 
         // 3. 更新自适应开关状态
         const sw = document.getElementById('adaptiveContrastSwitch');
@@ -646,22 +659,56 @@ function loadSettingsApiPresets() {
         }
     } catch (e) { console.warn('[Settings API] 预设读取失败', e); }
 }
-/* 温度滑块：数值、滑过的颜色同步 */
+/* 实时持久化当前预设的温度与思考力度，重进设置页不丢失 */
+function persistCurrentTuningImmediate() {
+    const tune = settingsTuningFromForm();
+    const current = settingsApiPresets[settingsActivePresetIndex];
+    if (current) {
+        current.temperature = tune.temperature;
+        current.thinking = tune.thinking;
+        saveSettingsApiPresets();
+        publishActiveSettingsApi(current);
+    } else {
+        try {
+            const raw = JSON.parse(localStorage.getItem('whatever_settings_active_api_v1') || localStorage.getItem('forever_settings_active_api_v1') || '{}');
+            raw.temperature = tune.temperature;
+            raw.thinking = tune.thinking;
+            raw.updatedAt = Date.now();
+            const s = JSON.stringify(raw);
+            localStorage.setItem('whatever_settings_active_api_v1', s);
+            localStorage.setItem('forever_settings_active_api_v1', s);
+        } catch (_) {}
+    }
+    window.dispatchEvent(new Event('settings-api-changed'));
+}
+/* 温度滑块：数值、滑过的颜色同步并立即保存 */
 function tuneTempInput(el) {
     const v = Number(el.value);
     const lbl = document.getElementById('settingsTempValue');
     if (lbl) lbl.textContent = v.toFixed(1);
     el.style.setProperty('--p', (v / 2 * 100) + '%');
+    persistCurrentTuningImmediate();
 }
-/* 思考力度分段：点哪个就选哪个 */
+/* 思考力度分段：点哪个就选哪个并立即保存 */
 function tuneThinkingPick(val) {
+    const norm = ['low', 'medium', 'high'].includes(val) ? val : '';
     const h = document.getElementById('settingsThinking');
-    if (h) h.value = val;
-    syncThinkingSeg(val);
+    if (h) h.value = norm;
+    syncThinkingSeg(norm);
+    persistCurrentTuningImmediate();
+    const labelMap = { '': '关', low: '低', medium: '中', high: '高' };
+    showSettingsToast('思考力度：' + labelMap[norm]);
 }
 function syncThinkingSeg(val) {
-    document.querySelectorAll('#settingsThinkingSeg button').forEach(b => b.classList.toggle('active', b.dataset.val === (val || '')));
+    const norm = ['low', 'medium', 'high'].includes(val) ? val : '';
+    document.querySelectorAll('#settingsThinkingSeg button').forEach(b => {
+        const isAct = (b.dataset.val || '') === norm;
+        b.classList.toggle('active', isAct);
+        b.setAttribute('aria-pressed', isAct ? 'true' : 'false');
+    });
 }
+window.tuneThinkingPick = tuneThinkingPick;
+window.syncThinkingSeg = syncThinkingSeg;
 /* 温度与思考力度：读取表单 / 填回表单 */
 function settingsTuningFromForm() {
     const t = document.getElementById('settingsTemp');
@@ -765,11 +812,17 @@ function restoreActiveSettingsApi() {
             return;
         }
         let idx = settingsApiPresets.findIndex(p => p.name === saved.name);
+        const resolvedTemp = (typeof saved.temperature === 'number' && isFinite(saved.temperature))
+            ? saved.temperature
+            : (idx >= 0 && typeof settingsApiPresets[idx].temperature === 'number' ? settingsApiPresets[idx].temperature : 0.8);
+        const resolvedThinking = ['low', 'medium', 'high'].includes(saved.thinking)
+            ? saved.thinking
+            : (idx >= 0 && ['low', 'medium', 'high'].includes(settingsApiPresets[idx].thinking) ? settingsApiPresets[idx].thinking : '');
         if (idx < 0) {
-            settingsApiPresets.unshift({ id: Date.now(), name: saved.name || '当前 API', url: saved.url, key: saved.key || '', model: saved.model });
+            settingsApiPresets.unshift({ id: Date.now(), name: saved.name || '当前 API', url: saved.url, key: saved.key || '', model: saved.model, temperature: resolvedTemp, thinking: resolvedThinking });
             idx = 0;
         } else {
-            Object.assign(settingsApiPresets[idx], { url: saved.url, key: saved.key || '', model: saved.model });
+            Object.assign(settingsApiPresets[idx], { url: saved.url, key: saved.key || '', model: saved.model, temperature: resolvedTemp, thinking: resolvedThinking });
         }
         settingsActivePresetIndex = idx;
         const name = document.getElementById('settingsPresetName');
@@ -779,8 +832,7 @@ function restoreActiveSettingsApi() {
         if (name) name.value = settingsApiPresets[idx].name;
         if (url) url.value = saved.url;
         if (key) key.value = saved.key || '';
-        Object.assign(settingsApiPresets[idx], { temperature: saved.temperature, thinking: saved.thinking });
-        settingsSetTuningForm(saved);
+        settingsSetTuningForm(settingsApiPresets[idx]);
         ensureModelOption(model, saved.model);
         publishActiveSettingsApi(settingsApiPresets[idx]);
     } catch (e) { console.warn('[Settings API] 配置恢复失败', e); }
@@ -990,24 +1042,24 @@ function applyIconStyleModeToContainer(mode, customColor = null) {
     }
 }
 
-async function cycleSettingsBackground() {
-    settingsCurrentBgIndex = (settingsCurrentBgIndex + 1) % settingsBackgrounds.length;
-    settingsCustomBg = null;
-    await safeDB.save('settings_bg_custom', null);
-    await safeDB.save('settings_bg_index', settingsCurrentBgIndex);
-    applyCurrentSettingsBackground();
-}
-
 // 设置背景：自定义图片 > 内置四张；遮罩透明度有值就用它，没有则用日夜默认
 let settingsCustomBg = null;
 let settingsMaskTransparency = null;
 
-// 预加载内置设置背景图，避免切换或打开时闪烁
+// 常驻内存预加载内置背景，并注入平滑过渡样式杜绝闪烁
+const preloadedBgCache = [];
 (function preloadSettingsBgs() {
     settingsBackgrounds.forEach(src => {
         const img = new Image();
         img.src = cssWallpaperUrl(src);
+        preloadedBgCache.push(img);
     });
+    if (!document.getElementById('settingsBgSmoothStyle')) {
+        const st = document.createElement('style');
+        st.id = 'settingsBgSmoothStyle';
+        st.textContent = '#noirSettingsRoot { transition: background-image 0.22s ease-in-out; background-color: #060608; } #noirSettingsRoot.theme-light { background-color: #ffffff; }';
+        document.head.appendChild(st);
+    }
 })();
 
 function applyCurrentSettingsBackground() {
@@ -1025,6 +1077,20 @@ function applyCurrentSettingsBackground() {
     root.style.backgroundImage = nextBg;
     root.style.backgroundSize = 'cover';
     root.style.backgroundPosition = 'center';
+}
+
+async function cycleSettingsBackground() {
+    const nextIdx = (settingsCurrentBgIndex + 1) % settingsBackgrounds.length;
+    const nextSrc = settingsBackgrounds[nextIdx];
+    const pre = new Image();
+    pre.onload = async () => {
+        settingsCurrentBgIndex = nextIdx;
+        settingsCustomBg = null;
+        applyCurrentSettingsBackground();
+        await safeDB.save('settings_bg_custom', null);
+        await safeDB.save('settings_bg_index', settingsCurrentBgIndex);
+    };
+    pre.src = cssWallpaperUrl(nextSrc);
 }
 
 function resolveThemeClass(mode) {
@@ -1803,10 +1869,10 @@ function renderSettingsPresetsList() {
         item.className = 'preset-accordion-item';
         item.id = `settings-preset-item-${p.id}`;
         item.innerHTML = `
-            <div class="preset-accordion-header" onclick="toggleSettingsPresetExpand(${p.id})">
+            <div class="preset-accordion-header" data-preset-id="${p.id}">
                 <div class="preset-title-wrap">
                     <svg viewBox="0 0 24 24"><path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/></svg>
-                    <span class="preset-name-text">${p.name}</span>
+                    <span class="preset-name-text">${settingsEsc(p.name)}</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
                     ${idx === settingsActivePresetIndex ? '<span class="preset-tag-badge mono-font" style="background:#ffffff; color:#000000;" id="settingsActiveTagBadge">Active</span>' : ''}
@@ -1815,9 +1881,9 @@ function renderSettingsPresetsList() {
             </div>
             <div class="preset-accordion-body">
                 <div class="preset-edit-inner">
-                    <input type="text" class="preset-edit-input" id="edit-name-${p.id}" value="${p.name}" placeholder="预设名">
-                    <input type="text" class="preset-edit-input" id="edit-url-${p.id}" value="${p.url}" placeholder="URL">
-                    <input type="password" class="preset-edit-input" id="edit-key-${p.id}" value="${p.key}" placeholder="Key">
+                    <input type="text" class="preset-edit-input" id="edit-name-${p.id}" value="${settingsEsc(p.name)}" placeholder="预设名">
+                    <input type="text" class="preset-edit-input" id="edit-url-${p.id}" value="${settingsEsc(p.url)}" placeholder="URL">
+                    <input type="password" class="preset-edit-input" id="edit-key-${p.id}" value="${settingsEsc(p.key)}" placeholder="Key">
                     
                     <div style="margin-top:2px;">
                         <div class="field-label mono-font" style="font-size:7.5px;">Model · 模型</div>
@@ -1833,16 +1899,103 @@ function renderSettingsPresetsList() {
                 </div>
             </div>
         `;
+        const header = item.querySelector('.preset-accordion-header');
+        let lpTimer = null;
+        let lpTriggered = false;
+        let startX = 0, startY = 0;
+        header.addEventListener('pointerdown', (e) => {
+            lpTriggered = false;
+            startX = e.clientX;
+            startY = e.clientY;
+            clearTimeout(lpTimer);
+            lpTimer = setTimeout(() => {
+                lpTriggered = true;
+                if (navigator.vibrate) { try { navigator.vibrate(35); } catch (_) {} }
+                openDeleteSettingsPresetModal(p.id);
+            }, 520);
+        });
+        header.addEventListener('pointermove', (e) => {
+            if (lpTimer && Math.hypot(e.clientX - startX, e.clientY - startY) > 8) {
+                clearTimeout(lpTimer);
+                lpTimer = null;
+            }
+        });
+        ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => {
+            header.addEventListener(ev, () => { clearTimeout(lpTimer); lpTimer = null; });
+        });
+        header.addEventListener('click', (e) => {
+            if (lpTriggered) {
+                lpTriggered = false;
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
+            toggleSettingsPresetExpand(p.id);
+        });
         box.appendChild(item);
     });
 }
+
+async function openDeleteSettingsPresetModal(id) {
+    const target = settingsApiPresets.find(p => String(p.id) === String(id));
+    if (!target) return;
+    settingsModalRerender = () => openDeleteSettingsPresetModal(id);
+    const themeClass = await resolvePopupThemeClass();
+    ensurePopupShell(themeClass);
+
+    const title = document.getElementById('settingsModalTitle');
+    const subtitle = document.getElementById('settingsModalSubtitle');
+    const body = document.getElementById('settingsModalBody');
+    if (title) title.innerText = 'Delete Preset';
+    if (subtitle) subtitle.innerText = '删除 API 预设';
+    if (body) {
+        body.style.maxHeight = 'none';
+        body.innerHTML = `
+            <div class="tip-modal-content" style="padding:10px 4px 16px; line-height:1.6;">
+                确定要删除预设「<strong>${settingsEsc(target.name)}</strong>」吗？删除后不可恢复。
+            </div>
+            <div style="display:flex; gap:10px; width:100%;">
+                <button type="button" class="tip-modal-btn mono-font" style="flex:1; opacity:0.75;" onclick="closeCenterModal()">Cancel</button>
+                <button type="button" class="tip-modal-btn mono-font" style="flex:1; background:#e5484d; color:#fff; border-color:transparent;" onclick="confirmDeleteSettingsPreset('${String(target.id).replace(/'/g, "\\'")}')">Delete</button>
+            </div>
+        `;
+    }
+}
+
+function confirmDeleteSettingsPreset(id) {
+    const idx = settingsApiPresets.findIndex(p => String(p.id) === String(id));
+    if (idx < 0) { closeCenterModal(); return; }
+    const removed = settingsApiPresets[idx];
+    settingsApiPresets.splice(idx, 1);
+    if (settingsActivePresetIndex >= settingsApiPresets.length) {
+        settingsActivePresetIndex = Math.max(0, settingsApiPresets.length - 1);
+    }
+    saveSettingsApiPresets();
+    const nextActive = settingsApiPresets[settingsActivePresetIndex] || null;
+    if (nextActive) {
+        prefillSettingsForm(nextActive);
+        publishActiveSettingsApi(nextActive);
+    } else {
+        try {
+            localStorage.removeItem('whatever_settings_active_api_v1');
+            localStorage.removeItem('forever_settings_active_api_v1');
+        } catch (_) {}
+    }
+    closeCenterModal();
+    renderSettingsPresetsList();
+    updateSettingsActivePresetBadge();
+    window.dispatchEvent(new Event('settings-api-changed'));
+    showSettingsToast(`已删除预设 "${removed.name}"`);
+}
+window.openDeleteSettingsPresetModal = openDeleteSettingsPresetModal;
+window.confirmDeleteSettingsPreset = confirmDeleteSettingsPreset;
 
 function toggleSettingsPresetExpand(id) {
     const el = document.getElementById(`settings-preset-item-${id}`);
     document.querySelectorAll('.noir-settings-root .preset-accordion-item').forEach(node => {
         if (node !== el) node.classList.remove('expanded');
     });
-    el.classList.toggle('expanded');
+    if (el) el.classList.toggle('expanded');
 }
 
 function updateSettingsPresetData(id) {
@@ -1854,18 +2007,23 @@ function updateSettingsPresetData(id) {
 
     const target = settingsApiPresets.find(p => p.id === id);
     if (target) {
+        const tune = settingsTuningFromForm();
         target.name = name;
         target.url = url;
         target.key = key;
         target.model = model;
-        if (settingsApiPresets[settingsActivePresetIndex] === target) publishActiveSettingsApi(target);
+        if (settingsApiPresets[settingsActivePresetIndex] === target) {
+            target.temperature = tune.temperature;
+            target.thinking = tune.thinking;
+            publishActiveSettingsApi(target);
+        }
         saveSettingsApiPresets();
         showSettingsToast(`预设 "${name}" 更新成功！`);
         renderSettingsPresetsList();
         updateSettingsActivePresetBadge();
+        window.dispatchEvent(new Event('settings-api-changed'));
     }
 }
-
 function cycleSettingsPreset() {
     if (settingsApiPresets.length === 0) {
         showSettingsToast('请先保存至少一个 API 预设');

@@ -3232,7 +3232,8 @@ function toggleRoomBatch() {
 
 /* 把联系人的一组消息发出来：一次性发出 = 一起出现、无动画；否则一条一条出现 */
 const sleep = ms => new Promise(r => setTimeout(r, ms));
-async function deliverMsgs(c, parts) {
+async function deliverMsgs(c, parts, runToken) {
+    if (runToken !== undefined && c._pullToken !== runToken) return;
     if (chatOptsOf(c).batch) {
         // 一次性发出：每一句都响一声，错开 150ms 免得叠在一起听不清
         parts.forEach((t, i) => {
@@ -3246,7 +3247,9 @@ async function deliverMsgs(c, parts) {
         return;
     }
     for (let i = 0; i < parts.length; i++) {
+        if (runToken !== undefined && c._pullToken !== runToken) return;
         if (i > 0) await sleep(650);
+        if (runToken !== undefined && c._pullToken !== runToken) return;
         playSfx('recv');   // 每一句出现时都响一声
         c.msgs.push(msgOf(parts[i]));
         if (activeId !== c.id) c.unread = (c.unread || 0) + 1;
@@ -3267,20 +3270,52 @@ function oldMomentFeedOf(c) {
     }));
 }
 let pullTimer = null;
+function stopPullReply(c) {
+    if (!c) return;
+    c._pullToken = (c._pullToken || 0) + 1;
+    if (c._pullAbort) {
+        try { c._pullAbort.abort(); } catch (_) {}
+        c._pullAbort = null;
+    }
+    if (window.__activePullAbort === c._pullAbort) window.__activePullAbort = null;
+    c._busy = false;
+    c._typing = false;
+    const row = document.getElementById('typingRow');
+    if (row) row.remove();
+    const capCur = document.querySelector('.messages-app .send-capsule');
+    if (capCur) capCur.classList.remove('pulling');
+    if (activeId === c.id) renderThread({ noAnim: true });
+    renderChats();
+    toast('已停止调取');
+}
 async function pullReply() {
     const c = CONTACTS.find(x => x.id === activeId);
-    if (!c || c._busy) return;
+    if (!c) return;
+    if (c._busy) {
+        stopPullReply(c);
+        return;
+    }
+    const runToken = (c._pullToken = (c._pullToken || 0) + 1);
     const o = chatOptsOf(c);
     const configured = !!(window.MessagesAPI && window.MessagesAPI.isConfigured());
     if (!configured) {
         // 没有接入 API：按顺序发送联系人的自动回复
         if (!c.replies || !c.replies.length) { toast('请先在「设置 → API」保存接口配置，或在联系人人设里填写自动回复'); return; }
         c._busy = true;
-        try { await deliverMsgs(c, c.replies.slice(0, o.max)); }
-        finally { c._busy = false; }
+        const cap0 = document.querySelector('.messages-app .send-capsule'); if (cap0) cap0.classList.add('pulling');
+        try { await deliverMsgs(c, c.replies.slice(0, o.max), runToken); }
+        finally {
+            if (c._pullToken === runToken) {
+                c._busy = false;
+                const capEnd = document.querySelector('.messages-app .send-capsule'); if (capEnd) capEnd.classList.remove('pulling');
+            }
+        }
         return;
     }
     c._busy = true;
+    const abortCtrl = new AbortController();
+    c._pullAbort = abortCtrl;
+    window.__activePullAbort = abortCtrl;
     const cap = document.querySelector('.messages-app').querySelector('.send-capsule'); if (cap) cap.classList.add('pulling');
     showTyping(c);
     c._typing = true; renderChats();
@@ -3290,12 +3325,22 @@ async function pullReply() {
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         await preloadChatPhotos(c);
+        if (c._pullToken !== runToken) return;
         const stealPool = stealPoolOf(c).slice(0, 4);
         await primeKeys(stealPool.map(x => x.key));
+        if (c._pullToken !== runToken) return;
         window.MESSAGES_STEAL_LIST = stealPool.map(x => x.desc || '一张照片');
         window.MESSAGES_STEAL_KEYS = stealPool.map(x => x.key);
         window.MESSAGES_PHOTO_GET = k => MOMENT_IMG_CACHE[k] || '';
-        const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0), oldMomentFeedOf(c));
+        const replies = await Promise.race([
+            window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0), oldMomentFeedOf(c)),
+            new Promise((_, rej) => abortCtrl.signal.addEventListener('abort', () => {
+                const err = new Error('已停止调取');
+                err.name = 'AbortError';
+                rej(err);
+            }, { once: true }))
+        ]);
+        if (c._pullToken !== runToken) return;
         const heart = replies.heart || null;
         const stolen = (replies.moment && replies.moment.stealIdx) ? pickStolenPhoto({ steal: true, stealIdx: replies.moment.stealIdx, photos: replies.moment.photos }, stealPool) : null;
         if (stolen && replies.moment) { if (!(replies.moment.photos || []).length) replies.moment.photos = [stolen.desc || '']; replies.moment.stolenKeys = stolen.imgs; }
@@ -3303,6 +3348,7 @@ async function pullReply() {
             let shotKey = null;
             try { shotKey = replies.moment.chatShot ? await saveChatShot(c) : null; }
             catch (err) { console.warn('[截图]', err); toast('截图出错：' + describeErr(err)); }
+            if (c._pullToken !== runToken) return;
             postContactMoment(c, replies.moment.text, [], { stolenKeys: replies.moment.stolenKeys, photos: replies.moment.photos || [], chatShot: !!replies.moment.chatShot && !shotKey, chatShotKey: shotKey, shotN: replies.moment.shotN, shotTitle: replies.moment.shotTitle });
         }
         const acted = applyChatMomentInteractions(c, replies.momentInteractions || []) || [];
@@ -3314,10 +3360,12 @@ async function pullReply() {
         parts.forEach(pt => { if (pt.quoteRaw) { pt.quote = resolveQuote(c, pt.quoteRaw); delete pt.quoteRaw; } });
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
         const startLen = c.msgs.length;
-        await deliverMsgs(c, parts);
+        await deliverMsgs(c, parts, runToken);
+        if (c._pullToken !== runToken) return;
         attachHeart(c, heart, startLen); persistContacts();
         if (replies.shot) {
             const shotKey = await saveChatShot(c);
+            if (c._pullToken !== runToken) return;
             const shotMsg = shotKey
                 ? { me: false, text: '', photo: shotKey, t: nowTime(), ts: Date.now() }
                 : { me: false, text: '', shot: snapshotChatRoom(c, replies.shotN), shotWith: replies.shotTitle || momentUserName(), t: nowTime(), ts: Date.now() };
@@ -3325,8 +3373,22 @@ async function pullReply() {
         }
         if (activeId === c.id) renderThread({noAnim:true});
         maybeAutoSummary(c);
-    } catch (e) { c._typing = false; const row=document.getElementById('typingRow'); if(row) row.remove(); showApiError(e); }
-    finally { c._busy=false; c._typing=false; const capCur = document.querySelector('.messages-app .send-capsule'); if(capCur) capCur.classList.remove('pulling'); renderChats(); }
+    } catch (e) {
+        if (c._pullToken !== runToken || (e && e.name === 'AbortError')) return;
+        c._typing = false;
+        const row = document.getElementById('typingRow'); if (row) row.remove();
+        showApiError(e);
+    } finally {
+        if (c._pullToken === runToken) {
+            c._busy = false;
+            c._typing = false;
+            c._pullAbort = null;
+            if (window.__activePullAbort === abortCtrl) window.__activePullAbort = null;
+            const capCur = document.querySelector('.messages-app .send-capsule');
+            if (capCur) capCur.classList.remove('pulling');
+            renderChats();
+        }
+    }
 }
 
 /* ---------------- 底栏上拉菜单：重新回复 ---------------- */
