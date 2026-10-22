@@ -43,7 +43,7 @@ function postContactMoment(c, text, comments, meta) {
     const post = { id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5), text, t: Date.now(), by: c.id, vis: (meta && meta.vis) || 'all', visTo: ((meta && meta.visTo) || []).map(n => (CONTACTS.find(x => x.name === n) || {}).id).filter(Boolean), likes: [], comments: [], imgs: [], imgDesc: photos, interactionFetched: false };
     if (meta && meta.stolenKeys && meta.stolenKeys.length) {
         post.imgs = meta.stolenKeys.slice(0, 9); post.stolen = true;
-        post.imgDesc = [meta.stolenDesc || photos[0] || ''];
+        post.imgDesc = [];
     }
     POSTS.unshift(post);
     persistMoments();
@@ -53,7 +53,9 @@ function postContactMoment(c, text, comments, meta) {
     const excerpt = (text || '').trim() || '一张照片';
     addCommonMemory(c, `{char}发了一条朋友圈（${excerpt}）`, post.id);
     if (c.memories && c.memories[0]) c.memories[0].postLink = post.id;
+    if (photos.length) addCommonMemory(c, post.stolen ? `{char}拿走了{user}的照片：${photos.join('；')}` : `{char}发的照片：${photos.join('；')}`, post.id);
     if (meta && (meta.chatShot || meta.chatShotKey) && c.memories && c.memories[0]) {
+        c.memories[0].kind = 'shot';
         const log = snapshotChatRoom(c, meta.shotN);
         c.memories[0].chatLog = log;
         c.memories[0].text = '{char}发了一条朋友圈（聊天室截图：' + log.slice(-6).map(m => (m.me ? '{char}' : '{user}') + '：' + m.text).join(' | ') + '）';
@@ -1195,7 +1197,7 @@ function memItemHtml(x) {
     const body = editing
         ? `<textarea class="mem-edit-ta" id="memEditTa" rows="4">${esc(x.text)}</textarea>
            <div class="mem-btns"><button class="mem-btn" type="button" data-act="editCancel">取消</button><button class="mem-btn mem-primary-sm" type="button" data-act="editSave" data-id="${x.id}">保存</button></div>`
-        : `<details class="mem-fold"><summary class="mem-fold-sum"><span class="mem-stamp">${esc(x.label || '')}</span> ${esc(String(x.text || '').slice(0, 30))}${String(x.text || '').length > 30 ? '…' : ''}</summary><div class="mem-fold-body"><div class="mem-text">${esc(x.text)}</div>${x.chatLog && x.chatLog.length ? chatLogMemHtml(x.chatLog) : ''}</div></details>
+        : `${x.kind === 'shot' ? `<details class="mem-fold"><summary class="mem-fold-sum"><span class="mem-stamp">${esc(x.label || '')}</span> ${esc(String(x.text || '').slice(0, 30))}${String(x.text || '').length > 30 ? '…' : ''}</summary><div class="mem-fold-body"><div class="mem-text">${esc(x.text)}</div>${x.chatLog && x.chatLog.length ? chatLogMemHtml(x.chatLog) : ''}</div></details>` : `<div class="mem-plain"><span class="mem-plain-time">${esc(x.label || '')}</span><div class="mem-plain-text">${esc(x.text || '')}</div></div>`}
            ${x.points && x.points.length ? `<div class="mem-points">${x.points.map(p => `<div>- ${esc(p)}</div>`).join('')}</div>` : ''}
            ${x.relation ? `<div class="mem-rel"><span>关系与感情</span>${esc(x.relation)}</div>` : ''}
            ${x.keys && x.keys.length ? `<div class="mem-keys">${x.keys.map(k => `<em>${esc(k)}</em>`).join('')}</div>` : ''}`;
@@ -6458,8 +6460,8 @@ function renderMoments() {
         const cnt = Math.max(imgs.length, descs.length);
         const tickets = Array.from({ length: cnt }, (_, ii) => ({ k: imgs[ii], d: descs[ii] }));
         const photos = cnt ? (cnt > 4
-            ? `<div class="mf-fold" onclick="openMomentPhoto('${p.id}', 0)">${[0, 1, 2].filter(x => x < cnt).map(x => `<div class="mf-stamp mf-l${x}">${stampInner(tickets[x])}</div>`).join('')}<span class="mf-fold-badge">${cnt} 张</span></div>`
-            : `<div class="mf-grid">${tickets.map((t, ii) => `<button class="mf-stamp" type="button" onclick="openMomentPhoto('${p.id}', ${ii})">${stampInner(t)}</button>`).join('')}</div>`) : '';
+            ? `<div class="mf-fold" onclick="openMomentPhoto('${p.id}', 0)">${[0, 1, 2].filter(x => x < cnt).map(x => `<div class="mf-stamp mf-l${x}${p.stolen ? ' mf-plain' : ''}">${stampInner(tickets[x])}</div>`).join('')}<span class="mf-fold-badge">${cnt} 张</span></div>`
+            : `<div class="mf-grid">${tickets.map((t, ii) => `<button class="mf-stamp${p.stolen ? ' mf-plain' : ''}" type="button" onclick="openMomentPhoto('${p.id}', ${ii})">${stampInner(t)}</button>`).join('')}</div>`) : '';
         const cmtOpen = MOMENT_CMT_OPEN[p.id] !== undefined ? MOMENT_CMT_OPEN[p.id] : cmts.length > 0;
         const inlineBar = MOMENT_INPUT_OPEN[p.id] ? `<div class="mf-inline-bar"><input id="mfInl-${p.id}" class="mf-inline-input" maxlength="120" placeholder="${esc(momentInlinePh(p.id))}"><button class="mf-inline-send" type="button" onclick="sendMomentCommentInline('${p.id}')">发送</button></div>` : '';
         const cmtBlock = cmtOpen
