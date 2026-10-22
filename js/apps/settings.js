@@ -743,20 +743,27 @@ let settingsActivePresetIndex = 0;
 function publishActiveSettingsApi(preset) {
     if (!preset) return;
     try {
-        localStorage.setItem('whatever_settings_active_api_v1', JSON.stringify({
+        const payload = JSON.stringify({
             name: String(preset.name || ''), url: String(preset.url || '').trim(),
             key: String(preset.key || '').trim(), model: String(preset.model || '').trim(),
             temperature: (typeof preset.temperature === 'number' && isFinite(preset.temperature)) ? preset.temperature : 0.8,
             thinking: ['low', 'medium', 'high'].includes(preset.thinking) ? preset.thinking : '',
             updatedAt: Date.now()
-        }));
+        });
+        localStorage.setItem('whatever_settings_active_api_v1', payload);
+        localStorage.setItem('forever_settings_active_api_v1', payload);
     } catch (e) { console.warn('[Settings API] 无法同步 API 配置到聊天模块', e); }
 }
 function restoreActiveSettingsApi() {
     loadSettingsApiPresets();
     try {
-        const saved = JSON.parse(localStorage.getItem('whatever_settings_active_api_v1') || 'null');
-        if (!saved || !saved.url || !saved.model) { prefillSettingsForm(settingsApiPresets[settingsActivePresetIndex]); return; }
+        const saved = JSON.parse(localStorage.getItem('whatever_settings_active_api_v1') || localStorage.getItem('forever_settings_active_api_v1') || 'null');
+        if (!saved || !saved.url || !saved.model) {
+            const fallback = settingsApiPresets[settingsActivePresetIndex];
+            prefillSettingsForm(fallback);
+            if (fallback) publishActiveSettingsApi(fallback);
+            return;
+        }
         let idx = settingsApiPresets.findIndex(p => p.name === saved.name);
         if (idx < 0) {
             settingsApiPresets.unshift({ id: Date.now(), name: saved.name || '当前 API', url: saved.url, key: saved.key || '', model: saved.model });
@@ -775,6 +782,7 @@ function restoreActiveSettingsApi() {
         Object.assign(settingsApiPresets[idx], { temperature: saved.temperature, thinking: saved.thinking });
         settingsSetTuningForm(saved);
         ensureModelOption(model, saved.model);
+        publishActiveSettingsApi(settingsApiPresets[idx]);
     } catch (e) { console.warn('[Settings API] 配置恢复失败', e); }
 }
 
@@ -994,6 +1002,14 @@ async function cycleSettingsBackground() {
 let settingsCustomBg = null;
 let settingsMaskTransparency = null;
 
+// 预加载内置设置背景图，避免切换或打开时闪烁
+(function preloadSettingsBgs() {
+    settingsBackgrounds.forEach(src => {
+        const img = new Image();
+        img.src = cssWallpaperUrl(src);
+    });
+})();
+
 function applyCurrentSettingsBackground() {
     const root = document.getElementById('noirSettingsRoot');
     if (!root) return;
@@ -1003,7 +1019,10 @@ function applyCurrentSettingsBackground() {
     const alpha = hasMask ? (1 - settingsMaskTransparency / 100) : (isLight ? 0.6 : 0.55);
     const rgb = isLight ? '255, 255, 255' : '6, 6, 8';
     const overlay = `linear-gradient(rgba(${rgb}, ${alpha.toFixed(2)}), rgba(${rgb}, ${alpha.toFixed(2)}))`;
-    root.style.backgroundImage = `${overlay}, url('${cssWallpaperUrl(bgPath)}')`;
+    const nextBg = `${overlay}, url('${cssWallpaperUrl(bgPath)}')`;
+    if (root.dataset.appliedBg === nextBg) return;
+    root.dataset.appliedBg = nextBg;
+    root.style.backgroundImage = nextBg;
     root.style.backgroundSize = 'cover';
     root.style.backgroundPosition = 'center';
 }

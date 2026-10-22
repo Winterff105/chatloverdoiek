@@ -929,6 +929,8 @@ function openChat(id) {
     const c = CONTACTS.find(x => x.id === id);
     if (window.CruiseTrace && typeof window.CruiseTrace.setContext === 'function') window.CruiseTrace.setContext(c);
     if (!c) return;
+    closeMqSheet();
+    toggleQuickMenu(false);
     activeId = id;
     threadLimit = 35;
     threadLoadingMore = false;
@@ -2786,9 +2788,9 @@ function openChatPromptSettings(k) {
     </section>`;
     modal._cdCustomWords = new Set(v.customWords || []);
     modal._cdCustomReasons = Object.assign({}, v.customReasons || {});
-    document.body.appendChild(modal);
     modal.appendChild(cdIoBar(modal));
-    requestAnimationFrame(()=>requestAnimationFrame(()=>modal.classList.add('is-visible')));
+    modal.classList.add('is-visible');
+    document.body.appendChild(modal);
     const close=()=>{modal.classList.remove('is-visible');modal.classList.add('is-leaving');setTimeout(()=>modal.remove(),220);};
     modal.querySelector('.cd-settings-close').onclick=close;
     const addSection=modal.querySelector('.cd-add-section');
@@ -3702,7 +3704,6 @@ function bindSwipeQuote() {
 function toggleQuickMenu(force) {
     const menu = document.getElementById('quickMenu');
     if (!menu) return;
-    ensureExtPanel();
     ensureRedoQuickItem();
     const show = typeof force === 'boolean' ? force : !menu.classList.contains('show');
     menu.classList.toggle('show', show);
@@ -6892,15 +6893,16 @@ applyTheme(THEME);
 function markSaveCancelButtons() {
     const LABEL = { '完成': 'SAVE', '保存': 'SAVE', '保存样式': 'SAVE', '取消': 'Cancel', 'Save': 'SAVE', 'SAVE': 'SAVE', 'Cancel': 'Cancel' };
     const scan = (root) => {
+        if (!root || !root.querySelectorAll) return;
+        if (root.closest && root.closest('#cdPromptSettings, #cdWordEdit')) return;
         const list = (root.matches && root.matches('button')) ? [root, ...root.querySelectorAll('button')] : root.querySelectorAll('button');
         list.forEach(b => {
-            if (b.closest('#memPage')) return;
+            if (b.closest('#memPage, #cdPromptSettings, #cdWordEdit')) return;
             if (b.closest('#gpPanOverlay')) {
                 const PAN = { 'gp-editSave': '保存', 'gp-doneBtn': '完成', 'gp-mgrClose': '完成' };
                 if (PAN[b.id]) { if (b.textContent.trim() !== PAN[b.id]) b.textContent = PAN[b.id]; return; }
             }
-            if (!b.closest('.messages-app') && !b.closest('#gpPanOverlay')) return;
-            const t = (b.textContent || '').trim();
+            if (!b.closest('.messages-app') && !b.closest('#gpPanOverlay')) return;            const t = (b.textContent || '').trim();
             if (!LABEL[t]) return;
             const oc = b.getAttribute('onclick') || '';
             const want = /saveContact\(/.test(oc) ? 'Save' : (/savePersona\(/.test(oc) ? 'SAVE' : LABEL[t]);
@@ -6920,16 +6922,10 @@ setTimeout(ensureExtPanel, 0);
 /* 输入框：“+”按钮 → 输入框上方滑出的透明白面板（占位按钮，以后做功能） */
 const EXT_ITEMS = [['图片','M4 5h16v14H4z M4 16l5-5 4 4 3-3 4 4'],['拍照','M4 8h4l2-3h4l2 3h4v11H4z M12 11a3 3 0 1 0 0.01 0'],['语音','M12 4v10M8 10v2a4 4 0 0 0 8 0v-2M12 18v3'],['位置','M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z M12 11a2 2 0 1 0 0.01 0'],['红包','M5 4h14v16H5z M5 11h14'],['转账','M4 9h16M4 15h16M8 5l-4 4 4 4M16 11l4 4-4 4'],['文件','M7 3h7l5 5v13H7z M14 3v5h5'],['更多','M5 12h.01M12 12h.01M19 12h.01']];
 function ensureExtPanel() {
+    if (document.getElementById('extPanel')) return;
     const box = document.querySelector('.messages-app');
     const menu = document.getElementById('quickMenu');
     if (!box || !menu) return;
-    const old = document.getElementById('extPanel');
-    // 面板还绑着旧的菜单/旧的容器（页面重新渲染过）：拆掉重建，保证跟得上当前菜单
-    if (old) {
-        if (old._menu === menu && old._box === box) return;
-        if (old._observer) old._observer.disconnect();
-        old.remove();
-    }
     const panel = document.createElement('div');
     panel.className = 'ext-panel'; panel.id = 'extPanel';
     panel.innerHTML = EXT_ITEMS.map(([label, d]) => `<button class="ext-item" type="button" data-ext="${label}"><span class="ext-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#333" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></span><span>${label}</span></button>`).join('');
@@ -6944,9 +6940,7 @@ function ensureExtPanel() {
         }
         panel.classList.toggle('open', show);
     };
-    const observer = new MutationObserver(sync);
-    observer.observe(menu, { attributes: true, attributeFilter: ['class'] });
-    panel._menu = menu; panel._box = box; panel._observer = observer;
+    new MutationObserver(sync).observe(menu, { attributes: true, attributeFilter: ['class'] });
     panel.addEventListener('click', e => {
         const b = e.target.closest('[data-ext]'); if (!b) return;
         if (b.dataset.ext === '图片') { toggleQuickMenu(false); pickChatPhoto(); return; }

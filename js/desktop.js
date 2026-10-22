@@ -299,8 +299,6 @@ function resetDragState() {
 function attachDragAndHoldEvents(el, itemData) {
     let startX = 0, startY = 0;
     let isDragging = false;
-    let holdTimer = null;
-    let didTriggerHold = false;
 
     el.addEventListener('pointerdown', (e) => {
         if (e.target.closest('.profile-avatar-wrap, .hb-avatar-wrap, .chip-avatar')) return;
@@ -311,33 +309,8 @@ function attachDragAndHoldEvents(el, itemData) {
         startX = e.clientX;
         startY = e.clientY;
         isDragging = false;
-        didTriggerHold = false;
-
-        holdTimer = setTimeout(() => {
-            didTriggerHold = true;
-            phoneContainer.classList.add('edit-mode');
-            if (navigator.vibrate) navigator.vibrate(40);
-
-            let existingToast = document.getElementById('globalEditToast');
-            if (existingToast) existingToast.remove();
-
-            const toast = document.createElement('div');
-            toast.id = 'globalEditToast';
-            toast.className = 'global-edit-toast mono-font';
-            toast.innerHTML = `
-                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                <span>已进入编辑模式…</span>
-            `;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.classList.add('show'), 20);
-            setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => toast.remove(), 400);
-            }, 1600);
-        }, 500);
 
         const removeListeners = () => {
-            clearTimeout(holdTimer);
             window.removeEventListener('pointermove', onMove);
             window.removeEventListener('pointerup', onUp);
             window.removeEventListener('pointercancel', onCancel);
@@ -345,7 +318,6 @@ function attachDragAndHoldEvents(el, itemData) {
 
         const onMove = (moveEvent) => {
             const dist = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
-            if (dist > 7) clearTimeout(holdTimer);
 
             if (!isDragging && dist > 7) {
                 isDragging = true;
@@ -402,14 +374,10 @@ function attachDragAndHoldEvents(el, itemData) {
                 }, 300);
             } else {
                 window.isGlobalDragging = false;
-                const isEditMode = phoneContainer.classList.contains('edit-mode');
-                if (itemData.type === 'app' && !didTriggerHold) {
-                    // Normal tap must open the Information app too; previously only Settings
-                    // opened outside edit mode, making the Chat/Information icon look dead.
-                    // 普通点击直接打开的应用：设置、聊天、Little Lace（book）；其他应用在编辑模式下才打开
+                const isEditMode = phoneContainer && phoneContainer.classList.contains('edit-mode');
+                if (itemData.type === 'app' && !isEditMode) {
                     const TAP_OPENS = ['settings', 'chat', 'book', 'worldbook', 'todo', 'world'];
-                    if (TAP_OPENS.includes(itemData.id) || isEditMode) {
-                        phoneContainer.classList.remove('edit-mode');
+                    if (TAP_OPENS.includes(itemData.id)) {
                         if (typeof openApp === 'function') openApp(itemData.id);
                     }
                 }
@@ -442,10 +410,19 @@ function checkEdgePageFlip(clientX) {
         flipThrottle = true;
         goToPage(currentPageIndex - 1);
         setTimeout(() => { flipThrottle = false; }, 600);
-    } else if (clientX > containerRect.right - 35 && currentPageIndex < totalPages - 1) {
-        flipThrottle = true;
-        goToPage(currentPageIndex + 1);
-        setTimeout(() => { flipThrottle = false; }, 600);
+    } else if (clientX > containerRect.right - 35) {
+        if (currentPageIndex < totalPages - 1) {
+            flipThrottle = true;
+            goToPage(currentPageIndex + 1);
+            setTimeout(() => { flipThrottle = false; }, 600);
+        } else if (totalPages < 8) {
+            flipThrottle = true;
+            totalPages++;
+            currentPageIndex = totalPages - 1;
+            renderUI();
+            if (navigator.vibrate) navigator.vibrate(25);
+            setTimeout(() => { flipThrottle = false; }, 750);
+        }
     }
 }
 
@@ -935,8 +912,10 @@ function renderPaginationDots() {
         };
         dotsContainer.appendChild(dot);
     }
+    if (typeof wkSyncCapsule === 'function') {
+        wkSyncCapsule();
+    }
 }
-
 function goToPage(pageIdx) {
     currentPageIndex = Math.max(0, Math.min(totalPages - 1, pageIdx));
     updateTrackPosition();
@@ -961,14 +940,129 @@ function checkDockAnimation() {
 
 /* ===== swipe.js ===== */
 /* =========================================
-   7. 桌面手势滑屏切页
+   7. 桌面手势滑屏切页 与 空白区域长按/点击切换编辑模式
    ========================================= */
 let swipeStartX = 0;
 let swipeStartY = 0;
+let wkEditModeLocked = false;
+
+function enterDesktopEditMode() {
+    wkEditModeLocked = true;
+    const pc = phoneContainer || document.getElementById('phoneContainer');
+    if (pc && !pc.classList.contains('edit-mode')) {
+        pc.classList.add('edit-mode');
+    }
+    if (typeof wkSyncCapsule === 'function') wkSyncCapsule();
+    if (typeof wkSyncBadges === 'function') wkSyncBadges();
+}
+
+function exitDesktopEditMode() {
+    wkEditModeLocked = false;
+    const pc = phoneContainer || document.getElementById('phoneContainer');
+    if (pc && pc.classList.contains('edit-mode')) {
+        pc.classList.remove('edit-mode');
+    }
+    if (typeof wkSyncCapsule === 'function') wkSyncCapsule();
+    if (typeof wkSyncBadges === 'function') wkSyncBadges();
+}
+
+function showEditModeToast() {
+    let existingToast = document.getElementById('globalEditToast');
+    if (existingToast) existingToast.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'globalEditToast';
+    toast.className = 'global-edit-toast mono-font';
+    toast.innerHTML = `
+        <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <span>已进入编辑模式…</span>
+    `;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 20);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400);
+    }, 1600);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     const desktopViewport = document.getElementById('desktopViewport');
-    
+    if (!desktopViewport) return;
+
+    let blankHoldTimer = null;
+    let blankDidHold = false;
+    let blankStartX = 0;
+    let blankStartY = 0;
+    let blankPointerDownValid = false;
+
+    const isBlankDesktopArea = (target) => {
+        if (!target || !target.closest) return false;
+        if (!target.closest('#desktopViewport, .desktop-page, #desktopTrack')) return false;
+        if (target.closest('.app-item, .widget-item, .dock-slot, #dockBar, #desktopEditSettingsBtn, #addPageBtn, #removePageBtn, .pagination-dots, .page-dot, .wk-del-badge, .wk-overlay, #wkLibrary, #wkEditor')) return false;
+        return true;
+    };
+
+    desktopViewport.addEventListener('pointerdown', (e) => {
+        if (document.querySelector('.wk-overlay, #wkLibrary, #wkEditor')) {
+            blankPointerDownValid = false;
+            return;
+        }
+        if (!isBlankDesktopArea(e.target)) {
+            blankPointerDownValid = false;
+            return;
+        }
+
+        blankPointerDownValid = true;
+        blankStartX = e.clientX;
+        blankStartY = e.clientY;
+        blankDidHold = false;
+        clearTimeout(blankHoldTimer);
+
+        blankHoldTimer = setTimeout(() => {
+            blankDidHold = true;
+            enterDesktopEditMode();
+            if (navigator.vibrate) navigator.vibrate(40);
+            showEditModeToast();
+        }, 500);
+    });
+
+    desktopViewport.addEventListener('pointermove', (e) => {
+        if (!blankPointerDownValid) return;
+        const dist = Math.hypot(e.clientX - blankStartX, e.clientY - blankStartY);
+        if (dist > 10) {
+            clearTimeout(blankHoldTimer);
+        }
+    });
+
+    desktopViewport.addEventListener('pointerup', (e) => {
+        clearTimeout(blankHoldTimer);
+        if (!blankPointerDownValid) return;
+        blankPointerDownValid = false;
+
+        if (document.querySelector('.wk-overlay, #wkLibrary, #wkEditor')) {
+            blankDidHold = false;
+            return;
+        }
+        if (!isBlankDesktopArea(e.target)) {
+            blankDidHold = false;
+            return;
+        }
+
+        const dist = Math.hypot(e.clientX - blankStartX, e.clientY - blankStartY);
+        if (!blankDidHold && dist < 10) {
+            if (wkEditModeLocked) {
+                exitDesktopEditMode();
+            }
+        }
+        blankDidHold = false;
+    });
+
+    desktopViewport.addEventListener('pointercancel', () => {
+        clearTimeout(blankHoldTimer);
+        blankDidHold = false;
+        blankPointerDownValid = false;
+    });
+
     desktopViewport.addEventListener('touchstart', (e) => {
         if (e.target.closest('.app-item, .widget-item')) return;
         swipeStartX = e.touches[0].clientX;
@@ -1098,6 +1192,10 @@ function wkAddToDesktop(spec) {
     desktopItems.push(Object.assign({ id: newId, page, slot }, spec));
     wkJustAddedId = newId;
     renderUI();
+    if (phoneContainer) {
+        phoneContainer.classList.add('edit-mode');
+        wkSyncCapsule();
+    }
     wkJustAddedId = null;
     const el = document.querySelector('#desktopTrack .widget-item[data-id="' + newId + '"]') || document.querySelector('#desktopTrack [data-id="' + newId + '"]');
     if (el) el.classList.add('wk-enter');
@@ -1348,59 +1446,173 @@ function wkToggleCollapse(id) {
     wkSaveLayout();
     renderUI();
 }
-/* 胶囊按钮：只在剪辑模式显示（用 JS 强制，不依赖 CSS 优先级） */
+/* 确保减页按钮位于分页胶囊左侧（绝对定位不挤偏分页胶囊中心），并注入小组件内嵌固定叉号样式 */
+function wkEnsureRemovePageBtnLayout() {
+    if (!document.getElementById('wkRemovePageBtnStyle')) {
+        const st = document.createElement('style');
+        st.id = 'wkRemovePageBtnStyle';
+        st.textContent = `
+            #removePageBtn {
+                position: absolute !important;
+                right: calc(100% + 8px) !important;
+                left: auto !important;
+                top: 50% !important;
+                transform: translateY(-50%) !important;
+                margin: 0 !important;
+                width: 22px !important;
+                height: 22px !important;
+                border-radius: 50% !important;
+                border: 1px solid rgba(255, 255, 255, 0.42) !important;
+                background: rgba(255, 255, 255, 0.24) !important;
+                backdrop-filter: blur(12px) !important;
+                -webkit-backdrop-filter: blur(12px) !important;
+                color: var(--svg-stroke, #333) !important;
+                display: none;
+                align-items: center !important;
+                justify-content: center !important;
+                cursor: pointer !important;
+                padding: 0 !important;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+                transition: transform 0.18s ease, opacity 0.18s ease, background 0.18s ease !important;
+                outline: none !important;
+                z-index: 20 !important;
+            }
+            #removePageBtn:active {
+                transform: translateY(-50%) scale(0.9) !important;
+            }
+            #removePageBtn svg {
+                width: 11px !important;
+                height: 11px !important;
+                stroke: currentColor !important;
+                stroke-width: 2.5 !important;
+                stroke-linecap: round !important;
+                fill: none !important;
+                pointer-events: none !important;
+            }
+            #desktopTrack .widget-item {
+                position: relative !important;
+            }
+            #desktopTrack .widget-item > .wk-del-badge {
+                position: absolute !important;
+                top: 6px !important;
+                right: 6px !important;
+                left: auto !important;
+                bottom: auto !important;
+                width: 22px !important;
+                height: 22px !important;
+                border-radius: 50% !important;
+                background: rgba(28, 28, 30, 0.75) !important;
+                border: 1px solid rgba(255, 255, 255, 0.35) !important;
+                backdrop-filter: blur(8px) !important;
+                -webkit-backdrop-filter: blur(8px) !important;
+                display: none !important;
+                align-items: center !important;
+                justify-content: center !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                cursor: pointer !important;
+                z-index: 60 !important;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.22) !important;
+                transform: none !important;
+            }
+            #phoneContainer.edit-mode #desktopTrack .widget-item > .wk-del-badge {
+                display: flex !important;
+            }
+            .drag-avatar .wk-del-badge,
+            .wk-frame .wk-del-badge {
+                display: none !important;
+            }
+        `;
+        document.head.appendChild(st);
+    }
+
+    const dots = dotsContainer || document.getElementById('paginationDots') || document.querySelector('.pagination-dots');
+    if (!dots) return null;
+
+    if (window.getComputedStyle(dots).position === 'static') {
+        dots.style.position = 'relative';
+    }
+    dots.style.overflow = 'visible';
+
+    let rm = document.getElementById('removePageBtn');
+    if (!rm) {
+        rm = document.createElement('button');
+        rm.id = 'removePageBtn';
+        rm.type = 'button';
+        rm.title = '删除最后一页';
+        rm.setAttribute('aria-label', '删除最后一页');
+        rm.addEventListener('click', (e) => {
+            e.stopPropagation();
+            wkRemoveLastPage();
+        });
+    }
+
+    if (!rm.querySelector('svg')) {
+        rm.innerHTML = '<svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+    }
+
+    if (rm.parentElement !== dots) {
+        dots.appendChild(rm);
+    }
+    return rm;
+}
+
+/* 胶囊按钮与减页按钮：只在剪辑模式显示（用 JS 强制，不依赖 CSS 优先级），并守护 edit-mode 不被其他脚本误删 */
 function wkSyncCapsule() {
-    const b = document.getElementById('desktopEditSettingsBtn');
-    if (!b) return;
     const pc = document.getElementById('phoneContainer');
-    const on = !!(pc && pc.classList.contains('edit-mode'));
-    b.style.setProperty('display', on ? 'flex' : 'none', 'important');
+    if (pc && wkEditModeLocked && !pc.classList.contains('edit-mode')) {
+        pc.classList.add('edit-mode');
+    }
+    const on = !!(wkEditModeLocked || (pc && pc.classList.contains('edit-mode')));
+    const b = document.getElementById('desktopEditSettingsBtn');
+    if (b) {
+        b.style.setProperty('display', on ? 'flex' : 'none', 'important');
+    }
+    const rm = wkEnsureRemovePageBtnLayout();
+    if (rm) {
+        rm.style.setProperty('display', (on && totalPages > 1) ? 'inline-flex' : 'none', 'important');
+    }
+    wkSyncBadges();
 }
 let wkCapsuleObserved = false;
 function wkWatchEditMode() {
     const pc = document.getElementById('phoneContainer');
     if (!pc || wkCapsuleObserved) return;
     wkCapsuleObserved = true;
-    new MutationObserver(wkSyncCapsule).observe(pc, { attributes: true, attributeFilter: ['class'] });
+    new MutationObserver(() => {
+        if (wkEditModeLocked && !pc.classList.contains('edit-mode')) {
+            pc.classList.add('edit-mode');
+        }
+        wkSyncCapsule();
+    }).observe(pc, { attributes: true, attributeFilter: ['class'] });
     wkSyncCapsule();
 }
 
 /* ---------- 启动：读取保存的布局 + 绑定删除页按钮 ---------- */
 /* 叉号：在 document 捕获阶段统一处理，比小组件、设置页的任何监听都先拿到事件 */
 function wkBadgeFrom(e) { return e.target && e.target.closest ? e.target.closest('.wk-del-badge') : null; }
-/* 叉号悬浮层：放在 body 上，z-index 很高，永远不会被小组件内容盖住 */
+/* 叉号直接内嵌固定在每个小组件右上角内部，不再放到 body 上用坐标跟随 */
 function wkSyncBadges() {
-    const pc = document.getElementById('phoneContainer');
-    const on = !!(pc && pc.classList.contains('edit-mode'));
-    const live = new Set();
-    if (on) {
-        document.querySelectorAll('#desktopTrack .widget-item[data-id]').forEach(el => {
-            const id = el.dataset.id;
-            const item = desktopItems.find(it => it.id === id);
-            if (!item || !wkIsWidget(item)) return;
-            const r = el.getBoundingClientRect();
-            if (r.width < 4 || r.height < 4) return;
-            live.add(id);
-            let x = document.querySelector('.wk-del-badge[data-id="' + id + '"]');
-            if (!x) {
-                x = document.createElement('button');
-                x.type = 'button';
-                x.className = 'wk-del-badge';
-                x.dataset.id = id;
-                x.setAttribute('aria-label', '移出桌面');
-                x.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 6L18 18M18 6L6 18" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>';
-                document.body.appendChild(x);
-            }
-            x.style.left = (r.right - 28) + 'px';
-            x.style.top = (r.top + 6) + 'px';
+    document.querySelectorAll('body > .wk-del-badge').forEach(x => x.remove());
+    document.querySelectorAll('#desktopTrack .widget-item[data-id]').forEach(el => {
+        const id = el.dataset.id;
+        const item = desktopItems.find(it => it.id === id);
+        if (!item || !wkIsWidget(item)) return;
+        let x = el.querySelector(':scope > .wk-del-badge');
+        if (!x) {
+            x = document.createElement('button');
+            x.type = 'button';
+            x.className = 'wk-del-badge live';
+            x.dataset.id = id;
+            x.setAttribute('aria-label', '移出桌面');
+            x.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 6L18 18M18 6L6 18" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>';
+            el.appendChild(x);
+        } else {
+            x.dataset.id = id;
             x.classList.add('live');
-        });
-    }
-    document.querySelectorAll('.wk-del-badge').forEach(x => {
-        if (!live.has(x.dataset.id) || !on) { x.classList.remove('live'); if (!on || !live.has(x.dataset.id)) x.remove(); }
+        }
     });
 }
-setInterval(wkSyncBadges, 120);
 
 function wkRemoveFromBadge(badge) {
     const id = badge.dataset.id;
