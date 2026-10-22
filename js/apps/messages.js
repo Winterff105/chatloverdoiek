@@ -5231,7 +5231,11 @@ async function saveRoomFontPreset() {
     const list = (await loadFontPresets()).slice();
     const item = { id: 'fp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5), name: p.name, kind: p.kind };
     try {
-        if (p.kind === 'file') { item.key = 'cfont_' + item.id; if (window.DB) await window.DB.save(item.key, p.src); }
+        if (p.kind === 'file') {
+            item.key = 'cfont_' + item.id;
+            const ok = window.DB ? await window.DB.saveLarge(item.key, p.src) : false;
+            if (!ok) { toast('这台设备存不下这个字体（数据库不可用或文件太大），请换一个小一点的字体'); return; }
+        }
         else item.url = p.src;
     } catch (err) { toast('字体保存失败'); return; }
     list.unshift(item);
