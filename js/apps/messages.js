@@ -1365,11 +1365,11 @@ function pickChatPhoto() {
         try {
             const url = await compressImage(f, 800);
             const key = 'cphoto_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-            const ok = window.DB ? await window.DB.save(key, url) : false;
+            const ok = window.DB ? await window.DB.saveLarge(key, url) : false;
+            if (!ok) { toast('这台设备无法保存照片（本地数据库不可用）'); return; }
             MOMENT_IMG_CACHE[key] = url;
             c.msgs.push({ me: true, text: '', photo: key, t: nowTime(), ts: Date.now() });
             c.time = nowTime(); persistContacts(); renderThread(); renderChats();
-            if (!ok) toast('照片只保存在本次运行中');
         } catch (e) { toast('照片读取失败'); }
     };
     input.click();
@@ -5028,7 +5028,6 @@ function applyRoomBeauty(c) {
     } else {
         v.style.removeProperty('--bubble-fs');
     }
-    applyRoomFontFor(c);
     applyChatCss(chatCssOf(c));
 }
 
@@ -5165,140 +5164,7 @@ function onRoomFontSize(v) {
         range.style.setProperty('--p', pct + '%');
     }
 }
-/* ---- 聊天室字体：上传字体 / 字体 URL，确认保存后成为预设（文件数据存数据库） ---- */
-const FONT_PRESETS_KEY = 'chat_font_presets_v1';
-let fontPresetsCache = null;
-let roomPendingFont = null;
-async function loadFontPresets() {
-    if (fontPresetsCache) return fontPresetsCache;
-    let v = [];
-    try { v = window.DB ? await window.DB.load(FONT_PRESETS_KEY, []) : []; } catch (_) {}
-    fontPresetsCache = Array.isArray(v) ? v : [];
-    return fontPresetsCache;
-}
-async function persistFontPresets(list) {
-    fontPresetsCache = list;
-    if (window.DB) await window.DB.save(FONT_PRESETS_KEY, list);
-}
-function applyRoomFont(src) {
-    let st = document.getElementById('chatFontStyle');
-    if (!st) { st = document.createElement('style'); st.id = 'chatFontStyle'; document.head.appendChild(st); }
-    if (!src) { st.textContent = ''; return; }
-    const safe = String(src).replace(/["'()\\\s]/g, '');
-    st.textContent = `@font-face{font-family:'RoomFont';src:url("${safe}")}\n.messages-app #chatView,.messages-app #chatView .bubble{font-family:'RoomFont',-apple-system,sans-serif !important}`;
-}
-async function applyRoomFontFor(c) {
-    if (roomPendingFont && c && roomPendingFont.cid === c.id) return;
-    const f = c && c.beauty && c.beauty.font;
-    if (!f) { applyRoomFont(''); return; }
-    if (f.kind === 'url') { applyRoomFont(f.url); return; }
-    let data = '';
-    try { data = window.DB ? await window.DB.load(f.key, '') : ''; } catch (_) {}
-    applyRoomFont(data || '');
-}
-function showRoomFontSave(on) {
-    const btn = document.getElementById('roomFontSave'); if (btn) btn.style.display = on ? '' : 'none';
-}
-function toggleRoomFontUrl() {
-    const row = document.getElementById('roomFontUrlRow'); if (!row) return;
-    row.style.display = row.style.display === 'none' ? '' : 'none';
-}
-function onRoomFontFile(el) {
-    const file = el && el.files && el.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-        roomPendingFont = { cid: activeId, name: file.name.replace(/\.[^.]+$/, '') || '字体', kind: 'file', src: String(reader.result || '') };
-        applyRoomFont(roomPendingFont.src);
-        showRoomFontSave(true);
-        toast('字体已上传，预览中，点「保存字体预设」');
-    };
-    reader.onerror = () => toast('字体读取失败，请换一个文件再试');
-    reader.readAsDataURL(file);
-    el.value = '';
-}
-function onRoomFontUrl(v) {
-    const url = String(v || '').trim();
-    if (!/^https?:\/\//i.test(url)) { roomPendingFont = null; showRoomFontSave(false); return; }
-    const last = (url.split('?')[0].split('/').pop() || '').replace(/\.[^.]+$/, '');
-    roomPendingFont = { cid: activeId, name: last || 'URL 字体', kind: 'url', src: url };
-    applyRoomFont(url);
-    showRoomFontSave(true);
-}
-/* 先试着加载一次字体链接：不能加载（比如对方没开跨域）就返回 false，不保存 */
-async function checkFontUrl(src) {
-    const timeout = new Promise(res => setTimeout(() => res(false), 8000));
-    const load = (async () => {
-        try {
-            const f = new FontFace('RoomFontCheck', `url("${String(src).replace(/["'()\\\s]/g, '')}")`);
-            await f.load();
-            return true;
-        } catch (_) { return false; }
-    })();
-    return Promise.race([load, timeout]);
-}
-/* 恢复默认字体：清掉这个聊天的自定义字体 */
-function pickDefaultFont() {
-    const c = CONTACTS.find(x => x.id === activeId);
-    if (!c) return;
-    const b = Object.assign({}, c.beauty || {});
-    delete b.font;
-    c.beauty = b;
-    persistContacts();
-    roomPendingFont = null;
-    showRoomFontSave(false);
-    applyRoomFont('');
-    toast('已恢复默认字体');
-}
-async function saveRoomFontPreset() {
-    const p = roomPendingFont;
-    const c = CONTACTS.find(x => x.id === activeId);
-    if (!p || !c) { toast('先上传字体或填写字体 URL'); return; }
-    const list = (await loadFontPresets()).slice();
-    const item = { id: 'fp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5), name: p.name, kind: p.kind };
-    try {
-        if (p.kind === 'file') {
-            item.key = 'cfont_' + item.id;
-            const ok = window.DB ? await window.DB.saveLarge(item.key, p.src) : false;
-            if (!ok) { toast('这台设备的本地数据库不可用，字体存不下（可以改用字体 URL）'); return; }
-        }
-        else {
-            toast('正在检查字体链接…');
-            if (!(await checkFontUrl(p.src))) { toast('字体链接加载失败：请确认是字体文件，并且对方允许跨域访问'); return; }
-            item.url = p.src;
-        }
-    } catch (err) { toast('字体保存失败'); return; }
-    list.unshift(item);
-    await persistFontPresets(list);
-    c.beauty = Object.assign({}, c.beauty || {}, { font: p.kind === 'file' ? { kind: 'file', key: item.key } : { kind: 'url', url: p.src } });
-    persistContacts();
-    roomPendingFont = null;
-    showRoomFontSave(false);
-    applyRoomFontFor(c);
-    refreshFontPresetList();
-    toast('已保存字体预设「' + item.name + '」');
-}
-async function pickFontPreset(i) {
-    const item = (await loadFontPresets())[i];
-    const c = CONTACTS.find(x => x.id === activeId);
-    if (!item || !c) return;
-    c.beauty = Object.assign({}, c.beauty || {}, { font: item.kind === 'file' ? { kind: 'file', key: item.key } : { kind: 'url', url: item.url } });
-    persistContacts();
-    roomPendingFont = null;
-    showRoomFontSave(false);
-    await applyRoomFontFor(c);
-    toast('已套用字体「' + item.name + '」');
-}
-async function refreshFontPresetList() {
-    const el = document.getElementById('fontPresetList'); if (!el) return;
-    const list = await loadFontPresets();
-    el.innerHTML = list.length
-        ? list.map((p, i) => `<button class="preset-item" type="button" onclick="pickFontPreset(${i})">${esc(p.name)}</button>`).join('')
-        : '<div class="preset-empty">还没有字体预设</div>';
-    el.innerHTML = '<button class="preset-item" type="button" onclick="pickDefaultFont()">默认字体</button>' + el.innerHTML;
-}
-
 function roomBeautyPaneInner(c) {
-    setTimeout(refreshFontPresetList, 0);
     const hasBg = !!(c.beauty && c.beauty.bg);
     const fs = (c.beauty && c.beauty.fontSize) || 13;
     const pct = ((fs - 11) / (20 - 11) * 100).toFixed(1);
@@ -5317,13 +5183,6 @@ function roomBeautyPaneInner(c) {
                 <div class="css-fs-head"><span class="css-fs-lbl">气泡字号</span><span class="css-fs-val" id="roomFsVal">${fs}px</span></div>
                 <input class="mq-range css-fs-range" type="range" min="11" max="20" step="0.5" value="${fs}" style="--p:${pct}%" oninput="onRoomFontSize(this.value)">
             </div>
-            <div class="css-fs-row">
-                <div class="css-fs-head"><span class="css-fs-lbl">字体</span></div>
-                <div class="css-tpl" style="margin-top:0"><label class="css-tpl-btn" for="roomFontFile" style="cursor:pointer">上传字体</label><button class="css-tpl-btn" type="button" onclick="toggleRoomFontUrl()">用字体 URL</button></div>
-                <input type="file" id="roomFontFile" accept=".ttf,.otf,.woff,.woff2" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="onRoomFontFile(this)">
-                <div id="roomFontUrlRow" style="display:none;width:100%"><input class="css-font-url-input" id="roomFontUrl" placeholder="https://example.com/font.woff2" oninput="onRoomFontUrl(this.value)"></div>
-                <button class="css-font-save" id="roomFontSave" type="button" onclick="saveRoomFontPreset()" style="display:none">保存字体预设</button>
-                <div id="fontPresetList" style="display:flex;flex-direction:column;gap:6px;width:100%"></div>
             </div>
         </div>
         <div class="css-actions"><button class="css-clear" type="button" onclick="clearRoomCss()">清空</button><button class="css-save" type="button" onclick="saveRoomCss()">保存样式</button></div>`)}
@@ -6558,7 +6417,8 @@ async function saveChatShot(c) {
         const url = await captureChatShot(c);
         if (!url) return null;
         const key = 'cphoto_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-        if (window.DB) await window.DB.save(key, url);
+        const ok = window.DB ? await window.DB.saveLarge(key, url) : false;
+        if (!ok) return null;
         MOMENT_IMG_CACHE[key] = url;
         return key;
     } catch (err) {
@@ -6685,7 +6545,7 @@ async function publishMoment() {
     const imgs = [];
     for (let i = 0; i < PENDING_IMGS.length; i++) {
         const key = `mimg_${id}_${i}`;
-        const ok = window.DB ? await window.DB.save(key, PENDING_IMGS[i]) : false;
+        const ok = window.DB ? await window.DB.saveLarge(key, PENDING_IMGS[i]) : false;
         if (!ok) {
             for (const k of imgs) { if (window.DB) await window.DB.remove(k); }
             toast('照片保存失败，请试试少选几张');
@@ -7078,7 +6938,6 @@ __messagesHandlers.setTransOpt = setTransOpt;
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 Object.assign(window, { openMomentFreq, closeMomentFreq, momentSyncAll });
 Object.assign(window, { openMomentPhoto, showVisPeek });
-Object.assign(window, { toggleRoomFontUrl, onRoomFontFile, onRoomFontUrl, saveRoomFontPreset, pickFontPreset, pickDefaultFont });
 
 /* ---------------- 心声：头像下的爱心 · 心声弹窗 · 波浪线切换 · 收藏柜 · 设置 ---------------- */
 const HEART_SET_KEY = 'heart_popup_settings_v1';

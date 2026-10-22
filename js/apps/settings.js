@@ -342,6 +342,36 @@ function getSettingsAppHTML() {
                         </div>
                     </div>
                 </div>
+                <div class="section-tag mono-font" style="margin-top: 8px;">Section 04b — Chat Font</div>
+                <div class="setting-card">
+                    <div class="setting-row" onclick="toggleChatFontPanel()">
+                        <div class="row-left">
+                            <div class="row-text-group">
+                                <span class="row-label">聊天字体</span>
+                                <span class="row-note mono-font">Chat Font · 所有聊天统一使用</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <svg id="chatFontArrow" class="viewport-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                    </div>
+                    <div class="viewport-panel collapsed" id="chatFontPanel">
+                        <div class="viewport-panel-inner">
+                            <div style="display:flex; gap:8px; padding:8px 0;">
+                                <label class="action-text-btn" for="chatFontFile" style="cursor:pointer;">上传字体</label>
+                                <button class="action-text-btn" type="button" onclick="toggleChatFontUrl()">用字体 URL</button>
+                            </div>
+                            <input type="file" id="chatFontFile" accept=".ttf,.otf,.woff,.woff2" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" onchange="onChatFontFile(this)">
+                            <div id="chatFontUrlRow" style="display:none; padding-bottom:8px;">
+                                <input class="api-input-field" id="chatFontUrl" placeholder="https://example.com/font.woff2" oninput="onChatFontUrl(this.value)">
+                            </div>
+                            <div style="padding-bottom:8px;">
+                                <button class="action-text-btn" id="chatFontSave" type="button" onclick="saveChatFontPreset()" style="display:none;">保存字体预设</button>
+                            </div>
+                            <div id="chatFontList" style="display:flex; flex-direction:column; gap:6px; padding-bottom:12px;"></div>
+                        </div>
+                    </div>
+                </div>
                 <div class="section-tag mono-font" style="margin-top: 8px;">Section 04 — Home Icon</div>
                 <div class="setting-card">
                     <div class="setting-row pwa-toggle-row" onclick="togglePwaIconPanel()">
@@ -720,7 +750,6 @@ function publishActiveSettingsApi(preset) {
             updatedAt: Date.now()
         }));
     } catch (e) { console.warn('[Settings API] 无法同步 API 配置到聊天模块', e); }
-    window.dispatchEvent(new Event('settings-api-changed'));
 }
 function restoreActiveSettingsApi() {
     loadSettingsApiPresets();
@@ -3397,13 +3426,133 @@ document.addEventListener('DOMContentLoaded', () => {
     applyCurrentPwaIcon();
 });
 
-/* 悬浮球（快速巡航）与设置页共用同一套 API 预设：任一边改动后，另一边立即刷新 */
-function refreshSettingsApiFromStorage() {
-    restoreActiveSettingsApi();
-    if (document.getElementById('settingsActivePresetBadge')) updateSettingsActivePresetBadge();
-    if (document.getElementById('settingsPresetsListBox')) renderSettingsPresetsList();
+/* ---- 聊天字体：在设置里设置，所有聊天统一使用（数据存本地数据库） ---- */
+const CHAT_FONT_PRESETS_KEY = 'chat_font_presets_v1';
+const CHAT_FONT_ACTIVE_KEY = 'chat_font_active_v1';
+let chatFontPresetsCache = null;
+let chatFontPending = null;
+
+function toggleChatFontPanel() {
+    const panel = document.getElementById('chatFontPanel');
+    const arrow = document.getElementById('chatFontArrow');
+    if (!panel) return;
+    panel.classList.toggle('collapsed');
+    const open = !panel.classList.contains('collapsed');
+    if (arrow) arrow.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
+    if (open) refreshChatFontList();
 }
-window.addEventListener('settings-api-changed', refreshSettingsApiFromStorage);
-window.addEventListener('storage', e => {
-    if (e.key === 'whatever_settings_active_api_v1' || e.key === SETTINGS_PRESETS_KEY) refreshSettingsApiFromStorage();
-});
+function chatFontEsc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function chatFontSafe(src) { return String(src).replace(/["'()\\\s]/g, ''); }
+
+function applyChatFont(src) {
+    let st = document.getElementById('chatFontStyle');
+    if (!st) { st = document.createElement('style'); st.id = 'chatFontStyle'; document.head.appendChild(st); }
+    if (!src) { st.textContent = ''; return; }
+    st.textContent = `@font-face{font-family:'ChatUserFont';src:url("${chatFontSafe(src)}")}\n.messages-app,.messages-app *{font-family:'ChatUserFont',-apple-system,sans-serif !important}`;
+}
+async function applyChatFontFromStore() {
+    let act = null;
+    try { act = window.DB ? await window.DB.load(CHAT_FONT_ACTIVE_KEY, null) : null; } catch (_) {}
+    if (!act) { applyChatFont(''); return; }
+    if (act.kind === 'url') { applyChatFont(act.url); return; }
+    let data = '';
+    try { data = window.DB ? await window.DB.load(act.key, '') : ''; } catch (_) {}
+    applyChatFont(data || '');
+}
+async function loadChatFontPresets() {
+    if (chatFontPresetsCache) return chatFontPresetsCache;
+    let v = [];
+    try { v = window.DB ? await window.DB.load(CHAT_FONT_PRESETS_KEY, []) : []; } catch (_) {}
+    chatFontPresetsCache = Array.isArray(v) ? v : [];
+    return chatFontPresetsCache;
+}
+async function saveChatFontPresets(list) {
+    chatFontPresetsCache = list;
+    if (window.DB) await window.DB.save(CHAT_FONT_PRESETS_KEY, list);
+}
+function showChatFontSave(on) {
+    const b = document.getElementById('chatFontSave'); if (b) b.style.display = on ? '' : 'none';
+}
+function toggleChatFontUrl() {
+    const row = document.getElementById('chatFontUrlRow'); if (!row) return;
+    row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+function onChatFontFile(el) {
+    const file = el && el.files && el.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        chatFontPending = { kind: 'file', name: file.name.replace(/\.[^.]+$/, '') || '字体', src: String(reader.result || '') };
+        applyChatFont(chatFontPending.src);
+        showChatFontSave(true);
+        toast('字体已上传，预览中，点「保存字体预设」');
+    };
+    reader.onerror = () => toast('字体读取失败，请换一个文件再试');
+    reader.readAsDataURL(file);
+    el.value = '';
+}
+function onChatFontUrl(v) {
+    const url = String(v || '').trim();
+    if (!/^https?:\/\//i.test(url)) { chatFontPending = null; showChatFontSave(false); return; }
+    const last = (url.split('?')[0].split('/').pop() || '').replace(/\.[^.]+$/, '');
+    chatFontPending = { kind: 'url', name: last || 'URL 字体', src: url };
+    applyChatFont(url);
+    showChatFontSave(true);
+}
+/* 先试着加载一次字体链接，8 秒内不能加载就视为失败 */
+async function checkChatFontUrl(src) {
+    const timeout = new Promise(res => setTimeout(() => res(false), 8000));
+    const load = (async () => {
+        try {
+            const f = new FontFace('ChatFontCheck', `url("${chatFontSafe(src)}")`);
+            await f.load();
+            return true;
+        } catch (_) { return false; }
+    })();
+    return Promise.race([load, timeout]);
+}
+async function saveChatFontPreset() {
+    const p = chatFontPending;
+    if (!p) { toast('先上传字体或填写字体 URL'); return; }
+    const list = (await loadChatFontPresets()).slice();
+    const id = 'fp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
+    const item = { id, name: p.name, kind: p.kind };
+    if (p.kind === 'file') {
+        item.key = 'cfont_' + id;
+        const ok = window.DB ? await window.DB.saveLarge(item.key, p.src) : false;
+        if (!ok) { toast('这台设备的本地数据库不可用，字体存不下（可以改用字体 URL）'); return; }
+    } else {
+        toast('正在检查字体链接…');
+        if (!(await checkChatFontUrl(p.src))) { toast('字体链接加载失败：请确认是字体文件，并且对方允许跨域访问'); return; }
+        item.url = p.src;
+    }
+    list.unshift(item);
+    await saveChatFontPresets(list);
+    if (window.DB) await window.DB.save(CHAT_FONT_ACTIVE_KEY, p.kind === 'file' ? { kind: 'file', key: item.key } : { kind: 'url', url: p.src });
+    chatFontPending = null;
+    showChatFontSave(false);
+    await applyChatFontFromStore();
+    refreshChatFontList();
+    toast('已保存字体预设「' + item.name + '」，所有聊天已使用');
+}
+async function pickChatFontPreset(i) {
+    const item = (await loadChatFontPresets())[i]; if (!item) return;
+    if (window.DB) await window.DB.save(CHAT_FONT_ACTIVE_KEY, item.kind === 'file' ? { kind: 'file', key: item.key } : { kind: 'url', url: item.url });
+    chatFontPending = null;
+    showChatFontSave(false);
+    await applyChatFontFromStore();
+    toast('已套用字体「' + item.name + '」');
+}
+async function pickDefaultChatFont() {
+    if (window.DB) await window.DB.save(CHAT_FONT_ACTIVE_KEY, null);
+    chatFontPending = null;
+    showChatFontSave(false);
+    applyChatFont('');
+    toast('已恢复默认字体');
+}
+async function refreshChatFontList() {
+    const el = document.getElementById('chatFontList'); if (!el) return;
+    const list = await loadChatFontPresets();
+    const items = list.map((p, i) => `<button class="action-text-btn" type="button" onclick="pickChatFontPreset(${i})">${chatFontEsc(p.name)}</button>`).join('');
+    el.innerHTML = '<button class="action-text-btn" type="button" onclick="pickDefaultChatFont()">默认字体</button>' + (items || '<div style="opacity:.6;">还没有字体预设</div>');
+}
+window.addEventListener('load', () => { applyChatFontFromStore(); refreshChatFontList(); });
