@@ -2592,17 +2592,13 @@ function ensureDesktopEditButton() {
     if (!host) return;
     const btn = document.createElement('div');
     btn.id = 'desktopEditSettingsBtn';
-    btn.className = 'desktop-edit-star';
-    btn.title = '桌面视口设置';
-    btn.innerHTML = `
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-            <polygon points="12.00,2.50 15.82,7.64 21.89,9.69 18.18,14.91 18.11,21.31 12.00,19.40 5.89,21.31 5.82,14.91 2.11,9.69 8.18,7.64" fill="#000000" stroke="#000000" stroke-width="2.4" stroke-linejoin="round"/>
-        </svg>
-        <span class="desktop-star-label mono-font">Got it</span>`;
+    btn.className = 'desktop-edit-star wk-capsule';
+    btn.title = '小组件';
+    btn.innerHTML = '<span class="wk-capsule-plus">+</span>';
     btn.addEventListener('pointerdown', (e) => e.stopPropagation());
     btn.addEventListener('click', (e) => {
         e.stopPropagation();
-        openDesktopViewportPopup();
+        if (typeof openWidgetLibrary === 'function') openWidgetLibrary(); else openDesktopViewportPopup();
     });
     host.appendChild(btn);
 }
@@ -3041,6 +3037,8 @@ function avatarMorphUpload(slot, e) {
 
 // 捕获阶段拦截：头像 -> 方框；编辑模式下小组件 -> 文字设置
 document.addEventListener('click', (e) => {
+    // 小组件右上角的 × 自己处理，这里不能拦
+    if (e.target.closest && e.target.closest('.wk-del-badge')) return;
     const avatar = e.target.closest('#desktopTrack .profile-avatar-wrap, #desktopTrack .hb-left, #desktopTrack .hb-right, #desktopTrack .chip-avatar');
     if (avatar) {
         e.stopPropagation();

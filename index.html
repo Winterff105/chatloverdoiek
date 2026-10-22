@@ -38,6 +38,7 @@
             });
         }
     </script>
+    <link rel="stylesheet" href="css/widget-kit.css">
 </head>
 <body>
     <!-- 开场加载：背景 ovo.png + 灰框文字 + 进度条；支持配置照片及从存储中自动读取真实照片 -->
@@ -78,6 +79,7 @@
                 <div class="pagination-inner">
                     <div class="dots-container" id="dotsContainer"></div>
                     <button class="add-page-btn" id="addPageBtn" title="新建桌面页面">+</button>
+                    <button class="remove-page-btn" id="removePageBtn" title="删除最后一页">−</button>
                 </div>
             </div>
 
@@ -104,9 +106,7 @@
 
     <!-- 引入 JS 脚本 (严格按照依赖顺序) -->
     <script src="js/db.js"></script>
-    <script src="js/data/apps.js"></script>
-    <script src="js/data/state.js"></script>
-    <script src="js/core/grid.js"></script>
+    <script src="js/desktop.js"></script>
     <script src="js/apps/settings.js"></script>
     <script src="js/apps/quick-cruise.js"></script>
     <script src="js/apps/messages-api.js"></script>
@@ -117,10 +117,6 @@
     <script src="js/apps/world.js"></script>
     <script src="js/apps/preset.js"></script>
     <script src="js/apps/app-manager.js"></script>
-    <script src="js/core/drag.js"></script>
-    <script src="js/ui/dom.js"></script>
-    <script src="js/ui/render.js"></script>
-    <script src="js/core/swipe.js"></script>
     <script src="js/main.js"></script>
 
 </body>
