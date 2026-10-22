@@ -5224,6 +5224,31 @@ function onRoomFontUrl(v) {
     applyRoomFont(url);
     showRoomFontSave(true);
 }
+/* 先试着加载一次字体链接：不能加载（比如对方没开跨域）就返回 false，不保存 */
+async function checkFontUrl(src) {
+    const timeout = new Promise(res => setTimeout(() => res(false), 8000));
+    const load = (async () => {
+        try {
+            const f = new FontFace('RoomFontCheck', `url("${String(src).replace(/["'()\\\s]/g, '')}")`);
+            await f.load();
+            return true;
+        } catch (_) { return false; }
+    })();
+    return Promise.race([load, timeout]);
+}
+/* 恢复默认字体：清掉这个聊天的自定义字体 */
+function pickDefaultFont() {
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!c) return;
+    const b = Object.assign({}, c.beauty || {});
+    delete b.font;
+    c.beauty = b;
+    persistContacts();
+    roomPendingFont = null;
+    showRoomFontSave(false);
+    applyRoomFont('');
+    toast('已恢复默认字体');
+}
 async function saveRoomFontPreset() {
     const p = roomPendingFont;
     const c = CONTACTS.find(x => x.id === activeId);
@@ -5236,7 +5261,11 @@ async function saveRoomFontPreset() {
             const ok = window.DB ? await window.DB.saveLarge(item.key, p.src) : false;
             if (!ok) { toast('这台设备的本地数据库不可用，字体存不下（可以改用字体 URL）'); return; }
         }
-        else item.url = p.src;
+        else {
+            toast('正在检查字体链接…');
+            if (!(await checkFontUrl(p.src))) { toast('字体链接加载失败：请确认是字体文件，并且对方允许跨域访问'); return; }
+            item.url = p.src;
+        }
     } catch (err) { toast('字体保存失败'); return; }
     list.unshift(item);
     await persistFontPresets(list);
@@ -5265,6 +5294,7 @@ async function refreshFontPresetList() {
     el.innerHTML = list.length
         ? list.map((p, i) => `<button class="preset-item" type="button" onclick="pickFontPreset(${i})">${esc(p.name)}</button>`).join('')
         : '<div class="preset-empty">还没有字体预设</div>';
+    el.innerHTML = '<button class="preset-item" type="button" onclick="pickDefaultFont()">默认字体</button>' + el.innerHTML;
 }
 
 function roomBeautyPaneInner(c) {
@@ -7048,7 +7078,7 @@ __messagesHandlers.setTransOpt = setTransOpt;
 for (const [name, fn] of Object.entries(__messagesHandlers)) window[name] = fn;
 Object.assign(window, { openMomentFreq, closeMomentFreq, momentSyncAll });
 Object.assign(window, { openMomentPhoto, showVisPeek });
-Object.assign(window, { toggleRoomFontUrl, onRoomFontFile, onRoomFontUrl, saveRoomFontPreset, pickFontPreset });
+Object.assign(window, { toggleRoomFontUrl, onRoomFontFile, onRoomFontUrl, saveRoomFontPreset, pickFontPreset, pickDefaultFont });
 
 /* ---------------- 心声：头像下的爱心 · 心声弹窗 · 波浪线切换 · 收藏柜 · 设置 ---------------- */
 const HEART_SET_KEY = 'heart_popup_settings_v1';
