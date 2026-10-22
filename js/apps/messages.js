@@ -5212,6 +5212,7 @@ function onRoomFontFile(el) {
         showRoomFontSave(true);
         toast('字体已上传，预览中，点「保存字体预设」');
     };
+    reader.onerror = () => toast('字体读取失败，请换一个文件再试');
     reader.readAsDataURL(file);
     el.value = '';
 }
@@ -5282,11 +5283,14 @@ function roomBeautyPaneInner(c) {
                 <div class="css-fs-head"><span class="css-fs-lbl">气泡字号</span><span class="css-fs-val" id="roomFsVal">${fs}px</span></div>
                 <input class="mq-range css-fs-range" type="range" min="11" max="20" step="0.5" value="${fs}" style="--p:${pct}%" oninput="onRoomFontSize(this.value)">
             </div>
-            <div class="css-tpl" style="margin-top:8px"><button class="css-tpl-btn" type="button" onclick="document.getElementById('roomFontFile').click()">上传字体</button><button class="css-tpl-btn" type="button" onclick="toggleRoomFontUrl()">用字体 URL</button></div>
-            <input type="file" id="roomFontFile" accept=".ttf,.otf,.woff,.woff2" style="display:none" onchange="onRoomFontFile(this)">
-            <div id="roomFontUrlRow" style="display:none;margin-top:8px"><input class="api-input-field" id="roomFontUrl" placeholder="https://example.com/font.woff2" oninput="onRoomFontUrl(this.value)"></div>
-            <button class="css-save" id="roomFontSave" type="button" onclick="saveRoomFontPreset()" style="display:none;margin-top:8px">保存字体预设</button>
-            <div id="fontPresetList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
+            <div class="css-fs-row">
+                <div class="css-fs-head"><span class="css-fs-lbl">字体</span></div>
+                <div class="css-tpl" style="margin-top:0"><label class="css-tpl-btn" for="roomFontFile" style="cursor:pointer">上传字体</label><button class="css-tpl-btn" type="button" onclick="toggleRoomFontUrl()">用字体 URL</button></div>
+                <input type="file" id="roomFontFile" accept=".ttf,.otf,.woff,.woff2" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="onRoomFontFile(this)">
+                <div id="roomFontUrlRow" style="display:none;width:100%"><input class="api-input-field" id="roomFontUrl" placeholder="https://example.com/font.woff2" oninput="onRoomFontUrl(this.value)"></div>
+                <button class="css-save" id="roomFontSave" type="button" onclick="saveRoomFontPreset()" style="display:none">保存字体预设</button>
+                <div id="fontPresetList" style="display:flex;flex-direction:column;gap:6px;width:100%"></div>
+            </div>
         </div>
         <div class="css-actions"><button class="css-clear" type="button" onclick="clearRoomCss()">清空</button><button class="css-save" type="button" onclick="saveRoomCss()">保存样式</button></div>`)}
         `;
