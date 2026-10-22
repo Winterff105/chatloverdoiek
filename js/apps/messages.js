@@ -5028,6 +5028,7 @@ function applyRoomBeauty(c) {
     } else {
         v.style.removeProperty('--bubble-fs');
     }
+    applyRoomFontFor(c);
     applyChatCss(chatCssOf(c));
 }
 
@@ -5164,7 +5165,105 @@ function onRoomFontSize(v) {
         range.style.setProperty('--p', pct + '%');
     }
 }
+/* ---- 聊天室字体：上传字体 / 字体 URL，确认保存后成为预设（文件数据存数据库） ---- */
+const FONT_PRESETS_KEY = 'chat_font_presets_v1';
+let fontPresetsCache = null;
+let roomPendingFont = null;
+async function loadFontPresets() {
+    if (fontPresetsCache) return fontPresetsCache;
+    let v = [];
+    try { v = window.DB ? await window.DB.load(FONT_PRESETS_KEY, []) : []; } catch (_) {}
+    fontPresetsCache = Array.isArray(v) ? v : [];
+    return fontPresetsCache;
+}
+async function persistFontPresets(list) {
+    fontPresetsCache = list;
+    if (window.DB) await window.DB.save(FONT_PRESETS_KEY, list);
+}
+function applyRoomFont(src) {
+    let st = document.getElementById('chatFontStyle');
+    if (!st) { st = document.createElement('style'); st.id = 'chatFontStyle'; document.head.appendChild(st); }
+    if (!src) { st.textContent = ''; return; }
+    const safe = String(src).replace(/["'()\\\s]/g, '');
+    st.textContent = `@font-face{font-family:'RoomFont';src:url("${safe}")}\n.messages-app #chatView,.messages-app #chatView .bubble{font-family:'RoomFont',-apple-system,sans-serif !important}`;
+}
+async function applyRoomFontFor(c) {
+    if (roomPendingFont && c && roomPendingFont.cid === c.id) return;
+    const f = c && c.beauty && c.beauty.font;
+    if (!f) { applyRoomFont(''); return; }
+    if (f.kind === 'url') { applyRoomFont(f.url); return; }
+    let data = '';
+    try { data = window.DB ? await window.DB.load(f.key, '') : ''; } catch (_) {}
+    applyRoomFont(data || '');
+}
+function showRoomFontSave(on) {
+    const btn = document.getElementById('roomFontSave'); if (btn) btn.style.display = on ? '' : 'none';
+}
+function toggleRoomFontUrl() {
+    const row = document.getElementById('roomFontUrlRow'); if (!row) return;
+    row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+function onRoomFontFile(el) {
+    const file = el && el.files && el.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+        roomPendingFont = { cid: activeId, name: file.name.replace(/\.[^.]+$/, '') || '字体', kind: 'file', src: String(reader.result || '') };
+        applyRoomFont(roomPendingFont.src);
+        showRoomFontSave(true);
+        toast('字体已上传，预览中，点「保存字体预设」');
+    };
+    reader.readAsDataURL(file);
+    el.value = '';
+}
+function onRoomFontUrl(v) {
+    const url = String(v || '').trim();
+    if (!/^https?:\/\//i.test(url)) { roomPendingFont = null; showRoomFontSave(false); return; }
+    const last = (url.split('?')[0].split('/').pop() || '').replace(/\.[^.]+$/, '');
+    roomPendingFont = { cid: activeId, name: last || 'URL 字体', kind: 'url', src: url };
+    applyRoomFont(url);
+    showRoomFontSave(true);
+}
+async function saveRoomFontPreset() {
+    const p = roomPendingFont;
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!p || !c) { toast('先上传字体或填写字体 URL'); return; }
+    const list = (await loadFontPresets()).slice();
+    const item = { id: 'fp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5), name: p.name, kind: p.kind };
+    try {
+        if (p.kind === 'file') { item.key = 'cfont_' + item.id; if (window.DB) await window.DB.save(item.key, p.src); }
+        else item.url = p.src;
+    } catch (err) { toast('字体保存失败'); return; }
+    list.unshift(item);
+    await persistFontPresets(list);
+    c.beauty = Object.assign({}, c.beauty || {}, { font: p.kind === 'file' ? { kind: 'file', key: item.key } : { kind: 'url', url: p.src } });
+    persistContacts();
+    roomPendingFont = null;
+    showRoomFontSave(false);
+    applyRoomFontFor(c);
+    refreshFontPresetList();
+    toast('已保存字体预设「' + item.name + '」');
+}
+async function pickFontPreset(i) {
+    const item = (await loadFontPresets())[i];
+    const c = CONTACTS.find(x => x.id === activeId);
+    if (!item || !c) return;
+    c.beauty = Object.assign({}, c.beauty || {}, { font: item.kind === 'file' ? { kind: 'file', key: item.key } : { kind: 'url', url: item.url } });
+    persistContacts();
+    roomPendingFont = null;
+    showRoomFontSave(false);
+    await applyRoomFontFor(c);
+    toast('已套用字体「' + item.name + '」');
+}
+async function refreshFontPresetList() {
+    const el = document.getElementById('fontPresetList'); if (!el) return;
+    const list = await loadFontPresets();
+    el.innerHTML = list.length
+        ? list.map((p, i) => `<button class="preset-item" type="button" onclick="pickFontPreset(${i})">${esc(p.name)}</button>`).join('')
+        : '<div class="preset-empty">还没有字体预设</div>';
+}
+
 function roomBeautyPaneInner(c) {
+    setTimeout(refreshFontPresetList, 0);
     const hasBg = !!(c.beauty && c.beauty.bg);
     const fs = (c.beauty && c.beauty.fontSize) || 13;
     const pct = ((fs - 11) / (20 - 11) * 100).toFixed(1);
@@ -5183,6 +5282,11 @@ function roomBeautyPaneInner(c) {
                 <div class="css-fs-head"><span class="css-fs-lbl">气泡字号</span><span class="css-fs-val" id="roomFsVal">${fs}px</span></div>
                 <input class="mq-range css-fs-range" type="range" min="11" max="20" step="0.5" value="${fs}" style="--p:${pct}%" oninput="onRoomFontSize(this.value)">
             </div>
+            <div class="css-tpl" style="margin-top:8px"><button class="css-tpl-btn" type="button" onclick="document.getElementById('roomFontFile').click()">上传字体</button><button class="css-tpl-btn" type="button" onclick="toggleRoomFontUrl()">用字体 URL</button></div>
+            <input type="file" id="roomFontFile" accept=".ttf,.otf,.woff,.woff2" style="display:none" onchange="onRoomFontFile(this)">
+            <div id="roomFontUrlRow" style="display:none;margin-top:8px"><input class="api-input-field" id="roomFontUrl" placeholder="https://example.com/font.woff2" oninput="onRoomFontUrl(this.value)"></div>
+            <button class="css-save" id="roomFontSave" type="button" onclick="saveRoomFontPreset()" style="display:none;margin-top:8px">保存字体预设</button>
+            <div id="fontPresetList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"></div>
         </div>
         <div class="css-actions"><button class="css-clear" type="button" onclick="clearRoomCss()">清空</button><button class="css-save" type="button" onclick="saveRoomCss()">保存样式</button></div>`)}
         `;
