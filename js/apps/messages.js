@@ -3282,14 +3282,20 @@ async function pullReply() {
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         await preloadChatPhotos(c);
+        const stealPool = stealPoolOf(c).slice(0, 4);
+        await primeKeys(stealPool.map(x => x.key));
+        window.MESSAGES_STEAL_LIST = stealPool.map(x => x.desc || '一张照片');
+        window.MESSAGES_STEAL_KEYS = stealPool.map(x => x.key);
         window.MESSAGES_PHOTO_GET = k => MOMENT_IMG_CACHE[k] || '';
         const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0), oldMomentFeedOf(c));
         const heart = replies.heart || null;
+        const stolen = (replies.moment && replies.moment.stealIdx) ? pickStolenPhoto({ steal: true, stealIdx: replies.moment.stealIdx, photos: replies.moment.photos }, stealPool) : null;
+        if (stolen && replies.moment) { replies.moment.photos = [stolen.desc || (replies.moment.photos || [])[0] || '']; replies.moment.stolenKeys = stolen.imgs; }
         if (replies.moment && (replies.moment.text || (replies.moment.photos || []).length || replies.moment.chatShot) && mfAllowed(c)) {
             let shotKey = null;
             try { shotKey = replies.moment.chatShot ? await saveChatShot(c) : null; }
             catch (err) { console.warn('[截图]', err); toast('截图出错：' + describeErr(err)); }
-            postContactMoment(c, replies.moment.text, [], { photos: replies.moment.photos || [], chatShot: !!replies.moment.chatShot && !shotKey, chatShotKey: shotKey, shotN: replies.moment.shotN, shotTitle: replies.moment.shotTitle });
+            postContactMoment(c, replies.moment.text, [], { stolenKeys: replies.moment.stolenKeys, photos: replies.moment.photos || [], chatShot: !!replies.moment.chatShot && !shotKey, chatShotKey: shotKey, shotN: replies.moment.shotN, shotTitle: replies.moment.shotTitle });
         }
         const acted = applyChatMomentInteractions(c, replies.momentInteractions || []) || [];
         if (acted.length) notePosterDone(acted);

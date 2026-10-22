@@ -245,7 +245,8 @@ Respond to what was just said, and let topic changes happen naturally, without e
     }
     mv = String(mv || '').trim();
     const mo = obj && !Array.isArray(obj) && obj.moment && typeof obj.moment === 'object' ? obj.moment : {};
-    out.moment = (mv || mph.length || mcs) ? { text: mv, photos: mph, chatShot: mcs, shotN: Number(mo.shotN || (obj && obj.shotN)) || undefined, shotTitle: String(mo.shotTitle || (obj && obj.shotTitle) || '').trim().slice(0, 20) } : null;
+    const momentSteal = (mo.steal === true || mo.steal === 'true') ? 1 : ((typeof mo.steal === 'number' || /^\d+$/.test(String(mo.steal == null ? '' : mo.steal))) && Number(mo.steal) >= 1 ? Math.floor(Number(mo.steal)) : null);
+    out.moment = (mv || mph.length || mcs) ? { text: mv, photos: mph, chatShot: mcs, stealIdx: momentSteal, shotN: Number(mo.shotN || (obj && obj.shotN)) || undefined, shotTitle: String(mo.shotTitle || (obj && obj.shotTitle) || '').trim().slice(0, 20) } : null;
     out.shot = !!(obj && !Array.isArray(obj) && (obj.shot === true || obj.shot === 'true'));
     out.shotN = obj && !Array.isArray(obj) ? (Number(obj.shotN) || undefined) : undefined;
     out.shotTitle = obj && !Array.isArray(obj) ? String(obj.shotTitle || '').trim().slice(0, 20) : '';
@@ -406,8 +407,15 @@ Respond to what was just said, and let topic changes happen naturally, without e
     ].filter(Boolean).join('\n');
 
     // 格式与心声输出协议
+    const stealList = Array.isArray(window.MESSAGES_STEAL_LIST) ? window.MESSAGES_STEAL_LIST : [];
+    const stealBlock = stealList.length ? [
+      '【偷拍照片】只有在你这次写 moment（发朋友圈）时才用到。下面是用户的照片，每张后面标了附图序号（附图在对话最后）：',
+      ...stealList.map((d, i) => `${i + 1}. ${String(d).slice(0, 30)}（见附图${i + 1}）`),
+      '如果你发的朋友圈是偷拍其中一张，就在 moment 里写 "steal":序号，photos 写那张照片的描述；想发自己的新照片就写 "steal":0，photos 写新照片的描述。photos 里不要把上面列表里的照片当成新照片来写。'
+    ].join('\n') : '';
     const protocolFormatText = [
       FORMAT_PROMPT,
+      stealBlock,
       heartBlockOf()
     ].filter(Boolean).join('\n');
 
@@ -428,6 +436,9 @@ Respond to what was just said, and let topic changes happen naturally, without e
           continue;
         }
         history.push({ role, content: head + String(m.text || '') });
+      }
+      if (Array.isArray(window.MESSAGES_STEAL_KEYS) && window.MESSAGES_STEAL_KEYS.length) {
+        history.push(userMsgWithImages('（附图：可偷拍的照片，序号对应朋友圈说明里的列表）', window.MESSAGES_STEAL_KEYS));
       }
       return history;
     }
@@ -724,7 +735,7 @@ function userMsgWithImages(text, keys) {
       lines.push('只输出 JSON，不要任何其他文字。格式固定为：{"post":true或false,"text":"新朋友圈内容","photos":["每张照片的描述"]（不配照片写 []）,"vis":"all或some或self或user","visTo":["名字"],"comments":[],"interactions":[{"postId":"已有帖子ID","like":true或false,"comment":"评论内容，没有就空字符串","to":"已有评论者姓名，没有就空字符串"}]}。');
     }
     if (win.stealable && win.stealable.length) {
-      lines.push('【偷拍照片】下面是你能偷拍的照片（用户发过的朋友圈照片，或聊天里用户发来的照片），序号从 1 开始：\n' + win.stealable.map((d, i) => `${i + 1}. ${String(d).slice(0, 30)}`).join('\n'));
+      lines.push('【偷拍照片】下面是你能偷拍的照片（用户发过的朋友圈照片，或聊天里用户发来的照片），序号从 1 开始：\n' + win.stealable.map((d, i) => `${i + 1}. ${String(d).slice(0, 30)}（见附图${i + 1}）`).join('\n'));
       lines.push('如果你这次要发朋友圈（post:true），由你自己决定：想偷拍上面列表里的一张，就写 "steal":序号，photos 写那张照片的描述；想发自己拍的新照片，就写 "steal":0，photos 写新照片的描述。photos 里不要把列表里的照片当成新照片来写。');
     }
     const recent = Array.isArray(win.recentPosts) ? win.recentPosts.filter(Boolean).slice(0, 5) : [];
