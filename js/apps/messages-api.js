@@ -437,10 +437,7 @@ Respond to what was just said, and let topic changes happen naturally, without e
         }
         history.push({ role, content: head + String(m.text || '') });
       }
-      if (Array.isArray(window.MESSAGES_STEAL_KEYS) && window.MESSAGES_STEAL_KEYS.length) {
-        history.push(userMsgWithImages('（附图：可偷拍的照片，序号对应朋友圈说明里的列表）', window.MESSAGES_STEAL_KEYS));
-      }
-      return history;
+        return history;
     }
 
     const activePreset = loadActivePresetConfig();
@@ -498,6 +495,17 @@ Respond to what was just said, and let topic changes happen naturally, without e
         pendingSystem.push(protocolFormatText);
       }
       flushSystem();
+    }
+
+    // 可偷拍的照片只附在本次请求的最后一条用户消息里，不写进历史，避免模型以为用户又发了一遍
+    if (Array.isArray(window.MESSAGES_STEAL_KEYS) && window.MESSAGES_STEAL_KEYS.length) {
+      let idx = -1;
+      for (let k = messages.length - 1; k >= 0; k--) { if (messages[k].role === 'user') { idx = k; break; } }
+      if (idx >= 0) {
+        const cur = messages[idx];
+        const txt = typeof cur.content === 'string' ? cur.content : (((cur.content || []).find(x => x.type === 'text') || {}).text || '');
+        messages[idx] = userMsgWithImages(txt + '\n\n（附图：以下是你之前见过的用户照片，不是本次新发的，仅用于朋友圈偷拍，序号对应朋友圈说明里的列表）', window.MESSAGES_STEAL_KEYS);
+      }
     }
 
     let response;
