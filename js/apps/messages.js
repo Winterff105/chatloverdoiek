@@ -1365,11 +1365,12 @@ function pickChatPhoto() {
         try {
             const url = await compressImage(f, 800);
             const key = 'cphoto_' + Date.now() + '_' + Math.random().toString(36).slice(2, 5);
-            const ok = window.DB ? await window.DB.saveLarge(key, url) : false;
-            if (!ok) { toast('这台设备无法保存照片（本地数据库不可用）'); return; }
+            let ok = window.DB ? await window.DB.saveLarge(key, url) : false;
+            if (!ok && window.DB) ok = await window.DB.save(key, url);
             MOMENT_IMG_CACHE[key] = url;
             c.msgs.push({ me: true, text: '', photo: key, t: nowTime(), ts: Date.now() });
             c.time = nowTime(); persistContacts(); renderThread(); renderChats();
+            if (!ok) toast('照片没存下，仅本次可见。原因：' + (!window.DB ? '页面没有加载 db.js（存储模块不存在）' : (window.DB.lastError || '存储失败但浏览器没有返回具体错误')));
         } catch (e) { toast('照片读取失败'); }
     };
     input.click();

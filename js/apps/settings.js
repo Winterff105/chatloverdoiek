@@ -346,6 +346,9 @@ function getSettingsAppHTML() {
                 <div class="setting-card">
                     <div class="setting-row" onclick="toggleChatFontPanel()">
                         <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><path d="M4 19 L9.5 5 L15 19"/><path d="M6.5 14 H12.5"/><path d="M17 9 V19"/></svg>
+                            </div>
                             <div class="row-text-group">
                                 <span class="row-label">聊天字体</span>
                                 <span class="row-note mono-font">Chat Font · 所有聊天统一使用</span>
@@ -357,18 +360,16 @@ function getSettingsAppHTML() {
                     </div>
                     <div class="viewport-panel collapsed" id="chatFontPanel">
                         <div class="viewport-panel-inner">
-                            <div style="display:flex; gap:8px; padding:8px 0;">
-                                <label class="action-text-btn" for="chatFontFile" style="cursor:pointer;">上传字体</label>
-                                <button class="action-text-btn" type="button" onclick="toggleChatFontUrl()">用字体 URL</button>
+                            <div class="font-btn-row">
+                                <label class="font-btn" for="chatFontFile">上传字体</label>
+                                <button class="font-btn" type="button" onclick="toggleChatFontUrl()">用字体 URL</button>
                             </div>
                             <input type="file" id="chatFontFile" accept=".ttf,.otf,.woff,.woff2" style="position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;" onchange="onChatFontFile(this)">
-                            <div id="chatFontUrlRow" style="display:none; padding-bottom:8px;">
-                                <input class="api-input-field" id="chatFontUrl" placeholder="https://example.com/font.woff2" oninput="onChatFontUrl(this.value)">
+                            <div id="chatFontUrlRow" style="display:none;">
+                                <input class="api-input-field font-url-input" id="chatFontUrl" placeholder="https://example.com/font.woff2" oninput="onChatFontUrl(this.value)">
                             </div>
-                            <div style="padding-bottom:8px;">
-                                <button class="action-text-btn" id="chatFontSave" type="button" onclick="saveChatFontPreset()" style="display:none;">保存字体预设</button>
-                            </div>
-                            <div id="chatFontList" style="display:flex; flex-direction:column; gap:6px; padding-bottom:12px;"></div>
+                            <button class="font-save-btn" id="chatFontSave" type="button" onclick="saveChatFontPreset()" style="display:none;">保存字体预设</button>
+                            <div id="chatFontList" class="font-preset-list"></div>
                         </div>
                     </div>
                 </div>
@@ -3448,7 +3449,7 @@ function applyChatFont(src) {
     let st = document.getElementById('chatFontStyle');
     if (!st) { st = document.createElement('style'); st.id = 'chatFontStyle'; document.head.appendChild(st); }
     if (!src) { st.textContent = ''; return; }
-    st.textContent = `@font-face{font-family:'ChatUserFont';src:url("${chatFontSafe(src)}")}\n.messages-app,.messages-app *{font-family:'ChatUserFont',-apple-system,sans-serif !important}`;
+    st.textContent = `@font-face{font-family:'ChatUserFont';src:url("${chatFontSafe(src)}")}\nhtml, body, body *:not(svg):not(svg *){font-family:'ChatUserFont',-apple-system,sans-serif !important}`;
 }
 async function applyChatFontFromStore() {
     let act = null;
@@ -3552,7 +3553,7 @@ async function pickDefaultChatFont() {
 async function refreshChatFontList() {
     const el = document.getElementById('chatFontList'); if (!el) return;
     const list = await loadChatFontPresets();
-    const items = list.map((p, i) => `<button class="action-text-btn" type="button" onclick="pickChatFontPreset(${i})">${chatFontEsc(p.name)}</button>`).join('');
-    el.innerHTML = '<button class="action-text-btn" type="button" onclick="pickDefaultChatFont()">默认字体</button>' + (items || '<div style="opacity:.6;">还没有字体预设</div>');
+    const items = list.map((p, i) => `<button class="font-btn font-preset-item" type="button" onclick="pickChatFontPreset(${i})">${chatFontEsc(p.name)}</button>`).join('');
+    el.innerHTML = '<button class="font-btn font-preset-item" type="button" onclick="pickDefaultChatFont()">默认字体</button>' + (items || '<div class="font-preset-empty">还没有字体预设</div>');
 }
 window.addEventListener('load', () => { applyChatFontFromStore(); refreshChatFontList(); });

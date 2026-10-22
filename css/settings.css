@@ -1618,3 +1618,26 @@
     font-size: 12px; font-weight: 600; color: #8a8a93; cursor: pointer; transition: all 0.2s ease;
 }
 .noir-settings-root .tune-seg button.active{ background: #ffffff; color: #111111; box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+
+/* ---- 聊天字体设置：按钮与列表（与设置页风格一致） ---- */
+.noir-settings-root .font-btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 6px 0 8px; }
+.noir-settings-root .font-btn {
+    display: flex; align-items: center; justify-content: center; height: 38px;
+    border-radius: 11px; font-size: 12px; font-weight: 600; color: #ffffff;
+    background: rgba(255, 255, 255, 0.06); border: 0.5px solid rgba(255, 255, 255, 0.16);
+    cursor: pointer; user-select: none;
+}
+.noir-settings-root .font-btn:active { background: rgba(255, 255, 255, 0.14); }
+.noir-settings-root .font-save-btn {
+    display: block; width: 100%; height: 40px; margin: 4px 0 8px; border: 0; border-radius: 11px;
+    font-size: 12px; font-weight: 700; color: #060608; background: #ffffff; cursor: pointer;
+}
+.noir-settings-root .font-preset-list { display: flex; flex-direction: column; gap: 6px; padding-bottom: 12px; }
+.noir-settings-root .font-preset-item { width: 100%; }
+.noir-settings-root .font-preset-empty { font-size: 11px; color: rgba(255, 255, 255, 0.38); padding: 4px 2px; }
+.noir-settings-root .font-url-input { margin-bottom: 8px; }
+.noir-settings-root.theme-light .font-btn { background: rgba(0, 0, 0, 0.05); border-color: rgba(0, 0, 0, 0.15); color: #000000; }
+.noir-settings-root.theme-light .font-save-btn { background: #000000; color: #ffffff; }
+.noir-settings-root.theme-light .font-preset-empty { color: rgba(0, 0, 0, 0.45); }
+.noir-settings-root .font-url-input { box-sizing: border-box; width: 100%; }
+.noir-settings-root #chatFontPanel .viewport-panel-inner { box-sizing: border-box; width: 100%; }
