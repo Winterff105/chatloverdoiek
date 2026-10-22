@@ -1423,7 +1423,7 @@ function pickStolenPhoto(r, pool) {
     if (!r || !r.steal || !pool || !pool.length) return null;
     const idx = (Number.isInteger(r.stealIdx) && r.stealIdx >= 1 && r.stealIdx <= pool.length) ? r.stealIdx - 1 : Math.floor(Math.random() * pool.length);
     const pick = pool[idx];
-    return { imgs: [pick.key], desc: pick.desc || (r.photos && r.photos[0]) || '' };
+    return { imgs: [pick.key], desc: (r.photos && r.photos[0]) || pick.desc || '' };
 }
 /* 朋友圈 ⇄ 记忆：角色发朋友圈时写入的那条记忆与朋友圈绑定 */
 function isPostMemory(m) {
@@ -3292,7 +3292,7 @@ async function pullReply() {
         const replies = await window.MessagesAPI.replyFor(c, instruction + transLine(c), o.max + (NARR.on ? 3 : 0), oldMomentFeedOf(c));
         const heart = replies.heart || null;
         const stolen = (replies.moment && replies.moment.stealIdx) ? pickStolenPhoto({ steal: true, stealIdx: replies.moment.stealIdx, photos: replies.moment.photos }, stealPool) : null;
-        if (stolen && replies.moment) { replies.moment.photos = [stolen.desc || (replies.moment.photos || [])[0] || '']; replies.moment.stolenKeys = stolen.imgs; }
+        if (stolen && replies.moment) { replies.moment.photos = [(replies.moment.photos || [])[0] || stolen.desc || '']; replies.moment.stolenKeys = stolen.imgs; }
         if (replies.moment && (replies.moment.text || (replies.moment.photos || []).length || replies.moment.chatShot) && mfAllowed(c)) {
             let shotKey = null;
             try { shotKey = replies.moment.chatShot ? await saveChatShot(c) : null; }
