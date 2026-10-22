@@ -5234,7 +5234,7 @@ async function saveRoomFontPreset() {
         if (p.kind === 'file') {
             item.key = 'cfont_' + item.id;
             const ok = window.DB ? await window.DB.saveLarge(item.key, p.src) : false;
-            if (!ok) { toast('这台设备存不下这个字体（数据库不可用或文件太大），请换一个小一点的字体'); return; }
+            if (!ok) { toast('这台设备的本地数据库不可用，字体存不下（可以改用字体 URL）'); return; }
         }
         else item.url = p.src;
     } catch (err) { toast('字体保存失败'); return; }
@@ -5291,8 +5291,8 @@ function roomBeautyPaneInner(c) {
                 <div class="css-fs-head"><span class="css-fs-lbl">字体</span></div>
                 <div class="css-tpl" style="margin-top:0"><label class="css-tpl-btn" for="roomFontFile" style="cursor:pointer">上传字体</label><button class="css-tpl-btn" type="button" onclick="toggleRoomFontUrl()">用字体 URL</button></div>
                 <input type="file" id="roomFontFile" accept=".ttf,.otf,.woff,.woff2" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" onchange="onRoomFontFile(this)">
-                <div id="roomFontUrlRow" style="display:none;width:100%"><input class="api-input-field" id="roomFontUrl" placeholder="https://example.com/font.woff2" oninput="onRoomFontUrl(this.value)"></div>
-                <button class="css-save" id="roomFontSave" type="button" onclick="saveRoomFontPreset()" style="display:none">保存字体预设</button>
+                <div id="roomFontUrlRow" style="display:none;width:100%"><input class="css-font-url-input" id="roomFontUrl" placeholder="https://example.com/font.woff2" oninput="onRoomFontUrl(this.value)"></div>
+                <button class="css-font-save" id="roomFontSave" type="button" onclick="saveRoomFontPreset()" style="display:none">保存字体预设</button>
                 <div id="fontPresetList" style="display:flex;flex-direction:column;gap:6px;width:100%"></div>
             </div>
         </div>
