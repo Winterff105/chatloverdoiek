@@ -3331,7 +3331,7 @@ async function pullReply() {
     c._typing = true; renderChats();
     try {
         const countDesc = o.min === o.max ? `本次对话台词气泡必须精确输出 ${o.min} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）` : `本次对话台词气泡必须输出 ${o.min} 到 ${o.max} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）`;
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + VOICE_RULE + PHOTO_RULE + LOC_RULE + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + ' 【聊天室截图】如果你想把你们的聊天记录截图发给用户，在 JSON 顶层加上 "shot":true，并写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给用户的备注（截图顶部显示的名字）；不发就不要写这些字段。' + narrInstruction();
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + VOICE_RULE + PHOTO_RULE + LOC_RULE + FILE_RULE + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + ' 【聊天室截图】如果你想把你们的聊天记录截图发给用户，在 JSON 顶层加上 "shot":true，并写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给用户的备注（截图顶部显示的名字）；不发就不要写这些字段。' + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         await preloadChatPhotos(c);
@@ -3478,20 +3478,25 @@ function narrInstruction() {
         + `4. 旁白描写范围：${mode}；旁白中提到用户时使用：${person}。`;
 }
 document.addEventListener('click', e => {
-    const b = e.target.closest && e.target.closest('.voice-btn');
-    if (!b) return;
-    const body = b.parentElement && b.parentElement.querySelector('.voice-body');
+    const btn = e.target.closest && e.target.closest('.voice-btn, .bubble.voice-bubble');
+    if (!btn) return;
+    const bub = btn.classList.contains('voice-bubble') ? btn : btn.closest('.voice-bubble') || btn.parentElement;
+    if (!bub) return;
+    const body = bub.querySelector('.voice-body');
     if (!body) return;
+    e.stopPropagation();
     const open = body.hidden;
     body.hidden = !open;
-    b.setAttribute('aria-expanded', String(open));
-    const ico = b.querySelector('i');
+    const vb = bub.querySelector('.voice-btn');
+    if (vb) vb.setAttribute('aria-expanded', String(open));
+    const ico = bub.querySelector('i');
     if (ico) ico.className = open ? 'ti ti-player-pause' : 'ti ti-player-play';
 });
 /* 语音：AI 自己决定发不发，以【语音】开头单独成条；「」内是声音和氛围，其余是说出口的话 */
 const PHOTO_RULE = '【照片】：你也可以发一张照片（照片不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"photo":"照片描述"}，对象里不要加其他字段，例如：{"photo":"窗边的光落在桌上，一杯咖啡冒着热气"}。描述写照片里能看到的内容。';
 const LOC_RULE = '【位置】：你也可以发一个位置（不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"location":{"name":"地点名称","addr":"地址"}}，对象里不要加其他字段，例如：{"location":{"name":"静安嘉里中心","addr":"南京西路 1515 号"}}。';
 const VOICE_RULE = '【语音】：你可以自主决定这次要不要发一条语音（语音不计入台词条数）。只在情境自然时使用，不要每次都发。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"voice":"语音内容"}，对象里不要加其他字段，例如：{"voice":"「窗外传来雨声，他停了一下，声音压得很低：」你到了就好，路上还顺利吗？「椅子轻轻响了一声。」"}。语音中说出口的话直接写，声音、停顿、呼吸和周围氛围必须用「」括起来单独描述。普通台词仍然写成字符串。';
+const FILE_RULE = '【文件】：你也可以发送一个文件（不计入台词条数，只在情境自然时使用，比如发送文档、长文本、笔记、文章、方案等）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"file":{"name":"文件名.txt","fileText":"文件完整正文内容"}}，例如：{"file":{"name":"备忘清单.txt","fileText":"1. 记得按时吃饭\\n2. 晚上早点休息"}}。文件内容完整写在 fileText 里，不要简略。普通台词仍然写成字符串。';
 function voiceDurText(text) {
     const n = String(text || '').replace(/[「」]/g, '').replace(/\s/g, '').length;
     const sec = Math.max(1, Math.round(n / 4));
@@ -3505,21 +3510,47 @@ function voiceBodyHtml(text) {
 }
 /* 解析单条回复：旁白保留，普通台词照旧清理 */
 function narrPartBase(p, name) {
+    if (p && typeof p === 'object') {
+        if (p.voice) return { text: String(p.voice), narr: false, voice: true };
+        if (p.photo) return { text: String(p.photo), narr: false, polaroid: true };
+        if (p.polaroid) return { text: String(p.polaroid), narr: false, polaroid: true };
+        if (p.location) {
+            const loc = typeof p.location === 'object' ? `${p.location.name || ''}｜${p.location.addr || ''}` : String(p.location);
+            return { text: loc, narr: false, loc: true };
+        }
+        if (p.loc) return { text: String(p.loc), narr: false, loc: true };
+        if (p.file) {
+            const f = typeof p.file === 'object' ? p.file : {};
+            return { text: f.name || p.text || 'Notes', narr: false, file: true, fileExt: f.fileExt || p.fileExt || 'TXT', fileSize: f.fileSize || p.fileSize || 12, fileText: f.fileText || p.fileText || '' };
+        }
+        if (p.text) return narrPartBase(p.text, name);
+    }
     const s = String(p || '').trim();
+    if (s.startsWith('{') && s.endsWith('}')) {
+        try {
+            const obj = JSON.parse(s);
+            if (obj && typeof obj === 'object') return narrPartBase(obj, name);
+        } catch (_) {}
+    }
     const lo = s.match(/^【位置】\s*([\s\S]*)$/);
     if (lo) {
-        const t = cleanMsgPart(lo[1].trim(), name);
+        const t = lo[1].trim();
         return t ? { text: t, narr: false, loc: true } : null;
     }
     const ph = s.match(/^【照片】\s*([\s\S]*)$/);
     if (ph) {
-        const t = cleanMsgPart(ph[1].trim(), name);
+        const t = ph[1].trim();
         return t ? { text: t, narr: false, polaroid: true } : null;
     }
     const v = s.match(/^【语音】\s*([\s\S]*)$/);
     if (v) {
-        const t = cleanMsgPart(v[1].trim(), name);
+        const t = v[1].trim();
         return t ? { text: t, narr: false, voice: true } : null;
+    }
+    const fl = s.match(/^【文件】\s*([\s\S]*)$/);
+    if (fl) {
+        const t = fl[1].trim();
+        return t ? { text: t, narr: false, file: true, fileExt: 'TXT', fileSize: Math.max(1, Math.round(t.length / 1024)), fileText: t } : null;
     }
     const m = s.match(/^【旁白】\s*([\s\S]*)$/);
     if (m) {
@@ -3532,6 +3563,9 @@ function narrPartBase(p, name) {
 }
 /* 解析单条回复：先剥离开头的 <quote who="user|char">原话</quote>，再按旁白 / 普通台词处理 */
 function narrPart(p, name) {
+    if (p && typeof p === 'object') {
+        return narrPartBase(p, name);
+    }
     const s = String(p || '').trim();
     const qm = s.match(/^<quote\s+who="(user|char)">([\s\S]*?)<\/quote>\s*([\s\S]*)$/);
     const r = narrPartBase(qm ? qm[3] : s, name);
@@ -3765,6 +3799,12 @@ function msgOf(x) {
     if (o.voice) out.voice = true;
     if (o.polaroid) out.polaroid = true;
     if (o.loc) out.loc = true;
+    if (o.file) {
+        out.file = true;
+        out.fileExt = o.fileExt || 'TXT';
+        out.fileSize = o.fileSize || 12;
+        out.fileText = o.fileText || o.text || '';
+    }
     if (o.quote && o.quote.text) out.quote = { me: !!o.quote.me, text: String(o.quote.text) };
     if (o.trans) out.trans = String(o.trans);
     return out;
@@ -7440,12 +7480,19 @@ function ffOpen(m) {
     const old = document.getElementById('ffPop'); if (old) old.remove();
     const wrap = document.createElement('div');
     wrap.id = 'ffPop'; wrap.className = 'ff-root';
-    wrap.innerHTML = `<div class="ff-stage"><div class="ff-folder" id="ffFolder">
+    const fileName = String(m.text || 'Notes');
+    wrap.innerHTML = `<div class="ff-stage" id="ffStage"><div class="ff-folder" id="ffFolder">
         <div class="ff-tab"></div>
         <div class="ff-back"></div>
-        <div class="ff-page">
+        <div class="ff-page" id="ffPage">
             <div class="ff-paper-lines"><span class="ff-pline p1"></span><span class="ff-pline p2"></span></div>
-            <div class="ff-page-in">${esc(m.fileText || '（空文件）')}</div>
+            <div class="ff-page-in" id="ffPageIn">
+                <div class="ff-doc-header">
+                    <span class="ff-doc-title">${esc(fileName)}</span>
+                    <span class="ff-doc-tag">${esc(m.fileExt || 'TXT')}</span>
+                </div>
+                <div class="ff-doc-content">${esc(m.fileText || '（空文件）')}</div>
+            </div>
         </div>
         <div class="ff-front">
             <div class="ff-front-info">
@@ -7457,14 +7504,53 @@ function ffOpen(m) {
     </div></div>`;
     document.body.appendChild(wrap);
     requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('show')));
+
+    const stage = wrap.querySelector('#ffStage');
     const folder = wrap.querySelector('#ffFolder');
-    folder.addEventListener('click', e => { e.stopPropagation(); folder.classList.toggle('ff-open'); });
-    wrap.addEventListener('click', e => { if (e.target === wrap) { wrap.classList.remove('show'); setTimeout(() => wrap.remove(), 220); } });
+    const pageIn = wrap.querySelector('#ffPageIn');
+
+    folder.addEventListener('click', e => {
+        if (pageIn && pageIn.contains(e.target) && folder.classList.contains('ff-open')) {
+            return;
+        }
+        e.stopPropagation();
+        const isOpen = folder.classList.toggle('ff-open');
+        stage.classList.toggle('ff-open', isOpen);
+    });
+
+    wrap.addEventListener('click', e => {
+        if (e.target === wrap) {
+            wrap.classList.remove('show');
+            setTimeout(() => wrap.remove(), 240);
+        }
+    });
 }
 document.addEventListener('click', e => {
-    const card = e.target.closest && e.target.closest('.ff-card'); if (!card) return;
-    const c = CONTACTS.find(x => x.id === activeId); const m = c && c.msgs && c.msgs[Number(card.dataset.ffi)];
-    if (m && m.file) ffOpen(m);
+    const pol = e.target.closest && e.target.closest('.cp-photo');
+    if (pol) {
+        e.stopPropagation();
+        const on = !pol.classList.contains('cp-flipped');
+        pol.classList.toggle('cp-flipped', on);
+        pol.setAttribute('aria-pressed', String(on));
+        return;
+    }
+    const card = e.target.closest && e.target.closest('.ff-card');
+    if (card) {
+        e.stopPropagation();
+        const c = CONTACTS.find(x => x.id === activeId);
+        const idx = Number(card.dataset.ffi);
+        const m = c && c.msgs && (c.msgs[idx] || c.msgs.find(x => x.file && x.text === card.querySelector('.ff-n')?.textContent));
+        if (m) ffOpen(m);
+        return;
+    }
+    const locStrip = e.target.closest && e.target.closest('.lc-strip');
+    if (locStrip) {
+        e.stopPropagation();
+        const name = locStrip.querySelector('.lc-name')?.textContent || '位置详情';
+        const addr = locStrip.querySelector('.lc-addr')?.textContent || '';
+        toast(`📍 ${name}${addr ? ' · ' + addr : ''}`);
+        return;
+    }
 });
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
 Object.assign(__messagesHandlers, {clearQuote, onRoomFontSize, openCssHelp, copyCssHelp, closeHeartPop, addPresetFromInput, presetNameKey, togglePresetPick, pickCssPreset, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});

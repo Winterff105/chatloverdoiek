@@ -5733,8 +5733,19 @@
 .voice-compose .vc-block.vc-falling{ animation: vcFall .26s ease-out forwards; }
 
 /* ===== 语音气泡：并入普通气泡结构，外壳去掉，头像和时间照常显示 ===== */
-.messages-app .bubble.voice-bubble{ padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.messages-app .bubble.voice-bubble,
+.messages-app .mrow:not(.me) .bubble.voice-bubble{ padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; pointer-events: auto !important; cursor: pointer; }
 .messages-app .voice-bubble .voice-body{ max-width: 240px; margin-top: 6px; }
+.messages-app .bubble.cp-bubble,
+.messages-app .mrow:not(.me) .bubble.cp-bubble,
+.messages-app .bubble.lc-bubble,
+.messages-app .mrow:not(.me) .bubble.lc-bubble,
+.messages-app .bubble.ff-bubble,
+.messages-app .mrow:not(.me) .bubble.ff-bubble{ padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; pointer-events: auto !important; }
+.messages-app .mrow:not(.me) .voice-btn,
+.messages-app .mrow:not(.me) .cp-photo,
+.messages-app .mrow:not(.me) .lc-strip,
+.messages-app .mrow:not(.me) .ff-card{ pointer-events: auto !important; cursor: pointer !important; }
 
 /* ===== 发语音面板 · 第四版：标题缩小，白色邮票 ===== */
 .voice-compose .vc-title{
@@ -5834,23 +5845,30 @@
 /* 文件夹弹出层 */
 .ff-root{ position: fixed; inset: 0; z-index: 9100; background: rgba(50,45,55,.24); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .25s ease; }
 .ff-root.show{ opacity: 1; }
-.ff-stage{ width: 296px; height: 202px; transform: rotate(-2.6deg); transition: transform .45s cubic-bezier(.22,1,.36,1); }
+.ff-stage{ width: 290px; height: 200px; transform: rotate(-2.5deg); transition: transform .45s cubic-bezier(.22,1,.36,1); }
+.ff-stage.ff-open{ transform: rotate(0deg) !important; }
 .ff-folder{ position: relative; width: 100%; height: 100%; cursor: pointer; user-select: none; -webkit-user-select: none; }
-.ff-tab{ position: absolute; left: 0; top: 0; width: 94px; height: 30px; background: #f6cbd7; border-radius: 12px 12px 0 0; }
-.ff-back{ position: absolute; left: 0; top: 14px; width: 100%; height: 188px; background: #f3f4f7; border-radius: 18px; }
+.ff-tab{ position: absolute; left: 0; top: 0; width: 92px; height: 28px; background: #f6cbd7; border-radius: 12px 12px 0 0; }
+.ff-back{ position: absolute; left: 0; top: 14px; width: 100%; height: 186px; background: #f3f4f7; border-radius: 18px; }
 .ff-page{ position: absolute; left: 16px; right: 16px; top: 10px; height: 180px; background: #ffffff; border-radius: 12px 12px 6px 6px; box-shadow: 0 4px 14px rgba(0,0,0,.04); overflow: hidden; transition: top .5s cubic-bezier(.22,1,.36,1), height .5s cubic-bezier(.22,1,.36,1), border-radius .3s ease, box-shadow .3s ease; }
 .ff-paper-lines{ padding: 18px 16px; display: flex; flex-direction: column; gap: 8px; }
 .ff-pline{ display: block; height: 6px; border-radius: 3px; background: #d7d9e0; }
-.ff-pline.p1{ width: 78px; }
-.ff-pline.p2{ width: 148px; }
-.ff-page-in{ display: none; height: 100%; box-sizing: border-box; padding: 18px 16px; overflow-y: auto; font-size: 13px; line-height: 1.7; color: #2c3038; white-space: pre-wrap; word-break: break-word; opacity: 0; }
+.ff-pline.p1{ width: 88px; }
+.ff-pline.p2{ width: 154px; }
+.ff-page-in{ display: none; height: 100%; box-sizing: border-box; padding: 18px 18px; flex-direction: column; overflow: hidden; opacity: 0; cursor: default; }
+.ff-doc-header{ display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px dashed #e2e4ea; flex-shrink: 0; }
+.ff-doc-title{ font-size: 13.5px; font-weight: 700; color: #1f2229; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ff-doc-tag{ font-family: "SF Mono", Menlo, monospace; font-size: 9.5px; font-weight: 700; color: #8e939d; background: #f0f2f6; padding: 2px 7px; border-radius: 999px; letter-spacing: 1px; }
+.ff-doc-content{ flex: 1; min-height: 0; overflow-y: auto; font-size: 13.5px; line-height: 1.8; color: #2e323b; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; padding-right: 2px; }
+.ff-doc-content::-webkit-scrollbar{ width: 4px; }
+.ff-doc-content::-webkit-scrollbar-thumb{ background: #d9dce3; border-radius: 2px; }
 .ff-front{ position: absolute; left: 0; right: 0; bottom: 0; height: 126px; box-sizing: border-box; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; background: #fbfbfc; border-radius: 18px; box-shadow: 0 10px 25px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.03); border-top: 1px solid rgba(255,255,255,.9); transition: transform .5s cubic-bezier(.22,1,.36,1), opacity .35s ease; }
 .ff-front-info{ display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .ff-name{ font-family: "Great Vibes", "Snell Roundhand", "Brush Script MT", "Segoe Script", "Lucida Handwriting", cursive !important; font-style: italic !important; font-size: 42px !important; line-height: 1 !important; color: #2c3038 !important; font-weight: 400 !important; white-space: nowrap !important; letter-spacing: 0.5px !important; padding-bottom: 2px !important; text-shadow: 0 1px 1px rgba(0,0,0,.05) !important; }
 .ff-meta{ font-size: 11px; font-weight: 600; letter-spacing: 2px; color: #8e939d; text-transform: uppercase; font-family: "SF Mono", Menlo, Monaco, sans-serif; }
 .ff-pink-dot{ width: 34px; height: 34px; border-radius: 50%; background: #f6cbd7; flex-shrink: 0; margin-top: 16px; }
-.ff-folder.ff-open .ff-page{ top: -85px; height: 320px; z-index: 10; border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.14); }
-.ff-folder.ff-open .ff-paper-lines{ display: none; }
-.ff-folder.ff-open .ff-page-in{ display: block; opacity: 1; }
-.ff-folder.ff-open .ff-front{ transform: translateY(60px); opacity: 0; pointer-events: none; }
+.ff-folder.ff-open .ff-page{ top: -110px; height: 380px; z-index: 10; border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.14); }
+.ff-folder.ff-open .ff-paper-lines{ display: none; opacity: 0; }
+.ff-folder.ff-open .ff-page-in{ display: flex; opacity: 1; transition: opacity .35s ease .22s; }
+.ff-folder.ff-open .ff-front{ transform: translateY(70px); opacity: 0; pointer-events: none; }
 .ff-folder.ff-open .ff-tab{ opacity: .45; }

@@ -243,13 +243,21 @@ Never announce a topic change. Just change.
     const looksJson = /^\s*[\{\[]/.test(t) || /"(messages|momentInteractions|moment|heart)"\s*:/.test(t);
     if (!list) list = (obj != null || looksJson) ? [] : t.split('|||');
     const cleaned = list.map(x => {
+      if (x && typeof x === 'object' && x.file) {
+        const f = typeof x.file === 'object' ? x.file : {};
+        const fn = cleanOne(f.name || f.fileName || '文档.txt', name);
+        const fText = String(f.fileText || f.content || f.text || '');
+        const ext = (fn.split('.').pop() || 'TXT').toUpperCase();
+        const size = Math.max(1, Math.round((fText.length || 100) / 1024)) || 1;
+        return { text: fn, file: { name: fn, fileExt: ext, fileSize: size, fileText: fText }, trans: '' };
+      }
       if (x && typeof x === 'object' && typeof x.voice === 'string') return { text: '【语音】' + cleanOne(x.voice, name), trans: '' };
       if (x && typeof x === 'object' && typeof x.photo === 'string') return { text: '【照片】' + cleanOne(x.photo, name), trans: '' };
       if (x && typeof x === 'object' && x.location && typeof x.location === 'object') { const l = x.location; const nm = cleanOne(l.name || '', name), ad = cleanOne(l.addr || '', name); if (nm) return { text: '【位置】' + nm + (ad ? '｜' + ad : ''), trans: '' }; }
       if (x && typeof x === 'object') return { text: cleanOne(x.text, name), trans: String(x.trans || '').trim() };
       return { text: cleanOne(x, name), trans: '' };
     }).filter(it => it.text).slice(0, limit || MAX_MESSAGES);
-    const out = cleaned.map(it => it.text);
+    const out = cleaned.map(it => (it.file ? { text: it.text, file: it.file } : it.text));
     out.trans = cleaned.map(it => it.trans);
     out.heart = normHeart(obj && !Array.isArray(obj) ? obj.heart : null);
     // moment 兼容字符串、{text} / {content} 对象；JSON 解析失败时从原文里捞出 "moment" 字符串
