@@ -3057,7 +3057,7 @@ function renderThread(opts) {
             if (trc.style === 'box') { trCls = ' tr-box'; trHtml = `<div class="trans-float${trc.auto ? ' open' : ''}" onclick="event.stopPropagation();this.classList.toggle('open')">${esc(m.trans)}</div>`; }
             else { trCls = ' tr-dash' + (trc.auto ? ' open' : ''); trAttr = ' onclick="this.classList.toggle(\'open\')"'; trHtml = `<div class="trans-dash">${esc(m.trans)}</div>`; }
         }
-        html += timeDivHtml(c, i, startIdx) + `<div class="mrow ${m.me ? 'me' : ''} ${m.voice ? 'voice-row' : ''} ${newGroup && i > startIdx ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}${trCls}${m.voice ? ' voice-bubble' : ''}${m.polaroid ? ' cp-bubble' : ''}${m.loc ? ' lc-bubble' : ''}${m.file ? ' ff-bubble' : ''}"${fsInline}${trAttr}>${qHtml}${m.file ? ffCardHtml(m, i) : (m.loc ? locInnerHtml(m.text) : (m.polaroid ? polaroidInnerHtml(m.text) : (m.voice ? voiceInnerHtml(m.text) : esc(m.text))))}${trHtml}</div>${meta}</div>`;
+        html += timeDivHtml(c, i, startIdx) + `<div class="mrow ${m.me ? 'me' : ''} ${m.voice ? 'voice-row' : ''} ${newGroup && i > startIdx ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}${trCls}${m.voice ? ' voice-bubble' : ''}${m.polaroid ? ' cp-bubble' : ''}${m.loc ? ' lc-bubble' : ''}${m.file ? ' ff-bubble' : ''}${m.money ? ' mn-bubble' : ''}"${fsInline}${trAttr}>${qHtml}${m.money ? mnCardHtml(m, i) : (m.file ? ffCardHtml(m, i) : (m.loc ? locInnerHtml(m.text) : (m.polaroid ? polaroidInnerHtml(m.text) : (m.voice ? voiceInnerHtml(m.text) : esc(m.text)))))}${trHtml}</div>${meta}</div>`;
     }
     if (c._typing) {
         html += `<div class="mrow typing mrow-new" id="typingRow"><div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div><div class="ct-bubble">${ctSvgHtml('ct-chat')}</div></div>`;
@@ -3331,7 +3331,7 @@ async function pullReply() {
     c._typing = true; renderChats();
     try {
         const countDesc = o.min === o.max ? `本次对话台词气泡必须精确输出 ${o.min} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）` : `本次对话台词气泡必须输出 ${o.min} 到 ${o.max} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）`;
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + VOICE_RULE + PHOTO_RULE + LOC_RULE + FILE_RULE + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + ' 【聊天室截图】如果你想把你们的聊天记录截图发给用户，在 JSON 顶层加上 "shot":true，并写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给用户的备注（截图顶部显示的名字）；不发就不要写这些字段。' + narrInstruction();
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + VOICE_RULE + PHOTO_RULE + LOC_RULE + FILE_RULE + MONEY_RULE + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + ' 【聊天室截图】如果你想把你们的聊天记录截图发给用户，在 JSON 顶层加上 "shot":true，并写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给用户的备注（截图顶部显示的名字）；不发就不要写这些字段。' + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         await preloadChatPhotos(c);
@@ -3367,7 +3367,7 @@ async function pullReply() {
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const capCur = document.querySelector('.messages-app .send-capsule'); if (capCur) capCur.classList.remove('pulling');
         const parts = replies.map((p, i) => { const pt = narrPart(p, c.name); if (pt && replies.trans && replies.trans[i]) pt.trans = replies.trans[i]; return pt; }).filter(Boolean);
-        if (parts.some(pt => pt.voice || pt.polaroid || pt.loc)) vibrateTiny();
+        if (parts.some(pt => pt.voice || pt.polaroid || pt.loc || pt.money)) vibrateTiny();
         parts.forEach(pt => { if (pt.quoteRaw) { pt.quote = resolveQuote(c, pt.quoteRaw); delete pt.quoteRaw; } });
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
         const startLen = c.msgs.length;
@@ -3494,6 +3494,7 @@ document.addEventListener('click', e => {
 });
 /* 语音：AI 自己决定发不发，以【语音】开头单独成条；「」内是声音和氛围，其余是说出口的话 */
 const PHOTO_RULE = '【照片】：你也可以发一张照片（照片不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"photo":"照片描述"}，对象里不要加其他字段，例如：{"photo":"窗边的光落在桌上，一杯咖啡冒着热气"}。描述写照片里能看到的内容。';
+const MONEY_RULE = '【红包/转账】：你也可以发红包或转账（不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"transfer":{"amount":520,"note":"备注"}} 或 {"redpacket":{"amount":88,"note":"备注"}}，对象里不要加其他字段。金额是数字。';
 const LOC_RULE = '【位置】：你也可以发一个位置（不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"location":{"name":"地点名称","addr":"地址"}}，对象里不要加其他字段，例如：{"location":{"name":"静安嘉里中心","addr":"南京西路 1515 号"}}。';
 const VOICE_RULE = '【语音】：你可以自主决定这次要不要发一条语音（语音不计入台词条数）。只在情境自然时使用，不要每次都发。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"voice":"语音内容"}，对象里不要加其他字段，例如：{"voice":"「窗外传来雨声，他停了一下，声音压得很低：」你到了就好，路上还顺利吗？「椅子轻轻响了一声。」"}。语音中说出口的话直接写，声音、停顿、呼吸和周围氛围必须用「」括起来单独描述。普通台词仍然写成字符串。';
 const FILE_RULE = '【文件】：你也可以发送一个文件（不计入台词条数，只在情境自然时使用，比如发送文档、长文本、笔记、文章、方案等）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"file":{"name":"文件名.txt","fileText":"文件完整正文内容"}}，例如：{"file":{"name":"备忘清单.txt","fileText":"1. 记得按时吃饭\\n2. 晚上早点休息"}}。文件内容完整写在 fileText 里，不要简略。普通台词仍然写成字符串。';
@@ -3531,6 +3532,11 @@ function narrPartBase(p, name) {
             const obj = JSON.parse(s);
             if (obj && typeof obj === 'object') return narrPartBase(obj, name);
         } catch (_) {}
+    }
+    const mo = s.match(/^【(转账|红包)】\s*([\d.]+)\s*(?:｜([\s\S]*))?$/);
+    if (mo) {
+        const note = cleanMsgPart((mo[3] || '').trim(), name);
+        return { text: note || (mo[1] === '红包' ? '恭喜发财' : '转给你'), narr: false, money: mo[1] === '红包' ? 'redpacket' : 'transfer', amount: Number(mo[2]), received: false };
     }
     const lo = s.match(/^【位置】\s*([\s\S]*)$/);
     if (lo) {
@@ -3799,6 +3805,7 @@ function msgOf(x) {
     if (o.voice) out.voice = true;
     if (o.polaroid) out.polaroid = true;
     if (o.loc) out.loc = true;
+    if (o.money) { out.money = o.money; out.amount = o.amount; out.received = false; out.recvAt = null; }
     if (o.file) {
         out.file = true;
         out.fileExt = o.fileExt || 'TXT';
@@ -7155,6 +7162,7 @@ function ensureExtPanel() {
         if (b.dataset.ext === '拍照') { toggleQuickMenu(false); openPhotoCompose(); return; }
         if (b.dataset.ext === '位置') { toggleQuickMenu(false); openLocationCompose(); return; }
         if (b.dataset.ext === '文件') { toggleQuickMenu(false); pickChatFile(); return; }
+        if (b.dataset.ext === '红包' || b.dataset.ext === '转账') { toggleQuickMenu(false); openMoneyCompose(b.dataset.ext === '红包' ? 'redpacket' : 'transfer'); return; }
         toast(b.dataset.ext + '即将推出');
     });
     place();
@@ -7551,6 +7559,117 @@ document.addEventListener('click', e => {
         toast(`📍 ${name}${addr ? ' · ' + addr : ''}`);
         return;
     }
+});
+
+/* ---------------- 红包 / 转账：我和对面都能发；点卡片收款（拆开），再点弹窗问是否撤销 ---------------- */
+const MN_STAR = 'M12 2l2.9 6.9L22 9.7l-5.5 4.8L18.2 22 12 18.3 5.8 22l1.7-7.5L2 9.7l7.1-.8z';
+function openMoneyCompose(kind) {
+    if (!activeId) { toast('先打开一个聊天'); return; }
+    const isRP = kind === 'redpacket';
+    const old = document.getElementById('mnPop'); if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'mnPop'; wrap.className = 'cd-pt-root';
+    wrap.innerHTML = `<div class="ar-sheet" id="mnSheet"><div class="ar-sheet-card">
+        <div class="ar-sheet-title ar-script">${isRP ? 'Red Packet' : 'Transfer'}</div>
+        <div class="ar-sheet-title">${isRP ? '红包' : '转账'}</div>
+        <div class="ar-stamp">
+            <div class="ar-stamp-label">金额</div>
+            <input class="ar-mode-text" id="mnAmt" type="number" min="0" step="0.01" placeholder="0.00" style="min-height:0;height:40px;">
+            <div class="ar-stamp-label">备注</div>
+            <textarea class="ar-mode-text" id="mnNote" rows="2" placeholder="${isRP ? '恭喜发财' : '转给你'}"></textarea>
+        </div>
+        <div class="ar-foot">
+            <button type="button" class="ar-save" id="mnSend">发送</button>
+            <button type="button" class="ar-close" id="mnClose">关闭</button>
+        </div>
+    </div></div>`;
+    document.body.appendChild(wrap);
+    const sheet = wrap.querySelector('#mnSheet');
+    requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add('show')));
+    const close = () => { sheet.classList.remove('show'); setTimeout(() => wrap.remove(), 240); };
+    wrap.querySelector('#mnClose').onclick = close;
+    sheet.addEventListener('click', e => { if (e.target === sheet) close(); });
+    wrap.querySelector('#mnSend').onclick = () => {
+        const amount = Number(wrap.querySelector('#mnAmt').value);
+        const note = wrap.querySelector('#mnNote').value.trim();
+        if (!(amount > 0)) { toast('先填一个金额'); return; }
+        const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
+        c.msgs = c.msgs || [];
+        c.msgs.push({ me: true, text: note || (isRP ? '恭喜发财' : '转给你'), money: kind, amount: Math.round(amount * 100) / 100, received: false, recvAt: null, t: nowTime(), ts: Date.now() });
+        c.time = nowTime(); playSfx('send'); vibrateTiny();
+        persistContacts(); renderThread(); renderChats();
+        close();
+    };
+}
+function mnCardHtml(m, i) {
+    const isRP = m.money === 'redpacket';
+    const recv = !!m.received;
+    const amt = Number(m.amount || 0).toFixed(2);
+    const hint = recv ? (isRP ? '已拆开 · 点击可撤销' : '已收款 · 点击可撤销') : (isRP ? '点击拆开' : '点击收款');
+    const stampHtml = recv ? `<div class="mn-stamp">${isRP ? '已拆开' : '已收款'}</div>` : '';
+    const sparks = `<svg class="mn-spark s1" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#F9D9E5"/></svg><svg class="mn-spark s2" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#FFFFFF" stroke="#F9D9E5"/></svg><svg class="mn-spark s3" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#F9D9E5"/></svg><svg class="mn-spark s4" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#FFFFFF" stroke="#F9D9E5"/></svg>`;
+    if (isRP) {
+        return `<div class="mn-card mn-rp${recv ? ' mn-recv' : ''}" data-mni="${i}" role="button" tabindex="0">
+            <div class="mn-rp-top"></div>
+            <div class="mn-rp-dash d1"></div><div class="mn-rp-dash d2"></div><div class="mn-rp-dot"></div>
+            <svg class="mn-star" style="right:-6px;top:6px;" width="40" height="40" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#FFFFFF" opacity=".9"/></svg>
+            <svg class="mn-star" style="left:10px;top:60px;" width="22" height="22" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#FFFFFF" opacity=".7"/></svg>
+            <div class="mn-rp-circle"><svg width="20" height="20" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#F7D2E0"/></svg></div>
+            <div class="mn-rp-amt">¥${amt}</div>
+            <div class="mn-rp-tag">RED PACKET</div>
+            <div class="mn-note">${esc(m.text || '')}</div>
+            <div class="mn-hint">${hint}</div>
+            ${stampHtml}${sparks}
+        </div>`;
+    }
+    return `<div class="mn-card mn-tr${recv ? ' mn-recv' : ''}" data-mni="${i}" role="button" tabindex="0">
+        <div class="mn-tr-dash d1"></div><div class="mn-tr-dash d2"></div><div class="mn-tr-dot"></div>
+        <svg class="mn-star" style="right:14px;top:10px;" width="26" height="26" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#F9D9E5" opacity=".7"/></svg>
+        <div class="mn-tr-ring"><span class="mn-tr-core"><svg width="8" height="8" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#F9D9E5"/></svg></span></div>
+        <div class="mn-tr-head">TRANSFER</div>
+        <div class="mn-tr-amt">¥ ${amt}</div>
+        <div class="mn-note">${esc(m.text || '')}</div>
+        <div class="mn-hint">${hint}</div>
+        <div class="mn-tr-btn">${recv ? '已收' : '收款'}</div>
+        ${stampHtml}${sparks}
+    </div>`;
+}
+function openMnRevoke(i) {
+    const c = CONTACTS.find(x => x.id === activeId); const m = c && c.msgs && c.msgs[i]; if (!m) return;
+    const old = document.getElementById('mnRevoke'); if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'mnRevoke'; wrap.className = 'cd-pt-root';
+    wrap.innerHTML = `<div class="ar-sheet" id="mnRevokeSheet"><div class="ar-sheet-card">
+        <div class="ar-sheet-title ar-script">Revoke</div>
+        <div class="ar-sheet-title">${m.money === 'redpacket' ? '撤销拆开' : '撤销收款'}</div>
+        <div class="ar-stamp"><div class="ar-sec">撤销后，对方的上下文会显示为没收款。要撤销吗？</div></div>
+        <div class="ar-foot">
+            <button type="button" class="ar-save" id="mnRevokeOk">撤销</button>
+            <button type="button" class="ar-close" id="mnRevokeNo">取消</button>
+        </div>
+    </div></div>`;
+    document.body.appendChild(wrap);
+    const sheet = wrap.querySelector('#mnRevokeSheet');
+    requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add('show')));
+    const close = () => { sheet.classList.remove('show'); setTimeout(() => wrap.remove(), 240); };
+    wrap.querySelector('#mnRevokeNo').onclick = close;
+    sheet.addEventListener('click', e => { if (e.target === sheet) close(); });
+    wrap.querySelector('#mnRevokeOk').onclick = () => {
+        m.received = false; m.recvAt = null; m.recvBy = null;
+        persistContacts(); renderThread(); renderChats();
+        close();
+    };
+}
+document.addEventListener('click', e => {
+    const card = e.target.closest && e.target.closest('.mn-card'); if (!card) return;
+    const i = Number(card.dataset.mni);
+    const c = CONTACTS.find(x => x.id === activeId); const m = c && c.msgs && c.msgs[i]; if (!m || !m.money) return;
+    e.stopPropagation();
+    if (m.received) { openMnRevoke(i); return; }
+    m.received = true; m.recvAt = Date.now(); m.recvBy = m.me ? 'char' : 'user';
+    persistContacts(); renderThread(); renderChats();
+    const el = document.querySelector('#thread .mn-card[data-mni="' + i + '"]');
+    if (el) el.classList.add('mn-anim');
 });
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
 Object.assign(__messagesHandlers, {clearQuote, onRoomFontSize, openCssHelp, copyCssHelp, closeHeartPop, addPresetFromInput, presetNameKey, togglePresetPick, pickCssPreset, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});

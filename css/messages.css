@@ -5847,28 +5847,101 @@
 .ff-root.show{ opacity: 1; }
 .ff-stage{ width: 290px; height: 200px; transform: rotate(-2.5deg); transition: transform .45s cubic-bezier(.22,1,.36,1); }
 .ff-stage.ff-open{ transform: rotate(0deg) !important; }
+.ff-stage{ width: 240px; height: 200px; }
 .ff-folder{ position: relative; width: 100%; height: 100%; cursor: pointer; user-select: none; -webkit-user-select: none; }
-.ff-tab{ position: absolute; left: 0; top: 0; width: 92px; height: 28px; background: #f6cbd7; border-radius: 12px 12px 0 0; }
-.ff-back{ position: absolute; left: 0; top: 14px; width: 100%; height: 186px; background: #f3f4f7; border-radius: 18px; }
-.ff-page{ position: absolute; left: 16px; right: 16px; top: 10px; height: 180px; background: #ffffff; border-radius: 12px 12px 6px 6px; box-shadow: 0 4px 14px rgba(0,0,0,.04); overflow: hidden; transition: top .5s cubic-bezier(.22,1,.36,1), height .5s cubic-bezier(.22,1,.36,1), border-radius .3s ease, box-shadow .3s ease; }
-.ff-paper-lines{ padding: 18px 16px; display: flex; flex-direction: column; gap: 8px; }
-.ff-pline{ display: block; height: 6px; border-radius: 3px; background: #d7d9e0; }
-.ff-pline.p1{ width: 88px; }
-.ff-pline.p2{ width: 154px; }
-.ff-page-in{ display: none; height: 100%; box-sizing: border-box; padding: 18px 18px; flex-direction: column; overflow: hidden; opacity: 0; cursor: default; }
-.ff-doc-header{ display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 10px; margin-bottom: 10px; border-bottom: 1px dashed #e2e4ea; flex-shrink: 0; }
-.ff-doc-title{ font-size: 13.5px; font-weight: 700; color: #1f2229; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ff-doc-tag{ font-family: "SF Mono", Menlo, monospace; font-size: 9.5px; font-weight: 700; color: #8e939d; background: #f0f2f6; padding: 2px 7px; border-radius: 999px; letter-spacing: 1px; }
-.ff-doc-content{ flex: 1; min-height: 0; overflow-y: auto; font-size: 13.5px; line-height: 1.8; color: #2e323b; white-space: pre-wrap; word-break: break-word; user-select: text; -webkit-user-select: text; padding-right: 2px; }
-.ff-doc-content::-webkit-scrollbar{ width: 4px; }
-.ff-doc-content::-webkit-scrollbar-thumb{ background: #d9dce3; border-radius: 2px; }
-.ff-front{ position: absolute; left: 0; right: 0; bottom: 0; height: 126px; box-sizing: border-box; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; background: #fbfbfc; border-radius: 18px; box-shadow: 0 10px 25px rgba(0,0,0,.06), 0 2px 6px rgba(0,0,0,.03); border-top: 1px solid rgba(255,255,255,.9); transition: transform .5s cubic-bezier(.22,1,.36,1), opacity .35s ease; }
+.ff-tab{ position: absolute; left: 0; top: 0; width: 96px; height: 26px; background: #F7D6E4; border-radius: 10px 10px 0 0; transition: opacity .4s ease; }
+.ff-back{ position: absolute; left: 0; top: 18px; width: 100%; height: 182px; background: #F1F1F4; border-radius: 6px; }
+.ff-page{ position: absolute; left: 14px; right: 14px; top: 30px; height: 140px; background: #FFFFFF; border-radius: 4px; overflow: hidden; transition: top .6s cubic-bezier(.22,1,.36,1), height .6s cubic-bezier(.22,1,.36,1), border-radius .6s ease, box-shadow .6s ease; }
+.ff-paper-lines{ position: absolute; left: 14px; top: 16px; display: flex; flex-direction: column; gap: 8px; transition: opacity .3s ease; }
+.ff-pline{ display: block; height: 4px; border-radius: 2px; background: #E4E4E8; }
+.ff-pline.p1{ width: 96px; }
+.ff-pline.p2{ width: 70px; background: #EEEEF1; }
+.ff-page-in{ display: none; height: 100%; box-sizing: border-box; padding: 14px; flex-direction: column; overflow: hidden; opacity: 0; cursor: default; }
+.ff-doc-header{ display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: #8A8A90; margin-bottom: 8px; }
+.ff-doc-content{ flex: 1; min-height: 0; overflow-y: auto; font-size: 13px; line-height: 1.7; color: #333333; white-space: pre-wrap; word-break: break-word; }
+.ff-front{ position: absolute; left: 0; right: 0; bottom: 0; height: 120px; box-sizing: border-box; padding: 14px; display: flex; align-items: center; justify-content: space-between; background: linear-gradient(170deg, #FBFBFC 0%, #F1F1F4 100%); border-radius: 6px; transition: transform .6s cubic-bezier(.22,1,.36,1), opacity .4s ease; }
 .ff-front-info{ display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.ff-name{ font-family: "Great Vibes", "Snell Roundhand", "Brush Script MT", "Segoe Script", "Lucida Handwriting", cursive !important; font-style: italic !important; font-size: 42px !important; line-height: 1 !important; color: #2c3038 !important; font-weight: 400 !important; white-space: nowrap !important; letter-spacing: 0.5px !important; padding-bottom: 2px !important; text-shadow: 0 1px 1px rgba(0,0,0,.05) !important; }
-.ff-meta{ font-size: 11px; font-weight: 600; letter-spacing: 2px; color: #8e939d; text-transform: uppercase; font-family: "SF Mono", Menlo, Monaco, sans-serif; }
-.ff-pink-dot{ width: 34px; height: 34px; border-radius: 50%; background: #f6cbd7; flex-shrink: 0; margin-top: 16px; }
-.ff-folder.ff-open .ff-page{ top: -110px; height: 380px; z-index: 10; border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.14); }
-.ff-folder.ff-open .ff-paper-lines{ display: none; opacity: 0; }
+.ff-name{ font-size: 14px; color: #3A3A3E; }
+.ff-meta{ font-size: 11px; color: #8A8A90; }
+.ff-pink-dot{ width: 22px; height: 22px; border-radius: 50%; background: #F7D6E4; flex: 0 0 22px; }
+.ff-folder.ff-open .ff-page{ top: -90px; height: 330px; z-index: 10; border-radius: 12px; box-shadow: 0 12px 30px rgba(0,0,0,.12); }
 .ff-folder.ff-open .ff-page-in{ display: flex; opacity: 1; transition: opacity .35s ease .22s; }
+.ff-folder.ff-open .ff-paper-lines{ opacity: 0; }
 .ff-folder.ff-open .ff-front{ transform: translateY(70px); opacity: 0; pointer-events: none; }
 .ff-folder.ff-open .ff-tab{ opacity: .45; }
+
+/* 对面（AI）发来的交互元素：压在所有覆盖层之上，保证可点 */
+.messages-app #thread .mrow .cp-photo,
+.messages-app #thread .mrow .voice-btn,
+.messages-app #thread .mrow .voice-body,
+.messages-app #thread .mrow .lc-strip,
+.messages-app #thread .mrow .ff-card{ position: relative; z-index: 5; pointer-events: auto !important; cursor: pointer; }
+.messages-app #thread .mrow .bubble{ pointer-events: auto; }
+
+/* ===== 红包 / 转账（mn- 前缀）：粉白交错、斜纹、星星、虚线、收款动画 ===== */
+.messages-app .bubble.mn-bubble{ padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.messages-app .mn-card{ position: relative; overflow: hidden; cursor: pointer; user-select: none; -webkit-user-select: none; pointer-events: auto !important; z-index: 5; }
+.messages-app #thread .mrow .mn-card{ pointer-events: auto !important; }
+
+/* 红包（竖版） */
+.messages-app .mn-rp{ width: 150px; height: 228px; border-radius: 14px; background: repeating-linear-gradient(-45deg, rgba(255,255,255,0) 0 7px, rgba(255,255,255,.28) 7px 8px), linear-gradient(170deg, #FDF3F7 0%, #FAE4ED 100%); box-shadow: 0 10px 24px rgba(190,110,140,.14); }
+.messages-app .mn-rp-top{ position: absolute; left: 0; right: 0; top: 0; height: 46px; background: repeating-linear-gradient(-45deg, rgba(255,255,255,0) 0 6px, rgba(255,255,255,.5) 6px 7px), #FBE9F0; border-radius: 14px 14px 50% 50% / 14px 14px 22px 22px; }
+.messages-app .mn-rp-dash{ position: absolute; left: 14px; right: 14px; height: 0; border-top: 1px dashed #FFFFFF; }
+.messages-app .mn-rp-dash.d1{ top: 104px; opacity: .9; }
+.messages-app .mn-rp-dash.d2{ top: 138px; border-top-color: #FBE1EC; opacity: .9; }
+.messages-app .mn-rp-dot{ position: absolute; left: 0; right: 0; top: 172px; height: 0; border-top: 1px dotted #FFFFFF; opacity: .85; }
+.messages-app .mn-rp-circle{ position: absolute; left: 50%; top: 40px; width: 54px; height: 54px; margin-left: -27px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,255,.5) 0 55%, rgba(255,255,255,.98) 100%); border: 3px solid #FFFFFF; box-sizing: border-box; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(190,110,140,.14); }
+.messages-app .mn-rp-amt{ position: absolute; left: 0; right: 0; top: 118px; text-align: center; font-family: "Great Vibes", "Snell Roundhand", cursive; font-size: 34px; line-height: 1; color: #FFFFFF; text-shadow: 0 1px 6px rgba(190,110,140,.3); }
+.messages-app .mn-rp-tag{ position: absolute; left: 0; right: 0; bottom: 34px; text-align: center; font-size: 10px; letter-spacing: 3px; color: #D3AFBF; }
+.messages-app .mn-rp .mn-note{ position: absolute; left: 10px; right: 10px; bottom: 16px; text-align: center; font-size: 11px; color: #D3AFBF; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.messages-app .mn-rp .mn-hint{ position: absolute; left: 0; right: 0; bottom: 6px; text-align: center; font-size: 9px; color: #D3AFBF; opacity: 0; }
+.messages-app .mn-rp .mn-star{ position: absolute; }
+
+/* 转账（横版） */
+.messages-app .mn-tr{ width: 240px; height: 130px; border-radius: 18px; background: repeating-linear-gradient(-45deg, rgba(0,0,0,0) 0 6px, rgba(244,194,214,.14) 6px 7px), #FFFFFF; box-shadow: 0 10px 24px rgba(60,40,50,.10); }
+.messages-app .mn-tr-dash{ position: absolute; left: 0; right: 0; height: 0; }
+.messages-app .mn-tr-dash.d1{ top: 40px; border-top: 1px dashed #F9D9E5; }
+.messages-app .mn-tr-dash.d2{ top: 96px; border-top: 1px dashed #E6E6EA; }
+.messages-app .mn-tr-dot{ position: absolute; left: 150px; top: 0; bottom: 0; width: 0; border-left: 1px dotted #F9D9E5; opacity: .8; }
+.messages-app .mn-tr-ring{ position: absolute; left: 18px; top: 16px; width: 24px; height: 24px; border-radius: 50%; background: repeating-conic-gradient(from 0deg, #F9D9E5 0deg 6deg, rgba(249,217,229,0) 6deg 18deg); display: flex; align-items: center; justify-content: center; }
+.messages-app .mn-tr-core{ width: 14px; height: 14px; border-radius: 50%; background: #FFFFFF; display: flex; align-items: center; justify-content: center; }
+.messages-app .mn-tr-head{ position: absolute; left: 50px; top: 19px; font-size: 11px; color: #8A8A90; letter-spacing: 3px; }
+.messages-app .mn-tr-amt{ position: absolute; left: 18px; top: 50px; font-size: 22px; color: #3A3A3E; }
+.messages-app .mn-tr .mn-note{ position: absolute; left: 18px; bottom: 34px; font-size: 11px; color: #8A8A90; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px; }
+.messages-app .mn-tr .mn-hint{ position: absolute; left: 18px; bottom: 16px; font-size: 11px; color: #8A8A90; }
+.messages-app .mn-tr-btn{ position: absolute; right: 16px; bottom: 16px; min-width: 56px; height: 26px; padding: 0 12px; border-radius: 999px; border: 1.5px solid #F9D9E5; background: radial-gradient(circle, rgba(255,255,255,.6) 0 50%, #FFFFFF 100%); color: #D3AFBF; font-size: 11px; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.messages-app .mn-tr .mn-star{ position: absolute; }
+
+/* 已收 / 已拆开 状态 */
+.messages-app .mn-card.mn-recv .mn-tr-btn{ background: #F9D9E5; color: #FFFFFF; border-color: #F9D9E5; }
+.messages-app .mn-card.mn-recv .mn-hint{ color: #D3AFBF; }
+.messages-app .mn-card.mn-recv .mn-tr-amt{ opacity: .6; }
+
+/* 印章 */
+.messages-app .mn-stamp{ position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; border: 1.5px solid #F9D9E5; display: flex; align-items: center; justify-content: center; font-size: 11px; letter-spacing: 2px; color: #D3AFBF; background: rgba(255,255,255,.7); opacity: .85; transform: rotate(-6deg); pointer-events: none; }
+.messages-app .mn-card.mn-anim .mn-stamp{ animation: mnStamp .6s cubic-bezier(.22,1,.36,1) both; }
+@keyframes mnStamp {
+    0%   { opacity: 0; transform: scale(1.6) rotate(-14deg); }
+    60%  { opacity: .95; transform: scale(.92) rotate(-6deg); }
+    100% { opacity: .85; transform: scale(1) rotate(-6deg); }
+}
+
+/* 星星迸发 */
+.messages-app .mn-spark{ position: absolute; width: 10px; height: 10px; opacity: 0; pointer-events: none; }
+.messages-app .mn-spark.s1{ left: 70px; top: 34px; }
+.messages-app .mn-spark.s2{ left: 172px; top: 30px; }
+.messages-app .mn-spark.s3{ left: 190px; top: 84px; }
+.messages-app .mn-spark.s4{ left: 34px; top: 92px; }
+.messages-app .mn-card.mn-anim .mn-spark{ animation: mnSpark .9s ease-out both; }
+.messages-app .mn-card.mn-anim .mn-spark.s2{ animation-delay: .12s; }
+.messages-app .mn-card.mn-anim .mn-spark.s3{ animation-delay: .18s; }
+.messages-app .mn-card.mn-anim .mn-spark.s4{ animation-delay: .1s; }
+@keyframes mnSpark {
+    0%   { opacity: 0; transform: scale(.3) rotate(0deg); }
+    30%  { opacity: 1; }
+    100% { opacity: 0; transform: scale(1.2) rotate(90deg) translateY(-10px); }
+}
+
+/* 缩小 */
+.messages-app .mn-rp{ zoom: .72; }
+.messages-app .mn-tr{ zoom: .8; }
