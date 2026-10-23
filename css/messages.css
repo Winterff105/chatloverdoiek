@@ -942,7 +942,7 @@
 .messages-app #folderPicker, .messages-app #folderNew{ z-index: 23; display: flex; flex-direction: column; }
 .messages-app #folderDetail .fd-head{
     position: absolute; top: 54px; left: 50%; transform: translateX(-50%); z-index: 6;
-    width: max-content; display: flex; align-items: center; gap: 10px; padding: 5px;
+    width: max-content; display: flex; align-items: center; gap: 10px; padding: 3px;
     border-radius: 999px; background: rgba(18,18,18,0.82); border: 0.5px solid rgba(255,255,255,0.22);
     backdrop-filter: blur(14px) saturate(160%); -webkit-backdrop-filter: blur(14px) saturate(160%);
     box-shadow: 0 8px 24px rgba(0,0,0,0.35);
@@ -950,12 +950,13 @@
 .messages-app .fd-title{ display: flex; flex-direction: column; align-items: center; min-width: 120px; padding: 0 6px; }
 .messages-app .fd-title b{ font-size: 15px; font-weight: 700; white-space: nowrap; }
 .messages-app .fd-title span{ margin-top: 2px; font-size: 9px; color: rgba(255,255,255,0.55); letter-spacing: 1px; text-transform: uppercase; }
+.messages-app #folderDetail #fdCount{ display: none !important; }
 .messages-app .fd-btn{
-    width: 32px; height: 32px; border: none; border-radius: 50%; background: rgba(255,255,255,0.16);
+    width: 28px; height: 28px; border: none; border-radius: 50%; background: rgba(255,255,255,0.16);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
 }
 .messages-app .fd-btn:active{ background: rgba(255,255,255,0.28); }
-.messages-app .fd-btn svg{ width: 16px; height: 16px; stroke: #FFFFFF; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.messages-app .fd-btn svg{ width: 14px; height: 14px; stroke: #FFFFFF; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .messages-app .fd-text{ border: none; background: none; color: #FFFFFF; font-size: 14px; font-weight: 600; cursor: pointer; padding: 4px 8px; }
 .messages-app .fd-text:active{ opacity: 0.5; }
 
