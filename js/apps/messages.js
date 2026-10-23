@@ -3056,7 +3056,7 @@ function renderThread(opts) {
             if (trc.style === 'box') { trCls = ' tr-box'; trHtml = `<div class="trans-float${trc.auto ? ' open' : ''}" onclick="event.stopPropagation();this.classList.toggle('open')">${esc(m.trans)}</div>`; }
             else { trCls = ' tr-dash' + (trc.auto ? ' open' : ''); trAttr = ' onclick="this.classList.toggle(\'open\')"'; trHtml = `<div class="trans-dash">${esc(m.trans)}</div>`; }
         }
-        html += timeDivHtml(c, i, startIdx) + `<div class="mrow ${m.me ? 'me' : ''} ${newGroup && i > startIdx ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}${trCls}"${fsInline}${trAttr}>${qHtml}${esc(m.text)}${trHtml}</div>${meta}</div>`;
+        html += timeDivHtml(c, i, startIdx) + `<div class="mrow ${m.me ? 'me' : ''} ${m.voice ? 'voice-row' : ''} ${newGroup && i > startIdx ? 'gap' : ''} ${grp} ${i >= shownCount ? 'mrow-new' : ''} ${hv ? 'has-hv' : ''}" data-i="${i}">${m.me ? spR : sp}<div class="bubble ${pos}${trCls}${m.voice ? ' voice-bubble' : ''}${m.polaroid ? ' cp-bubble' : ''}${m.loc ? ' lc-bubble' : ''}${m.file ? ' ff-bubble' : ''}"${fsInline}${trAttr}>${qHtml}${m.file ? ffCardHtml(m, i) : (m.loc ? locInnerHtml(m.text) : (m.polaroid ? polaroidInnerHtml(m.text) : (m.voice ? voiceInnerHtml(m.text) : esc(m.text))))}${trHtml}</div>${meta}</div>`;
     }
     if (c._typing) {
         html += `<div class="mrow typing mrow-new" id="typingRow"><div class="av-col"><span class="avf">${avatar(c, 'sm')}</span></div><div class="ct-bubble">${ctSvgHtml('ct-chat')}</div></div>`;
@@ -3330,7 +3330,7 @@ async function pullReply() {
     c._typing = true; renderChats();
     try {
         const countDesc = o.min === o.max ? `本次对话台词气泡必须精确输出 ${o.min} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）` : `本次对话台词气泡必须输出 ${o.min} 到 ${o.max} 条（指角色说出口的话；不含以【旁白】开头的项，旁白按需自由穿插在气泡前、中、后）`;
-        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + ' 【聊天室截图】如果你想把你们的聊天记录截图发给用户，在 JSON 顶层加上 "shot":true，并写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给用户的备注（截图顶部显示的名字）；不发就不要写这些字段。' + narrInstruction();
+        const instruction = `请结合上下文继续回复，严格按系统要求只输出 JSON。【台词气泡限制】：${countDesc}，严禁将多句话合并进同一个气泡。非人设影响的情况不要在每个气泡里面放很多句话，短的句子在条数允许的情况下就单发一条气泡。不要惊叹转移话题，不要复述user的话不要重复说自己说过的话，应该直接给出回复和反应，不要重复user说的话或者动作。` + VOICE_RULE + PHOTO_RULE + LOC_RULE + (mfAllowed(c) ? ' 【朋友圈】你可以自主决定这次回复要不要顺便发一条朋友圈：要发就在 JSON 顶层加上 \"moment\" 字段，值为朋友圈文字；不发就不要写这个字段。若这条朋友圈想配照片，moment 写成 {\"text\":\"朋友圈文字\",\"photos\":[\"每张照片的一句话描述\"]}，照片张数由你自己决定（0 到 9 张）；没有照片就直接写字符串。若想把你们的聊天室截图发到朋友圈，moment 写成 {\"text\":\"配文\",\"chatShot\":true}。' : '') + ' 【聊天室截图】如果你想把你们的聊天记录截图发给用户，在 JSON 顶层加上 "shot":true，并写 "shotN":截取最近几条（1 到 30，由你自己决定），"shotTitle":你给用户的备注（截图顶部显示的名字）；不发就不要写这些字段。' + narrInstruction();
         window.MESSAGES_USER_NAME = ME.name;
         window.MESSAGES_USER_PERSONA = ME.persona || '';
         await preloadChatPhotos(c);
@@ -3366,6 +3366,7 @@ async function pullReply() {
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const capCur = document.querySelector('.messages-app .send-capsule'); if (capCur) capCur.classList.remove('pulling');
         const parts = replies.map((p, i) => { const pt = narrPart(p, c.name); if (pt && replies.trans && replies.trans[i]) pt.trans = replies.trans[i]; return pt; }).filter(Boolean);
+        if (parts.some(pt => pt.voice || pt.polaroid || pt.loc)) vibrateTiny();
         parts.forEach(pt => { if (pt.quoteRaw) { pt.quote = resolveQuote(c, pt.quoteRaw); delete pt.quoteRaw; } });
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
         const startLen = c.msgs.length;
@@ -3439,7 +3440,7 @@ async function sendMessage() {
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c || c._busy) return;
     const q = quoteDraft;
-    c.msgs.push(Object.assign({me:true,text,t:nowTime(), ts: Date.now()}, narrInputMode ? {narr:true} : {}, q ? { quote: { me: q.me, text: q.text } } : {})); c.time=nowTime(); playSfx('send');
+    c.msgs.push(Object.assign({me:true,text,t:nowTime(), ts: Date.now()}, narrInputMode ? {narr:true} : {}, q ? { quote: { me: q.me, text: q.text } } : {})); c.time=nowTime(); playSfx('send'); vibrateTiny();
     clearQuote(true);
     input.value=''; autoGrow(); updateSend(); persistContacts(); renderThread(); renderChats();
 }
@@ -3458,6 +3459,13 @@ const NARR_KEY = 'whatever_messages_narr_v1';
 const NARR_DEFAULT = { on: false, person: '2', min: 10, max: 40, mode: 'free', size: 13.5, italic: true, color: '#9A9AA0' };
 let NARR = (() => { try { return Object.assign({}, NARR_DEFAULT, JSON.parse(localStorage.getItem(NARR_KEY) || '{}')); } catch (_) { return Object.assign({}, NARR_DEFAULT); } })();
 function saveNarr() { try { localStorage.setItem(NARR_KEY, JSON.stringify(NARR)); } catch (_) {} }
+/* 一次性迁移：旁白默认关闭（之前存过 on:true 的会被重置为关闭，之后用户再开启不受影响） */
+try {
+    if (!localStorage.getItem('whatever_messages_narr_default_off_v1')) {
+        NARR.on = false; saveNarr();
+        localStorage.setItem('whatever_messages_narr_default_off_v1', '1');
+    }
+} catch (_) {}
 function narrInstruction() {
     if (!NARR.on) return '';
     const person = NARR.person === '1' ? '第一人称（用“我”描写用户的动作）' : NARR.person === '2' ? '第二人称（用“你”描写用户的动作）' : `第三人称（用用户的名字“${window.MESSAGES_USER_NAME || '用户'}”描写用户的动作）`;
@@ -3468,9 +3476,50 @@ function narrInstruction() {
         + `3. 【字数充实要求】：每条旁白字数必须丰富充实，严格落在 ${NARR.min} 到 ${NARR.max} 字之间（绝不可只有寥寥几个字敷衍带过！）。要细致描摹微表情、肢体动作细节、视线停顿、呼吸、当下环境氛围或心理停顿。\n`
         + `4. 旁白描写范围：${mode}；旁白中提到用户时使用：${person}。`;
 }
+document.addEventListener('click', e => {
+    const b = e.target.closest && e.target.closest('.voice-btn');
+    if (!b) return;
+    const body = b.parentElement && b.parentElement.querySelector('.voice-body');
+    if (!body) return;
+    const open = body.hidden;
+    body.hidden = !open;
+    b.setAttribute('aria-expanded', String(open));
+    const ico = b.querySelector('i');
+    if (ico) ico.className = open ? 'ti ti-player-pause' : 'ti ti-player-play';
+});
+/* 语音：AI 自己决定发不发，以【语音】开头单独成条；「」内是声音和氛围，其余是说出口的话 */
+const PHOTO_RULE = '【照片】：你也可以发一张照片（照片不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"photo":"照片描述"}，对象里不要加其他字段，例如：{"photo":"窗边的光落在桌上，一杯咖啡冒着热气"}。描述写照片里能看到的内容。';
+const LOC_RULE = '【位置】：你也可以发一个位置（不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"location":{"name":"地点名称","addr":"地址"}}，对象里不要加其他字段，例如：{"location":{"name":"静安嘉里中心","addr":"南京西路 1515 号"}}。';
+const VOICE_RULE = '【语音】：你可以自主决定这次要不要发一条语音（语音不计入台词条数）。只在情境自然时使用，不要每次都发。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"voice":"语音内容"}，对象里不要加其他字段，例如：{"voice":"「窗外传来雨声，他停了一下，声音压得很低：」你到了就好，路上还顺利吗？「椅子轻轻响了一声。」"}。语音中说出口的话直接写，声音、停顿、呼吸和周围氛围必须用「」括起来单独描述。普通台词仍然写成字符串。';
+function voiceDurText(text) {
+    const n = String(text || '').replace(/[「」]/g, '').replace(/\s/g, '').length;
+    const sec = Math.max(1, Math.round(n / 4));
+    return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+}
+function voiceInnerHtml(text) {
+    return `<button class="voice-btn" type="button" aria-expanded="false"><span class="voice-play" aria-hidden="true"></span><span class="voice-wave"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span><span class="voice-dur">${voiceDurText(text)}</span></button><div class="voice-body" hidden>${voiceBodyHtml(text)}</div>`;
+}
+function voiceBodyHtml(text) {
+    return esc(text).replace(/「([^」]*)」/g, '<span class="voice-aside">「$1」</span>');
+}
 /* 解析单条回复：旁白保留，普通台词照旧清理 */
 function narrPartBase(p, name) {
     const s = String(p || '').trim();
+    const lo = s.match(/^【位置】\s*([\s\S]*)$/);
+    if (lo) {
+        const t = cleanMsgPart(lo[1].trim(), name);
+        return t ? { text: t, narr: false, loc: true } : null;
+    }
+    const ph = s.match(/^【照片】\s*([\s\S]*)$/);
+    if (ph) {
+        const t = cleanMsgPart(ph[1].trim(), name);
+        return t ? { text: t, narr: false, polaroid: true } : null;
+    }
+    const v = s.match(/^【语音】\s*([\s\S]*)$/);
+    if (v) {
+        const t = cleanMsgPart(v[1].trim(), name);
+        return t ? { text: t, narr: false, voice: true } : null;
+    }
     const m = s.match(/^【旁白】\s*([\s\S]*)$/);
     if (m) {
         const t = m[1].trim();
@@ -3712,6 +3761,9 @@ function narrSet(key, value, rerender) {
 function msgOf(x) {
     const o = typeof x === 'string' ? { text: x, narr: false } : x;
     const out = { me: false, text: o.text, narr: !!o.narr, t: nowTime(), ts: Date.now() };
+    if (o.voice) out.voice = true;
+    if (o.polaroid) out.polaroid = true;
+    if (o.loc) out.loc = true;
     if (o.quote && o.quote.text) out.quote = { me: !!o.quote.me, text: String(o.quote.text) };
     if (o.trans) out.trans = String(o.trans);
     return out;
@@ -5092,9 +5144,13 @@ function scopeCss(css, scope) {
     return out;
 }
 function applyChatCss(css) {
-    let st = document.getElementById('chatCustomCss');
-    if (!st) { st = document.createElement('style'); st.id = 'chatCustomCss'; document.head.appendChild(st); }
-    st.textContent = scopeCss(css, '.messages-app #chatView#chatView');
+    const scopes = ['.messages-app #chatView#chatView', '#extPanel', '#voiceCompose', '#mmMenu'];
+    scopes.forEach((sc, i) => {
+        const id = i ? 'chatCustomCss' + i : 'chatCustomCss';
+        let st = document.getElementById(id);
+        if (!st) { st = document.createElement('style'); st.id = id; document.head.appendChild(st); }
+        st.textContent = scopeCss(css, sc);
+    });
 }
 function chatCssOf(c) {
     const b = (c && c.beauty) || {};
@@ -5296,6 +5352,22 @@ const CSS_HELP_ITEMS = [
     ['.hv-stack', '心声爱心（含连接线）'],
     ['.hv-heart', '心声爱心图标'],
     ['.composer', '底部输入栏'],
+    ['.quote-bar', '输入框上方的引用条'],
+    ['.nb-hint', '旁白模式的提示字'],
+    ['.moment-event-row', '朋友圈互动胶囊'],
+    ['.voice-msg', '语音气泡整体'],
+    ['.voice-btn', '语音气泡按钮'],
+    ['.voice-wave', '语音波形'],
+    ['.voice-dur', '语音时长'],
+    ['.voice-body', '展开的语音内容'],
+    ['.voice-aside', '语音里「」中的声音和氛围'],
+    ['#extPanel', '＋ 面板'],
+    ['.ext-item', '＋ 面板里的每个按钮'],
+    ['#voiceCompose', '发语音面板'],
+    ['.vc-block', '发语音面板里的每一块'],
+    ['.vc-ta', '发语音面板里的输入框'],
+    ['#mmMenu', '长按消息的菜单'],
+    ['.mm-item', '长按菜单里的每一项'],
 ];
 function cssHelpText() {
     return '/* 可以控制的选择器（写在这里的样式只作用于这个聊天室） */\n'
@@ -7029,6 +7101,10 @@ function ensureExtPanel() {
     panel.addEventListener('click', e => {
         const b = e.target.closest('[data-ext]'); if (!b) return;
         if (b.dataset.ext === '图片') { toggleQuickMenu(false); pickChatPhoto(); return; }
+        if (b.dataset.ext === '语音') { toggleQuickMenu(false); openVoiceCompose(); return; }
+        if (b.dataset.ext === '拍照') { toggleQuickMenu(false); openPhotoCompose(); return; }
+        if (b.dataset.ext === '位置') { toggleQuickMenu(false); openLocationCompose(); return; }
+        if (b.dataset.ext === '文件') { toggleQuickMenu(false); pickChatFile(); return; }
         toast(b.dataset.ext + '即将推出');
     });
     place();
@@ -7040,6 +7116,337 @@ function initExtPanel(tries = 0) {
     setTimeout(() => initExtPanel(tries + 1), 250);
 }
 
+/* ---------------- 发语音：面板里可以加环境、音色，正文一块；每块可编辑、上下移动、删除 ---------------- */
+let VC_BLOCKS = [];
+const VC_LABEL = { env: '环境', voice: '音色', body: '正文' };
+const VC_SHADES = ['#111111', '#8A8A8A', '#333333', '#B8B8B8', '#555555'];
+function vcShade(str) {
+    return [...String(str)].map((ch, i) => `<span style="color:${VC_SHADES[i % VC_SHADES.length]}">${esc(ch)}</span>`).join('');
+}
+const VC_HINT = { env: '声音和氛围，比如：雨声、椅子轻响', voice: '音色描述，比如：低沉、温柔', body: '要说的话' };
+function openVoiceCompose() {
+    if (!activeId) { toast('先打开一个聊天'); return; }
+    if (!VC_BLOCKS.length) VC_BLOCKS = [{ type: 'env', text: '' }, { type: 'body', text: '' }];
+    let el = document.getElementById('voiceCompose');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'voiceCompose'; el.className = 'voice-compose';
+        document.body.appendChild(el);
+        el.addEventListener('click', vcClick);
+        el.addEventListener('input', vcInput);
+        el.addEventListener('pointerdown', vcPointerDown);
+    }
+    VC_EDIT = -1;
+    renderVoiceCompose();
+    el.classList.add('show');
+}
+function closeVoiceCompose() {
+    const el = document.getElementById('voiceCompose');
+    if (el) el.classList.remove('show');
+}
+const VC_GRIP = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01"/></svg>';
+const VC_PENCIL = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>';
+const VC_X = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+let VC_EDIT = -1;
+let VC_DRAG = null;
+function renderVoiceCompose() {
+    const el = document.getElementById('voiceCompose'); if (!el) return;
+    el.innerHTML = `<div class="vc-sheet">
+        <div class="vc-title"><span class="vc-script">${vcShade('Voice Note')}</span><span class="vc-cap">${vcShade('发语音')}</span></div>
+        <div class="vc-hint">拖动左侧图标排序，点铅笔编辑</div>
+        <div class="vc-list">${VC_BLOCKS.map((b, i) => {
+            const editing = VC_EDIT === i;
+            const shown = b.text
+                ? (b.type === 'body' ? esc(b.text) : `「${esc(b.text)}」`)
+                : `<span class="vc-empty">${VC_HINT[b.type]}</span>`;
+            return `<div class="vc-block vc-${b.type}${editing ? ' editing' : ''}" data-i="${i}">
+                <span class="vc-grip" data-vc="grip" data-i="${i}" aria-label="拖动排序">${VC_GRIP}</span>
+                <div class="vc-main">
+                    <span class="vc-label">${VC_LABEL[b.type]}</span>
+                    ${editing
+                        ? `<textarea class="vc-ta" data-i="${i}" rows="2" placeholder="${VC_HINT[b.type]}">${esc(b.text)}</textarea>`
+                        : `<div class="vc-text">${shown}</div>`}
+                </div>
+                <div class="vc-side">
+                    ${editing
+                        ? `<button type="button" class="vc-done" data-vc="done">完成</button>`
+                        : `<button type="button" class="vc-icon" data-vc="edit" data-i="${i}" aria-label="编辑">${VC_PENCIL}</button>`}
+                    <button type="button" class="vc-icon" data-vc="del" data-i="${i}" aria-label="删除">${VC_X}</button>
+                </div>
+            </div>`;
+        }).join('')}</div>
+        <div class="vc-add">
+            <button type="button" data-vc="add-env">＋ 环境</button>
+            <button type="button" data-vc="add-voice">＋ 音色</button>
+            <button type="button" data-vc="add-body">＋ 正文</button>
+        </div>
+        <div class="vc-actions">
+            <button type="button" data-vc="cancel">取消</button>
+            <button type="button" data-vc="send">发送语音</button>
+        </div>
+    </div>`;
+}
+function vcInput(e) {
+    const ta = e.target.closest && e.target.closest('.vc-ta'); if (!ta) return;
+    const b = VC_BLOCKS[Number(ta.dataset.i)]; if (b) b.text = ta.value;
+}
+function vcInsertBeforeBody(block) {
+    const idx = VC_BLOCKS.findIndex(b => b.type === 'body');
+    if (idx < 0) VC_BLOCKS.push(block); else VC_BLOCKS.splice(idx, 0, block);
+}
+let VC_FALLING = false;
+function vcClick(e) {
+    if (VC_FALLING) return;
+    const btn = e.target.closest && e.target.closest('[data-vc]');
+    if (!btn) { if (e.target.id === 'voiceCompose') closeVoiceCompose(); return; }
+    const act = btn.dataset.vc, i = Number(btn.dataset.i);
+    if (act === 'del' && VC_BLOCKS[i]) {
+        const el = btn.closest('.vc-block');
+        if (el) {
+            VC_FALLING = true;
+            el.classList.add('vc-falling');
+            setTimeout(() => {
+                VC_FALLING = false;
+                VC_BLOCKS.splice(i, 1);
+                VC_EDIT = VC_EDIT === i ? -1 : (VC_EDIT > i ? VC_EDIT - 1 : VC_EDIT);
+                renderVoiceCompose();
+            }, 260);
+            return;
+        }
+    }
+    if (act === 'grip') return;
+    if (act === 'cancel') { VC_EDIT = -1; closeVoiceCompose(); return; }
+    if (act === 'send') { vcSend(); return; }
+    if (act === 'add-env' || act === 'add-voice') {
+        const blk = { type: act === 'add-env' ? 'env' : 'voice', text: '' };
+        vcInsertBeforeBody(blk); VC_EDIT = VC_BLOCKS.indexOf(blk);
+    }
+    else if (act === 'add-body') { const blk = { type: 'body', text: '' }; VC_BLOCKS.push(blk); VC_EDIT = VC_BLOCKS.indexOf(blk); }
+    else if (act === 'edit') VC_EDIT = i;
+    else if (act === 'done') VC_EDIT = -1;
+    renderVoiceCompose();
+}
+/* 拖动排序：按住左侧图标上下拖，松手后落到对应位置 */
+function vcPointerDown(e) {
+    const g = e.target.closest && e.target.closest('.vc-grip'); if (!g) return;
+    e.preventDefault();
+    const from = Number(g.dataset.i);
+    VC_DRAG = { from, to: from, startY: e.clientY };
+    const block = g.closest('.vc-block');
+    if (block) block.classList.add('dragging');
+    document.addEventListener('pointermove', vcDragMove);
+    document.addEventListener('pointerup', vcDragEnd);
+    document.addEventListener('pointercancel', vcDragEnd);
+}
+function vcDragMove(e) {
+    if (!VC_DRAG) return;
+    const blocks = [...document.querySelectorAll('#voiceCompose .vc-block')];
+    let to = blocks.length - 1;
+    for (let k = 0; k < blocks.length; k++) {
+        const r = blocks[k].getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) { to = k; break; }
+    }
+    VC_DRAG.to = to;
+    const dragged = blocks[VC_DRAG.from];
+    if (dragged) dragged.style.transform = `translateY(${e.clientY - VC_DRAG.startY}px)`;
+}
+function vcDragEnd() {
+    document.removeEventListener('pointermove', vcDragMove);
+    document.removeEventListener('pointerup', vcDragEnd);
+    document.removeEventListener('pointercancel', vcDragEnd);
+    if (!VC_DRAG) return;
+    const { from, to } = VC_DRAG; VC_DRAG = null;
+    if (to !== from) {
+        const [item] = VC_BLOCKS.splice(from, 1);
+        VC_BLOCKS.splice(to, 0, item);
+        if (VC_EDIT === from) VC_EDIT = to;
+    }
+    renderVoiceCompose();
+}
+function vibrateTiny() { if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) {} } }
+function vcSend() {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
+    // 环境和音色都是描述，用「」包起来；正文直接写
+    const text = VC_BLOCKS.map(b => {
+        const t = String(b.text || '').trim(); if (!t) return '';
+        return b.type === 'body' ? t : `「${t}」`;
+    }).join('');
+    if (!text) { toast('先写点内容'); return; }
+    c.msgs = c.msgs || [];
+    c.msgs.push({ me: true, text, voice: true, t: nowTime(), ts: Date.now() });
+    c.time = nowTime(); playSfx('send');
+    vibrateTiny();
+    persistContacts(); renderThread(); renderChats();
+    VC_BLOCKS = [];
+    closeVoiceCompose();
+}
+/* ---------------- 拍照：只写照片描述，发出后是一张拍立得，点击翻面看描述 ---------------- */
+function openPhotoCompose() {
+    if (!activeId) { toast('先打开一个聊天'); return; }
+    const old = document.getElementById('cpPhotoPop'); if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'cpPhotoPop';
+    wrap.className = 'cd-pt-root';
+    wrap.innerHTML = `<div class="ar-sheet" id="cpPhotoSheet"><div class="ar-sheet-card">
+        <div class="ar-sheet-title ar-script">Snapshot</div>
+        <div class="ar-sheet-title">拍照</div>
+        <div class="ar-stamp">
+            <div class="ar-stamp-label">照片描述</div>
+            <div class="ar-sec">写下这张照片的内容，发出后是一张拍立得</div>
+            <textarea class="ar-mode-text" id="cpPhotoTa" rows="6" placeholder="比如：窗边的光落在桌上，一杯咖啡冒着热气"></textarea>
+        </div>
+        <div class="ar-foot">
+            <button type="button" class="ar-save" id="cpPhotoSend">发送</button>
+            <button type="button" class="ar-close" id="cpPhotoClose">关闭</button>
+        </div>
+    </div></div>`;
+    document.body.appendChild(wrap);
+    const sheet = wrap.querySelector('#cpPhotoSheet');
+    requestAnimationFrame(() => requestAnimationFrame(() => sheet.classList.add('show')));
+    const close = () => { sheet.classList.remove('show'); setTimeout(() => wrap.remove(), 240); };
+    wrap.querySelector('#cpPhotoClose').onclick = close;
+    sheet.addEventListener('click', e => { if (e.target === sheet) close(); });
+    wrap.querySelector('#cpPhotoSend').onclick = () => {
+        const ta = wrap.querySelector('#cpPhotoTa');
+        const text = ta ? ta.value.trim() : '';
+        if (!text) { toast('先写一段照片描述'); return; }
+        if (sendPhotoDesc(text)) close();
+    };
+}
+function sendPhotoDesc(text) {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return false;
+    c.msgs = c.msgs || [];
+    c.msgs.push({ me: true, text, polaroid: true, t: nowTime(), ts: Date.now() });
+    c.time = nowTime(); playSfx('send'); vibrateTiny();
+    persistContacts(); renderThread(); renderChats();
+    return true;
+}
+function polaroidInnerHtml(text) {
+    return `<div class="cp-photo" role="button" tabindex="0" aria-pressed="false"><div class="cp-flip"><div class="cp-face cp-front"><div class="cp-img"><svg class="cp-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.5-9.1C1.1 8.6 3.2 5 6.8 5c2.1 0 3.6 1.2 5.2 3 1.6-1.8 3.1-3 5.2-3 3.6 0 5.7 3.6 4.3 6.9C19.5 16.4 12 21 12 21z"/></svg></div><div class="cp-cap">a moment</div></div><div class="cp-face cp-back"><div class="cp-tag">PHOTO</div><div class="cp-desc">${esc(text)}</div></div></div></div>`;
+}
+document.addEventListener('click', e => {
+    const pol = e.target.closest && e.target.closest('.cp-photo');
+    if (!pol) return;
+    const on = !pol.classList.contains('cp-flipped');
+    pol.classList.toggle('cp-flipped', on);
+    pol.setAttribute('aria-pressed', String(on));
+});
+/* ---------------- 位置：纸片感选位置界面，发出后是一张带邮票齿边的小纸条 ---------------- */
+const LC_PIN = '<svg viewBox="0 0 24 28" aria-hidden="true"><path d="M12 27S3 17.5 3 10.5a9 9 0 0 1 18 0C21 17.5 12 27 12 27z" fill="#FADCE8"/><circle cx="12" cy="10.5" r="3.2" fill="#FFFFFF"/></svg>';
+function openLocationCompose() {
+    if (!activeId) { toast('先打开一个聊天'); return; }
+    const old = document.getElementById('locPop'); if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'locPop'; wrap.className = 'lc-root';
+    wrap.innerHTML = `<div class="lc-paper">
+        <span class="lc-tape"></span>
+        <div class="lc-head">
+            <button type="button" class="lc-btn" id="lcCancel">取消</button>
+            <span class="lc-title">Location</span>
+            <button type="button" class="lc-btn lc-send" id="lcSend">发送</button>
+        </div>
+        <div class="lc-map"><span class="lc-pin">${LC_PIN}</span></div>
+        <label class="lc-lbl" for="lcName">地点名称</label>
+        <input class="lc-input" id="lcName" type="text" placeholder="比如：静安嘉里中心" autocomplete="off">
+        <label class="lc-lbl" for="lcAddr">地址</label>
+        <input class="lc-input" id="lcAddr" type="text" placeholder="比如：南京西路 1515 号" autocomplete="off">
+    </div>`;
+    document.body.appendChild(wrap);
+    requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('show')));
+    const close = () => { wrap.classList.remove('show'); setTimeout(() => wrap.remove(), 220); };
+    wrap.querySelector('#lcCancel').onclick = close;
+    wrap.addEventListener('click', e => { if (e.target === wrap) close(); });
+    wrap.querySelector('#lcSend').onclick = () => {
+        const name = wrap.querySelector('#lcName').value.trim();
+        const addr = wrap.querySelector('#lcAddr').value.trim();
+        if (!name) { toast('先写一个地点名称'); return; }
+        if (sendLocation(name, addr)) close();
+    };
+}
+function sendLocation(name, addr) {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return false;
+    c.msgs = c.msgs || [];
+    c.msgs.push({ me: true, text: addr ? name + '｜' + addr : name, loc: true, t: nowTime(), ts: Date.now() });
+    c.time = nowTime(); playSfx('send'); vibrateTiny();
+    persistContacts(); renderThread(); renderChats();
+    return true;
+}
+function locInnerHtml(text) {
+    const parts = String(text || '').split('｜');
+    const name = parts[0] || '', addr = parts.slice(1).join('｜');
+    return `<div class="lc-strip"><span class="lc-ico">${LC_PIN}</span><span class="lc-txt"><span class="lc-name">${esc(name)}</span>${addr ? `<span class="lc-addr">${esc(addr)}</span>` : ''}</span></div>`;
+}
+/* ---------------- 文件：选 txt / docx 后直接发出一张加长卡片；点击出文件夹，再点展开看内容 ---------------- */
+function pickChatFile() {
+    if (!activeId) { toast('先打开一个聊天'); return; }
+    let inp = document.getElementById('ffInput');
+    if (!inp) {
+        inp = document.createElement('input');
+        inp.type = 'file'; inp.id = 'ffInput'; inp.accept = '.txt,.docx'; inp.hidden = true;
+        document.body.appendChild(inp);
+        inp.addEventListener('change', async () => {
+            const f = inp.files && inp.files[0]; inp.value = '';
+            if (!f) return;
+            try { await ffSendFile(f); } catch (err) { toast('文件读取失败：' + (err && err.message || err)); }
+        });
+    }
+    inp.click();
+}
+function ffLoadJSZip() {
+    if (window.JSZip) return Promise.resolve(window.JSZip);
+    return new Promise((resolve, reject) => {
+        const sc = document.createElement('script');
+        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        sc.onload = () => resolve(window.JSZip);
+        sc.onerror = () => reject(new Error('无法加载 docx 解析库'));
+        document.head.appendChild(sc);
+    });
+}
+async function ffSendFile(f) {
+    const c = CONTACTS.find(x => x.id === activeId); if (!c) return;
+    const ext = (f.name.split('.').pop() || '').toLowerCase();
+    let text = '';
+    if (ext === 'txt') {
+        text = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result || '')); r.onerror = () => rej(new Error('读取失败')); r.readAsText(f); });
+    } else if (ext === 'docx') {
+        const JSZip = await ffLoadJSZip();
+        const zip = await JSZip.loadAsync(await f.arrayBuffer());
+        const entry = zip.file('word/document.xml');
+        if (!entry) throw new Error('不是有效的 docx');
+        const xml = await entry.async('string');
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        text = [...doc.getElementsByTagName('w:p')].map(p => [...p.getElementsByTagName('w:t')].map(t => t.textContent).join('')).join('\n');
+    } else { toast('只支持 txt 和 docx'); return; }
+    const MAX = 200000;
+    if (text.length > MAX) { text = text.slice(0, MAX); toast('文件过长，已截取前一部分'); }
+    c.msgs = c.msgs || [];
+    c.msgs.push({ me: true, text: f.name, file: true, fileExt: ext.toUpperCase(), fileSize: Math.max(1, Math.round(f.size / 1024)), fileText: text, t: nowTime(), ts: Date.now() });
+    c.time = nowTime(); playSfx('send'); vibrateTiny();
+    persistContacts(); renderThread(); renderChats();
+}
+function ffCardHtml(m, i) {
+    return `<div class="ff-card" role="button" tabindex="0" data-ffi="${i}"><span class="ff-mini"><span class="ff-mini-tab"></span><span class="ff-mini-body"></span></span><span class="ff-txt"><span class="ff-n">${esc(m.text)}</span><span class="ff-m">${esc(m.fileExt)} · ${m.fileSize} KB</span></span></div>`;
+}
+function ffOpen(m) {
+    const old = document.getElementById('ffPop'); if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'ffPop'; wrap.className = 'ff-root';
+    wrap.innerHTML = `<div class="ff-stage"><div class="ff-folder" id="ffFolder">
+        <div class="ff-tab"></div><div class="ff-back"></div>
+        <div class="ff-page"><div class="ff-page-in">${esc(m.fileText || '（空文件）')}</div></div>
+        <div class="ff-front"><span class="ff-name">${esc(m.text)}</span><span class="ff-meta">${esc(m.fileExt)} · ${m.fileSize} KB</span></div>
+    </div></div>`;
+    document.body.appendChild(wrap);
+    requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('show')));
+    const folder = wrap.querySelector('#ffFolder');
+    folder.addEventListener('click', e => { e.stopPropagation(); folder.classList.toggle('ff-open'); });
+    wrap.addEventListener('click', e => { if (e.target === wrap) { wrap.classList.remove('show'); setTimeout(() => wrap.remove(), 220); } });
+}
+document.addEventListener('click', e => {
+    const card = e.target.closest && e.target.closest('.ff-card'); if (!card) return;
+    const c = CONTACTS.find(x => x.id === activeId); const m = c && c.msgs && c.msgs[Number(card.dataset.ffi)];
+    if (m && m.file) ffOpen(m);
+});
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
 Object.assign(__messagesHandlers, {clearQuote, onRoomFontSize, openCssHelp, copyCssHelp, closeHeartPop, addPresetFromInput, presetNameKey, togglePresetPick, pickCssPreset, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 __messagesHandlers.setTransOpt = setTransOpt;

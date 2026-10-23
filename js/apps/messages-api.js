@@ -243,6 +243,9 @@ Never announce a topic change. Just change.
     const looksJson = /^\s*[\{\[]/.test(t) || /"(messages|momentInteractions|moment|heart)"\s*:/.test(t);
     if (!list) list = (obj != null || looksJson) ? [] : t.split('|||');
     const cleaned = list.map(x => {
+      if (x && typeof x === 'object' && typeof x.voice === 'string') return { text: '【语音】' + cleanOne(x.voice, name), trans: '' };
+      if (x && typeof x === 'object' && typeof x.photo === 'string') return { text: '【照片】' + cleanOne(x.photo, name), trans: '' };
+      if (x && typeof x === 'object' && x.location && typeof x.location === 'object') { const l = x.location; const nm = cleanOne(l.name || '', name), ad = cleanOne(l.addr || '', name); if (nm) return { text: '【位置】' + nm + (ad ? '｜' + ad : ''), trans: '' }; }
       if (x && typeof x === 'object') return { text: cleanOne(x.text, name), trans: String(x.trans || '').trim() };
       return { text: cleanOne(x, name), trans: '' };
     }).filter(it => it.text).slice(0, limit || MAX_MESSAGES);
@@ -447,7 +450,7 @@ Never announce a topic change. Just change.
       for (const m of slice) {
         const tl = msgTimeLabel(m);
         const qp = m.quote && m.quote.text ? `(引用${m.quote.me ? '{{user}}' : '{{char}}'}的消息「${String(m.quote.text).slice(0, 80)}」) ` : '';
-        const head = (tl ? `[${tl}] ` : '') + qp + (m.narr ? '【旁白】' : '');
+        const head = (tl ? `[${tl}] ` : '') + qp + (m.narr ? '【旁白】' : '') + (m.voice ? '【语音】' : '') + (m.polaroid ? '【照片】' : '') + (m.loc ? '【位置】' : '');
         const role = m.me ? 'user' : 'assistant';
         if (m.photo) {
           const url = m.me && imgKeys.has(m.photo) && typeof window.MESSAGES_PHOTO_GET === 'function' ? (window.MESSAGES_PHOTO_GET(m.photo) || '') : '';

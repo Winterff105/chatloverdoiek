@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
 /* Messages module styles are fully scoped; they do not change host desktop styles. */
 .messages-app { position:relative; width:100%; height:100%; min-height:0; overflow:hidden; isolation:isolate; color:#000; background:#fff; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Arial,sans-serif; }
 .messages-app .phone { width:100%; height:100%; max-width:none; }
@@ -2460,7 +2461,7 @@
 .messages-app .mm-edit-ta{ width: 100%; box-sizing: border-box; border: 0; border-radius: 14px; padding: 10px 12px; background: #F2F2F4; color: #111; font-size: 14px; line-height: 1.5; font-family: inherit; resize: none; outline: none; }
 
 /* 与 angel_menu.html 一致：菜单使用系统字体 */
-.messages-app .mm-menu, .messages-app .mm-item{ font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif; }
+/* 长按菜单不限制字体 */
 
 /* 记忆页：按钮里的文字继承按钮颜色（修复手动总结按钮文字变成黑色看不见） */
 .messages-app #memPage button span{ color: inherit; }
@@ -5541,3 +5542,308 @@
 
 /* 「+」面板固定层级：保证不被聊天室其他层盖住；位置 bottom 由 messages.js 写入，不改宽度和开合动画 */
 .ext-panel.ext-panel-pinned{ position:fixed; z-index:9000; }
+
+/* 语音气泡 */
+.messages-app .voice-msg{ display:flex; flex-direction:column; align-items:flex-start; gap:6px; max-width:78%; margin:6px 0; }
+.messages-app .voice-btn{ display:flex; align-items:center; gap:10px; min-width:150px; padding:10px 14px; border:0.5px solid #E6E6EA; border-radius:18px; background:#FFFFFF; color:#111111; cursor:pointer; font:inherit; font-size:14px; }
+.messages-app .voice-btn i{ font-size:16px; }
+.messages-app .voice-wave{ display:flex; align-items:center; gap:2px; height:16px; flex:1; }
+.messages-app .voice-wave span{ width:2px; height:7px; background:#8E8E8E; border-radius:1px; }
+.messages-app .voice-wave span:nth-child(2n){ height:13px; }
+.messages-app .voice-wave span:nth-child(3n){ height:10px; }
+.messages-app .voice-dur{ font-size:12px; color:#8E8E8E; white-space:nowrap; }
+.messages-app .voice-body{ padding:10px 12px; border:0.5px solid #E6E6EA; border-radius:12px; background:#F7F7F9; color:#111111; font-size:14px; line-height:1.7; white-space:pre-wrap; word-break:break-word; }
+.messages-app .voice-aside{ color:#A8A8B0; font-style:italic; }
+
+/* 长按菜单：纵向缩短一点 */
+.messages-app #mmMenu.mm-menu{ height:34px; border-radius:17px; }
+.messages-app .mm-item{ padding:0 9px; }
+
+/* 发语音面板 */
+#voiceCompose.voice-compose{ position:fixed; inset:0; z-index:9100; display:flex; align-items:flex-end; justify-content:center; background:rgba(0,0,0,.18); opacity:0; pointer-events:none; transition:opacity .2s ease; }
+#voiceCompose.voice-compose.show{ opacity:1; pointer-events:auto; }
+.voice-compose .vc-sheet{ box-sizing:border-box; width:100%; max-width:440px; max-height:80vh; overflow-y:auto; background:#FFFFFF; border-radius:18px 18px 0 0; padding:14px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display:flex; flex-direction:column; gap:10px; }
+.voice-compose .vc-title{ font-size:15px; font-weight:600; color:#111111; }
+.voice-compose .vc-list{ display:flex; flex-direction:column; gap:8px; }
+.voice-compose .vc-block{ box-sizing:border-box; display:flex; flex-direction:column; gap:6px; padding:8px 10px; border:0.5px solid #E6E6EA; border-radius:12px; background:#FAFAFB; }
+.voice-compose .vc-bar{ display:flex; align-items:center; justify-content:space-between; }
+.voice-compose .vc-label{ font-size:12px; color:#8E8E8E; }
+.voice-compose .vc-tools{ display:flex; gap:6px; }
+.voice-compose .vc-tools button,
+.voice-compose .vc-add button,
+.voice-compose .vc-actions button{ height:28px; min-width:28px; padding:0 8px; border:0.5px solid #D9D9DE; border-radius:12px; background:#FFFFFF; color:#333333; font-size:12px; cursor:pointer; }
+.voice-compose .vc-tools button[disabled]{ opacity:.35; cursor:default; }
+.voice-compose .vc-ta{ box-sizing:border-box; width:100%; border:0; background:transparent; resize:none; font-size:14px; line-height:1.6; color:#111111; outline:none; }
+.voice-compose .vc-add{ display:flex; gap:8px; }
+.voice-compose .vc-actions{ display:flex; justify-content:flex-end; gap:8px; }
+.voice-compose .vc-actions button[data-vc="send"]{ background:#111111; border-color:#111111; color:#FFFFFF; }
+
+/* 发语音面板（按预览：拖动排序、铅笔编辑、环境和音色斜体） */
+.voice-compose .vc-hint{ font-size:12px; color:#8E8E8E; margin-top:-6px; }
+.voice-compose .vc-block{ flex-direction:row; align-items:center; gap:10px; padding:10px 12px; transition:box-shadow .15s; }
+.voice-compose .vc-block.dragging{ opacity:.7; box-shadow:0 6px 16px rgba(0,0,0,.10); position:relative; z-index:2; }
+.voice-compose .vc-grip{ display:flex; align-items:center; color:#B0B0B8; cursor:grab; touch-action:none; padding:4px 2px; }
+.voice-compose .vc-main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+.voice-compose .vc-text{ font-size:14px; line-height:1.6; color:#111111; white-space:pre-wrap; word-break:break-word; }
+.voice-compose .vc-env .vc-text,
+.voice-compose .vc-voice .vc-text{ font-style:italic; color:#6E6E76; }
+.voice-compose .vc-empty{ font-size:13px; color:#B0B0B8; }
+.voice-compose .vc-side{ display:flex; align-items:center; gap:4px; }
+.voice-compose .vc-icon{ width:28px; height:28px; border:0; border-radius:50%; background:none; color:#8E8E8E; display:flex; align-items:center; justify-content:center; padding:0; cursor:pointer; }
+.voice-compose .vc-done{ height:26px; padding:0 10px; border:0.5px solid #D9D9DE; border-radius:12px; background:#FFFFFF; color:#333333; font-size:12px; cursor:pointer; }
+.voice-compose .vc-block .vc-ta{ font-size:14px; }
+
+/* 发语音标题：邮票底 + 英文花字居中 */
+.voice-compose .vc-title{ align-self:center; display:flex; flex-direction:column; align-items:center; gap:2px; margin:4px 0 8px; padding:12px 28px 10px; background:#FFFDF8; border:1.5px solid #111111; outline:1px dashed #111111; outline-offset:4px; }
+.voice-compose .vc-script{ font-family:"Snell Roundhand","Brush Script MT","Segoe Script","Lucida Handwriting",cursive; font-style:italic; font-size:32px; line-height:1.1; font-weight:400; color:#111111; }
+.voice-compose .vc-cap{ font-size:13px; letter-spacing:4px; color:#8E8E8E; }
+
+/* 发语音标题：扇贝齿边邮票，中性浅灰底（齿边用白色半圆叠在四边上） */
+.voice-compose .vc-title{
+    background-color: #F2F2F4;
+    background-image:
+        radial-gradient(circle at 50% 0, #FFFFFF 5px, rgba(255,255,255,0) 5.5px),
+        radial-gradient(circle at 50% 100%, #FFFFFF 5px, rgba(255,255,255,0) 5.5px),
+        radial-gradient(circle at 0 50%, #FFFFFF 5px, rgba(255,255,255,0) 5.5px),
+        radial-gradient(circle at 100% 50%, #FFFFFF 5px, rgba(255,255,255,0) 5.5px);
+    background-size: 12px 12px, 12px 12px, 12px 12px, 12px 12px;
+    background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+    background-position: 0 0, 0 100%, 0 0, 100% 0;
+    border: 0;
+    outline: none;
+    padding: 14px 34px 12px;
+}
+
+/* 发语音面板：抬起来悬浮，四角都圆 */
+.voice-compose .vc-sheet{
+    width: calc(100% - 28px);
+    max-width: 420px;
+    max-height: 72vh;
+    margin: 0 auto 26px;
+    border-radius: 22px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.12);
+}
+
+/* 删除：卡片下落消失 */
+@keyframes vcFall {
+    0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(120px) rotate(10deg); opacity: 0; }
+}
+.voice-compose .vc-block.vc-falling{ animation: vcFall .34s cubic-bezier(.5,0,.8,.4) forwards; pointer-events: none; transform-origin: 50% 0; }
+
+/* ===== 发语音面板 · 第二版：标题、按钮 ===== */
+
+/* 标题：扇贝齿边邮票，中性浅灰底，英文花字居中 */
+.voice-compose .vc-title{
+    gap: 4px;
+    padding: 18px 44px 16px;
+    background-color: #F2F2F4;
+    background-image:
+        radial-gradient(circle at 50% 0, #FFFFFF 5px, rgba(255,255,255,0) 5.5px),
+        radial-gradient(circle at 50% 100%, #FFFFFF 5px, rgba(255,255,255,0) 5.5px),
+        radial-gradient(circle at 0 50%, #FFFFFF 5px, rgba(255,255,255,0) 5.5px),
+        radial-gradient(circle at 100% 50%, #FFFFFF 5px, rgba(255,255,255,0) 5.5px);
+    background-size: 12px 12px, 12px 12px, 12px 12px, 12px 12px;
+    background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+    background-position: 0 0, 0 100%, 0 0, 100% 0;
+}
+.voice-compose .vc-script{ font-size: 38px; line-height: 1.05; color: #111111; }
+.voice-compose .vc-cap{ font-size: 11px; letter-spacing: 5px; color: #7A7A80; margin-right: -5px; }
+
+/* 三个添加按钮：连成一组的胶囊 */
+.voice-compose .vc-add{
+    display: flex;
+    align-self: stretch;
+    overflow: hidden;
+    border: 0.5px solid #D9D9DE;
+    border-radius: 999px;
+    background: #FFFFFF;
+}
+.voice-compose .vc-add button{
+    flex: 1;
+    height: 46px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    font-size: 15px;
+    color: #111111;
+    cursor: pointer;
+}
+.voice-compose .vc-add button + button{ border-left: 0.5px solid #D9D9DE; }
+
+/* 取消 / 发送语音：纯圆角、加大 */
+.voice-compose .vc-actions button{
+    height: 46px;
+    min-width: 104px;
+    padding: 0 22px;
+    border: 0.5px solid #D9D9DE;
+    border-radius: 999px;
+    background: #FFFFFF;
+    font-size: 15px;
+    color: #111111;
+    cursor: pointer;
+}
+.voice-compose .vc-actions button[data-vc="send"]{ background: #111111; border-color: #111111; color: #FFFFFF; }
+
+/* 完成按钮：纯圆角 */
+.voice-compose .vc-done{ height: 32px; padding: 0 14px; border-radius: 999px; font-size: 13px; }
+
+/* ===== 发语音面板 · 第三版 ===== */
+/* 面板：只让中间列表滚动，标题和底部按钮固定，添加再多按钮也不会被推出去 */
+.voice-compose .vc-sheet{
+    display: flex; flex-direction: column; gap: 10px;
+    max-height: 72vh; overflow: hidden;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.voice-compose .vc-title, .voice-compose .vc-hint, .voice-compose .vc-add, .voice-compose .vc-actions{ flex-shrink: 0; }
+.voice-compose .vc-list{ flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 2px; }
+
+/* 按钮：纵向缩短 */
+.voice-compose .vc-add button{ height: 34px; font-size: 14px; }
+.voice-compose .vc-actions button{ height: 36px; min-width: 96px; padding: 0 20px; font-size: 14px; }
+.voice-compose .vc-done{ height: 28px; font-size: 12px; padding: 0 12px; }
+
+/* 标题：扇贝齿边邮票 + 花体英文字 */
+.voice-compose .vc-title{
+    gap: 2px;
+    padding: 20px 46px 16px;
+    background-color: #F2F2F4;
+    background-image:
+        radial-gradient(circle at 50% 0, #FFFFFF 6px, rgba(255,255,255,0) 6.5px),
+        radial-gradient(circle at 50% 100%, #FFFFFF 6px, rgba(255,255,255,0) 6.5px),
+        radial-gradient(circle at 0 50%, #FFFFFF 6px, rgba(255,255,255,0) 6.5px),
+        radial-gradient(circle at 100% 50%, #FFFFFF 6px, rgba(255,255,255,0) 6.5px);
+    background-size: 14px 14px, 14px 14px, 14px 14px, 14px 14px;
+    background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+    background-position: 0 0, 0 100%, 0 0, 100% 0;
+}
+.voice-compose .vc-script{
+    font-family: "Great Vibes", "Snell Roundhand", "Brush Script MT", cursive;
+    font-style: normal; font-weight: 400;
+    font-size: 46px; line-height: 1.1; color: #1A1A1A;
+}
+.voice-compose .vc-cap{ font-size: 11px; letter-spacing: 6px; margin-right: -6px; color: #8A8A90; }
+
+/* 删除：轻微下落并淡出 */
+@keyframes vcFall {
+    0%   { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(26px); opacity: 0; }
+}
+.voice-compose .vc-block.vc-falling{ animation: vcFall .26s ease-out forwards; }
+
+/* ===== 语音气泡：并入普通气泡结构，外壳去掉，头像和时间照常显示 ===== */
+.messages-app .bubble.voice-bubble{ padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.messages-app .voice-bubble .voice-body{ max-width: 240px; margin-top: 6px; }
+
+/* ===== 发语音面板 · 第四版：标题缩小，白色邮票 ===== */
+.voice-compose .vc-title{
+    gap: 1px;
+    padding: 12px 30px 10px;
+    background-color: #FFFFFF;
+    background-image:
+        radial-gradient(circle at 50% 0, #FFFFFF 5.5px, #D9D9DE 5.5px, #D9D9DE 6.3px, rgba(255,255,255,0) 6.5px),
+        radial-gradient(circle at 50% 100%, #FFFFFF 5.5px, #D9D9DE 5.5px, #D9D9DE 6.3px, rgba(255,255,255,0) 6.5px),
+        radial-gradient(circle at 0 50%, #FFFFFF 5.5px, #D9D9DE 5.5px, #D9D9DE 6.3px, rgba(255,255,255,0) 6.5px),
+        radial-gradient(circle at 100% 50%, #FFFFFF 5.5px, #D9D9DE 5.5px, #D9D9DE 6.3px, rgba(255,255,255,0) 6.5px);
+    background-size: 12px 12px, 12px 12px, 12px 12px, 12px 12px;
+    background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+    background-position: 0 0, 0 100%, 0 0, 100% 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.voice-compose .vc-script{ font-size: 30px; line-height: 1.1; }
+.voice-compose .vc-cap{ font-size: 10px; letter-spacing: 5px; margin-right: -5px; }
+
+/* ===== 语音：纯黑白，去掉灰色底和灰边 ===== */
+.messages-app .voice-btn{ background: #FFFFFF; border: 1px solid #111111; color: #111111; border-radius: 999px; }
+.messages-app .voice-btn i{ color: #111111; }
+.messages-app .voice-wave span{ background: #111111; }
+.messages-app .voice-dur{ color: #111111; }
+.messages-app .voice-body{ background: transparent; border: 0; padding: 6px 0 0; color: #111111; font-size: 14px; line-height: 1.7; }
+.messages-app .voice-aside{ color: #9A9A9A; font-style: italic; }
+
+/* ===== 语音气泡：缩小，图标和波形变浅 ===== */
+.messages-app .voice-btn{ min-width: 0; height: 34px; padding: 0 12px; gap: 8px; border: 0.5px solid #CFCFCF; border-radius: 999px; background: #FFFFFF; color: #444444; font-size: 13px; }
+.messages-app .voice-play{ display: inline-block; width: 0; height: 0; border-left: 7px solid #666666; border-top: 4.5px solid transparent; border-bottom: 4.5px solid transparent; margin-left: 2px; }
+.messages-app .voice-wave{ height: 12px; gap: 2px; flex: 0 0 auto; }
+.messages-app .voice-wave span{ width: 1.5px; height: 4px; background: #A8A8A8; border-radius: 1px; }
+.messages-app .voice-wave span:nth-child(2n){ height: 9px; }
+.messages-app .voice-wave span:nth-child(3n){ height: 6px; }
+.messages-app .voice-dur{ font-size: 11px; color: #8A8A8A; }
+
+/* 发语音标题：去掉扇贝边，文字逐字深浅不一 */
+.voice-compose .vc-title{ background-image: none; background-color: #FFFFFF; box-shadow: none; outline: none; padding: 10px 24px 8px; }
+
+/* ===== 拍照：拍立得气泡（cp- 前缀；更小；内框更淡；爱心固定淡粉不动；正面花字 a moment） ===== */
+.messages-app .bubble.cp-bubble{ padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.messages-app .cp-photo{ width: 124px; height: 148px; perspective: 800px; cursor: pointer; }
+.messages-app .cp-flip{ position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.22,1,.36,1); }
+.messages-app .cp-photo.cp-flipped .cp-flip{ transform: rotateY(180deg); }
+.messages-app .cp-face{ position: absolute; inset: 0; box-sizing: border-box; background: #FFFFFF; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,.09); backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.messages-app .cp-front{ padding: 7px 7px 0; transform: rotate(-2.5deg); display: flex; flex-direction: column; }
+.messages-app .cp-img{ width: 100%; height: 98px; border-radius: 2px; background: #F7F7F8; display: flex; align-items: center; justify-content: center; }
+.messages-app .cp-heart{ width: 30px; height: 30px; }
+.messages-app .cp-heart path{ fill: #F7CFE0; }
+.messages-app .cp-cap{ text-align: center; font-family: "Great Vibes", "Snell Roundhand", "Brush Script MT", cursive; font-size: 17px; line-height: 1.2; color: #3A3A3A; margin-top: 4px; }
+.messages-app .cp-back{ transform: rotateY(180deg) rotate(2deg); padding: 10px 9px; display: flex; flex-direction: column; gap: 5px; }
+.messages-app .cp-tag{ font-size: 9px; letter-spacing: 2px; color: #8A8A8A; }
+.messages-app .cp-desc{ font-size: 11.5px; line-height: 1.7; color: #333333; font-style: italic; overflow: auto; }
+
+/* ===== 位置：纸片感（lc- 前缀），粉色已减淡一半 ===== */
+.messages-app .bubble.lc-bubble{ padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.messages-app .lc-strip{ position: relative; display: inline-flex; align-items: center; gap: 10px; padding: 12px 18px 12px 12px; max-width: 270px; box-sizing: border-box; background: #FFFFFF; box-shadow: 0 5px 14px rgba(60,40,50,.12); transform: rotate(1.5deg); clip-path: polygon(0 0,4% 0,6% 3%,8% 0,12% 0,14% 3%,16% 0,20% 0,22% 3%,24% 0,28% 0,30% 3%,32% 0,36% 0,38% 3%,40% 0,44% 0,46% 3%,48% 0,52% 0,54% 3%,56% 0,60% 0,62% 3%,64% 0,68% 0,70% 3%,72% 0,76% 0,78% 3%,80% 0,84% 0,86% 3%,88% 0,92% 0,94% 3%,96% 0,100% 0,100% 100%,0 100%); }
+.messages-app .lc-ico{ width: 36px; height: 36px; flex: 0 0 36px; background: #FDF6F9; display: flex; align-items: center; justify-content: center; }
+.messages-app .lc-ico svg{ width: 14px; height: 17px; }
+.messages-app .lc-txt{ display: flex; flex-direction: column; min-width: 0; }
+.messages-app .lc-name{ font-size: 14px; color: #3A3A3E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.messages-app .lc-addr{ font-size: 11px; color: #8A8A90; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.lc-root{ position: fixed; inset: 0; z-index: 9100; background: rgba(60,40,50,.18); display: flex; align-items: center; justify-content: center; padding: 24px; box-sizing: border-box; opacity: 0; transition: opacity .2s ease; }
+.lc-root.show{ opacity: 1; }
+.lc-paper{ position: relative; width: 100%; max-width: 380px; box-sizing: border-box; background: #FFFFFF; border-radius: 6px; box-shadow: 0 8px 22px rgba(60,40,50,.13); padding: 22px 18px 20px; transform: rotate(-1.5deg); }
+.lc-tape{ position: absolute; top: -10px; left: 50%; width: 86px; height: 22px; transform: translateX(-50%) rotate(3deg); background: rgba(250,234,241,.8); box-shadow: 0 1px 2px rgba(0,0,0,.05); }
+.lc-head{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.lc-title{ font-family: "Great Vibes", "Snell Roundhand", "Brush Script MT", cursive; font-size: 30px; line-height: 1; color: #3A3A3E; }
+.lc-btn{ background: none; border: 0; font-size: 13px; color: #8A8A90; cursor: pointer; padding: 4px 2px; }
+.lc-btn.lc-send{ color: #3A3A3E; }
+.lc-map{ height: 140px; background: #F7F7F8; border-radius: 2px; position: relative; overflow: hidden; margin-bottom: 14px; }
+.lc-map::before{ content: ""; position: absolute; left: -10px; right: -10px; top: 60%; height: 10px; background: #FFFFFF; transform: rotate(-6deg); }
+.lc-map::after{ content: ""; position: absolute; left: 40%; top: -10px; bottom: -10px; width: 9px; background: #FFFFFF; transform: rotate(10deg); }
+.lc-pin{ position: absolute; left: 50%; top: 50%; transform: translate(-50%, -100%); z-index: 1; }
+.lc-pin svg{ width: 30px; height: 36px; display: block; }
+.lc-lbl{ display: block; font-size: 11px; color: #8A8A90; margin: 10px 0 4px; }
+.lc-input{ display: block; width: 100%; height: 36px; border: 0; border-bottom: 1px dashed #C9C9CE; background: transparent; font-size: 14px; color: #3A3A3E; outline: none; padding: 0; }
+
+/* ===== 长按菜单：加大一些 ===== */
+.messages-app #mmMenu.mm-menu{ height: 42px; border-radius: 21px; }
+.messages-app .mm-item{ padding: 0 12px; }
+
+/* ===== 更多弹窗：层级提高，盖在聊天室界面之上 ===== */
+.messages-app .mq-sheet{ position: fixed; inset: 0; z-index: 9050; }
+
+/* ===== 文件：聊天里的加长卡片（ff- 前缀） ===== */
+.messages-app .bubble.ff-bubble{ padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+.messages-app .ff-card{ display: inline-flex; align-items: center; gap: 10px; min-width: 200px; max-width: 250px; padding: 10px 16px 10px 10px; background: #FFFFFF; border-radius: 14px; box-shadow: 0 4px 12px rgba(60,40,50,.08); cursor: pointer; box-sizing: border-box; }
+.messages-app .ff-mini{ position: relative; width: 38px; height: 30px; flex: 0 0 38px; }
+.messages-app .ff-mini-tab{ position: absolute; left: 0; top: 0; width: 18px; height: 8px; background: #FADCE8; border-radius: 4px 4px 0 0; }
+.messages-app .ff-mini-body{ position: absolute; left: 0; top: 6px; width: 38px; height: 24px; background: #F1F1F4; border-radius: 3px; }
+.messages-app .ff-txt{ display: flex; flex-direction: column; min-width: 0; }
+.messages-app .ff-n{ font-size: 14px; color: #3A3A3E; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.messages-app .ff-m{ font-size: 11px; color: #8A8A90; }
+
+/* 文件夹弹出层 */
+.ff-root{ position: fixed; inset: 0; z-index: 9100; background: rgba(60,40,50,.18); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .2s ease; }
+.ff-root.show{ opacity: 1; }
+.ff-stage{ width: 240px; height: 200px; }
+.ff-folder{ position: relative; width: 100%; height: 100%; cursor: pointer; }
+.ff-tab{ position: absolute; left: 0; top: 0; width: 96px; height: 26px; background: #FADCE8; border-radius: 10px 10px 0 0; }
+.ff-back{ position: absolute; left: 0; top: 18px; width: 100%; height: 182px; background: #F1F1F4; border-radius: 6px; }
+.ff-page{ position: absolute; left: 14px; right: 14px; top: 30px; height: 140px; background: #FFFFFF; border-radius: 4px; overflow: hidden; transition: top .6s cubic-bezier(.22,1,.36,1), height .6s cubic-bezier(.22,1,.36,1); }
+.ff-page-in{ height: 100%; box-sizing: border-box; padding: 14px; overflow-y: auto; font-size: 13px; line-height: 1.7; color: #333333; white-space: pre-wrap; word-break: break-word; opacity: 0; transition: opacity .4s ease .25s; }
+.ff-front{ position: absolute; left: 0; right: 0; bottom: 0; height: 120px; box-sizing: border-box; padding: 14px; display: flex; flex-direction: column; gap: 4px; background: linear-gradient(170deg,#FBFBFC 0%,#F1F1F4 100%); border-radius: 6px; transition: transform .6s cubic-bezier(.22,1,.36,1), opacity .4s ease; }
+.ff-name{ font-size: 14px; color: #3A3A3E; }
+.ff-meta{ font-size: 11px; color: #8A8A90; }
+.ff-folder.ff-open .ff-page{ top: -90px; height: 330px; }
+.ff-folder.ff-open .ff-page-in{ opacity: 1; }
+.ff-folder.ff-open .ff-front{ transform: translateY(70px); opacity: 0; }
+.ff-folder.ff-open .ff-tab{ opacity: .6; }
