@@ -6988,37 +6988,58 @@ function markSaveCancelButtons() {
 }
 markSaveCancelButtons();
 initComposerGesture();
-setTimeout(ensureExtPanel, 0);
+setTimeout(initExtPanel, 0);
 
 /* 输入框：“+”按钮 → 输入框上方滑出的透明白面板（占位按钮，以后做功能） */
 const EXT_ITEMS = [['图片','M4 5h16v14H4z M4 16l5-5 4 4 3-3 4 4'],['拍照','M4 8h4l2-3h4l2 3h4v11H4z M12 11a3 3 0 1 0 0.01 0'],['语音','M12 4v10M8 10v2a4 4 0 0 0 8 0v-2M12 18v3'],['位置','M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z M12 11a2 2 0 1 0 0.01 0'],['红包','M5 4h14v16H5z M5 11h14'],['转账','M4 9h16M4 15h16M8 5l-4 4 4 4M16 11l4 4-4 4'],['文件','M7 3h7l5 5v13H7z M14 3v5h5'],['更多','M5 12h.01M12 12h.01M19 12h.01']];
 function ensureExtPanel() {
-    if (document.getElementById('extPanel')) return;
-    const box = document.querySelector('.messages-app');
+    if (document.getElementById('extPanel')) return true;
     const menu = document.getElementById('quickMenu');
-    if (!box || !menu) return;
+    if (!document.querySelector('.messages-app') || !menu) return false;
+
     const panel = document.createElement('div');
-    panel.className = 'ext-panel'; panel.id = 'extPanel';
+    panel.className = "ext-panel ext-panel-pinned"; panel.id = 'extPanel';
     panel.innerHTML = EXT_ITEMS.map(([label, d]) => `<button class="ext-item" type="button" data-ext="${label}"><span class="ext-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#333" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></span><span>${label}</span></button>`).join('');
     document.body.appendChild(panel);
-    // 跟随底部上拉菜单：菜单滑出时，透明面板也从输入框上方一起滑出；菜单收起时一起收起
+
+    // 位置：固定在输入框上方；只在能拿到输入框位置时才更新，拿不到则保持上一次的位置
+    const place = () => {
+        const comp = document.querySelector('.messages-app .composer');
+        if (!comp) return;
+        const r = comp.getBoundingClientRect();
+        if (!r || !r.height) return;
+        const vv = window.visualViewport;
+        const bottomEdge = vv ? vv.offsetTop + vv.height : window.innerHeight;
+        panel.style.bottom = Math.max(0, bottomEdge - r.top + 24) + 'px';
+    };
+    // 面板状态：不再只由菜单 class 决定，由 sync 统一维护
     const sync = () => {
-        const show = menu.classList.contains('show');
-        if (show) {
-            const comp = box.querySelector('.composer');
-            const r = comp ? comp.getBoundingClientRect() : null;
-            panel.style.bottom = r ? (window.innerHeight - r.top + 24) + 'px' : '136px';
-        }
+        const m = document.getElementById('quickMenu');
+        const show = !!(m && m.classList.contains('show'));
+        if (show) place();
         panel.classList.toggle('open', show);
     };
+    const repos = () => { if (panel.classList.contains('open')) place(); };
+
     new MutationObserver(sync).observe(menu, { attributes: true, attributeFilter: ['class'] });
+    window.addEventListener('resize', repos);
+    window.addEventListener('scroll', repos, true);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', repos);
+
     panel.addEventListener('click', e => {
         const b = e.target.closest('[data-ext]'); if (!b) return;
         if (b.dataset.ext === '图片') { toggleQuickMenu(false); pickChatPhoto(); return; }
         toast(b.dataset.ext + '即将推出');
     });
+    place();
     sync();
+    return true;
 }
+function initExtPanel(tries = 0) {
+    if (ensureExtPanel() || tries > 60) return;
+    setTimeout(() => initExtPanel(tries + 1), 250);
+}
+
 const __messagesHandlers = {toast:toast, focusSearch:focusSearch, switchTab:switchTab, fabAction:fabAction, exitMessagesToHome:exitMessagesToHome, syncSettingsMode:syncSettingsMode, openContactEditor:openContactEditor, closeContactEditor:closeContactEditor, openPersonaEditor:openPersonaEditor, openNewContact:openNewContact, openNewContactFromCurrentFolder:openNewContactFromCurrentFolder, showPersona:showPersona, fillPersona:fillPersona, previewPersonaName:previewPersonaName, closePersonaEditor:closePersonaEditor, openAccountMgr:openAccountMgr, renderAccountList:renderAccountList, savePersona:savePersona, loadImage:loadImage, saveContact:saveContact, deleteContact:deleteContact, renderMoments:renderMoments, openChat:openChat, closeChat:closeChat, renderThread:renderThread, showTyping:showTyping, onKey:onKey, onTyping:onTyping, autoGrow:autoGrow, updateSend:updateSend, toggleQuickMenu:toggleQuickMenu, initComposerGesture:initComposerGesture, applyTheme:applyTheme, renderThemeList:renderThemeList, openAppearance:openAppearance, closeAppearance:closeAppearance, folderMembers:folderMembers, folderName:folderName, renderContacts:renderContacts, openFolderDetail:openFolderDetail, closeFolderDetail:closeFolderDetail, renderFolderDetail:renderFolderDetail, openFolderPicker:openFolderPicker, closeFolderPicker:closeFolderPicker, renderFolderPicker:renderFolderPicker, toggleFolderMember:toggleFolderMember, openFolderNew:openFolderNew, closeFolderNew:closeFolderNew, saveFolderNew:saveFolderNew, deleteFolder:deleteFolder, wheelList:wheelList, renderWheel:renderWheel, applyWheel:applyWheel, updateWheelUI:updateWheelUI, wheelAngle:wheelAngle, wheelDown:wheelDown, wheelMove:wheelMove, wheelUp:wheelUp, wheelTap:wheelTap, openWheelCard:openWheelCard, fdCards:fdCards, fdCurrentIndex:fdCurrentIndex, fdGo:fdGo, fdStep:fdStep, updateFdArrows:updateFdArrows, closeSync:closeSync, openApiSettings:openApiSettings, openContactIdModal:openContactIdModal, renderContactAddChoice:renderContactAddChoice, showContactIdEntry:showContactIdEntry, showDirectContactList:showDirectContactList, directAddContact:directAddContact, closeContactIdModal:closeContactIdModal, previewContactById:previewContactById, addChatByContactId:addChatByContactId, openRoomSettings:openRoomSettings, roomAction:roomAction, openChatsSettings:openChatsSettings, softAction:softAction, closeSheet:closeSheet, openSelfPersona:openSelfPersona, pullReply:pullReply, sendMessage:sendMessage, startSync:startSync, importDeviceContacts:importDeviceContacts, renderChats:renderChats, closeRoomView:closeRoomView, popupOk:popupOk, popupCancel:popupCancel, startProfileEdit:startProfileEdit, closeAccountMgr:closeAccountMgr, resetFrameScroll:resetFrameScroll, openSidebar:openSidebar, closeSidebar:closeSidebar, showLoginMask:showLoginMask, hideLoginMask:hideLoginMask, renderStrip:renderStrip, pickAccount:pickAccount, refreshAccounts:refreshAccounts, doLogin:doLogin, directLogin:directLogin, finishLogin:finishLogin, applyPersona:applyPersona, applySelf:applySelf, openIdentitySheet:openIdentitySheet, pickIdentity:pickIdentity, openIdentityEditor:openIdentityEditor, deleteIdentity:deleteIdentity, pickPersonaAvatar:pickPersonaAvatar, exitContactLogin:exitContactLogin, setRoomTab:setRoomTab, pickRoomBg:pickRoomBg, clearRoomBg:clearRoomBg, fillRoomCss:fillRoomCss, previewRoomCss:previewRoomCss, saveRoomCss:saveRoomCss, clearRoomCss:clearRoomCss, openCssPreview:openCssPreview, openMomentComposer:openMomentComposer, publishMoment:publishMoment, deleteMoment:deleteMoment, pickMomentCover:pickMomentCover, setRoomTimerMode:setRoomTimerMode, saveRoomTimer:saveRoomTimer, closeFullMask:closeFullMask, updateMomentCount:updateMomentCount, toggleMomentLike:toggleMomentLike, openMomentComments:openMomentComments, sendMomentComment:sendMomentComment, openMomentVisPanel:openMomentVisPanel, closeMomentVisPanel:closeMomentVisPanel, setMomentVis:setMomentVis, toggleMomentVisTo:toggleMomentVisTo, pickMomentPhotos:pickMomentPhotos, removePendingPhoto:removePendingPhoto, pickProfilePhoto:pickProfilePhoto, togglePersonaFold:togglePersonaFold, saveChatCount:saveChatCount, setRoomOpt:setRoomOpt, stepRoomOpt:stepRoomOpt, toggleRoomBatch:toggleRoomBatch, toggleMomentCmt:toggleMomentCmt, sendMomentCommentInline:sendMomentCommentInline, revealMomentCover:revealMomentCover, tapContactCard:tapContactCard, toggleRoomFold:toggleRoomFold, pickPersonaImport:pickPersonaImport, openMemoryPage:openMemoryPage, closeMemoryPage:closeMemoryPage, memSetNum:memSetNum, memToggleAuto:memToggleAuto, memSummarizeRange:memSummarizeRange, memSaveInstr:memSaveInstr, memRestoreDefault:memRestoreDefault, memSavePreset:memSavePreset, memUpdatePreset:memUpdatePreset, memDeletePreset:memDeletePreset, memSwitchPreset:memSwitchPreset, memSetPriority:memSetPriority, memDelete:memDelete, openMomentPick:openMomentPick, momentRestore:momentRestore, momentUpload:momentUpload, filterMomentVis:filterMomentVis, selectAllMomentVis:selectAllMomentVis, clearMomentVis:clearMomentVis, setAvOpt:setAvOpt, toggleCFold:toggleCFold, toggleChatPrompt:toggleChatPrompt, toggleChatDrop:toggleChatDrop};
 Object.assign(__messagesHandlers, {clearQuote, onRoomFontSize, openCssHelp, copyCssHelp, closeHeartPop, addPresetFromInput, presetNameKey, togglePresetPick, pickCssPreset, openMoreSheet, openNarrSheet, narrSet, narrBgSet, narrBgFill, narrBgReset, narrBgPanel, unlockNarrBg, checkNarrBgPassword, openMqSheet, closeMqSheet, memSetSec, memOpenAdd, memCloseAdd, memSaveNew, memSetItemSec, memSetLevel, memStartEdit, memCancelEdit, memSaveEdit});
 __messagesHandlers.setTransOpt = setTransOpt;

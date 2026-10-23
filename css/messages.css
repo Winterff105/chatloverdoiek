@@ -5538,3 +5538,6 @@
 .messages-app .mem-plain-time { display: block; font-size: 10px; color: #999; margin-bottom: 2px; }
 .messages-app .mem-plain-text { font-size: 12px; line-height: 1.6; color: #000; white-space: pre-wrap; word-break: break-word; }
 
+
+/* 「+」面板固定层级：保证不被聊天室其他层盖住；位置 bottom 由 messages.js 写入，不改宽度和开合动画 */
+.ext-panel.ext-panel-pinned{ position:fixed; z-index:9000; }
