@@ -3366,7 +3366,10 @@ async function pullReply() {
         c._typing = false;
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const capCur = document.querySelector('.messages-app .send-capsule'); if (capCur) capCur.classList.remove('pulling');
-        const parts = replies.map((p, i) => { const pt = narrPart(p, c.name); if (pt && replies.trans && replies.trans[i]) pt.trans = replies.trans[i]; return pt; }).filter(Boolean);
+        let parts = replies.map((p, i) => { const pt = narrPart(p, c.name); if (pt && replies.trans && replies.trans[i]) pt.trans = replies.trans[i]; return pt; }).filter(Boolean);
+        const rpr = parts.find(pt => pt.rpReply);
+        parts = parts.filter(pt => !pt.rpReply);
+        if (rpr) applyRpReply(c, rpr.rpReply);
         if (parts.some(pt => pt.voice || pt.polaroid || pt.loc || pt.money)) vibrateTiny();
         parts.forEach(pt => { if (pt.quoteRaw) { pt.quote = resolveQuote(c, pt.quoteRaw); delete pt.quoteRaw; } });
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
@@ -3494,7 +3497,7 @@ document.addEventListener('click', e => {
 });
 /* 语音：AI 自己决定发不发，以【语音】开头单独成条；「」内是声音和氛围，其余是说出口的话 */
 const PHOTO_RULE = '【照片】：你也可以发一张照片（照片不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"photo":"照片描述"}，对象里不要加其他字段，例如：{"photo":"窗边的光落在桌上，一杯咖啡冒着热气"}。描述写照片里能看到的内容。';
-const MONEY_RULE = '【红包/转账】：你也可以发红包或转账（不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"transfer":{"amount":520,"note":"备注"}} 或 {"redpacket":{"amount":88,"note":"备注"}}，对象里不要加其他字段。金额是数字。';
+const MONEY_RULE = '【红包/转账】：你也可以发红包或转账（不计入台词条数，只在情境自然时使用）。如果对方刚发了红包，你可以在 messages 里放 {\"redpacket_reply\":\"accept\"} 表示收下，或 {\"redpacket_reply\":\"reject\"} 表示拒收，每次只针对最近一个红包。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"transfer":{"amount":520,"note":"备注"}} 或 {"redpacket":{"amount":88,"note":"备注"}}，对象里不要加其他字段。金额是数字。';
 const LOC_RULE = '【位置】：你也可以发一个位置（不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"location":{"name":"地点名称","addr":"地址"}}，对象里不要加其他字段，例如：{"location":{"name":"静安嘉里中心","addr":"南京西路 1515 号"}}。';
 const VOICE_RULE = '【语音】：你可以自主决定这次要不要发一条语音（语音不计入台词条数）。只在情境自然时使用，不要每次都发。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"voice":"语音内容"}，对象里不要加其他字段，例如：{"voice":"「窗外传来雨声，他停了一下，声音压得很低：」你到了就好，路上还顺利吗？「椅子轻轻响了一声。」"}。语音中说出口的话直接写，声音、停顿、呼吸和周围氛围必须用「」括起来单独描述。普通台词仍然写成字符串。';
 const FILE_RULE = '【文件】：你也可以发送一个文件（不计入台词条数，只在情境自然时使用，比如发送文档、长文本、笔记、文章、方案等）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"file":{"name":"文件名.txt","fileText":"文件完整正文内容"}}，例如：{"file":{"name":"备忘清单.txt","fileText":"1. 记得按时吃饭\\n2. 晚上早点休息"}}。文件内容完整写在 fileText 里，不要简略。普通台词仍然写成字符串。';
@@ -3511,6 +3514,7 @@ function voiceBodyHtml(text) {
 }
 /* 解析单条回复：旁白保留，普通台词照旧清理 */
 function narrPartBase(p, name) {
+    if (typeof p === 'string') { const rr = p.trim().match(/^【红包回复】(accept|reject)$/); if (rr) return { rpReply: rr[1] }; }
     if (p && typeof p === 'object') {
         if (p.voice) return { text: String(p.voice), narr: false, voice: true };
         if (p.photo) return { text: String(p.photo), narr: false, polaroid: true };
@@ -7597,9 +7601,10 @@ function openMoneyCompose(kind) {
 function mnCardHtml(m, i) {
     const isRP = m.money === 'redpacket';
     const recv = !!m.received;
+    const rej = m.rpState === 'rejected';
     const amt = Number(m.amount || 0).toFixed(2);
-    const hint = recv ? (isRP ? '已拆开 · 点击可撤销' : '已收款 · 点击可撤销') : (isRP ? '点击拆开' : '点击收款');
-    const stampHtml = recv ? `<div class="mn-stamp">${isRP ? '已拆开' : '已收款'}</div>` : '';
+    const hint = rej ? '对方已拒收' : (recv ? (isRP ? '已拆开 · 点击可撤销' : '已收款 · 点击可撤销') : (isRP ? '点击拆开' : '点击收款'));
+    const stampHtml = rej ? '<div class="mn-stamp">已拒收</div>' : (recv ? `<div class="mn-stamp">${isRP ? '已拆开' : '已收款'}</div>` : '');
     const sparks = `<svg class="mn-spark s1" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#F9D9E5"/></svg><svg class="mn-spark s2" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#FFFFFF" stroke="#F9D9E5"/></svg><svg class="mn-spark s3" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#F9D9E5"/></svg><svg class="mn-spark s4" viewBox="0 0 24 24"><path d="${MN_STAR}" fill="#FFFFFF" stroke="#F9D9E5"/></svg>`;
     if (isRP) {
         return `<div class="mn-card mn-rp${recv ? ' mn-recv' : ''}" data-mni="${i}" role="button" tabindex="0">
@@ -7626,6 +7631,19 @@ function mnCardHtml(m, i) {
         <div class="mn-tr-btn">${recv ? '已收' : '收款'}</div>
         ${stampHtml}${sparks}
     </div>`;
+}
+/* AI 对用户发出的红包做出回应：收下（accept）或拒收（reject），作用于最近一个未处理的红包 */
+function applyRpReply(c, act) {
+    const list = c.msgs || [];
+    for (let k = list.length - 1; k >= 0; k--) {
+        const m = list[k];
+        if (m && m.me && m.money === 'redpacket' && !m.rpState) {
+            if (act === 'accept') { m.rpState = 'accepted'; m.received = true; m.recvAt = Date.now(); m.recvBy = 'char'; }
+            else { m.rpState = 'rejected'; m.received = false; m.recvAt = null; m.recvBy = null; }
+            persistContacts(); renderThread(); renderChats();
+            return;
+        }
+    }
 }
 function openMnRevoke(i) {
     const c = CONTACTS.find(x => x.id === activeId); const m = c && c.msgs && c.msgs[i]; if (!m) return;
@@ -7658,6 +7676,7 @@ document.addEventListener('click', e => {
     const i = Number(card.dataset.mni);
     const c = CONTACTS.find(x => x.id === activeId); const m = c && c.msgs && c.msgs[i]; if (!m || !m.money) return;
     e.stopPropagation();
+    if (m.rpState === 'rejected') return;
     if (m.received) { openMnRevoke(i); return; }
     m.received = true; m.recvAt = Date.now(); m.recvBy = m.me ? 'char' : 'user';
     persistContacts(); renderThread(); renderChats();

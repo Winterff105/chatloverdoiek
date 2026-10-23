@@ -253,6 +253,7 @@ Never announce a topic change. Just change.
       }
       if (x && typeof x === 'object' && typeof x.voice === 'string') return { text: '【语音】' + cleanOne(x.voice, name), trans: '' };
       if (x && typeof x === 'object' && typeof x.photo === 'string') return { text: '【照片】' + cleanOne(x.photo, name), trans: '' };
+      if (x && typeof x === 'object' && (x.redpacket_reply === 'accept' || x.redpacket_reply === 'reject')) return { text: '【红包回复】' + x.redpacket_reply, trans: '' };
       if (x && typeof x === 'object' && (x.transfer || x.redpacket)) {
         const k = x.redpacket ? '红包' : '转账'; const o = x.redpacket || x.transfer || {};
         const amt = Number(o.amount); if (amt > 0) return { text: '【' + k + '】' + amt + (o.note ? '｜' + cleanOne(String(o.note), name) : ''), trans: '' };
@@ -462,7 +463,7 @@ Never announce a topic change. Just change.
       for (const m of slice) {
         const tl = msgTimeLabel(m);
         const qp = m.quote && m.quote.text ? `(引用${m.quote.me ? '{{user}}' : '{{char}}'}的消息「${String(m.quote.text).slice(0, 80)}」) ` : '';
-        const head = (tl ? `[${tl}] ` : '') + qp + (m.narr ? '【旁白】' : '') + (m.voice ? '【语音】' : '') + (m.polaroid ? '【照片】' : '') + (m.loc ? '【位置】' : '') + (m.money ? (function (mm) { const p = n => String(n).padStart(2, '0'); const kind = mm.money === 'redpacket' ? '红包' : '转账'; const verb = mm.money === 'redpacket' ? '拆开' : '收款'; const when = mm.received && mm.recvAt ? (function (ts) { const d = new Date(ts); return d.getHours() + '点' + p(d.getMinutes()) + '分' + p(d.getSeconds()) + '秒'; })(mm.recvAt) : ''; return '【' + kind + '¥' + (mm.amount || 0) + (mm.received ? ' ' + (mm.recvBy === 'char' ? '{{char}}' : '{{user}}') + '已在' + when + verb : ' 未' + verb) + '】'; })(m) : '');
+        const head = (tl ? `[${tl}] ` : '') + qp + (m.narr ? '【旁白】' : '') + (m.voice ? '【语音】' : '') + (m.polaroid ? '【照片】' : '') + (m.loc ? '【位置】' : '') + (m.money ? (function (mm) { const p = n => String(n).padStart(2, '0'); const kind = mm.money === 'redpacket' ? '红包' : '转账'; const verb = mm.money === 'redpacket' ? '拆开' : '收款'; const when = mm.received && mm.recvAt ? (function (ts) { const d = new Date(ts); return d.getHours() + '点' + p(d.getMinutes()) + '分' + p(d.getSeconds()) + '秒'; })(mm.recvAt) : ''; return '【' + kind + '¥' + (mm.amount || 0) + (mm.rpState === 'rejected' ? ' {{char}}已拒收' : (mm.received ? ' ' + (mm.recvBy === 'char' ? '{{char}}' : '{{user}}') + '已在' + when + verb : ' 未' + verb)) + '】'; })(m) : '');
         const role = m.me ? 'user' : 'assistant';
         if (m.photo) {
           const url = m.me && imgKeys.has(m.photo) && typeof window.MESSAGES_PHOTO_GET === 'function' ? (window.MESSAGES_PHOTO_GET(m.photo) || '') : '';

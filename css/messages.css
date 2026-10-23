@@ -5875,12 +5875,12 @@
 .messages-app #thread .mrow .voice-btn,
 .messages-app #thread .mrow .voice-body,
 .messages-app #thread .mrow .lc-strip,
-.messages-app #thread .mrow .ff-card{ position: relative; z-index: 5; pointer-events: auto !important; cursor: pointer; }
+.messages-app #thread .mrow .ff-card{ position: relative; z-index: 1; pointer-events: auto !important; cursor: pointer; }
 .messages-app #thread .mrow .bubble{ pointer-events: auto; }
 
 /* ===== 红包 / 转账（mn- 前缀）：粉白交错、斜纹、星星、虚线、收款动画 ===== */
 .messages-app .bubble.mn-bubble{ padding: 0 !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
-.messages-app .mn-card{ position: relative; overflow: hidden; cursor: pointer; user-select: none; -webkit-user-select: none; pointer-events: auto !important; z-index: 5; }
+.messages-app .mn-card{ position: relative; overflow: hidden; cursor: pointer; user-select: none; -webkit-user-select: none; pointer-events: auto !important; z-index: 1; }
 .messages-app #thread .mrow .mn-card{ pointer-events: auto !important; }
 
 /* 红包（竖版） */
@@ -5948,3 +5948,6 @@
 
 /* 文件夹正面的英文花字（与预览一致） */
 .messages-app .ff-front .ff-name, .ff-root .ff-front .ff-name{ font-family: "Great Vibes", "Snell Roundhand", "Brush Script MT", cursive; font-size: 28px; line-height: 1; color: #3A3A3E; }
+
+/* 消息区域自成层叠上下文，卡片不再盖到顶栏上面 */
+.messages-app #thread{ isolation: isolate; position: relative; }
