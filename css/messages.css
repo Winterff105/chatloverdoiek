@@ -332,47 +332,52 @@
     box-shadow: 0 5px 16px rgba(0,0,0,.025);
 }
 .messages-app .settings-item{
-    position: relative;
-    min-height: 62px;
-    padding: 0 40px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    gap: 0;
-    border-bottom: none;
-    cursor: pointer;
+    position: relative !important;
+    min-height: 62px !important;
+    padding: 16px 20px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    gap: 4px !important;
+    border-bottom: none !important;
+    cursor: pointer !important;
+    box-sizing: border-box !important;
 }
-.messages-app .settings-item:last-child{ border-bottom: none; }
-.messages-app .settings-item:active{ background: #E8E8E8; }
+.messages-app .settings-item:last-child{ border-bottom: none !important; }
+.messages-app .settings-item:active{ background: #E8E8E8 !important; }
 .messages-app .settings-item .si-icon{
-    width: 34px;
-    height: 34px;
-    border-radius: 11px;
-    background: #111;
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+    display: none !important;
 }
-.messages-app .settings-item .si-icon svg{
-    width: 16px;
-    height: 16px;
-    stroke: #fff;
-    stroke-width: 1.8;
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+.messages-app .settings-item .si-text{
+    width: 100% !important;
+    min-width: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
 }
-.messages-app .settings-item .si-text{ min-width: 0; }
-.messages-app .settings-item .si-title{ font-size: 14px; font-weight: 650; letter-spacing: -.1px; }
-.messages-app .settings-item .si-sub{ margin-top: 3px; font-size: 11.5px; color: #8E8E8E; }
+.messages-app .settings-item .si-title{
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: #111111 !important;
+    text-align: center !important;
+    width: 100% !important;
+}
+.messages-app .settings-item .si-sub{
+    margin-top: 3px !important;
+    font-size: 12px !important;
+    color: #8E8E8E !important;
+    text-align: center !important;
+    width: 100% !important;
+}
 .messages-app .settings-item .chev{
-    position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
-    color: #A0A0A0;
-    font-size: 20px; line-height: 1;
+    display: none !important;
+}
+.messages-app .section-label{
+    text-align: center !important;
 }
 
 /* ---------- 身份液态玻璃胶囊 ---------- */
@@ -5140,13 +5145,13 @@
 .messages-app .mf-chev{ color:#CFCFCF; font-size:20px; flex:none; }
 
 /* 朋友圈频率行：文字居中（和「管理我」一致），调取按钮固定在左侧 */
-.messages-app .mf-settings-row{ display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; text-align:center !important; position:relative; padding:18px 18px !important; cursor:pointer; }
-.messages-app .mf-settings-row .mf-sync{ position:absolute; left:18px; top:50%; transform:translateY(-50%); width:38px; height:38px; }
-.messages-app .mf-settings-row .mf-sync:active{ transform:translateY(-50%) scale(.92); }
-.messages-app .mf-si-text{ width:100%; text-align:center; }
-.messages-app .mf-si-title{ font-size:15px; font-weight:600; color:#111; }
-.messages-app .mf-si-sub{ font-size:12px; color:#A6A6A6; margin-top:3px; }
-.messages-app .mf-chev{ position:absolute; right:18px; top:50%; transform:translateY(-50%); color:#CFCFCF; font-size:20px; }
+.messages-app .mf-settings-row{ display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; text-align:center !important; position:relative !important; padding:18px 18px !important; cursor:pointer !important; }
+.messages-app .mf-settings-row .mf-sync{ position:absolute !important; left:18px !important; top:50% !important; transform:translateY(-50%) !important; width:38px !important; height:38px !important; }
+.messages-app .mf-settings-row .mf-sync:active{ transform:translateY(-50%) scale(.92) !important; }
+.messages-app .mf-si-text{ width:100% !important; text-align:center !important; display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; }
+.messages-app .mf-si-title{ font-size:15px !important; font-weight:600 !important; color:#111 !important; text-align:center !important; width:100% !important; }
+.messages-app .mf-si-sub{ font-size:12px !important; color:#A6A6A6 !important; margin-top:3px !important; text-align:center !important; width:100% !important; }
+.messages-app .mf-chev{ display:none !important; }
 .messages-app .mf-ava{ width:40px; height:40px; border-radius:12px; flex:none; display:grid; place-items:center; background:#EDEDED; color:#111; font-size:15px; font-weight:700; }
 
 .messages-app .mf-ava-img{ overflow:hidden; padding:0; }
@@ -6000,6 +6005,40 @@
 /* 正则进入卡片：与第一页的 settings-item 完全同款 */
 .st-regex-entry-row{
     cursor: pointer;
+}
+
+/* 英文小标居中与设置项彻底居中对齐 */
+.st-center-label{
+    text-align: center !important;
+    padding: 10px 0 6px !important;
+    letter-spacing: 1.6px !important;
+    font-size: 10.5px !important;
+    color: #8E8E93 !important;
+    font-weight: 700 !important;
+}
+
+.messages-app .settings-item .si-text{
+    width: 100% !important;
+    text-align: center !important;
+    margin: 0 auto !important;
+}
+
+.messages-app .settings-item .si-title{
+    text-align: center !important;
+}
+
+.messages-app .settings-item .si-sub{
+    text-align: center !important;
+}
+
+.messages-app .settings-item.st-regex-entry-row{
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    position: relative !important;
+    padding: 18px 18px !important;
 }
 
 /* 正则编辑弹窗底部保存/取消按钮修复：垂直排列全宽，统一弧度与高度 */

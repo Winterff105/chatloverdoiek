@@ -671,6 +671,7 @@ function renderRegexView(container) {
     const list = loadRegexScripts();
     const activeCount = list.filter(x => !x.disabled).length;
     container.innerHTML = `
+        <div class="section-label st-center-label">REGEX EXTENSION</div>
         <div class="settings-group" style="margin:0;">
             <div class="settings-item st-regex-entry-row" id="stRegexEntryRow">
                 <div class="si-text">
