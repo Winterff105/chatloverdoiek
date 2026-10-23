@@ -5951,3 +5951,134 @@
 
 /* 消息区域自成层叠上下文，卡片不再盖到顶栏上面 */
 .messages-app #thread{ isolation: isolate; position: relative; }
+
+/* ===== 设置页（主界面）：胶囊上移、底色极淡、上下间距对称对齐 ===== */
+.messages-app .settings-profile{
+    margin-bottom: 0px !important;
+    padding-bottom: 12px !important;
+}
+.st-cap{
+    display: flex;
+    width: min(200px, 60%);
+    margin: 0px auto 14px;
+    height: 28px;
+    border-radius: 999px;
+    background: #F9F9FA;
+    padding: 2.5px;
+    box-sizing: border-box;
+    border: 1px solid #ECECEE;
+}
+.st-seg{
+    flex: 1;
+    height: 22px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: #9A9AA0;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s ease, color .2s ease, box-shadow .2s ease, transform .2s ease;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    position: relative;
+}
+.st-seg.on{
+    background: #FFFFFF;
+    color: #111111;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    transform: translateY(-1px);
+}
+.st-page{
+    margin: 0 18px 16px;
+    width: calc(100% - 36px);
+    box-sizing: border-box;
+}
+.st-page[hidden]{ display: none !important; }
+
+/* 正则进入卡片：与第一页的 settings-item 完全同款 */
+.st-regex-entry-row{
+    cursor: pointer;
+}
+
+/* 正则编辑弹窗底部保存/取消按钮修复：垂直排列全宽，统一弧度与高度 */
+#regexSheet .ar-foot{
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 7px !important;
+    margin-top: 14px !important;
+    width: 100% !important;
+}
+#regexSheet .ar-save,
+#regexSheet .ar-close{
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    height: 40px !important;
+    border-radius: 999px !important;
+    border: 0 !important;
+    font-size: 13.5px !important;
+    font-weight: 650 !important;
+    cursor: pointer !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    transition: opacity .15s ease, transform .15s ease !important;
+}
+#regexSheet .ar-save{
+    background: #111111 !important;
+    color: #FFFFFF !important;
+}
+#regexSheet .ar-close{
+    background: #EEEEF1 !important;
+    color: #55555A !important;
+}
+#regexSheet .ar-save:active,
+#regexSheet .ar-close:active{
+    transform: scale(0.985);
+    opacity: 0.85;
+}
+
+/* 正则表达式扩展（完全黑白灰设计，与应用各卡片纯粹统一） */
+.st-regex-container{ display: flex; flex-direction: column; gap: 10px; width: 100%; box-sizing: border-box; }
+.st-regex-toolbar{ display: flex; justify-content: space-between; align-items: center; padding: 0 2px; }
+.st-regex-count{ font-size: 11px; color: #8E8E93; font-weight: 600; letter-spacing: 0.2px; }
+.st-regex-btn-sm{
+    height: 26px; padding: 0 10px; border-radius: 999px; border: 1px solid #DEDEDE;
+    background: #F7F7F7; color: #444444; font-size: 11px; font-weight: 600; cursor: pointer;
+    transition: background .15s ease;
+}
+.st-regex-btn-sm:active{ background: #EAEAEA; }
+.st-regex-add{
+    height: 26px; padding: 0 12px; border-radius: 999px; border: 0;
+    background: #111111; color: #FFFFFF; font-size: 11px; font-weight: 650;
+    cursor: pointer; transition: transform .15s ease; box-shadow: 0 2px 6px rgba(0,0,0,.12);
+}
+.st-regex-add:active{ transform: scale(0.95); }
+.st-regex-list{ display: flex; flex-direction: column; gap: 8px; width: 100%; box-sizing: border-box; }
+.st-regex-card{
+    background: #F8F8F8; border: 1px solid #EBEBEB; border-radius: 16px;
+    padding: 10px 12px; display: flex; flex-direction: column; gap: 6px;
+    transition: opacity .2s ease;
+}
+.st-regex-card.is-disabled{ opacity: 0.45; background: #FAFAFA; }
+.st-regex-card-head{ display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.st-regex-card-left{ flex: 1; min-width: 0; cursor: pointer; display: flex; flex-direction: column; gap: 3px; }
+.st-regex-name{ font-size: 13px; font-weight: 700; color: #111111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-regex-tags{ display: flex; gap: 4px; flex-wrap: wrap; }
+.st-regex-tag{ font-size: 9px; padding: 1px 6px; border-radius: 999px; background: #EDEDED; color: #555555; font-weight: 600; }
+.st-regex-card-ops{ display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.st-regex-toggle{ width: 34px; height: 20px; border-radius: 999px; background: #DCDCDC; border: 0; cursor: pointer; position: relative; transition: background .2s ease; }
+.st-regex-toggle::after{ content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s ease; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.st-regex-toggle.on{ background: #111111; }
+.st-regex-toggle.on::after{ transform: translateX(14px); }
+.st-regex-btn{ width: 28px; height: 28px; border-radius: 50%; border: 1px solid #E0E0E0; background: #FFFFFF; display: grid; place-items: center; cursor: pointer; color: #555555; }
+.st-regex-btn svg{ width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.st-regex-btn:active{ transform: scale(0.92); }
+.st-regex-btn.del{ color: #C0392B; border-color: #E6D2D2; background: #FBF5F5; }
+.st-regex-preview{ display: flex; align-items: center; gap: 6px; font-size: 11px; background: #FFFFFF; border-radius: 8px; padding: 5px 8px; border: 1px solid #EEEEEE; color: #333333; overflow: hidden; cursor: pointer; }
+.st-regex-preview code{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; color: #333333; }
+.st-regex-arrow{ color: #A0A0A0; font-size: 10px; flex-shrink: 0; }
+.st-regex-empty{ text-align: center; color: #9A9AA0; font-size: 12px; padding: 28px 0; }

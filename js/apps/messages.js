@@ -129,7 +129,103 @@ function addMomentChatEvent(c, text, postId) {
     renderChats();
 }
 
-async function momentSyncAll() {
+/* ================= 朋友圈手动调取配置弹窗（可自定义补充提示词与控制条数限制） ================= */
+const MF_SYNC_CONFIG_KEY = 'whatever_messages_moment_sync_cfg_v1';
+function loadMomentSyncConfig() {
+    try {
+        const raw = JSON.parse(localStorage.getItem(MF_SYNC_CONFIG_KEY) || '{}');
+        return {
+            customPrompt: typeof raw.customPrompt === 'string' ? raw.customPrompt : '',
+            maxPosts: typeof raw.maxPosts === 'number' ? raw.maxPosts : 3,
+            forced: raw.forced !== false
+        };
+    } catch (_) {
+        return { customPrompt: '', maxPosts: 3, forced: true };
+    }
+}
+
+function saveMomentSyncConfig(cfg) {
+    try { localStorage.setItem(MF_SYNC_CONFIG_KEY, JSON.stringify(cfg)); } catch (_) {}
+}
+
+function openMomentSyncModal() {
+    const cfg = mfLoad();
+    if (!cfg.on) { toast('朋友圈频率总开关已关闭，请先开启'); return; }
+    if (!window.MessagesAPI || !MessagesAPI.isConfigured()) { toast('请先在「设置 → API」保存接口配置'); return; }
+
+    const cur = loadMomentSyncConfig();
+    const old = document.getElementById('momentSyncModal');
+    if (old) old.remove();
+
+    const wrap = document.createElement('div');
+    wrap.id = 'momentSyncModal';
+    wrap.className = 'cd-pt-root';
+    wrap.innerHTML = `
+        <div class="ar-sheet show" id="momentSyncSheet">
+            <div class="ar-sheet-card cd-custom-mod-card" style="max-height:86vh;overflow-y:auto;">
+                <div class="ar-sheet-title ar-script">Moment Sync</div>
+                <div class="ar-sheet-title">调取朋友圈</div>
+
+                <div class="cd-cm-field">
+                    <label class="cd-cm-label">最多发圈人数（条数上限）</label>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <input class="cd-cm-input mono" id="msMaxPosts" type="number" min="1" max="20" value="${cur.maxPosts || 3}" style="width:80px;text-align:center;">
+                        <span style="font-size:11.5px;color:#888;">本次至多允许多少位联系人发动态</span>
+                    </div>
+                </div>
+
+                <div class="cd-cm-field">
+                    <label class="cd-cm-label">触发模式</label>
+                    <div class="cd-cm-pills" id="msForcedPills">
+                        <button type="button" class="cd-cm-pill ${cur.forced ? 'on' : ''}" data-forced="1">必定触发 (优先发圈)</button>
+                        <button type="button" class="cd-cm-pill ${!cur.forced ? 'on' : ''}" data-forced="0">按概率自然判定</button>
+                    </div>
+                </div>
+
+                <div class="cd-cm-field">
+                    <label class="cd-cm-label">自定义补充提示词 (Instruction Injection)</label>
+                    <textarea class="cd-cm-textarea" id="msPrompt" rows="4" placeholder="在此输入要指导角色发圈的补充要求，如：分享今天吃到的甜品/心情低落想倾诉/随手自拍...">${esc(cur.customPrompt || '')}</textarea>
+                </div>
+
+                <div class="ar-foot" style="margin-top:10px;">
+                    <div class="cd-pt-row">
+                        <button type="button" class="ar-save" id="msStartSyncBtn">开始调取</button>
+                        <button type="button" class="ar-close" id="msCancelBtn">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(wrap);
+    const sheet = wrap.querySelector('#momentSyncSheet');
+    const close = () => { sheet.classList.remove('show'); setTimeout(() => wrap.remove(), 200); };
+    wrap.querySelector('#msCancelBtn').onclick = close;
+    sheet.addEventListener('click', e => { if (e.target === sheet) close(); });
+
+    let isForced = cur.forced;
+    wrap.querySelectorAll('#msForcedPills .cd-cm-pill').forEach(btn => {
+        btn.onclick = () => {
+            isForced = btn.dataset.forced === '1';
+            wrap.querySelectorAll('#msForcedPills .cd-cm-pill').forEach(b => b.classList.toggle('on', (b.dataset.forced === '1') === isForced));
+        };
+    });
+
+    wrap.querySelector('#msStartSyncBtn').onclick = () => {
+        const promptVal = wrap.querySelector('#msPrompt').value.trim();
+        const maxVal = Math.max(1, Math.min(20, parseInt(wrap.querySelector('#msMaxPosts').value, 10) || 3));
+        const newCfg = { customPrompt: promptVal, maxPosts: maxVal, forced: isForced };
+        saveMomentSyncConfig(newCfg);
+        close();
+        executeMomentSyncAll(newCfg);
+    };
+}
+
+function momentSyncAll() {
+    openMomentSyncModal();
+}
+
+async function executeMomentSyncAll(syncRunCfg) {
     const cfg = mfLoad();
     if (!cfg.on) { toast('朋友圈频率已关闭'); return; }
     if (!window.MessagesAPI || !MessagesAPI.isConfigured()) { toast('请先在「设置 → API」保存接口配置'); return; }
@@ -140,14 +236,17 @@ async function momentSyncAll() {
     showMomentLoading();
     let posted = 0;
     const allCommenters = [], allPosters = [];
+    const runCfg = syncRunCfg || loadMomentSyncConfig();
+    const maxPostsAllowed = runCfg.maxPosts || 3;
+
     try {
         for (const c of CONTACTS) {
             if (!mfAllowed(c)) continue;
+            if (posted >= maxPostsAllowed) break;
+
             const lastH = mfLastPostH(c);
             const pct = Math.round(mfPctOf(c));
-            // 概率由代码掷骰子决定：中了才让模型发新朋友圈；没中也可能回看旧朋友圈做点赞评论
-            const hitPost = Math.random() * 100 < pct;
-            // 联系人之间没有世界连线时，互相不可见，也不能互相评论或回复。
+            const hitPost = runCfg.forced ? true : (Math.random() * 100 < pct);
             const viewers = CONTACTS.filter(x => x.id !== c.id && worldTiedPair(c.id, x.id)).map(x => ({ name: x.name, persona: x.persona || '' }));
             const oldOn = ((cfg.per[c.id] || {}).oldOn !== false) && cfg.oldOn !== false;
             const feed = oldOn ? POSTS.filter(p => momentVisibleTo(p, c)).slice(0, 20).map(p => ({
@@ -155,14 +254,44 @@ async function momentSyncAll() {
                 comments: (p.comments || []).slice(-8).map(cm => `${momentAuthor(cm.by).name}：${plainMentions(cm.text)}`).join('；') || '无',
                 commentItems: (p.comments || []).slice(-8).map(cm => ({ name: momentAuthor(cm.by).name, text: plainMentions(cm.text) }))
             })) : [];
+
             if (!hitPost && !feed.length) continue;
             const stealPool = stealPoolOf(c).slice(0, 4);
             await primeKeys([...stealPool.map(x => x.key), ...feed.flatMap(p => p.imgKeys || [])]);
-            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, { lastH, viewers, feed, allowPhoto: cfg.img !== false, stealable: stealPool.map(x => x.desc || '一张照片'), stealableKeys: stealPool.map(x => x.key), decided: hitPost, recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean) });
+
+            const extraParams = {
+                lastH,
+                viewers,
+                feed,
+                allowPhoto: cfg.img !== false,
+                stealable: stealPool.map(x => x.desc || '一张照片'),
+                stealableKeys: stealPool.map(x => x.key),
+                decided: hitPost,
+                recentPosts: POSTS.filter(p => p.by === c.id).slice(0, 5).map(p => plainMentions(p.text)).filter(Boolean)
+            };
+            if (runCfg.customPrompt) {
+                extraParams.customPrompt = runCfg.customPrompt;
+            }
+
+            const r = await MessagesAPI.momentAutoPost(c, (c.msgs || []).slice(-30), pct, extraParams);
             if (r && (r.post || (r.interactions && r.interactions.length))) {
                 const shotKey = r.post && r.chatShot ? await saveChatShot(c) : null;
                 const stolen = r.post ? pickStolenPhoto(r, stealPool) : null;
-                if (r.post && (r.text || (r.photos && r.photos.length) || r.chatShot || stolen)) allCommenters.push(...postContactMoment(c, r.text, r.comments || [], { vis: r.vis, visTo: r.visTo, photos: r.photos || [], chatShot: r.chatShot && !shotKey, chatShotKey: shotKey, shotN: r.shotN, shotTitle: r.shotTitle, stolenKeys: stolen ? stolen.imgs : null, stolenDesc: stolen ? stolen.desc : '' }));
+                if (r.post && (r.text || (r.photos && r.photos.length) || r.chatShot || stolen)) {
+                    allCommenters.push(...postContactMoment(c, r.text, r.comments || [], {
+                        vis: r.vis,
+                        visTo: r.visTo,
+                        photos: r.photos || [],
+                        chatShot: r.chatShot && !shotKey,
+                        chatShotKey: shotKey,
+                        shotN: r.shotN,
+                        shotTitle: r.shotTitle,
+                        stolenKeys: stolen ? stolen.imgs : null,
+                        stolenDesc: stolen ? stolen.desc : ''
+                    }));
+                    allPosters.push(c);
+                    posted++;
+                }
                 const byId = new Map(POSTS.map(p => [p.id, p]));
                 (r.interactions || []).forEach(it => {
                     const p = byId.get(String(it.postId || '').trim());
@@ -184,7 +313,6 @@ async function momentSyncAll() {
                         if (target) addCommonMemory(target, `${c.name}在${momentAuthor(p.by).name}的朋友圈（${excerpt}）下回复了${target.name}：${it.comment}`, p.id);
                         didComment = true;
                     }
-                    // 旧朋友圈互动也必须进入聊天室胶囊；点赞和评论都算一次新事件。
                     if (didLike || didComment) {
                         const action = didLike && didComment ? '点赞并评论了' : (didLike ? '点赞了' : '评论了');
                         addMomentChatEvent(c, `${dispName(c)}在${dispName(momentAuthor(p.by))}的朋友圈下${action}`, p.id);
@@ -192,7 +320,6 @@ async function momentSyncAll() {
                     }
                 });
                 persistContacts(); persistMoments(); renderMoments();
-                allPosters.push(c); posted++;
             }
         }
     } catch (e) { showApiError(e); }
@@ -323,6 +450,467 @@ function mfInit() {
 }
 mfInit();
 new MutationObserver(() => mfInit()).observe(document.body, { childList: true, subtree: true });
+/* ================= 设置页（主界面）：微缩四页胶囊 + SillyTavern 正则扩展（纯黑白灰） ================= */
+const ST_PAGES = ['通用', '正则', '第 3 页', '第 4 页'];
+let ST_PAGE = 0;
+const REGEX_STORE_KEY = 'whatever_messages_regex_scripts_v1';
+
+function loadRegexScripts() {
+    try {
+        const raw = localStorage.getItem(REGEX_STORE_KEY);
+        if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) return arr;
+        }
+    } catch (_) {}
+    return [
+        {
+            id: 'reg_' + Date.now().toString(36),
+            scriptName: '过滤思考标签与括号',
+            findRegex: '<think>[\\s\\S]*?<\\/think>',
+            replaceString: '',
+            trimStrings: [],
+            placement: [1, 2],
+            disabled: false,
+            isMarkdown: false,
+            prompt: false
+        }
+    ];
+}
+
+function saveRegexScripts(list) {
+    try {
+        localStorage.setItem(REGEX_STORE_KEY, JSON.stringify(list));
+        return true;
+    } catch (_) {
+        return false;
+    }
+}
+
+function applyRegexPipeline(text, placementFlag) {
+    if (!text || typeof text !== 'string') return text;
+    const list = loadRegexScripts();
+    let res = text;
+    for (const item of list) {
+        if (item.disabled) continue;
+        const pl = Array.isArray(item.placement) ? item.placement : [1, 2];
+        if (!pl.includes(placementFlag)) continue;
+        try {
+            let pattern = String(item.findRegex || '');
+            let flags = 'g';
+            const m = pattern.match(/^\/(.+)\/([a-z]*)$/);
+            if (m) { pattern = m[1]; flags = m[2] || 'g'; }
+            if (!flags.includes('g')) flags += 'g';
+            const reg = new RegExp(pattern, flags);
+            let repl = item.replaceString == null ? '' : String(item.replaceString);
+            repl = repl.replace(/\\n/g, '\n').replace(/\\t/g, '\t');
+            res = res.replace(reg, repl);
+        } catch (_) {}
+    }
+    return res;
+}
+window.applyRegexPipeline = applyRegexPipeline;
+
+function openRegexManagerSheet() {
+    const old = document.getElementById('regexMgrSheetWrapper');
+    if (old) old.remove();
+
+    const wrap = document.createElement('div');
+    wrap.id = 'regexMgrSheetWrapper';
+    wrap.className = 'cd-pt-root';
+    wrap.innerHTML = `
+        <div class="ar-sheet show" id="regexMgrSheet">
+            <div class="ar-sheet-card cd-custom-mod-card" style="max-height:86vh;overflow-y:auto;" id="regexMgrCard">
+            </div>
+        </div>
+    `;
+    document.body.appendChild(wrap);
+    const sheet = wrap.querySelector('#regexMgrSheet');
+    const close = () => { sheet.classList.remove('show'); setTimeout(() => wrap.remove(), 200); };
+    sheet.addEventListener('click', e => { if (e.target === sheet) close(); });
+    renderRegexManagerList(wrap.querySelector('#regexMgrCard'), close);
+}
+
+function renderRegexManagerList(card, closeFn) {
+    const list = loadRegexScripts();
+    card.innerHTML = `
+        <div class="ar-sheet-title ar-script">Regex Rules</div>
+        <div class="ar-sheet-title">正则表达式扩展</div>
+        <div class="st-regex-toolbar" style="margin-top:2px;">
+            <span class="st-regex-count">已加载 ${list.length} 条规则</span>
+            <div style="display:flex;gap:6px;">
+                <button type="button" class="st-regex-btn-sm" id="stRegexImportBtn">导入</button>
+                <button type="button" class="st-regex-btn-sm" id="stRegexExportBtn">导出</button>
+                <button type="button" class="st-regex-add" id="stRegexAddBtn">+ 新建规则</button>
+            </div>
+        </div>
+        <div class="st-regex-list" style="max-height:50vh;overflow-y:auto;padding-right:2px;margin-top:4px;">
+            ${list.length ? list.map(item => {
+                const pl = Array.isArray(item.placement) ? item.placement : [1, 2];
+                const plTags = [
+                    pl.includes(1) ? '<span class="st-regex-tag">用户输入</span>' : '',
+                    pl.includes(2) ? '<span class="st-regex-tag">AI 输出</span>' : '',
+                    pl.includes(3) ? '<span class="st-regex-tag">斜杠命令</span>' : ''
+                ].join('');
+                return `
+                    <div class="st-regex-card ${item.disabled ? 'is-disabled' : ''}" data-id="${item.id}">
+                        <div class="st-regex-card-head">
+                            <div class="st-regex-card-left" data-act="edit">
+                                <span class="st-regex-name">${esc(item.scriptName || '未命名脚本')}</span>
+                                <div class="st-regex-tags">${plTags || '<span class="st-regex-tag">无作用域</span>'}</div>
+                            </div>
+                            <div class="st-regex-card-ops">
+                                <button type="button" class="st-regex-toggle ${!item.disabled ? 'on' : ''}" data-act="toggle" title="启用/停用"></button>
+                                <button type="button" class="st-regex-btn" data-act="edit" title="编辑">
+                                    <svg viewBox="0 0 24 24"><path d="M4 20h4l10.5-10.5a2.828 2.828 0 1 0-4-4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/></svg>
+                                </button>
+                                <button type="button" class="st-regex-btn del" data-act="del" title="删除">
+                                    <svg viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="st-regex-preview" data-act="edit">
+                            <code>${esc(item.findRegex || '')}</code>
+                            <span class="st-regex-arrow">➔</span>
+                            <code>${esc(item.replaceString == null || item.replaceString === '' ? '""' : item.replaceString)}</code>
+                        </div>
+                    </div>
+                `;
+            }).join('') : '<div class="st-regex-empty">暂无规则，点击上方「+ 新建规则」添加</div>'}
+        </div>
+        <div class="ar-foot" style="margin-top:10px;">
+            <button type="button" class="ar-close" id="stRegexMgrClose">关闭</button>
+        </div>
+    `;
+
+    card.querySelector('#stRegexMgrClose').onclick = closeFn;
+    card.querySelector('#stRegexAddBtn').onclick = () => openRegexEditorModal(null, () => renderRegexManagerList(card, closeFn));
+
+    const expBtn = card.querySelector('#stRegexExportBtn');
+    if (expBtn) {
+        expBtn.onclick = () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(loadRegexScripts(), null, 2));
+            const dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", "regex_scripts.json");
+            dl.click();
+            dl.remove();
+        };
+    }
+
+    const impBtn = card.querySelector('#stRegexImportBtn');
+    if (impBtn) {
+        impBtn.onclick = () => {
+            const fi = document.createElement('input');
+            fi.type = 'file';
+            fi.accept = '.json,application/json';
+            fi.onchange = e => {
+                const f = e.target.files && e.target.files[0];
+                if (!f) return;
+                const rd = new FileReader();
+                rd.onload = ev => {
+                    try {
+                        const parsed = JSON.parse(ev.target.result);
+                        if (Array.isArray(parsed)) {
+                            saveRegexScripts(parsed);
+                            renderRegexManagerList(card, closeFn);
+                            const p2 = document.getElementById('stPage');
+                            if (p2) renderRegexView(p2);
+                            toast('正则配置导入成功');
+                        } else {
+                            toast('导入文件格式不正确');
+                        }
+                    } catch (_) {
+                        toast('解析 JSON 失败');
+                    }
+                };
+                rd.readAsText(f);
+            };
+            fi.click();
+        };
+    }
+
+    card.onclick = e => {
+        const itemCard = e.target.closest('.st-regex-card');
+        if (!itemCard) return;
+        const id = itemCard.dataset.id;
+        const targetBtn = e.target.closest('[data-act]');
+        const act = targetBtn ? targetBtn.dataset.act : 'edit';
+        const curList = loadRegexScripts();
+
+        if (act === 'toggle') {
+            const it = curList.find(x => x.id === id);
+            if (it) {
+                it.disabled = !it.disabled;
+                saveRegexScripts(curList);
+                renderRegexManagerList(card, closeFn);
+                const p2 = document.getElementById('stPage');
+                if (p2) renderRegexView(p2);
+                toast(it.disabled ? '已停用规则' : '已启用规则');
+            }
+            return;
+        }
+
+        if (act === 'del') {
+            const next = curList.filter(x => x.id !== id);
+            saveRegexScripts(next);
+            renderRegexManagerList(card, closeFn);
+            const p2 = document.getElementById('stPage');
+            if (p2) renderRegexView(p2);
+            toast('规则已删除');
+            return;
+        }
+
+        if (act === 'edit') {
+            openRegexEditorModal(id, () => renderRegexManagerList(card, closeFn));
+        }
+    };
+}
+
+function renderRegexView(container) {
+    const list = loadRegexScripts();
+    const activeCount = list.filter(x => !x.disabled).length;
+    container.innerHTML = `
+        <div class="settings-group" style="margin:0;">
+            <div class="settings-item st-regex-entry-row" id="stRegexEntryRow">
+                <div class="si-text">
+                    <div class="si-title">正则表达式</div>
+                    <div class="si-sub">共 ${list.length} 条规则 · ${activeCount} 条已生效</div>
+                </div>
+                <span class="chev">›</span>
+            </div>
+        </div>
+    `;
+    const row = container.querySelector('#stRegexEntryRow');
+    if (row) {
+        row.onclick = e => {
+            e.stopPropagation();
+            openRegexManagerSheet();
+        };
+    }
+}
+window.openRegexManagerSheet = openRegexManagerSheet;
+
+function openRegexEditorModal(regId, onSaveCb) {
+    const list = loadRegexScripts();
+    const cur = (!regId ? null : list.find(x => x.id === regId)) || {
+        id: 'reg_' + Date.now().toString(36),
+        scriptName: '',
+        findRegex: '',
+        replaceString: '',
+        trimStrings: [],
+        placement: [1, 2],
+        disabled: false
+    };
+
+    let pl = Array.isArray(cur.placement) ? cur.placement.slice() : [1, 2];
+
+    const old = document.getElementById('regexEditModal');
+    if (old) old.remove();
+
+    const mask = document.createElement('div');
+    mask.id = 'regexEditModal';
+    mask.className = 'cd-pt-root';
+    mask.innerHTML = `
+        <div class="ar-sheet show" id="regexSheet">
+            <div class="ar-sheet-card cd-custom-mod-card" style="max-height:86vh;overflow-y:auto;">
+                <div class="ar-sheet-title ar-script">Regex Script</div>
+                <div class="ar-sheet-title">${!regId ? '新建正则规则' : '编辑正则规则'}</div>
+
+                <div class="cd-cm-field">
+                    <label class="cd-cm-label">脚本名称</label>
+                    <input class="cd-cm-input" id="rgName" maxlength="28" value="${esc(cur.scriptName || '')}" placeholder="例如：过滤思考标签 / 替换特定词汇">
+                </div>
+
+                <div class="cd-cm-field">
+                    <label class="cd-cm-label">查找正则表达式 (Find Regex)</label>
+                    <textarea class="cd-cm-textarea mono" id="rgFind" rows="3" placeholder="例如：<think>[\\s\\S]*?<\\/think> 或 /（[^）]*）/g">${esc(cur.findRegex || '')}</textarea>
+                </div>
+
+                <div class="cd-cm-field">
+                    <label class="cd-cm-label">替换为 (Replace With)</label>
+                    <textarea class="cd-cm-textarea mono" id="rgReplace" rows="3" placeholder="支持纯文本、$1、$2 捕获组引用，留空表示删除">${esc(cur.replaceString == null ? '' : cur.replaceString)}</textarea>
+                </div>
+
+                <div class="cd-cm-field">
+                    <label class="cd-cm-label">作用范围 (Placement)</label>
+                    <div class="cd-cm-pills" id="rgPlacement">
+                        <button type="button" class="cd-cm-pill ${pl.includes(1) ? 'on' : ''}" data-val="1">用户输入</button>
+                        <button type="button" class="cd-cm-pill ${pl.includes(2) ? 'on' : ''}" data-val="2">AI 输出</button>
+                        <button type="button" class="cd-cm-pill ${pl.includes(3) ? 'on' : ''}" data-val="3">斜杠命令</button>
+                    </div>
+                </div>
+
+                <div class="ar-foot" style="margin-top:10px;">
+                    <button type="button" class="ar-save" id="rgSaveBtn">保存规则</button>
+                    <button type="button" class="ar-close" id="rgCloseBtn">取消</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(mask);
+
+    const sheet = mask.querySelector('#regexSheet');
+    const close = () => { sheet.classList.remove('show'); setTimeout(() => mask.remove(), 200); };
+    mask.querySelector('#rgCloseBtn').onclick = close;
+    sheet.addEventListener('click', e => { if (e.target === sheet) close(); });
+
+    mask.querySelectorAll('#rgPlacement .cd-cm-pill').forEach(btn => {
+        btn.onclick = () => {
+            const val = +btn.dataset.val;
+            if (pl.includes(val)) {
+                if (pl.length > 1) pl = pl.filter(x => x !== val);
+                else { toast('至少选择一项作用域'); return; }
+            } else {
+                pl.push(val);
+            }
+            btn.classList.toggle('on', pl.includes(val));
+        };
+    });
+
+    mask.querySelector('#rgSaveBtn').onclick = () => {
+        const name = mask.querySelector('#rgName').value.trim() || '未命名脚本';
+        const find = mask.querySelector('#rgFind').value.trim();
+        const repl = mask.querySelector('#rgReplace').value;
+
+        if (!find) { toast('请填写查找正则表达式'); return; }
+        try {
+            let pat = find;
+            let fl = 'g';
+            const match = pat.match(/^\/(.+)\/([a-z]*)$/);
+            if (match) { pat = match[1]; fl = match[2] || 'g'; }
+            new RegExp(pat, fl);
+        } catch (err) {
+            toast('正则语法有误：' + (err.message || '请检查表达式'));
+            return;
+        }
+
+        const curList = loadRegexScripts();
+        if (!regId) {
+            curList.unshift({
+                id: cur.id,
+                scriptName: name,
+                findRegex: find,
+                replaceString: repl,
+                trimStrings: [],
+                placement: pl,
+                disabled: false
+            });
+        } else {
+            const idx = curList.findIndex(x => x.id === cur.id);
+            if (idx >= 0) {
+                curList[idx] = Object.assign(curList[idx], {
+                    scriptName: name,
+                    findRegex: find,
+                    replaceString: repl,
+                    placement: pl
+                });
+            } else {
+                curList.unshift({ id: cur.id, scriptName: name, findRegex: find, replaceString: repl, placement: pl, disabled: false });
+            }
+        }
+
+        saveRegexScripts(curList);
+        close();
+        if (typeof onSaveCb === 'function') onSaveCb();
+        const p2 = document.getElementById('stPage');
+        if (p2) renderRegexView(p2);
+        toast('已保存正则规则');
+    };
+}
+
+let stLastRenderedPage = -1;
+let stObserverPaused = false;
+
+function stSetPage(i, force) {
+    if (!force && ST_PAGE === i && stLastRenderedPage === i) return;
+    ST_PAGE = i;
+    stLastRenderedPage = i;
+    
+    document.querySelectorAll('#stCap .st-seg').forEach(b => b.classList.toggle('on', +b.dataset.i === i));
+    const viewSettings = document.getElementById('v-settings');
+    const scrollContainer = viewSettings ? viewSettings.querySelector('.scroll') : null;
+    const p2 = document.getElementById('stPage');
+
+    if (scrollContainer) {
+        Array.from(scrollContainer.children).forEach(child => {
+            if (child.classList && child.classList.contains('settings-profile')) return;
+            if (child.id === 'stCap') return;
+            if (child.id === 'stPage') return;
+            child.style.display = i === 0 ? '' : 'none';
+        });
+    }
+
+    if (p2) {
+        p2.hidden = i === 0;
+        stObserverPaused = true;
+        try {
+            if (i === 1) renderRegexView(p2);
+            else if (i === 2 || i === 3) {
+                p2.innerHTML = `<div class="st-regex-empty" style="padding:40px 10px;">${ST_PAGES[i]} 内容待接入 ୨୧</div>`;
+            }
+        } finally {
+            setTimeout(() => { stObserverPaused = false; }, 60);
+        }
+    }
+}
+
+function stInit() {
+    if (stObserverPaused) return;
+    const viewSettings = document.getElementById('v-settings');
+    if (!viewSettings) return;
+    const scrollContainer = viewSettings.querySelector('.scroll');
+    if (!scrollContainer) return;
+
+    const profileEl = scrollContainer.querySelector('.settings-profile');
+    if (!profileEl) return;
+
+    let cap = document.getElementById('stCap');
+    let p2 = document.getElementById('stPage');
+
+    if (!cap) {
+        stObserverPaused = true;
+        try {
+            cap = document.createElement('div');
+            cap.id = 'stCap';
+            cap.className = 'st-cap';
+            cap.setAttribute('role', 'tablist');
+            cap.innerHTML = ST_PAGES.map((t, i) => `<button type="button" class="st-seg${i === 0 ? ' on' : ''}" data-i="${i}">${t}</button>`).join('');
+
+            p2 = document.createElement('div');
+            p2.id = 'stPage';
+            p2.className = 'st-page';
+            p2.hidden = true;
+
+            profileEl.insertAdjacentElement('afterend', cap);
+            cap.insertAdjacentElement('afterend', p2);
+
+            cap.addEventListener('click', e => {
+                const b = e.target.closest && e.target.closest('.st-seg');
+                if (!b) return;
+                stSetPage(+b.dataset.i);
+            });
+            stSetPage(ST_PAGE, true);
+        } finally {
+            setTimeout(() => { stObserverPaused = false; }, 60);
+        }
+    } else {
+        if (cap.previousElementSibling !== profileEl) {
+            stObserverPaused = true;
+            try {
+                profileEl.insertAdjacentElement('afterend', cap);
+                if (p2) cap.insertAdjacentElement('afterend', p2);
+            } finally {
+                setTimeout(() => { stObserverPaused = false; }, 60);
+            }
+        }
+    }
+}
+stInit();
+new MutationObserver(() => {
+    if (!stObserverPaused) stInit();
+}).observe(document.body, { childList: true, subtree: true });
 let CHAT_IDS = loadStoredChatIds();
 let CHAT_MAP = loadStoredChatMap();
 const ME_DEFAULT = { name: 'Kitty Angel', id: '1004', status: '오늘도 날개를 펴는 중', sig: '작은 구름 위에서 안부를 전해요', avatar: '', persona: '', speech: '', relation: '', backstory: '', replies: [] };
@@ -3367,9 +3955,9 @@ async function pullReply() {
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const capCur = document.querySelector('.messages-app .send-capsule'); if (capCur) capCur.classList.remove('pulling');
         let parts = replies.map((p, i) => { const pt = narrPart(p, c.name); if (pt && replies.trans && replies.trans[i]) pt.trans = replies.trans[i]; return pt; }).filter(Boolean);
-        const rpr = parts.find(pt => pt.rpReply);
+        const rprs = parts.filter(pt => pt.rpReply);
         parts = parts.filter(pt => !pt.rpReply);
-        if (rpr) applyRpReply(c, rpr.rpReply);
+        rprs.forEach(pt => applyRpReply(c, pt.rpReply));
         if (parts.some(pt => pt.voice || pt.polaroid || pt.loc || pt.money)) vibrateTiny();
         parts.forEach(pt => { if (pt.quoteRaw) { pt.quote = resolveQuote(c, pt.quoteRaw); delete pt.quoteRaw; } });
         if (!parts.length) throw new Error('模型没有返回可用的消息，请重试');
@@ -3497,7 +4085,7 @@ document.addEventListener('click', e => {
 });
 /* 语音：AI 自己决定发不发，以【语音】开头单独成条；「」内是声音和氛围，其余是说出口的话 */
 const PHOTO_RULE = '【照片】：你也可以发一张照片（照片不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"photo":"照片描述"}，对象里不要加其他字段，例如：{"photo":"窗边的光落在桌上，一杯咖啡冒着热气"}。描述写照片里能看到的内容。';
-const MONEY_RULE = '【红包/转账】：你也可以发红包或转账（不计入台词条数，只在情境自然时使用）。如果对方刚发了红包，你可以在 messages 里放 {\"redpacket_reply\":\"accept\"} 表示收下，或 {\"redpacket_reply\":\"reject\"} 表示拒收，每次只针对最近一个红包。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"transfer":{"amount":520,"note":"备注"}} 或 {"redpacket":{"amount":88,"note":"备注"}}，对象里不要加其他字段。金额是数字。';
+const MONEY_RULE = '【红包/转账】：你也可以发红包或转账（不计入台词条数，只在情境自然时使用）。如果对方刚发了红包，你可以在 messages 里放 {\"redpacket_reply\":\"accept\"} 表示收下，或 {\"redpacket_reply\":\"reject\"} 表示拒收，如果对方连续发了几个红包，就按发出的顺序每个都回复一次。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"transfer":{"amount":520,"note":"备注"}} 或 {"redpacket":{"amount":88,"note":"备注"}}，对象里不要加其他字段。金额是数字。';
 const LOC_RULE = '【位置】：你也可以发一个位置（不计入台词条数，只在情境自然时使用）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"location":{"name":"地点名称","addr":"地址"}}，对象里不要加其他字段，例如：{"location":{"name":"静安嘉里中心","addr":"南京西路 1515 号"}}。';
 const VOICE_RULE = '【语音】：你可以自主决定这次要不要发一条语音（语音不计入台词条数）。只在情境自然时使用，不要每次都发。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"voice":"语音内容"}，对象里不要加其他字段，例如：{"voice":"「窗外传来雨声，他停了一下，声音压得很低：」你到了就好，路上还顺利吗？「椅子轻轻响了一声。」"}。语音中说出口的话直接写，声音、停顿、呼吸和周围氛围必须用「」括起来单独描述。普通台词仍然写成字符串。';
 const FILE_RULE = '【文件】：你也可以发送一个文件（不计入台词条数，只在情境自然时使用，比如发送文档、长文本、笔记、文章、方案等）。要发就在 messages 数组里放一个 JSON 对象项，格式为 {"file":{"name":"文件名.txt","fileText":"文件完整正文内容"}}，例如：{"file":{"name":"备忘清单.txt","fileText":"1. 记得按时吃饭\\n2. 晚上早点休息"}}。文件内容完整写在 fileText 里，不要简略。普通台词仍然写成字符串。';
@@ -7632,10 +8220,10 @@ function mnCardHtml(m, i) {
         ${stampHtml}${sparks}
     </div>`;
 }
-/* AI 对用户发出的红包做出回应：收下（accept）或拒收（reject），作用于最近一个未处理的红包 */
+/* AI 对用户发出的红包做出回应：收下（accept）或拒收（reject），按发出顺序作用于最早一个未处理的红包，连续多个红包依次回复 */
 function applyRpReply(c, act) {
     const list = c.msgs || [];
-    for (let k = list.length - 1; k >= 0; k--) {
+    for (let k = 0; k < list.length; k++) {
         const m = list[k];
         if (m && m.me && m.money === 'redpacket' && !m.rpState) {
             if (act === 'accept') { m.rpState = 'accepted'; m.received = true; m.recvAt = Date.now(); m.recvBy = 'char'; }
