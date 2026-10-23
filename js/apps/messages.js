@@ -7381,13 +7381,6 @@ function sendPhotoDesc(text) {
 function polaroidInnerHtml(text) {
     return `<div class="cp-photo" role="button" tabindex="0" aria-pressed="false"><div class="cp-flip"><div class="cp-face cp-front"><div class="cp-img"><svg class="cp-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.5-9.1C1.1 8.6 3.2 5 6.8 5c2.1 0 3.6 1.2 5.2 3 1.6-1.8 3.1-3 5.2-3 3.6 0 5.7 3.6 4.3 6.9C19.5 16.4 12 21 12 21z"/></svg></div><div class="cp-cap">a moment</div></div><div class="cp-face cp-back"><div class="cp-tag">PHOTO</div><div class="cp-desc">${esc(text)}</div></div></div></div>`;
 }
-document.addEventListener('click', e => {
-    const pol = e.target.closest && e.target.closest('.cp-photo');
-    if (!pol) return;
-    const on = !pol.classList.contains('cp-flipped');
-    pol.classList.toggle('cp-flipped', on);
-    pol.setAttribute('aria-pressed', String(on));
-});
 /* ---------------- 位置：纸片感选位置界面，发出后是一张带邮票齿边的小纸条 ---------------- */
 const LC_PIN = '<svg viewBox="0 0 24 28" aria-hidden="true"><path d="M12 27S3 17.5 3 10.5a9 9 0 0 1 18 0C21 17.5 12 27 12 27z" fill="#FADCE8"/><circle cx="12" cy="10.5" r="3.2" fill="#FFFFFF"/></svg>';
 function openLocationCompose() {
