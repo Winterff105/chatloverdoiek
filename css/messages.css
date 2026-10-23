@@ -5945,3 +5945,6 @@
 /* 缩小 */
 .messages-app .mn-rp{ zoom: .72; }
 .messages-app .mn-tr{ zoom: .8; }
+
+/* 文件夹正面的英文花字（与预览一致） */
+.messages-app .ff-front .ff-name, .ff-root .ff-front .ff-name{ font-family: "Great Vibes", "Snell Roundhand", "Brush Script MT", cursive; font-size: 28px; line-height: 1; color: #3A3A3E; }
