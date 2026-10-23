@@ -939,6 +939,7 @@ function openChat(id) {
     if (window.CruiseTrace && typeof window.CruiseTrace.setContext === 'function') window.CruiseTrace.setContext(c);
     if (!c) return;
     closeMqSheet();
+    ensureExtPanel();
     toggleQuickMenu(false);
     activeId = id;
     threadLimit = 35;
@@ -3825,6 +3826,7 @@ function bindSwipeQuote() {
     box.addEventListener('pointercancel', end);
 }
 function toggleQuickMenu(force) {
+    ensureExtPanel();
     const menu = document.getElementById('quickMenu');
     if (!menu) return;
     ensureRedoQuickItem();
@@ -7065,12 +7067,20 @@ setTimeout(initExtPanel, 0);
 /* 输入框：“+”按钮 → 输入框上方滑出的透明白面板（占位按钮，以后做功能） */
 const EXT_ITEMS = [['图片','M4 5h16v14H4z M4 16l5-5 4 4 3-3 4 4'],['拍照','M4 8h4l2-3h4l2 3h4v11H4z M12 11a3 3 0 1 0 0.01 0'],['语音','M12 4v10M8 10v2a4 4 0 0 0 8 0v-2M12 18v3'],['位置','M12 21s-6-5.5-6-10a6 6 0 0 1 12 0c0 4.5-6 10-6 10z M12 11a2 2 0 1 0 0.01 0'],['红包','M5 4h14v16H5z M5 11h14'],['转账','M4 9h16M4 15h16M8 5l-4 4 4 4M16 11l4 4-4 4'],['文件','M7 3h7l5 5v13H7z M14 3v5h5'],['更多','M5 12h.01M12 12h.01M19 12h.01']];
 function ensureExtPanel() {
-    if (document.getElementById('extPanel')) return true;
     const menu = document.getElementById('quickMenu');
     if (!document.querySelector('.messages-app') || !menu) return false;
 
+    const existing = document.getElementById('extPanel');
+    if (existing) {
+        if (existing._boundMenu === menu && document.body.contains(existing)) {
+            return true;
+        }
+        existing.remove();
+    }
+
     const panel = document.createElement('div');
     panel.className = "ext-panel ext-panel-pinned"; panel.id = 'extPanel';
+    panel._boundMenu = menu;
     panel.innerHTML = EXT_ITEMS.map(([label, d]) => `<button class="ext-item" type="button" data-ext="${label}"><span class="ext-ico"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#333" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg></span><span>${label}</span></button>`).join('');
     document.body.appendChild(panel);
 
@@ -7128,14 +7138,13 @@ function openVoiceCompose() {
     if (!activeId) { toast('先打开一个聊天'); return; }
     if (!VC_BLOCKS.length) VC_BLOCKS = [{ type: 'env', text: '' }, { type: 'body', text: '' }];
     let el = document.getElementById('voiceCompose');
-    if (!el) {
-        el = document.createElement('div');
-        el.id = 'voiceCompose'; el.className = 'voice-compose';
-        document.body.appendChild(el);
-        el.addEventListener('click', vcClick);
-        el.addEventListener('input', vcInput);
-        el.addEventListener('pointerdown', vcPointerDown);
-    }
+    if (el) el.remove();
+    el = document.createElement('div');
+    el.id = 'voiceCompose'; el.className = 'voice-compose';
+    document.body.appendChild(el);
+    el.addEventListener('click', vcClick);
+    el.addEventListener('input', vcInput);
+    el.addEventListener('pointerdown', vcPointerDown);
     VC_EDIT = -1;
     renderVoiceCompose();
     el.classList.add('show');
@@ -7432,9 +7441,19 @@ function ffOpen(m) {
     const wrap = document.createElement('div');
     wrap.id = 'ffPop'; wrap.className = 'ff-root';
     wrap.innerHTML = `<div class="ff-stage"><div class="ff-folder" id="ffFolder">
-        <div class="ff-tab"></div><div class="ff-back"></div>
-        <div class="ff-page"><div class="ff-page-in">${esc(m.fileText || '（空文件）')}</div></div>
-        <div class="ff-front"><span class="ff-name">${esc(m.text)}</span><span class="ff-meta">${esc(m.fileExt)} · ${m.fileSize} KB</span></div>
+        <div class="ff-tab"></div>
+        <div class="ff-back"></div>
+        <div class="ff-page">
+            <div class="ff-paper-lines"><span class="ff-pline p1"></span><span class="ff-pline p2"></span></div>
+            <div class="ff-page-in">${esc(m.fileText || '（空文件）')}</div>
+        </div>
+        <div class="ff-front">
+            <div class="ff-front-info">
+                <span class="ff-name">Notes</span>
+                <span class="ff-meta">${esc(m.fileExt || 'TXT')} · ${m.fileSize || 12} KB</span>
+            </div>
+            <span class="ff-pink-dot"></span>
+        </div>
     </div></div>`;
     document.body.appendChild(wrap);
     requestAnimationFrame(() => requestAnimationFrame(() => wrap.classList.add('show')));
