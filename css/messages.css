@@ -324,29 +324,44 @@
     color: #8E8E8E;
 }
 .messages-app .settings-group{
-    margin: 0 18px 16px;
-    border-radius: 20px;
-    overflow: hidden;
-    background: #F5F5F5;
-    border: none;
-    box-shadow: 0 5px 16px rgba(0,0,0,.025);
+    margin: 0 18px 6px !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5px !important;
+    overflow: visible !important;
 }
 .messages-app .settings-item{
     position: relative !important;
-    min-height: 62px !important;
-    padding: 16px 20px !important;
+    min-height: 44px !important;
+    height: 44px !important;
+    padding: 0 20px !important;
+    margin-bottom: 0 !important;
     display: flex !important;
     flex-direction: column !important;
     align-items: center !important;
     justify-content: center !important;
     text-align: center !important;
-    gap: 4px !important;
-    border-bottom: none !important;
+    gap: 1px !important;
+    border-radius: 999px !important;
+    background: #F5F5F5 !important;
+    border: none !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,.025) !important;
     cursor: pointer !important;
     box-sizing: border-box !important;
+    transition: background .18s ease, transform .15s ease !important;
 }
-.messages-app .settings-item:last-child{ border-bottom: none !important; }
-.messages-app .settings-item:active{ background: #E8E8E8 !important; }
+.messages-app .settings-item:last-child{ border-bottom: none !important; margin-bottom: 0 !important; }
+
+/* 朋友圈频率行：与上面的管理我间距缩短为 5px */
+.messages-app .mf-settings-row{
+    margin-top: 5px !important;
+    margin-bottom: 0 !important;
+}
+.messages-app .settings-item:active{ background: #E8E8E8 !important; transform: scale(0.985) !important; }
 .messages-app .settings-item .si-icon{
     display: none !important;
 }
@@ -358,20 +373,23 @@
     align-items: center !important;
     justify-content: center !important;
     text-align: center !important;
+    line-height: 1.15 !important;
 }
 .messages-app .settings-item .si-title{
-    font-size: 15px !important;
+    font-size: 13.5px !important;
     font-weight: 600 !important;
     color: #111111 !important;
     text-align: center !important;
     width: 100% !important;
+    line-height: 1.2 !important;
 }
 .messages-app .settings-item .si-sub{
-    margin-top: 3px !important;
-    font-size: 12px !important;
+    margin-top: 1px !important;
+    font-size: 10.5px !important;
     color: #8E8E8E !important;
     text-align: center !important;
     width: 100% !important;
+    line-height: 1.2 !important;
 }
 .messages-app .settings-item .chev{
     display: none !important;
@@ -5144,14 +5162,72 @@
 .messages-app .mf-si-sub{ font-size:12px; color:#A6A6A6; margin-top:3px; }
 .messages-app .mf-chev{ color:#CFCFCF; font-size:20px; flex:none; }
 
-/* 朋友圈频率行：文字居中（和「管理我」一致），调取按钮固定在左侧 */
-.messages-app .mf-settings-row{ display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; text-align:center !important; position:relative !important; padding:18px 18px !important; cursor:pointer !important; }
-.messages-app .mf-settings-row .mf-sync{ position:absolute !important; left:18px !important; top:50% !important; transform:translateY(-50%) !important; width:38px !important; height:38px !important; }
+/* 朋友圈频率行：与其它设置块统一为44px紧凑纯圆胶囊，调取图标微调居左 */
+.messages-app .mf-settings-row{
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:center !important;
+    justify-content:center !important;
+    text-align:center !important;
+    position:relative !important;
+    height:44px !important;
+    min-height:44px !important;
+    padding:0 46px !important;
+    margin-bottom:8px !important;
+    border-radius:999px !important;
+    background:#F5F5F5 !important;
+    cursor:pointer !important;
+    box-sizing:border-box !important;
+}
+.messages-app .mf-settings-row .mf-sync{
+    position:absolute !important;
+    left:7px !important;
+    top:50% !important;
+    transform:translateY(-50%) !important;
+    width:30px !important;
+    height:30px !important;
+}
 .messages-app .mf-settings-row .mf-sync:active{ transform:translateY(-50%) scale(.92) !important; }
-.messages-app .mf-si-text{ width:100% !important; text-align:center !important; display:flex !important; flex-direction:column !important; align-items:center !important; justify-content:center !important; }
-.messages-app .mf-si-title{ font-size:15px !important; font-weight:600 !important; color:#111 !important; text-align:center !important; width:100% !important; }
-.messages-app .mf-si-sub{ font-size:12px !important; color:#A6A6A6 !important; margin-top:3px !important; text-align:center !important; width:100% !important; }
+.messages-app .mf-si-text{
+    width:100% !important;
+    text-align:center !important;
+    display:flex !important;
+    flex-direction:column !important;
+    align-items:center !important;
+    justify-content:center !important;
+    line-height:1.15 !important;
+}
+.messages-app .mf-si-title{
+    font-size:13.5px !important;
+    font-weight:600 !important;
+    color:#111 !important;
+    text-align:center !important;
+    width:100% !important;
+    line-height:1.2 !important;
+}
+.messages-app .mf-si-sub{
+    font-size:10.5px !important;
+    color:#A6A6A6 !important;
+    margin-top:1px !important;
+    text-align:center !important;
+    width:100% !important;
+    line-height:1.2 !important;
+}
 .messages-app .mf-chev{ display:none !important; }
+
+.messages-app .settings-item.st-regex-entry-row{
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+    position: relative !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 20px !important;
+    border-radius: 999px !important;
+    background: #F5F5F5 !important;
+}
 .messages-app .mf-ava{ width:40px; height:40px; border-radius:12px; flex:none; display:grid; place-items:center; background:#EDEDED; color:#111; font-size:15px; font-weight:700; }
 
 .messages-app .mf-ava-img{ overflow:hidden; padding:0; }

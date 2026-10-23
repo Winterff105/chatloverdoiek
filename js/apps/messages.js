@@ -828,7 +828,7 @@ function stSetPage(i, force) {
     if (!force && ST_PAGE === i && stLastRenderedPage === i) return;
     ST_PAGE = i;
     stLastRenderedPage = i;
-    
+
     document.querySelectorAll('#stCap .st-seg').forEach(b => b.classList.toggle('on', +b.dataset.i === i));
     const viewSettings = document.getElementById('v-settings');
     const scrollContainer = viewSettings ? viewSettings.querySelector('.scroll') : null;
@@ -839,12 +839,13 @@ function stSetPage(i, force) {
             if (child.classList && child.classList.contains('settings-profile')) return;
             if (child.id === 'stCap') return;
             if (child.id === 'stPage') return;
-            child.style.display = i === 0 ? '' : 'none';
+            child.style.setProperty('display', i === 0 ? '' : 'none', 'important');
         });
     }
 
     if (p2) {
         p2.hidden = i === 0;
+        p2.style.setProperty('display', i === 0 ? 'none' : 'block', 'important');
         stObserverPaused = true;
         try {
             if (i === 1) renderRegexView(p2);
@@ -5412,6 +5413,14 @@ function identityAvatarHtml(c) {
 
 /* 管理我：默认人设 + 我的身份（身份只来自这里，不读取联系人） */
 function renderAccountList() {
+    const listEl = document.getElementById('accountList');
+    if (listEl && listEl.parentElement) {
+        listEl.parentElement.querySelectorAll('.section-label').forEach(el => {
+            if (el.parentElement === listEl.parentElement && /默认人设/.test(el.textContent)) {
+                el.remove();
+            }
+        });
+    }
     const rows = IDENTITIES.map(c => `
         <div class="acct-row" onclick="openIdentityEditor('${c.id}')">
             ${avatar(c, 'lg')}
@@ -5422,7 +5431,8 @@ function renderAccountList() {
             </div>
             <button class="acct-remove" type="button" onclick="event.stopPropagation(); deleteIdentity('${c.id}')">删除</button>
         </div>`).join('');
-    document.getElementById('accountList').innerHTML = `
+    if (listEl) {
+        listEl.innerHTML = `
         <div class="section-label" style="padding:16px 4px 10px;">我的默认人设</div>
         <div class="acct-row" onclick="openSelfPersona()">
             ${selfAvatarHtml('lg')}
@@ -5436,6 +5446,7 @@ function renderAccountList() {
         <div class="section-label" style="padding:18px 4px 10px;">我的身份</div>
         ${rows || '<div class="acct-empty">还没有身份。添加后可以在侧边栏登录，或从顶部切换。</div>'}
         <button class="acct-add" type="button" onclick="openIdentityEditor(null)">＋ 添加身份</button>`;
+    }
 }
 function openIdentityEditor(id) {
     personaMode = 'identity';
