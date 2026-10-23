@@ -409,7 +409,7 @@ let pendingAvatar = null;
 let editingPersonaId = null;
 
 /* 所有防xx的默认开启列表（与 CHAT_PROMPT_OPTS 保持一致；放在函数里，避免启动时 TDZ 报错） */
-function defaultPromptOpts() { return ['ai', 'greasy', 'threat', 'fake', 'macho']; }
+function defaultPromptOpts() { return ['ai', 'greasy']; }
 /* ---------------- 本地真实数据：没有内置假联系人 ---------------- */
 function loadStoredContacts() {
     try {
@@ -434,6 +434,15 @@ function loadStoredContacts() {
             });
             localStorage.setItem('whatever_messages_contacts_v1', JSON.stringify(list));
             localStorage.setItem('whatever_messages_prompt_all_on_v1', '1');
+        }
+        // 一次性迁移 v2：防威胁 / 防假性安慰 / 防超雄 改为默认关闭，已存在的联系人统一重置为「只开防八股、防油腻」，之后手动开关会正常保存
+        if (Array.isArray(list) && !localStorage.getItem('whatever_messages_prompt_defaults_v2')) {
+            list.forEach(c => {
+                if (!c || typeof c !== 'object') return;
+                c.promptOpts = defaultPromptOpts();
+            });
+            localStorage.setItem('whatever_messages_contacts_v1', JSON.stringify(list));
+            localStorage.setItem('whatever_messages_prompt_defaults_v2', '1');
         }
         return Array.isArray(list) ? list.map(normalizeContact) : [];
     } catch (e) { console.warn('[Messages] 联系人读取失败', e); return []; }
