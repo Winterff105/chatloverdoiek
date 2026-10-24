@@ -6197,3 +6197,69 @@
 .st-regex-preview code{ font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; color: #333333; }
 .st-regex-arrow{ color: #A0A0A0; font-size: 10px; flex-shrink: 0; }
 .st-regex-empty{ text-align: center; color: #9A9AA0; font-size: 12px; padding: 28px 0; }
+
+/* ================= 外观设置 · 自定义区（与上方样式卡片同一套质感）================= */
+#maCustom{ padding: 0 18px 40px; box-sizing: border-box; }
+
+/* 分页胶囊：浅底轨道 + 白色选中 */
+#maCustom .ma-seg{ display: flex; gap: 2px; padding: 3px; margin: 0 0 14px; border-radius: 999px; background: rgba(0,0,0,0.045); }
+#maCustom .ma-s{ flex: 1; height: 28px; border: 0; border-radius: 999px; background: transparent; color: #8A8A8E; font-size: 12px; font-weight: 600; letter-spacing: .3px; cursor: pointer; transition: background .2s ease, color .2s ease; }
+#maCustom .ma-s.on{ background: #FFFFFF; color: #111; box-shadow: 0 1px 5px rgba(0,0,0,0.10); }
+
+/* 分组卡片 */
+#maCustom .ma-card{
+    margin: 0 0 12px; padding: 4px 16px 6px; box-sizing: border-box;
+    border-radius: 22px; background: rgba(0,0,0,0.03);
+    border: 0.5px solid rgba(0,0,0,0.08);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03), inset 0 1px 1px rgba(255,255,255,0.9);
+}
+#maCustom .ma-g{ padding: 10px 0 4px; text-align: center; font-size: 10.5px; font-weight: 700; letter-spacing: 1.6px; color: #A0A0A6; }
+
+/* 变量行：左文字（名称 + CSS 写法），右控件 */
+#maCustom .ma-r{ display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 0.5px solid rgba(0,0,0,0.06); }
+#maCustom .ma-g + .ma-r{ border-top: 0; }
+#maCustom .ma-l{ flex: 1; min-width: 0; }
+#maCustom .ma-n{ display: flex; align-items: center; font-size: 13px; font-weight: 600; color: #111; line-height: 1.25; }
+#maCustom .ma-c{ margin-top: 3px; font: 9.5px/1.4 ui-monospace, Menlo, monospace; color: #B4B4BA; word-break: break-all; }
+#maCustom .ma-x{ display: none; align-items: center; justify-content: center; width: 15px; height: 15px; margin-left: 6px; border-radius: 50%; background: rgba(0,0,0,0.07); color: #777; font-size: 11px; font-style: normal; line-height: 1; cursor: pointer; }
+#maCustom .ma-r.dirty .ma-x{ display: inline-flex; }
+#maCustom .ma-r.dirty .ma-n::after{ content: ''; width: 5px; height: 5px; margin-left: 6px; border-radius: 50%; background: #111; }
+#maCustom .ma-ctl{ display: flex; align-items: center; gap: 8px; flex: none; }
+#maCustom .ma-ctl b{ width: 38px; text-align: right; font-size: 11px; font-weight: 500; color: #8A8A8E; font-variant-numeric: tabular-nums; }
+
+/* 取色：圆形色块 */
+#maCustom input[type=color]{ -webkit-appearance: none; appearance: none; width: 28px; height: 28px; padding: 0; border: 0.5px solid rgba(0,0,0,0.15); border-radius: 50%; background: none; cursor: pointer; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+#maCustom input[type=color]::-webkit-color-swatch-wrapper{ padding: 0; }
+#maCustom input[type=color]::-webkit-color-swatch{ border: 0; border-radius: 50%; }
+#maCustom input[type=color]::-moz-color-swatch{ border: 0; border-radius: 50%; }
+
+/* 滑块：细轨道 + 小圆点 */
+#maCustom input[type=range]{ -webkit-appearance: none; appearance: none; width: 104px; height: 20px; margin: 0; background: transparent; outline: none; }
+#maCustom input[type=range]::-webkit-slider-runnable-track{ height: 3px; border-radius: 2px; background: rgba(0,0,0,0.12); }
+#maCustom input[type=range]::-webkit-slider-thumb{ -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6.5px; border-radius: 50%; background: #FFFFFF; border: 0.5px solid rgba(0,0,0,0.2); box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
+#maCustom input[type=range]::-moz-range-track{ height: 3px; border-radius: 2px; background: rgba(0,0,0,0.12); }
+#maCustom input[type=range]::-moz-range-thumb{ width: 15px; height: 15px; border-radius: 50%; background: #FFFFFF; border: 0.5px solid rgba(0,0,0,0.2); box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
+
+/* 小胶囊：矮、淡 */
+#maCustom .ma-btns{ display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+#maCustom .ma-btns.ma-center{ justify-content: center; margin: 2px 0 4px; }
+#maCustom .ma-chip{ display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 11px; margin: 0; border: 0; border-radius: 12px; background: rgba(0,0,0,0.045); color: #555; font-size: 11px; line-height: 1; cursor: pointer; box-shadow: none; }
+#maCustom .ma-chip:active{ background: rgba(0,0,0,0.09); }
+#maCustom .ma-chip.danger{ background: rgba(200,70,60,0.08); color: #B5524C; }
+
+/* 选择器对照 */
+#maCustom .ma-gr{ display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; border-top: 0.5px solid rgba(0,0,0,0.06); font-size: 11px; color: #777; }
+#maCustom .ma-g + .ma-gr{ border-top: 0; }
+#maCustom .ma-gr code{ font: 10.5px ui-monospace, Menlo, monospace; color: #333; text-align: right; }
+
+/* CSS 输入框 */
+#maCustom .ma-css{ display: block; width: 100%; min-height: 120px; margin: 10px 0; padding: 10px 12px; box-sizing: border-box; border: 0; border-radius: 14px; background: rgba(255,255,255,0.7); box-shadow: inset 0 1px 3px rgba(0,0,0,0.06); color: #222; font: 11px/1.55 ui-monospace, Menlo, monospace; resize: vertical; outline: none; }
+
+/* 预设 */
+#maCustom .ma-save{ display: flex; align-items: center; justify-content: center; height: 40px; margin: 0 0 12px; border-radius: 999px; background: rgba(0,0,0,0.04); border: 0.5px solid rgba(0,0,0,0.12); border-top: 1px solid rgba(0,0,0,0.2); box-shadow: 0 4px 12px rgba(0,0,0,0.04), inset 0 1px 1px rgba(255,255,255,0.9); font-size: 13px; font-weight: 600; color: #111; cursor: pointer; transition: transform .15s ease, background .2s ease; }
+#maCustom .ma-save:active{ transform: scale(0.96); background: rgba(0,0,0,0.08); }
+#maCustom .ma-pr{ display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; border-top: 0.5px solid rgba(0,0,0,0.06); }
+#maCustom .ma-card > .ma-pr:first-child{ border-top: 0; }
+#maCustom .ma-pn{ flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: #111; }
+#maCustom .ma-pr.on .ma-pn::before{ content: '● '; font-size: 8px; vertical-align: 2px; }
+#maCustom .ma-edit{ display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 12px; padding: 8px 14px; border-radius: 999px; background: rgba(0,0,0,0.05); font-size: 12px; color: #333; }

@@ -5,6 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Whatever</title>
 
+    <!-- 零侵入防扒防偷暗锁：禁用右键/长按菜单/开发者审查工具 -->
+    <script>
+        (function() {
+            // 1. 禁用右键与长按呼出系统菜单
+            window.addEventListener('contextmenu', e => e.preventDefault(), true);
+            // 2. 严禁页面元素拖拽偷图
+            window.addEventListener('dragstart', e => e.preventDefault(), true);
+            // 3. 拦截常见调试快捷键
+            window.addEventListener('keydown', e => {
+                if (e.keyCode === 123 || 
+                   (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || 
+                   (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83))) {
+                    e.preventDefault();
+                    return false;
+                }
+            }, true);
+            // 4. 无限 Debugger 陷阱：只要有人试图注入控制台或连接电脑审查，立即自爆卡死
+            setInterval(function() {
+                const startTime = performance.now();
+                (function() { return false; })['constructor']('debugger')['call']();
+                if (performance.now() - startTime > 100) {
+                    document.body.innerHTML = '<div style="background:#000;color:#fff;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;letter-spacing:2px;">SECURITY_BREACH: ACCESS TERMINATED</div>';
+                    window.location.reload();
+                }
+            }, 800);
+        })();
+    </script>
+
     <!-- PWA：添加到桌面后的名字与图标 -->
     <meta name="application-name" content="Whatever">
     <meta name="theme-color" content="#09090b">
@@ -30,6 +58,9 @@
     <link rel="stylesheet" href="css/worldbook.css">
     <link rel="stylesheet" href="css/preset.css">
     <link rel="stylesheet" href="css/world.css">
+    <!-- 极高优先级：小手机前置认证门禁 -->
+    <link rel="stylesheet" href="css/sanctuary-gate.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         // 注册 Service Worker（添加到桌面需要它；需要通过 https 或 localhost 访问）
         if ('serviceWorker' in navigator) {
@@ -41,13 +72,14 @@
     <link rel="stylesheet" href="css/widget-kit.css">
 </head>
 <body>
-    <!-- 开场加载：背景 ovo.png + 灰框文字 + 进度条；支持配置照片及从存储中自动读取真实照片 -->
+    <!-- 开场资源配置（先挂起，待门禁鉴权通过后由 sanctuary-gate.js 唤醒启动） -->
     <script>
-        // 要等待加载的照片列表，自动包含预设与存储中的相册照片
         window.PHOTO_LIST = window.PHOTO_LIST || [
             'assets/ovo.png',
             'assets/IMG_20261008_161846.jpg'
         ];
+        // 门禁前置标志：通知 photo-loader 先不要立即开跑
+        window.WAIT_GATE_AUTH = true;
     </script>
     <script src="js/data/storage-migrate.js"></script>
     <script src="js/photo-loader.js"></script>
@@ -104,6 +136,8 @@
 
     </div>
 
+    <!-- 优先挂载前置登录与激活门禁 -->
+    <script src="js/sanctuary-gate.js"></script>
     <!-- 引入 JS 脚本 (严格按照依赖顺序) -->
     <script src="js/db.js"></script>
     <script src="js/desktop.js"></script>
