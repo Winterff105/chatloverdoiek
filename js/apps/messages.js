@@ -1171,6 +1171,7 @@ function switchTab(name) {
     if (name === 'contacts') renderContacts();
     if (name === 'chats') renderChats();
     if (name === 'moments') { renderMoments(); MOMENT_UNSEEN = false; refreshChatBadge(); if (!momentFetchBusy) hideMomentBubble(); }
+    maApply();
 }
 function fabAction() {
     if (activeTab === 'chats') { openContactIdModal(); return; }
@@ -3956,7 +3957,11 @@ async function pullReply() {
         c._typing = false;
         const row = document.getElementById('typingRow'); if (row) row.remove();
         const capCur = document.querySelector('.messages-app .send-capsule'); if (capCur) capCur.classList.remove('pulling');
-        let parts = replies.map((p, i) => { const pt = narrPart(p, c.name); if (pt && replies.trans && replies.trans[i]) pt.trans = replies.trans[i]; return pt; }).filter(Boolean);
+        let parts = replies.map((p, i) => { const pt = narrPart(p, c.name); if (pt && replies.trans && replies.trans[i]) pt.trans = replies.trans[i]; if (pt && typeof pt.text === 'string') pt.text = applyRegexPipeline(pt.text, 2); return pt; }).filter(pt => {
+            if (!pt) return false;
+            if (typeof pt.text !== 'string' || pt.text.trim()) return true;
+            return Object.keys(pt).some(k => k !== 'text' && k !== 'trans' && pt[k]);
+        });
         const rprs = parts.filter(pt => pt.rpReply);
         parts = parts.filter(pt => !pt.rpReply);
         rprs.forEach(pt => applyRpReply(c, pt.rpReply));
@@ -4029,7 +4034,7 @@ function togglePersonaFold() {
 }
 async function sendMessage() {
     const input = document.getElementById('input');
-    const text = input.value.trim();
+    const text = applyRegexPipeline(input.value.trim(), 1).trim();
     if (!text || !activeId) return;
     const c = CONTACTS.find(x => x.id === activeId);
     if (!c || c._busy) return;
@@ -4590,7 +4595,327 @@ function renderThemeList() {
             <div class="t-check">${THEME === t.id ? '✓' : ''}</div>
         </div>`).join('');
 }
+/* ===== 外观设置：自定义（消息 / 朋友圈 / 设置 / 底栏）=====
+   每个变量 = 一条或多条 CSS 规则：选择器 + 属性，面板里每一行都会写出来。
+   生成的规则带 !important，写入 <style id="maVarCss">；你自己写的 CSS 写入 <style id="maUserCss">（在它后面，同级别时后者生效）。 */
+const MA_KEY = 'ma_appearance_v1';
+const maC = (id, n, d, ...r) => ({ id, n, t: 'c', d, r });
+const maR = (id, n, d, min, max, u, ...r) => ({ id, n, t: 'r', d, min, max, u, r });
+
+function maTitleGroup(root, tabs) {
+    const h1 = [[root + ' .header h1', 'color']], s1 = [[root + ' .header h1', 'font-size']], sub = [[root + ' .header .sub', 'color']];
+    if (tabs) { h1.push([root + ' .tab-chip h1', 'color']); s1.push([root + ' .tab-chip h1', 'font-size']); sub.push([root + ' .panel-head .sub', 'color']); }
+    return { g: '标题', vars: [
+        maC('titleC', '标题颜色', '#000000', ...h1),
+        maR('titleS', '标题字号', 52, 24, 72, 'px', ...s1),
+        maC('subC', '副标题颜色', '#8E8E8E', ...sub)
+    ] };
+}
+function maBtnGroup(root) {
+    return { g: '头部按钮', vars: [
+        maC('ibtnBg', '按钮底色', '#F2F2F2', [root + ' .ibtn', 'background']),
+        maC('ibtnIcon', '按钮图标色', '#000000', [root + ' .ibtn svg', 'stroke']),
+        maR('ibtnSize', '按钮大小', 34, 26, 46, 'px', [root + ' .ibtn', 'width', 'height'])
+    ] };
+}
+
+const MA_DEFS = {
+    chats: { name: '消息', groups: [
+        { g: '页面', vars: [
+            maC('pageBg', '页面背景', '#E7E7EA', ['#v-chats', 'background']),
+            maC('headBg', '头部背景', '#FFFFFF', ['#v-chats .header', 'background']),
+            maC('panelBg', '标签页 / 面板底色', '#FFFFFF', ['#v-chats .tab-panel', 'background'], ['#v-chats .tab-chip', 'background'])
+        ] },
+        maTitleGroup('#v-chats', true),
+        { g: '头部按钮', vars: [
+            maC('ibtnBg', '按钮底色', '#F2F2F2', ['#v-chats .ibtn', 'background']),
+            maC('ibtnIcon', '按钮图标色', '#000000', ['#v-chats .ibtn svg', 'stroke']),
+            maR('ibtnSize', '按钮大小', 34, 26, 46, 'px', ['#v-chats .ibtn', 'width', 'height']),
+            maC('arrowBg', '账号按钮底色', '#111111', ['#v-chats .arrow-btn', 'background'])
+        ] },
+        { g: '搜索框', vars: [
+            maC('searchBg', '搜索框底色', '#FFFFFF', ['#v-chats .search', 'background']),
+            maR('searchR', '搜索框圆角', 10, 0, 18, 'px', ['#v-chats .search', 'border-radius']),
+            maC('searchT', '输入文字色', '#000000', ['#v-chats .search input', 'color']),
+            maC('searchI', '搜索图标色', '#8E8E8E', ['#v-chats .search svg', 'stroke'])
+        ] },
+        { g: '会话卡片', vars: [
+            maC('rowBg', '卡片底色', '#F7F7F7', ['#v-chats .row', 'background']),
+            maR('rowR', '卡片圆角', 18, 0, 28, 'px', ['#v-chats .row', 'border-radius']),
+            maR('rowGap', '卡片间距', 8, 0, 20, 'px', ['#v-chats .row', 'margin-bottom']),
+            maC('nameC', '名字颜色', '#000000', ['#v-chats .row .name', 'color']),
+            maR('nameS', '名字字号', 15, 12, 20, 'px', ['#v-chats .row .name', 'font-size']),
+            maC('preC', '消息预览颜色', '#8E8E8E', ['#v-chats .row .preview', 'color']),
+            maR('preS', '消息预览字号', 13, 11, 17, 'px', ['#v-chats .row .preview', 'font-size']),
+            maC('timeC', '时间颜色', '#8E8E8E', ['#v-chats .row .time', 'color'])
+        ] },
+        { g: '未读角标', vars: [
+            maC('badgeBg', '角标底色', '#000000', ['#v-chats .badge', 'background']),
+            maC('badgeC', '角标文字色', '#FFFFFF', ['#v-chats .badge', 'color'])
+        ] }
+    ] },
+    moments: { name: '朋友圈', groups: [
+        { g: '页面', vars: [
+            maC('pageBg', '页面背景', '#FFFFFF', ['#v-moments', 'background']),
+            maC('headBg', '头部背景', '#FFFFFF', ['#v-moments .header', 'background']),
+            maC('frameBg', '动态区底色', '#EDEDF0', ['#v-moments .mf-frame', 'background']),
+            maR('frameR', '动态区顶部圆角', 26, 0, 40, 'px', ['#v-moments .mf-frame', 'border-top-left-radius', 'border-top-right-radius'])
+        ] },
+        maTitleGroup('#v-moments', false),
+        maBtnGroup('#v-moments'),
+        { g: '个人昵称', vars: [
+            maC('nameBg', '昵称底色', '#FFFFFF', ['#v-moments .mf-name', 'background']),
+            maC('nameC', '昵称文字色', '#000000', ['#v-moments .mf-name', 'color'])
+        ] },
+        { g: '动态卡片', vars: [
+            maC('cardBg', '卡片底色', '#FFFFFF', ['#v-moments .mf-card', 'background']),
+            maR('cardR', '卡片圆角', 16, 0, 28, 'px', ['#v-moments .mf-card', 'border-radius']),
+            maR('cardGap', '卡片间距', 10, 0, 24, 'px', ['#v-moments .mf-card', 'margin-bottom']),
+            maC('whoC', '发布者名字色', '#000000', ['#v-moments .mf-card-who b', 'color']),
+            maC('timeC', '发布时间色', '#8E8E8E', ['#v-moments .mf-card-who span', 'color']),
+            maC('textC', '正文颜色', '#111111', ['#v-moments .mf-card-text', 'color']),
+            maR('textS', '正文字号', 15, 11, 20, 'px', ['#v-moments .mf-card-text', 'font-size'])
+        ] }
+    ] },
+    settings: { name: '设置', groups: [
+        { g: '页面', vars: [
+            maC('pageBg', '页面背景', '#FFFFFF', ['#v-settings', 'background']),
+            maC('headBg', '头部背景', '#FFFFFF', ['#v-settings .header', 'background'])
+        ] },
+        maTitleGroup('#v-settings', false),
+        { g: '资料卡', vars: [
+            maC('profC', '名字颜色', '#000000', ['#v-settings .settings-profile .profile-name', 'color']),
+            maC('profSubC', '副文字颜色', '#8E8E8E', ['#v-settings .settings-profile .profile-sub', 'color'])
+        ] },
+        { g: '设置项', vars: [
+            maC('itemBg', '设置项底色', '#F5F5F5', ['#v-settings .settings-item', 'background']),
+            maR('itemR', '设置项圆角', 22, 0, 22, 'px', ['#v-settings .settings-item', 'border-radius']),
+            maR('itemH', '设置项高度', 44, 34, 64, 'px', ['#v-settings .settings-item', 'height', 'min-height']),
+            maC('itemTitleC', '标题颜色', '#111111', ['#v-settings .settings-item .si-title', 'color']),
+            maR('itemTitleS', '标题字号', 13, 11, 18, 'px', ['#v-settings .settings-item .si-title', 'font-size']),
+            maC('itemSubC', '副标题颜色', '#8E8E8E', ['#v-settings .settings-item .si-sub', 'color']),
+            maC('labelC', '分组小标签色', '#8E8E8E', ['#v-settings .section-label', 'color'])
+        ] }
+    ] },
+    tabbar: { name: '底栏', groups: [
+        { g: '胶囊', vars: [
+            maC('capBg', '胶囊底色', '#111111', ['#tabbar .capsule', 'background']),
+            maR('capR', '胶囊圆角', 28, 0, 28, 'px', ['#tabbar .capsule', 'border-radius']),
+            maR('capH', '胶囊高度', 40, 36, 64, 'px', ['#tabbar .capsule', 'height'])
+        ] },
+        { g: '标签', vars: [
+            maC('iconC', '图标颜色', '#FFFFFF', ['#tabbar .tab svg', 'stroke']),
+            maC('tabOn', '选中标签底色', '#333333', ['#tabbar .tab.on', 'background'])
+        ] },
+        { g: '加号按钮', vars: [
+            maC('fabBg', '按钮底色', '#111111', ['#tabbar .fab', 'background']),
+            maC('fabIcon', '图标颜色', '#FFFFFF', ['#tabbar .fab svg', 'stroke']),
+            maR('fabSize', '按钮大小', 56, 40, 64, 'px', ['#tabbar .fab', 'width', 'height'])
+        ] }
+    ] }
+};
+const MA_GUIDE = [
+    ['消息页', '#v-chats'], ['朋友圈页', '#v-moments'], ['设置页', '#v-settings'],
+    ['外观设置面板', '#appearanceMgr'], ['底栏 / 胶囊 / 加号', '#tabbar .capsule / .fab'],
+    ['整个消息应用', '.messages-app']
+];
+let MA_SEL = 'chats';
+let MA_EDIT = -1;
+
+function maLoad() {
+    try {
+        const o = JSON.parse(localStorage.getItem(MA_KEY) || 'null');
+        if (o && typeof o === 'object') return { current: o.current || {}, presets: Array.isArray(o.presets) ? o.presets : [], css: typeof o.css === 'string' ? o.css : '' };
+    } catch (_) {}
+    return { current: {}, presets: [], css: '' };
+}
+let MA = maLoad();
+function maSave() { try { localStorage.setItem(MA_KEY, JSON.stringify(MA)); } catch (_) {} }
+function maEsc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function maStyleTag(id) {
+    let t = document.getElementById(id);
+    if (!t) { t = document.createElement('style'); t.id = id; document.head.appendChild(t); }
+    return t;
+}
+function maVarCss() {
+    let out = '';
+    Object.keys(MA_DEFS).forEach(sid => {
+        const cur = MA.current[sid]; if (!cur) return;
+        MA_DEFS[sid].groups.forEach(g => g.vars.forEach(v => {
+            if (cur[v.id] === undefined) return;
+            const val = v.t === 'r' ? cur[v.id] + v.u : cur[v.id];
+            v.r.forEach(rule => {
+                out += '.messages-app ' + rule[0] + '{' + rule.slice(1).map(p => p + ':' + val + ' !important').join(';') + '}\n';
+            });
+        }));
+    });
+    return out;
+}
+function maApply() {
+    maStyleTag('maVarCss').textContent = maVarCss();
+    maStyleTag('maUserCss').textContent = MA.css || '';
+}
+function maFindVar(id) {
+    const g = MA_DEFS[MA_SEL].groups;
+    for (let i = 0; i < g.length; i++) { const v = g[i].vars.find(x => x.id === id); if (v) return v; }
+    return null;
+}
+function maSetVal(k, val) {
+    MA.current[MA_SEL] = MA.current[MA_SEL] || {};
+    MA.current[MA_SEL][k] = val;
+    maSave(); maApply();
+}
+function maResetVar(k) {
+    if (!MA.current[MA_SEL]) return;
+    delete MA.current[MA_SEL][k];
+    if (!Object.keys(MA.current[MA_SEL]).length) delete MA.current[MA_SEL];
+    maSave(); maApply();
+}
+function maSnapshot() { return { current: JSON.parse(JSON.stringify(MA.current)), css: MA.css || '' }; }
+
+function maRow(v, val) {
+    const dirty = val !== undefined, shown = dirty ? val : v.d;
+    const cap = v.r.map(r => r[0] + ' { ' + r.slice(1).join(', ') + ' }').join('<br>');
+    const ctl = v.t === 'c'
+        ? `<input type="color" data-ma-k="${v.id}" value="${shown}">`
+        : `<input type="range" data-ma-k="${v.id}" min="${v.min}" max="${v.max}" step="1" value="${shown}"><b data-ma-out="${v.id}">${shown}${v.u}</b>`;
+    return `<div class="ma-r${dirty ? ' dirty' : ''}" data-ma-row="${v.id}">
+        <div class="ma-l"><div class="ma-n">${v.n}<i class="ma-x" data-ma-reset="${v.id}">×</i></div><div class="ma-c">${cap}</div></div>
+        <div class="ma-ctl">${ctl}</div>
+    </div>`;
+}
+function maAllCss() {
+    // 全部可控 CSS：当前值（没改过的用默认值），可直接粘贴进下面的输入框
+    let out = '/* 外观 · 全部可控 CSS（粘贴到「自定义 CSS」即可生效） */\n';
+    Object.keys(MA_DEFS).forEach(sid => {
+        out += '\n/* ===== ' + MA_DEFS[sid].name + ' ===== */\n';
+        const cur = MA.current[sid] || {};
+        MA_DEFS[sid].groups.forEach(g => {
+            out += '/* ' + g.g + ' */\n';
+            g.vars.forEach(v => {
+                const raw = cur[v.id] !== undefined ? cur[v.id] : v.d;
+                const val = v.t === 'r' ? raw + v.u : raw;
+                v.r.forEach(rule => {
+                    out += '.messages-app ' + rule[0] + ' { ' + rule.slice(1).map(p => p + ': ' + val + ' !important').join('; ') + '; } /* ' + v.n + ' */\n';
+                });
+            });
+        });
+    });
+    return out;
+}
+function maCopy(text) {
+    const done = () => toast('已复制全部可控 CSS');
+    const fallback = () => {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (_) { toast('复制失败，请手动复制'); }
+        ta.remove();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+}
+function maRender(box) {
+    const cur = MA.current[MA_SEL] || {};
+    const editing = MA_EDIT >= 0 && MA.presets[MA_EDIT];
+    box.innerHTML = `
+        ${editing ? `<div class="ma-edit"><span>正在编辑「${maEsc(editing.name)}」</span><span class="ma-btns"><button type="button" class="ma-chip" data-ma-act="update">保存修改</button><button type="button" class="ma-chip" data-ma-act="rename">改名</button><button type="button" class="ma-chip" data-ma-act="done">完成</button></span></div>` : ''}
+
+        <div class="section-label" style="padding:16px 4px 10px;">自定义 CSS</div>
+        <div class="ma-save" data-ma-act="copyall">一键复制全部可控 CSS</div>
+        <div class="ma-card">
+            <div class="ma-g">选择器对照</div>
+            ${MA_GUIDE.map(g => `<div class="ma-gr"><span>${g[0]}</span><code>${g[1]}</code></div>`).join('')}
+        </div>
+        <div class="ma-card">
+            <textarea class="ma-css" data-ma-css spellcheck="false" placeholder="例如：&#10;#v-chats .row { box-shadow: 0 4px 12px rgba(0,0,0,.06); }&#10;被覆盖时在值后面加 !important">${maEsc(MA.css || '')}</textarea>
+        </div>
+        <div class="ma-btns ma-center"><button type="button" class="ma-chip" data-ma-act="cssclear">清空 CSS</button></div>
+
+        <div class="section-label" style="padding:18px 4px 10px;">页面变量</div>
+        <div class="ma-seg">${Object.keys(MA_DEFS).map(id => `<button type="button" class="ma-s${id === MA_SEL ? ' on' : ''}" data-ma-scope="${id}">${MA_DEFS[id].name}</button>`).join('')}</div>
+        ${MA_DEFS[MA_SEL].groups.map(g => `<div class="ma-card"><div class="ma-g">${g.g}</div>${g.vars.map(v => maRow(v, cur[v.id])).join('')}</div>`).join('')}
+        <div class="ma-btns ma-center"><button type="button" class="ma-chip" data-ma-act="clear">清空${MA_DEFS[MA_SEL].name}页变量</button></div>
+
+        <div class="section-label" style="padding:18px 4px 10px;">预设</div>
+        <div class="ma-save" data-ma-act="save">保存当前为预设</div>
+        ${MA.presets.length ? `<div class="ma-card">${MA.presets.map((p, i) => `
+            <div class="ma-pr${i === MA_EDIT ? ' on' : ''}"><span class="ma-pn">${maEsc(p.name)}</span>
+                <span class="ma-btns">
+                    <button type="button" class="ma-chip" data-ma-act="apply" data-i="${i}">切换</button>
+                    <button type="button" class="ma-chip" data-ma-act="edit" data-i="${i}">编辑</button>
+                    <button type="button" class="ma-chip danger" data-ma-act="del" data-i="${i}">删除</button>
+                </span></div>`).join('')}</div>` : ''}
+    `;
+}
+function maLoadPreset(i) {
+    const d = MA.presets[i].data || {};
+    MA.current = JSON.parse(JSON.stringify(d.current || {}));
+    MA.css = typeof d.css === 'string' ? d.css : '';
+    maSave(); maApply();
+}
+function maMount() {
+    const host = document.querySelector('#appearanceMgr .edit-body');
+    if (!host) return null;
+    let box = document.getElementById('maCustom');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'maCustom';
+        host.appendChild(box);
+        box.addEventListener('click', e => {
+            const sb = e.target.closest('[data-ma-scope]');
+            if (sb) { MA_SEL = sb.dataset.maScope; maRender(box); return; }
+            const rs = e.target.closest('[data-ma-reset]');
+            if (rs) { maResetVar(rs.dataset.maReset); maRender(box); return; }
+            const b = e.target.closest('[data-ma-act]'); if (!b) return;
+            const act = b.dataset.maAct, i = +b.dataset.i;
+            if (act === 'clear') { delete MA.current[MA_SEL]; maSave(); maApply(); maRender(box); }
+            if (act === 'cssclear') { MA.css = ''; maSave(); maApply(); maRender(box); }
+            if (act === 'copyall') { maCopy(maAllCss()); }
+            if (act === 'save') {
+                const name = prompt('预设名称：', '预设 ' + (MA.presets.length + 1));
+                if (!name || !name.trim()) return;
+                MA.presets.push({ name: name.trim(), data: maSnapshot() });
+                maSave(); maRender(box); toast('已保存预设');
+            }
+            if (act === 'apply') { maLoadPreset(i); MA_EDIT = -1; maRender(box); toast('已切换预设'); }
+            if (act === 'edit') { maLoadPreset(i); MA_EDIT = i; maRender(box); }
+            if (act === 'update') { if (MA.presets[MA_EDIT]) { MA.presets[MA_EDIT].data = maSnapshot(); maSave(); toast('已保存修改'); } }
+            if (act === 'rename') {
+                const p = MA.presets[MA_EDIT]; if (!p) return;
+                const n = prompt('预设名称：', p.name);
+                if (n && n.trim()) { p.name = n.trim(); maSave(); maRender(box); }
+            }
+            if (act === 'done') { MA_EDIT = -1; maRender(box); }
+            if (act === 'del') {
+                if (!confirm('删除预设「' + MA.presets[i].name + '」？')) return;
+                MA.presets.splice(i, 1);
+                if (MA_EDIT === i) MA_EDIT = -1; else if (MA_EDIT > i) MA_EDIT--;
+                maSave(); maRender(box);
+            }
+        });
+        box.addEventListener('input', e => {
+            const ta = e.target.closest('[data-ma-css]');
+            if (ta) { MA.css = ta.value; maSave(); maApply(); return; }
+            const inp = e.target.closest('[data-ma-k]'); if (!inp) return;
+            const v = maFindVar(inp.dataset.maK); if (!v) return;
+            if (v.t === 'r') {
+                const out = box.querySelector('[data-ma-out="' + v.id + '"]');
+                if (out) out.textContent = inp.value + v.u;
+                maSetVal(v.id, +inp.value);
+            } else maSetVal(v.id, inp.value);
+            const row = inp.closest('.ma-r'); if (row) row.classList.add('dirty');
+        });
+    }
+    return box;
+}
+function maOpenPanel() {
+    const box = maMount(); if (box) maRender(box);
+}
+maApply();
+
 function openAppearance() {
+    maOpenPanel();
     renderThemeList();
     document.getElementById('appearanceMgr').classList.add('open');
     document.getElementById('tabbar').classList.add('hide');

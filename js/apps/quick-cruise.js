@@ -342,15 +342,388 @@
         panel.style.right = 'auto';
         panel.style.bottom = 'auto';
     }
+    // ================= 长按悬浮球：云端时长监控与凭证兑换系统 =================
+    const SUPABASE_URL = "https://tjgxfyblzgqwxwfwvfol.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqZ3hmeWJsemdxd3h3Znd2Zm9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI4MDQ0ODEsImV4cCI6MjEwODM4MDQ4MX0.BtNqx4DIoXQBCU7sPxlSonrfwY-rnrmxlfqQX8H7dLE";
+
+    function getAuthedQQ() {
+        try {
+            const raw = localStorage.getItem('whatever_phone_auth');
+            if (raw) {
+                const o = JSON.parse(raw);
+                return o && o.qq ? o.qq : null;
+            }
+        } catch(e) {}
+        return null;
+    }
+
+    async function openDurationVaultModal() {
+        const curQQ = getAuthedQQ();
+        if (!curQQ) {
+            toast('请先通过登录页认证 QQ');
+            return;
+        }
+
+        // 移除旧弹窗
+        document.getElementById('durationVaultModal')?.remove();
+
+        const mask = document.createElement('div');
+        mask.id = 'durationVaultModal';
+        mask.style.cssText = 'position:fixed;inset:0;z-index:9999999;background:rgba(4,4,6,0.58);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);display:flex;align-items:center;justify-content:center;padding:16px;font-family:"Plus Jakarta Sans",-apple-system,sans-serif;opacity:0;transition:opacity 0.28s cubic-bezier(0.16,1,0.3,1);';
+        
+        mask.innerHTML = `
+            <style>
+                @keyframes angelCardPop {
+                    0% { transform: scale(0.93) translateY(6px); opacity: 0; }
+                    100% { transform: scale(1) translateY(0); opacity: 1; }
+                }
+                @keyframes angelWingFlutter {
+                    0% { transform: translateY(0px) rotate(0deg); opacity: 0.65; }
+                    50% { transform: translateY(-1.5px) rotate(1.2deg); opacity: 0.95; }
+                    100% { transform: translateY(0px) rotate(0deg); opacity: 0.65; }
+                }
+                .angel-wing-left { animation: angelWingFlutter 4.8s ease-in-out infinite; transform-origin: right center; }
+                .angel-wing-right { animation: angelWingFlutter 4.8s ease-in-out infinite reverse; transform-origin: left center; }
+                .angel-code-input::placeholder { color: #5a5a68; }
+
+                /* 圣所邮票锯齿齿孔边缘 */
+                .stamp-edge-pod {
+                    position: relative;
+                    width: 100%;
+                    max-width: 292px;
+                    background: linear-gradient(170deg, rgba(24,24,30,0.96) 0%, rgba(12,12,16,0.98) 100%);
+                    border: 1px solid rgba(255,255,255,0.12);
+                    border-radius: 20px;
+                    padding: 18px 16px 14px;
+                    color: #fff;
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.2);
+                    display: flex;
+                    flex-direction: column;
+                    gap: 9px;
+                    animation: angelCardPop 0.3s cubic-bezier(0.16,1,0.3,1) forwards;
+                    box-sizing: border-box;
+                }
+                .stamp-edge-pod::before {
+                    content: "";
+                    position: absolute;
+                    inset: -5px;
+                    border-radius: 22px;
+                    background: radial-gradient(circle, transparent 3px, #000 3.5px);
+                    background-size: 11px 11px;
+                    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+                    -webkit-mask-composite: xor;
+                    mask-composite: exclude;
+                    padding: 5px;
+                    opacity: 0.28;
+                    pointer-events: none;
+                }
+            </style>
+            <div class="stamp-edge-pod">
+                
+                <!-- 顶层圣洁天使微型羽翼勋章 + 关闭叉 -->
+                <div style="display:flex;align-items:center;justify-content:space-between;position:relative;z-index:2;padding:0 2px;">
+                    <div style="display:inline-flex;align-items:center;gap:6px;">
+                        <svg viewBox="0 0 54 18" style="width:40px;height:14px;overflow:visible;" fill="none">
+                            <g class="angel-wing-left" stroke="rgba(255,255,255,0.75)" stroke-width="0.8" stroke-linecap="round">
+                                <path d="M21 9 C15 3 7 4 2 9 C8 12 16 11 21 9 Z" fill="rgba(255,255,255,0.08)"/>
+                                <path d="M18 9 C13 5 8 6 4 9"/>
+                                <path d="M15 10 C11 8 7 9 5 11"/>
+                            </g>
+                            <circle cx="27" cy="9" r="2.2" fill="#ffffff" stroke="rgba(255,255,255,0.4)" stroke-width="0.8"/>
+                            <circle cx="27" cy="9" r="5" stroke="rgba(255,255,255,0.25)" stroke-width="0.5" stroke-dasharray="1.5 2"/>
+                            <g class="angel-wing-right" stroke="rgba(255,255,255,0.75)" stroke-width="0.8" stroke-linecap="round">
+                                <path d="M33 9 C39 3 47 4 52 9 C46 12 38 11 33 9 Z" fill="rgba(255,255,255,0.08)"/>
+                                <path d="M36 9 C41 5 46 6 50 9"/>
+                                <path d="M39 10 C43 8 47 9 49 11"/>
+                            </g>
+                        </svg>
+                        <span style="font-size:7.5px;font-weight:700;letter-spacing:1.8px;color:#e2e2ec;font-family:'Cinzel Decorative',serif;text-transform:uppercase;">ANGELIC ARCHIVE</span>
+                    </div>
+                    <button type="button" id="btnVaultClose" style="width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);color:#a2a2b0;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:10px;line-height:1;transition:all 0.2s;">✕</button>
+                </div>
+
+                <!-- 纯白高定天使微晶中岛舱：纯白底质感、时分秒实时跳动 -->
+                <div style="position:relative;z-index:2;background:#ffffff;border-radius:18px;padding:12px 14px 11px;display:flex;flex-direction:column;align-items:center;gap:3px;box-shadow:0 8px 30px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.9);color:#111116;">
+                    <div style="display:flex;align-items:center;gap:4px;font-size:7.5px;color:#787884;letter-spacing:0.8px;">
+                        <span>SERAPH • QQ</span>
+                        <span style="color:#000000;font-weight:700;font-variant-numeric:tabular-nums;">${curQQ}</span>
+                    </div>
+
+                    <!-- 时分秒大字阶排版 -->
+                    <div style="display:flex;align-items:baseline;justify-content:center;gap:2px;margin:2px 0 3px;">
+                        <span style="font-size:26px;font-weight:800;letter-spacing:-0.5px;color:#09090b;line-height:1;font-variant-numeric:tabular-nums;font-family:'Plus Jakarta Sans',monospace;" id="vaultDurationHMS">--h --m --s</span>
+                    </div>
+
+                    <!-- 纯白舱体下的高定黑色纤细进度条 -->
+                    <div style="width:100%;margin-top:2px;">
+                        <div style="display:flex;justify-content:space-between;font-size:7.5px;color:#555562;margin-bottom:3px;letter-spacing:0.2px;">
+                            <span id="vaultCycleRound" style="font-weight:600;">当前时长 (--/--m)</span>
+                            <span id="vaultProgressPct" style="color:#000000;font-weight:800;">0%</span>
+                        </div>
+                        <div style="width:100%;height:3px;background:#e8e8ee;border-radius:999px;overflow:hidden;">
+                            <div id="vaultProgressBar" style="width:0%;height:100%;background:#000000;border-radius:999px;transition:width 0.4s ease;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 纯白字阶提示：动态跟随后台目标时长，满额自动续时保活 -->
+                <div style="position:relative;z-index:2;text-align:center;padding:1px 4px 2px;">
+                    <div style="font-size:8px;color:#ffffff;line-height:1.4;letter-spacing:0.3px;font-weight:600;" id="vaultCycleRemark">
+                        * 正在同步云端周时长目标...
+                    </div>
+                </div>
+
+                <!-- 极窄胶囊凭证兑换栏 -->
+                <div style="position:relative;z-index:2;display:flex;flex-direction:column;gap:4px;">
+                    <div style="display:flex;align-items:center;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.09);border-radius:999px;padding:2px 2px 2px 10px;">
+                        <input type="text" id="vaultVoucherCode" class="angel-code-input" placeholder="输入投喂凭证码..." style="flex:1;background:transparent;border:none;outline:none;font-size:8.5px;color:#ffffff;font-family:inherit;letter-spacing:0.8px;text-transform:uppercase;">
+                        <button type="button" id="btnVaultRedeem" style="height:24px;padding:0 11px;border-radius:999px;background:#ffffff;color:#09090b;border:none;font-size:8px;font-weight:700;letter-spacing:0.8px;cursor:pointer;box-shadow:0 2px 8px rgba(255,255,255,0.18);transition:transform 0.15s;white-space:nowrap;">REDEEM</button>
+                    </div>
+                    <div id="vaultVoucherMsg" style="font-size:7.5px;min-height:10px;line-height:1.2;text-align:center;"></div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(mask);
+        requestAnimationFrame(() => mask.style.opacity = '1');
+
+        let liveTickerTimer = null;
+        let baseTotalSeconds = 0;
+        let dynamicTargetMinutes = 60; // 默认 60，从云端动态覆盖
+
+        // 关闭弹窗清除计时器
+        function closeVault() {
+            clearInterval(liveTickerTimer);
+            mask.remove();
+        }
+        mask.querySelector('#btnVaultClose').onclick = closeVault;
+        mask.onclick = (e) => { if (e.target === mask) closeVault(); };
+
+        function formatHMS(totalSec) {
+            const h = Math.floor(totalSec / 3600);
+            const m = Math.floor((totalSec % 3600) / 60);
+            const s = totalSec % 60;
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${pad(h)}h ${pad(m)}m ${pad(s)}s`;
+        }
+
+        function updateUI(totalSec) {
+            const hmsEl = document.getElementById('vaultDurationHMS');
+            const progBar = document.getElementById('vaultProgressBar');
+            const pctEl = document.getElementById('vaultProgressPct');
+            const cycleEl = document.getElementById('vaultCycleRound');
+            const remarkEl = document.getElementById('vaultCycleRemark');
+
+            if (hmsEl) hmsEl.textContent = formatHMS(totalSec);
+
+            const targetSec = dynamicTargetMinutes * 60;
+            const currentCycleSec = totalSec % targetSec;
+            const cycleRound = Math.floor(totalSec / targetSec) + 1;
+            const pct = Math.min(100, Math.round((currentCycleSec / targetSec) * 100));
+
+            if (progBar) progBar.style.width = (totalSec >= targetSec && currentCycleSec === 0 ? 100 : pct) + '%';
+            if (pctEl) pctEl.textContent = (totalSec >= targetSec ? '已达标 · ' : '') + pct + '%';
+            if (cycleEl) {
+                const curM = Math.floor(currentCycleSec / 60);
+                cycleEl.textContent = `第 ${cycleRound} 周期 (${curM}/${dynamicTargetMinutes}m)`;
+            }
+
+            if (remarkEl) {
+                const checkIconSvg = `<svg viewBox="0 0 24 24" style="width:10px;height:10px;vertical-align:-1px;display:inline-block;stroke:#ffffff;stroke-width:2.5;fill:none;stroke-linecap:round;stroke-linejoin:round;margin-right:2px;"><polyline points="20 6 9 17 4 12"/></svg>`;
+                const hourglassSvg = `<svg viewBox="0 0 24 24" style="width:9px;height:9px;vertical-align:-1px;display:inline-block;stroke:rgba(255,255,255,0.7);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;margin-right:2px;"><path d="M5 22h14M5 2h14M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></svg>`;
+
+                if (totalSec >= targetSec) {
+                    remarkEl.innerHTML = `${checkIconSvg}已达成 <span style="color:#ffffff;font-weight:700;">${Math.floor(totalSec / targetSec)}</span> 轮，自动续时保活中`;
+                } else {
+                    const remainSec = targetSec - currentCycleSec;
+                    const rH = Math.floor(remainSec / 3600);
+                    const rM = Math.floor((remainSec % 3600) / 60);
+                    const rS = remainSec % 60;
+                    const remainStr = (rH > 0 ? `${rH}小时` : '') + `${rM}分${rS}秒`;
+                    remarkEl.innerHTML = `${hourglassSvg}还差 <span style="color:#ffffff;font-weight:700;">${remainStr}</span> 达到目标时长 (${dynamicTargetMinutes}m)`;
+                }
+            }
+        }
+
+        // 动态读取后台设置的最新周达标目标 + 真实时长
+        async function fetchCloudData() {
+            try {
+                // 1. 同步后台最新自定义周目标时长
+                const cfgRes = await fetch(`${SUPABASE_URL}/rest/v1/system_configs?key=eq.weekly_quota_minutes&select=value`, {
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                });
+                const cfgList = await cfgRes.json();
+                if (cfgList && cfgList.length > 0) {
+                    dynamicTargetMinutes = parseInt(cfgList[0].value, 10) || 60;
+                }
+
+                // 2. 读取当前 QQ 真实累计时长
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/member_durations?qq=eq.${curQQ}&select=*`, {
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                });
+                const list = await res.json();
+                let durMinutes = 0;
+                if (list && list.length > 0) durMinutes = list[0].duration || 0;
+
+                baseTotalSeconds = durMinutes * 60;
+                updateUI(baseTotalSeconds);
+
+                // 启动跳秒实时递增
+                clearInterval(liveTickerTimer);
+                liveTickerTimer = setInterval(() => {
+                    baseTotalSeconds++;
+                    updateUI(baseTotalSeconds);
+                }, 1000);
+            } catch(e) {
+                console.error(e);
+            }
+        }
+        fetchCloudData();
+
+        // 兑换凭证
+        const btnRedeem = mask.querySelector('#btnVaultRedeem');
+        const codeInput = mask.querySelector('#vaultVoucherCode');
+        const msgEl = mask.querySelector('#vaultVoucherMsg');
+
+        btnRedeem.onclick = async () => {
+            const code = codeInput.value.trim().toUpperCase();
+            if (!code) {
+                msgEl.textContent = "请输入凭证码";
+                msgEl.style.color = "#ff6b6b";
+                return;
+            }
+            btnRedeem.disabled = true;
+            btnRedeem.textContent = "...";
+            try {
+                // 1. 查询凭证
+                const vRes = await fetch(`${SUPABASE_URL}/rest/v1/time_vouchers?code=eq.${code}&is_active=eq.true&select=*`, {
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                });
+                const vList = await vRes.json();
+                if (!vList || vList.length === 0) {
+                    msgEl.textContent = "凭证码无效或已过期";
+                    msgEl.style.color = "#ff6b6b";
+                    btnRedeem.disabled = false;
+                    btnRedeem.textContent = "兑换";
+                    return;
+                }
+
+                const voucher = vList[0];
+                const claimed = voucher.claimed_by || [];
+                if (claimed.includes(curQQ)) {
+                    msgEl.textContent = "您已兑换过此凭证，不可重复领取";
+                    msgEl.style.color = "#ff6b6b";
+                    btnRedeem.disabled = false;
+                    btnRedeem.textContent = "兑换";
+                    return;
+                }
+
+                // 2. 加时长
+                const mRes = await fetch(`${SUPABASE_URL}/rest/v1/member_durations?qq=eq.${curQQ}&select=duration`, {
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                });
+                const mList = await mRes.json();
+                const cur = (mList && mList.length > 0) ? (mList[0].duration || 0) : 0;
+                const nextDur = cur + voucher.bonus_minutes;
+
+                await fetch(`${SUPABASE_URL}/rest/v1/member_durations?qq=eq.${curQQ}`, {
+                    method: 'PATCH',
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ duration: nextDur, updated_at: new Date().toISOString() })
+                });
+
+                // 3. 标记领过
+                claimed.push(curQQ);
+                await fetch(`${SUPABASE_URL}/rest/v1/time_vouchers?code=eq.${code}`, {
+                    method: 'PATCH',
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ claimed_by: claimed })
+                });
+
+                const sparkleSvg = `<svg viewBox="0 0 24 24" style="width:9px;height:9px;vertical-align:-1px;display:inline-block;fill:#ffffff;margin-right:3px;"><path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z"/></svg>`;
+                msgEl.innerHTML = `${sparkleSvg}兑换成功！已为您增加 +${voucher.bonus_minutes} 分钟时长！`;
+                msgEl.style.color = "#ffffff";
+                codeInput.value = '';
+                fetchCloudData();
+            } catch(e) {
+                msgEl.textContent = "兑换失败，请检查网络";
+                msgEl.style.color = "#ff6b6b";
+            } finally {
+                btnRedeem.disabled = false;
+                btnRedeem.textContent = "兑换";
+            }
+        };
+    }
+
     function bindDrag(ball) {
         let down = null, moved = false;
-        ball.addEventListener('pointerdown', e => { down = {x:e.clientX,y:e.clientY}; moved = false; delete ball.dataset.moved; ball.setPointerCapture?.(e.pointerId); });
-        ball.addEventListener('pointermove', e => { if (!down) return; const dx=e.clientX-down.x,dy=e.clientY-down.y; if(Math.hypot(dx,dy)<8)return; moved=true; ball.dataset.moved='1'; ball.style.left=Math.max(4,Math.min(innerWidth-100,e.clientX-48))+'px'; ball.style.top=Math.max(8,Math.min(innerHeight-100,e.clientY-48))+'px'; ball.style.right='auto'; ball.style.bottom='auto'; });
-        const end = () => { if (moved) { const r=ball.getBoundingClientRect(); state.pos={x:r.left,y:r.top}; localStorage.setItem(POS_KEY,JSON.stringify(state.pos)); } down=null; };
-        ball.addEventListener('pointerup',end); ball.addEventListener('pointercancel',end);
-        ball.addEventListener('pointermove', () => { const p = document.getElementById('quickCruisePanel'); if (state.open && p) requestAnimationFrame(() => placePanel(ball, p)); });
-        ball.addEventListener('pointerdown', () => { const p = document.getElementById('quickCruisePanel'); if (state.open && p) p.classList.add('qc-dragging'); });
-        ball.addEventListener('pointerup', () => { const p = document.getElementById('quickCruisePanel'); if (p) p.classList.remove('qc-dragging'); });
+        let longPressTimer = null;
+        let isLongPressTriggered = false;
+
+        ball.addEventListener('pointerdown', e => {
+            down = { x: e.clientX, y: e.clientY };
+            moved = false;
+            isLongPressTriggered = false;
+            delete ball.dataset.moved;
+            ball.setPointerCapture?.(e.pointerId);
+
+            // 500ms 长按识别：弹出云端时长监控与兑换面板
+            clearTimeout(longPressTimer);
+            longPressTimer = setTimeout(() => {
+                if (!moved) {
+                    isLongPressTriggered = true;
+                    if (navigator.vibrate) { try { navigator.vibrate(40); } catch(_) {} }
+                    openDurationVaultModal();
+                }
+            }, 500);
+        });
+
+        ball.addEventListener('pointermove', e => {
+            if (!down) return;
+            const dx = e.clientX - down.x, dy = e.clientY - down.y;
+            if (Math.hypot(dx, dy) < 8) return;
+            moved = true;
+            clearTimeout(longPressTimer); // 发生拖拽取消长按
+            ball.dataset.moved = '1';
+            ball.style.left = Math.max(4, Math.min(innerWidth - 100, e.clientX - 48)) + 'px';
+            ball.style.top = Math.max(8, Math.min(innerHeight - 100, e.clientY - 48)) + 'px';
+            ball.style.right = 'auto';
+            ball.style.bottom = 'auto';
+        });
+
+        const end = () => {
+            clearTimeout(longPressTimer);
+            if (moved) {
+                const r = ball.getBoundingClientRect();
+                state.pos = { x: r.left, y: r.top };
+                localStorage.setItem(POS_KEY, JSON.stringify(state.pos));
+            }
+            down = null;
+        };
+
+        ball.addEventListener('pointerup', end);
+        ball.addEventListener('pointercancel', end);
+
+        // 如果长按触发了，则阻止后续短按点击动作
+        ball.addEventListener('click', e => {
+            if (isLongPressTriggered) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                isLongPressTriggered = false;
+            }
+        }, true);
+
+        ball.addEventListener('pointermove', () => {
+            const p = document.getElementById('quickCruisePanel');
+            if (state.open && p) requestAnimationFrame(() => placePanel(ball, p));
+        });
+        ball.addEventListener('pointerdown', () => {
+            const p = document.getElementById('quickCruisePanel');
+            if (state.open && p) p.classList.add('qc-dragging');
+        });
+        ball.addEventListener('pointerup', () => {
+            const p = document.getElementById('quickCruisePanel');
+            if (p) p.classList.remove('qc-dragging');
+        });
     }
     function bindOutsideClose() {
         if (document.__qcOutsideBound) return;
