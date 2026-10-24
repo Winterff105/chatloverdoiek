@@ -1,157 +1,31 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Whatever</title>
-
-    <!-- 零侵入防扒防偷暗锁：禁用右键/长按菜单/开发者审查工具 -->
-    <script>
-        (function() {
-            // 1. 禁用右键与长按呼出系统菜单
-            window.addEventListener('contextmenu', e => e.preventDefault(), true);
-            // 2. 严禁页面元素拖拽偷图
-            window.addEventListener('dragstart', e => e.preventDefault(), true);
-            // 3. 拦截常见调试快捷键
-            window.addEventListener('keydown', e => {
-                if (e.keyCode === 123 || 
-                   (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || 
-                   (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83))) {
-                    e.preventDefault();
-                    return false;
-                }
-            }, true);
-            // 4. 无限 Debugger 陷阱：只要有人试图注入控制台或连接电脑审查，立即自爆卡死
-            setInterval(function() {
-                const startTime = performance.now();
-                (function() { return false; })['constructor']('debugger')['call']();
-                if (performance.now() - startTime > 100) {
-                    document.body.innerHTML = '<div style="background:#000;color:#fff;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;letter-spacing:2px;">SECURITY_BREACH: ACCESS TERMINATED</div>';
-                    window.location.reload();
-                }
-            }, 800);
-        })();
-    </script>
-
-    <!-- PWA：添加到桌面后的名字与图标 -->
-    <meta name="application-name" content="Whatever">
-    <meta name="theme-color" content="#09090b">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Whatever">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="assets/IMG_20261008_161846.jpg">
-    <link rel="apple-touch-icon" href="assets/IMG_20261008_161846.jpg">
-    <link rel="preload" as="image" href="assets/ovo.png">
-    
-    <!-- 引入 CSS 样式 -->
-    <link rel="stylesheet" href="css/variables.css">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/desktop.css">
-    <link rel="stylesheet" href="css/app-icon.css">
-    <link rel="stylesheet" href="css/widgets.css">
-    <link rel="stylesheet" href="css/app-window.css">
-    <link rel="stylesheet" href="css/settings.css">
-    <link rel="stylesheet" href="css/messages.css">
-    <link rel="stylesheet" href="css/photo-loader.css">
-    <link rel="stylesheet" href="css/archangel.css">
-    <link rel="stylesheet" href="css/worldbook.css">
-    <link rel="stylesheet" href="css/preset.css">
-    <link rel="stylesheet" href="css/world.css">
-    <!-- 极高优先级：小手机前置认证门禁 -->
-    <link rel="stylesheet" href="css/sanctuary-gate.css">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script>
-        // 注册 Service Worker（添加到桌面需要它；需要通过 https 或 localhost 访问）
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service Worker 注册失败:', err));
-            });
-        }
-    </script>
-    <link rel="stylesheet" href="css/widget-kit.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Whatever</title>
+<script>
+// 禁用右键/长按菜单
+window.addEventListener('contextmenu',e=>e.preventDefault(),true);
+window.addEventListener('keydown',e=>{if(e.keyCode===123||(e.ctrlKey&&e.keyCode===85))e.preventDefault();},true);
+</script>
 </head>
-<body>
-    <!-- 开场资源配置（先挂起，待门禁鉴权通过后由 sanctuary-gate.js 唤醒启动） -->
-    <script>
-        window.PHOTO_LIST = window.PHOTO_LIST || [
-            'assets/ovo.png',
-            'assets/IMG_20261008_161846.jpg'
-        ];
-        // 门禁前置标志：通知 photo-loader 先不要立即开跑
-        window.WAIT_GATE_AUTH = true;
-    </script>
-    <script src="js/data/storage-migrate.js"></script>
-    <script src="js/photo-loader.js"></script>
-
-    <div class="phone-container" id="phoneContainer">
-
-        <!-- visionOS 空间计算级微晶折射滤镜 -->
-        <svg style="position: absolute; width: 0; height: 0; pointer-events: none;" aria-hidden="true">
-            <filter id="lens-refraction" x="-10%" y="-10%" width="120%" height="120%">
-                <feTurbulence type="fractalNoise" baseFrequency="0.012" numOctaves="3" result="noise" />
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale="8" xChannelSelector="R" yChannelSelector="G" />
-            </filter>
-        </svg>
-
-        <!-- 隐藏的图片文件上传通道 -->
-        <input type="file" id="avatarFileInput" accept="image/*" style="display: none;">
-        <input type="file" id="coupleAvatarInput" accept="image/*" style="display: none;">
-
-        <!-- 桌面主屏幕 -->
-        <div class="home-screen" id="homeScreen">
-            
-            <!-- 多页横向滑动视口 (柔和减速翻页) -->
-            <div class="desktop-viewport" id="desktopViewport">
-                <div class="desktop-track" id="desktopTrack"></div>
-            </div>
-
-            <!-- 浅色分页圆点 + 长按出现的加号 (+) 栏 -->
-            <div class="pagination-bar">
-                <div class="pagination-inner">
-                    <div class="dots-container" id="dotsContainer"></div>
-                    <button class="add-page-btn" id="addPageBtn" title="新建桌面页面">+</button>
-                    <button class="remove-page-btn" id="removePageBtn" title="删除最后一页">−</button>
-                </div>
-            </div>
-
-            <!-- 无色彩倾向中性灰 Dock 栏 -->
-            <div class="dock-wrapper">
-                <div class="dock" id="dockBar"></div>
-            </div>
-
-        </div>
-
-        <!-- App 打开界面全屏容器 -->
-        <div class="app-window" id="appWindow">
-            <header class="app-header">
-                <div class="app-header-title" id="appTitle">应用名称</div>
-            </header>
-            <main class="app-content">
-            </main>
-            <div class="home-indicator-area" onclick="closeApp()">
-                <div class="home-indicator"></div>
-            </div>
-        </div>
-
-    </div>
-
-    <!-- 优先挂载前置登录与激活门禁 -->
-    <script src="js/sanctuary-gate.js"></script>
-    <!-- 引入 JS 脚本 (严格按照依赖顺序) -->
-    <script src="js/db.js"></script>
-    <script src="js/desktop.js"></script>
-    <script src="js/apps/settings.js"></script>
-    <script src="js/apps/quick-cruise.js"></script>
-    <script src="js/apps/messages-api.js"></script>
-    <script src="js/apps/messages-markup.js"></script>
-    <script src="js/apps/messages.js"></script>
-    <script src="js/apps/archangel.js"></script>
-    <script src="js/apps/worldbook.js"></script>
-    <script src="js/apps/world.js"></script>
-    <script src="js/apps/preset.js"></script>
-    <script src="js/apps/app-manager.js"></script>
-    <script src="js/main.js"></script>
-
+<body style="margin:0;background:#000;">
+<div id="appMountNode"></div>
+<script>
+(function(){
+    // 内存自解密暗盒（无任何外部 js 引用）
+    var payload = "PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9InpoLUNOIj4KPGhlYWQ+CiAgICA8bWV0YSBjaGFyc2V0PSJVVEYtOCI+CiAgICA8bWV0YSBuYW1lPSJ2aWV3cG9ydCIgY29udGVudD0id2lkdGg9ZGV2aWNlLXdpZHRoLCBpbml0aWFsLXNjYWxlPTEuMCwgbWF4aW11bS1zY2FsZT0xLjAsIHVzZXItc2NhbGFibGU9bm8sIHZpZXdwb3J0LWZpdD1jb3ZlciI+CiAgICA8dGl0bGU+V2hhdGV2ZXI8L3RpdGxlPgoKICAgIDwhLS0g6Zu25L615YWl6Ziy5omS6Ziy5YG35pqX6ZSB77ya56aB55So5Y+z6ZSuL+mVv+aMieiPnOWNlS/lvIDlj5HogIXlrqHmn6Xlt6XlhbcgLS0+CiAgICA8c2NyaXB0PgogICAgICAgIChmdW5jdGlvbigpIHsKICAgICAgICAgICAgLy8gMS4g56aB55So5Y+z6ZSu5LiO6ZW/5oyJ5ZG85Ye657O757uf6I+c5Y2VCiAgICAgICAgICAgIHdpbmRvdy5hZGRFdmVudExpc3RlbmVyKCdjb250ZXh0bWVudScsIGUgPT4gZS5wcmV2ZW50RGVmYXVsdCgpLCB0cnVlKTsKICAgICAgICAgICAgLy8gMi4g5Lil56aB6aG16Z2i5YWD57Sg5ouW5ou95YG35Zu+CiAgICAgICAgICAgIHdpbmRvdy5hZGRFdmVudExpc3RlbmVyKCdkcmFnc3RhcnQnLCBlID0+IGUucHJldmVudERlZmF1bHQoKSwgdHJ1ZSk7CiAgICAgICAgICAgIC8vIDMuIOaLpuaIquW4uOingeiwg+ivleW/q+aNt+mUrgogICAgICAgICAgICB3aW5kb3cuYWRkRXZlbnRMaXN0ZW5lcigna2V5ZG93bicsIGUgPT4gewogICAgICAgICAgICAgICAgaWYgKGUua2V5Q29kZSA9PT0gMTIzIHx8IAogICAgICAgICAgICAgICAgICAgKGUuY3RybEtleSAmJiBlLnNoaWZ0S2V5ICYmIChlLmtleUNvZGUgPT09IDczIHx8IGUua2V5Q29kZSA9PT0gNzQgfHwgZS5rZXlDb2RlID09PSA2NykpIHx8IAogICAgICAgICAgICAgICAgICAgKGUuY3RybEtleSAmJiAoZS5rZXlDb2RlID09PSA4NSB8fCBlLmtleUNvZGUgPT09IDgzKSkpIHsKICAgICAgICAgICAgICAgICAgICBlLnByZXZlbnREZWZhdWx0KCk7CiAgICAgICAgICAgICAgICAgICAgcmV0dXJuIGZhbHNlOwogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9LCB0cnVlKTsKICAgICAgICAgICAgLy8gNC4g5peg6ZmQIERlYnVnZ2VyIOmZt+mYse+8muWPquimgeacieS6uuivleWbvuazqOWFpeaOp+WItuWPsOaIlui/nuaOpeeUteiEkeWuoeafpe+8jOeri+WNs+iHqueIhuWNoeatuwogICAgICAgICAgICBzZXRJbnRlcnZhbChmdW5jdGlvbigpIHsKICAgICAgICAgICAgICAgIGNvbnN0IHN0YXJ0VGltZSA9IHBlcmZvcm1hbmNlLm5vdygpOwogICAgICAgICAgICAgICAgKGZ1bmN0aW9uKCkgeyByZXR1cm4gZmFsc2U7IH0pWydjb25zdHJ1Y3RvciddKCdkZWJ1Z2dlcicpWydjYWxsJ10oKTsKICAgICAgICAgICAgICAgIGlmIChwZXJmb3JtYW5jZS5ub3coKSAtIHN0YXJ0VGltZSA+IDEwMCkgewogICAgICAgICAgICAgICAgICAgIGRvY3VtZW50LmJvZHkuaW5uZXJIVE1MID0gJzxkaXYgc3R5bGU9ImJhY2tncm91bmQ6IzAwMDtjb2xvcjojZmZmO3dpZHRoOjEwMHZ3O2hlaWdodDoxMDB2aDtkaXNwbGF5OmZsZXg7YWxpZ24taXRlbXM6Y2VudGVyO2p1c3RpZnktY29udGVudDpjZW50ZXI7Zm9udC1mYW1pbHk6bW9ub3NwYWNlO2xldHRlci1zcGFjaW5nOjJweDsiPlNFQ1VSSVRZX0JSRUFDSDogQUNDRVNTIFRFUk1JTkFURUQ8L2Rpdj4nOwogICAgICAgICAgICAgICAgICAgIHdpbmRvdy5sb2NhdGlvbi5yZWxvYWQoKTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgfSwgODAwKTsKICAgICAgICB9KSgpOwogICAgPC9zY3JpcHQ+CgogICAgPCEtLSBQV0HvvJrmt7vliqDliLDmoYzpnaLlkI7nmoTlkI3lrZfkuI7lm77moIcgLS0+CiAgICA8bWV0YSBuYW1lPSJhcHBsaWNhdGlvbi1uYW1lIiBjb250ZW50PSJXaGF0ZXZlciI+CiAgICA8bWV0YSBuYW1lPSJ0aGVtZS1jb2xvciIgY29udGVudD0iIzA5MDkwYiI+CiAgICA8bWV0YSBuYW1lPSJhcHBsZS1tb2JpbGUtd2ViLWFwcC1jYXBhYmxlIiBjb250ZW50PSJ5ZXMiPgogICAgPG1ldGEgbmFtZT0iYXBwbGUtbW9iaWxlLXdlYi1hcHAtdGl0bGUiIGNvbnRlbnQ9IldoYXRldmVyIj4KICAgIDxtZXRhIG5hbWU9ImFwcGxlLW1vYmlsZS13ZWItYXBwLXN0YXR1cy1iYXItc3R5bGUiIGNvbnRlbnQ9ImJsYWNrLXRyYW5zbHVjZW50Ij4KICAgIDxsaW5rIHJlbD0ibWFuaWZlc3QiIGhyZWY9Im1hbmlmZXN0Lmpzb24iPgogICAgPGxpbmsgcmVsPSJpY29uIiBocmVmPSJhc3NldHMvSU1HXzIwMjYxMDA4XzE2MTg0Ni5qcGciPgogICAgPGxpbmsgcmVsPSJhcHBsZS10b3VjaC1pY29uIiBocmVmPSJhc3NldHMvSU1HXzIwMjYxMDA4XzE2MTg0Ni5qcGciPgogICAgPGxpbmsgcmVsPSJwcmVsb2FkIiBhcz0iaW1hZ2UiIGhyZWY9ImFzc2V0cy9vdm8ucG5nIj4KICAgIAogICAgPCEtLSDlvJXlhaUgQ1NTIOagt+W8jyAtLT4KICAgIDxsaW5rIHJlbD0ic3R5bGVzaGVldCIgaHJlZj0iY3NzL3ZhcmlhYmxlcy5jc3MiPgogICAgPGxpbmsgcmVsPSJzdHlsZXNoZWV0IiBocmVmPSJjc3MvYmFzZS5jc3MiPgogICAgPGxpbmsgcmVsPSJzdHlsZXNoZWV0IiBocmVmPSJjc3MvZGVza3RvcC5jc3MiPgogICAgPGxpbmsgcmVsPSJzdHlsZXNoZWV0IiBocmVmPSJjc3MvYXBwLWljb24uY3NzIj4KICAgIDxsaW5rIHJlbD0ic3R5bGVzaGVldCIgaHJlZj0iY3NzL3dpZGdldHMuY3NzIj4KICAgIDxsaW5rIHJlbD0ic3R5bGVzaGVldCIgaHJlZj0iY3NzL2FwcC13aW5kb3cuY3NzIj4KICAgIDxsaW5rIHJlbD0ic3R5bGVzaGVldCIgaHJlZj0iY3NzL3NldHRpbmdzLmNzcyI+CiAgICA8bGluayByZWw9InN0eWxlc2hlZXQiIGhyZWY9ImNzcy9tZXNzYWdlcy5jc3MiPgogICAgPGxpbmsgcmVsPSJzdHlsZXNoZWV0IiBocmVmPSJjc3MvcGhvdG8tbG9hZGVyLmNzcyI+CiAgICA8bGluayByZWw9InN0eWxlc2hlZXQiIGhyZWY9ImNzcy9hcmNoYW5nZWwuY3NzIj4KICAgIDxsaW5rIHJlbD0ic3R5bGVzaGVldCIgaHJlZj0iY3NzL3dvcmxkYm9vay5jc3MiPgogICAgPGxpbmsgcmVsPSJzdHlsZXNoZWV0IiBocmVmPSJjc3MvcHJlc2V0LmNzcyI+CiAgICA8bGluayByZWw9InN0eWxlc2hlZXQiIGhyZWY9ImNzcy93b3JsZC5jc3MiPgogICAgPCEtLSDmnoHpq5jkvJjlhYjnuqfvvJrlsI/miYvmnLrliY3nva7orqTor4Hpl6jnpoEgLS0+CiAgICA8bGluayByZWw9InN0eWxlc2hlZXQiIGhyZWY9ImNzcy9zYW5jdHVhcnktZ2F0ZS5jc3MiPgogICAgPHNjcmlwdCBzcmM9Imh0dHBzOi8vY2RuLmpzZGVsaXZyLm5ldC9ucG0vQHN1cGFiYXNlL3N1cGFiYXNlLWpzQDIiPjwvc2NyaXB0PgogICAgPHNjcmlwdD4KICAgICAgICAvLyDms6jlhowgU2VydmljZSBXb3JrZXLvvIjmt7vliqDliLDmoYzpnaLpnIDopoHlroPvvJvpnIDopoHpgJrov4cgaHR0cHMg5oiWIGxvY2FsaG9zdCDorr/pl67vvIkKICAgICAgICBpZiAoJ3NlcnZpY2VXb3JrZXInIGluIG5hdmlnYXRvcikgewogICAgICAgICAgICB3aW5kb3cuYWRkRXZlbnRMaXN0ZW5lcignbG9hZCcsICgpID0+IHsKICAgICAgICAgICAgICAgIG5hdmlnYXRvci5zZXJ2aWNlV29ya2VyLnJlZ2lzdGVyKCdzdy5qcycpLmNhdGNoKGVyciA9PiBjb25zb2xlLndhcm4oJ1NlcnZpY2UgV29ya2VyIOazqOWGjOWksei0pTonLCBlcnIpKTsKICAgICAgICAgICAgfSk7CiAgICAgICAgfQogICAgPC9zY3JpcHQ+CiAgICA8bGluayByZWw9InN0eWxlc2hlZXQiIGhyZWY9ImNzcy93aWRnZXQta2l0LmNzcyI+CjwvaGVhZD4KPGJvZHk+CiAgICA8IS0tIOW8gOWcuui1hOa6kOmFjee9ru+8iOWFiOaMgui1t++8jOW+hemXqOemgemJtOadg+mAmui/h+WQjueUsSBzYW5jdHVhcnktZ2F0ZS5qcyDllKTphpLlkK/liqjvvIkgLS0+CiAgICA8c2NyaXB0PgogICAgICAgIHdpbmRvdy5QSE9UT19MSVNUID0gd2luZG93LlBIT1RPX0xJU1QgfHwgWwogICAgICAgICAgICAnYXNzZXRzL292by5wbmcnLAogICAgICAgICAgICAnYXNzZXRzL0lNR18yMDI2MTAwOF8xNjE4NDYuanBnJwogICAgICAgIF07CiAgICAgICAgLy8g6Zeo56aB5YmN572u5qCH5b+X77ya6YCa55+lIHBob3RvLWxvYWRlciDlhYjkuI3opoHnq4vljbPlvIDot5EKICAgICAgICB3aW5kb3cuV0FJVF9HQVRFX0FVVEggPSB0cnVlOwogICAgPC9zY3JpcHQ+CiAgICA8c2NyaXB0IHNyYz0ianMvZGF0YS9zdG9yYWdlLW1pZ3JhdGUuanMiPjwvc2NyaXB0PgogICAgPHNjcmlwdCBzcmM9ImpzL3Bob3RvLWxvYWRlci5qcyI+PC9zY3JpcHQ+CgogICAgPGRpdiBjbGFzcz0icGhvbmUtY29udGFpbmVyIiBpZD0icGhvbmVDb250YWluZXIiPgoKICAgICAgICA8IS0tIHZpc2lvbk9TIOepuumXtOiuoeeul+e6p+W+ruaZtuaKmOWwhOa7pOmVnCAtLT4KICAgICAgICA8c3ZnIHN0eWxlPSJwb3NpdGlvbjogYWJzb2x1dGU7IHdpZHRoOiAwOyBoZWlnaHQ6IDA7IHBvaW50ZXItZXZlbnRzOiBub25lOyIgYXJpYS1oaWRkZW49InRydWUiPgogICAgICAgICAgICA8ZmlsdGVyIGlkPSJsZW5zLXJlZnJhY3Rpb24iIHg9Ii0xMCUiIHk9Ii0xMCUiIHdpZHRoPSIxMjAlIiBoZWlnaHQ9IjEyMCUiPgogICAgICAgICAgICAgICAgPGZlVHVyYnVsZW5jZSB0eXBlPSJmcmFjdGFsTm9pc2UiIGJhc2VGcmVxdWVuY3k9IjAuMDEyIiBudW1PY3RhdmVzPSIzIiByZXN1bHQ9Im5vaXNlIiAvPgogICAgICAgICAgICAgICAgPGZlRGlzcGxhY2VtZW50TWFwIGluPSJTb3VyY2VHcmFwaGljIiBpbjI9Im5vaXNlIiBzY2FsZT0iOCIgeENoYW5uZWxTZWxlY3Rvcj0iUiIgeUNoYW5uZWxTZWxlY3Rvcj0iRyIgLz4KICAgICAgICAgICAgPC9maWx0ZXI+CiAgICAgICAgPC9zdmc+CgogICAgICAgIDwhLS0g6ZqQ6JeP55qE5Zu+54mH5paH5Lu25LiK5Lyg6YCa6YGTIC0tPgogICAgICAgIDxpbnB1dCB0eXBlPSJmaWxlIiBpZD0iYXZhdGFyRmlsZUlucHV0IiBhY2NlcHQ9ImltYWdlLyoiIHN0eWxlPSJkaXNwbGF5OiBub25lOyI+CiAgICAgICAgPGlucHV0IHR5cGU9ImZpbGUiIGlkPSJjb3VwbGVBdmF0YXJJbnB1dCIgYWNjZXB0PSJpbWFnZS8qIiBzdHlsZT0iZGlzcGxheTogbm9uZTsiPgoKICAgICAgICA8IS0tIOahjOmdouS4u+Wxj+W5lSAtLT4KICAgICAgICA8ZGl2IGNsYXNzPSJob21lLXNjcmVlbiIgaWQ9ImhvbWVTY3JlZW4iPgogICAgICAgICAgICAKICAgICAgICAgICAgPCEtLSDlpJrpobXmqKrlkJHmu5Hliqjop4blj6MgKOaflOWSjOWHj+mAn+e/u+mhtSkgLS0+CiAgICAgICAgICAgIDxkaXYgY2xhc3M9ImRlc2t0b3Atdmlld3BvcnQiIGlkPSJkZXNrdG9wVmlld3BvcnQiPgogICAgICAgICAgICAgICAgPGRpdiBjbGFzcz0iZGVza3RvcC10cmFjayIgaWQ9ImRlc2t0b3BUcmFjayI+PC9kaXY+CiAgICAgICAgICAgIDwvZGl2PgoKICAgICAgICAgICAgPCEtLSDmtYXoibLliIbpobXlnIbngrkgKyDplb/mjInlh7rnjrDnmoTliqDlj7cgKCspIOagjyAtLT4KICAgICAgICAgICAgPGRpdiBjbGFzcz0icGFnaW5hdGlvbi1iYXIiPgogICAgICAgICAgICAgICAgPGRpdiBjbGFzcz0icGFnaW5hdGlvbi1pbm5lciI+CiAgICAgICAgICAgICAgICAgICAgPGRpdiBjbGFzcz0iZG90cy1jb250YWluZXIiIGlkPSJkb3RzQ29udGFpbmVyIj48L2Rpdj4KICAgICAgICAgICAgICAgICAgICA8YnV0dG9uIGNsYXNzPSJhZGQtcGFnZS1idG4iIGlkPSJhZGRQYWdlQnRuIiB0aXRsZT0i5paw5bu65qGM6Z2i6aG16Z2iIj4rPC9idXR0b24+CiAgICAgICAgICAgICAgICAgICAgPGJ1dHRvbiBjbGFzcz0icmVtb3ZlLXBhZ2UtYnRuIiBpZD0icmVtb3ZlUGFnZUJ0biIgdGl0bGU9IuWIoOmZpOacgOWQjuS4gOmhtSI+4oiSPC9idXR0b24+CiAgICAgICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgPC9kaXY+CgogICAgICAgICAgICA8IS0tIOaXoOiJsuW9qeWAvuWQkeS4reaAp+eBsCBEb2NrIOagjyAtLT4KICAgICAgICAgICAgPGRpdiBjbGFzcz0iZG9jay13cmFwcGVyIj4KICAgICAgICAgICAgICAgIDxkaXYgY2xhc3M9ImRvY2siIGlkPSJkb2NrQmFyIj48L2Rpdj4KICAgICAgICAgICAgPC9kaXY+CgogICAgICAgIDwvZGl2PgoKICAgICAgICA8IS0tIEFwcCDmiZPlvIDnlYzpnaLlhajlsY/lrrnlmaggLS0+CiAgICAgICAgPGRpdiBjbGFzcz0iYXBwLXdpbmRvdyIgaWQ9ImFwcFdpbmRvdyI+CiAgICAgICAgICAgIDxoZWFkZXIgY2xhc3M9ImFwcC1oZWFkZXIiPgogICAgICAgICAgICAgICAgPGRpdiBjbGFzcz0iYXBwLWhlYWRlci10aXRsZSIgaWQ9ImFwcFRpdGxlIj7lupTnlKjlkI3np7A8L2Rpdj4KICAgICAgICAgICAgPC9oZWFkZXI+CiAgICAgICAgICAgIDxtYWluIGNsYXNzPSJhcHAtY29udGVudCI+CiAgICAgICAgICAgIDwvbWFpbj4KICAgICAgICAgICAgPGRpdiBjbGFzcz0iaG9tZS1pbmRpY2F0b3ItYXJlYSIgb25jbGljaz0iY2xvc2VBcHAoKSI+CiAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzPSJob21lLWluZGljYXRvciI+PC9kaXY+CiAgICAgICAgICAgIDwvZGl2PgogICAgICAgIDwvZGl2PgoKICAgIDwvZGl2PgoKICAgIDwhLS0g5LyY5YWI5oyC6L295YmN572u55m75b2V5LiO5r+A5rS76Zeo56aBIC0tPgogICAgPHNjcmlwdCBzcmM9ImpzL3NhbmN0dWFyeS1nYXRlLmpzIj48L3NjcmlwdD4KICAgIDwhLS0g5byV5YWlIEpTIOiEmuacrCAo5Lil5qC85oyJ54Wn5L6d6LWW6aG65bqPKSAtLT4KICAgIDxzY3JpcHQgc3JjPSJqcy9kYi5qcyI+PC9zY3JpcHQ+CiAgICA8c2NyaXB0IHNyYz0ianMvZGVza3RvcC5qcyI+PC9zY3JpcHQ+CiAgICA8c2NyaXB0IHNyYz0ianMvYXBwcy9zZXR0aW5ncy5qcyI+PC9zY3JpcHQ+CiAgICA8c2NyaXB0IHNyYz0ianMvYXBwcy9xdWljay1jcnVpc2UuanMiPjwvc2NyaXB0PgogICAgPHNjcmlwdCBzcmM9ImpzL2FwcHMvbWVzc2FnZXMtYXBpLmpzIj48L3NjcmlwdD4KICAgIDxzY3JpcHQgc3JjPSJqcy9hcHBzL21lc3NhZ2VzLW1hcmt1cC5qcyI+PC9zY3JpcHQ+CiAgICA8c2NyaXB0IHNyYz0ianMvYXBwcy9tZXNzYWdlcy5qcyI+PC9zY3JpcHQ+CiAgICA8c2NyaXB0IHNyYz0ianMvYXBwcy9hcmNoYW5nZWwuanMiPjwvc2NyaXB0PgogICAgPHNjcmlwdCBzcmM9ImpzL2FwcHMvd29ybGRib29rLmpzIj48L3NjcmlwdD4KICAgIDxzY3JpcHQgc3JjPSJqcy9hcHBzL3dvcmxkLmpzIj48L3NjcmlwdD4KICAgIDxzY3JpcHQgc3JjPSJqcy9hcHBzL3ByZXNldC5qcyI+PC9zY3JpcHQ+CiAgICA8c2NyaXB0IHNyYz0ianMvYXBwcy9hcHAtbWFuYWdlci5qcyI+PC9zY3JpcHQ+CiAgICA8c2NyaXB0IHNyYz0ianMvbWFpbi5qcyI+PC9zY3JpcHQ+Cgo8L2JvZHk+CjwvaHRtbD4K";
+    var decoded = decodeURIComponent(atob(payload).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    // 直接在当前上下文释放并执行，执行完切断引用
+    document.open();
+    document.write(decoded);
+    document.close();
+    payload = null;
+    decoded = null;
+})();
+</script>
 </body>
 </html>
