@@ -137,6 +137,18 @@
                     ip: clientIP,
                     updated_at: new Date().toISOString()
                 });
+                window.__pulseN = (window.__pulseN || 0) + 1;
+                if (window.__pulseN % 5 === 1) {
+                    const myId = localStorage.getItem('whatever_device_fingerprint');
+                    const { data: cred } = await supabase.from('auth_credentials').select('bound_devices').eq('qq', qq).limit(1);
+                    const list = (cred && cred[0] && Array.isArray(cred[0].bound_devices)) ? cred[0].bound_devices : [];
+                    const me = list.find(d => d.id === myId);
+                    if (me) {
+                        me.ip = clientIP;
+                        me.last_active = new Date().toISOString();
+                        await supabase.from('auth_credentials').update({ bound_devices: list }).eq('qq', qq);
+                    }
+                }
             } catch(e) {}
         }
 
@@ -885,6 +897,9 @@
 
             // 检查当前浏览器是否已在白名单内
             const isKnownDevice = boundDevices.some(d => d.id === currentDevice);
+            let loginIP = "未知";
+            try { const r0 = await fetch('https://api.ipify.org?format=json'); const d0 = await r0.json(); if (d0 && d0.ip) loginIP = d0.ip; } catch(e) {}
+            const loginNow = new Date().toISOString();
 
             if (!isKnownDevice) {
                 // 如果是新设备，且已有设备数已满 2 个，阻断并上报给管理员确认
@@ -915,12 +930,19 @@
                     boundDevices.push({
                         id: currentDevice,
                         ua: navigator.userAgent,
-                        bound_at: new Date().toISOString()
+                        ip: loginIP,
+                        last_active: loginNow,
+                        bound_at: loginNow
                     });
                     await supabase.from('auth_credentials').update({
                         bound_devices: boundDevices
                     }).eq('qq', qq);
                 }
+            }
+
+            if (isKnownDevice) {
+                const updated = boundDevices.map(d => d.id === currentDevice ? { ...d, ip: loginIP, last_active: loginNow } : d);
+                await supabase.from('auth_credentials').update({ bound_devices: updated }).eq('qq', qq);
             }
 
             // 登录成功

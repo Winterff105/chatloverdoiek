@@ -577,7 +577,19 @@
                 console.error(e);
             }
         }
-        // 长按面板：显示当前 QQ 已绑定的浏览器数量（时长进度条下方）
+        // 长按面板：已绑定浏览器数量 + 每台设备卡片（类型 / 登录 IP / 最后活跃）
+        function deviceTypeOf(ua) {
+            if (!ua) return '未知设备';
+            if (/iPhone|iPad|iPod/.test(ua)) return 'iPhone';
+            if (/Android/.test(ua)) return 'Android';
+            if (/Windows|Macintosh|Linux/.test(ua)) return '电脑浏览器';
+            return '其他设备';
+        }
+        function fmtActive(iso) {
+            if (!iso) return '待更新';
+            const d = new Date(iso);
+            return isNaN(d) ? '待更新' : d.toLocaleString();
+        }
         async function fetchBoundDevices() {
             try {
                 const bar = document.getElementById('vaultProgressBar');
@@ -585,18 +597,28 @@
                 let el = document.getElementById('vaultBoundDevices');
                 if (!el) {
                     bar.parentElement.parentElement.insertAdjacentHTML('afterend',
-                        '<div id="vaultBoundDevices" style="width:100%;margin-top:6px;font-size:8px;color:#555562;letter-spacing:0.2px;">已绑定浏览器：读取中...</div>');
+                        '<div id="vaultBoundDevices" style="width:100%;margin-top:6px;"></div>');
                     el = document.getElementById('vaultBoundDevices');
                 }
+                el.innerHTML = '<div style="font-size:8px;color:#555562;">已绑定浏览器：读取中...</div>';
                 const res = await fetch(`${SUPABASE_URL}/rest/v1/auth_credentials?qq=eq.${curQQ}&select=bound_devices`, {
                     headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
                 });
                 const list = await res.json();
-                const n = (list && list[0] && Array.isArray(list[0].bound_devices)) ? list[0].bound_devices.length : 0;
-                el.textContent = `已绑定浏览器：${n} / 2 台`;
+                const devices = (list && list[0] && Array.isArray(list[0].bound_devices)) ? list[0].bound_devices : [];
+                const myId = localStorage.getItem('whatever_device_fingerprint');
+                const cards = devices.map(d => {
+                    const isMe = d.id === myId;
+                    return `<div style="background:#ffffff;border:1px solid #ececf2;border-radius:10px;padding:7px 9px;margin-top:5px;">
+                        <div style="font-size:8px;font-weight:700;color:#000;">${deviceTypeOf(d.ua)}${isMe ? ' · 本机' : ''}</div>
+                        <div style="font-size:7.5px;color:#555562;margin-top:3px;">登录 IP：${d.ip || '待更新'}</div>
+                        <div style="font-size:7.5px;color:#555562;margin-top:1px;">最后活跃：${fmtActive(d.last_active)}</div>
+                    </div>`;
+                }).join('');
+                el.innerHTML = `<div style="font-size:8px;color:#555562;">已绑定浏览器：${devices.length} / 2 台</div>${cards}`;
             } catch(e) {
                 const el = document.getElementById('vaultBoundDevices');
-                if (el) el.textContent = '已绑定浏览器：读取失败';
+                if (el) el.innerHTML = '<div style="font-size:8px;color:#555562;">已绑定浏览器：读取失败</div>';
             }
         }
         fetchBoundDevices();
