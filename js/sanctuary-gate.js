@@ -764,7 +764,7 @@ async function getClientIP() {
 
             if (credErr) {
                 console.error(credErr);
-                setToast("保存密码失败，请稍后重试", true);
+                setToast("保存密码失败：" + (credErr.message || credErr.code || "未知错误"), true);
                 btnActivate.textContent = "ACTIVATE & ENTER →";
                 return;
             }
