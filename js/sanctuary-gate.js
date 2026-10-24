@@ -668,6 +668,7 @@ async function getClientIP() {
 
     // 1. 发送邮箱激活码逻辑
     let countdownTimer = null;
+    // 1. 发送激活码：由 Supabase 生成并发送邮件（邮件模板里需包含 {{ .Token }}）
     btnSendCode.addEventListener('click', async () => {
         const qq = actQQ.value.trim();
         if (!qq || qq.length < 5 || isNaN(qq)) {
@@ -682,7 +683,7 @@ async function getClientIP() {
             // 核对 applications 表该 QQ 是否通过了审核
             const { data: appData, error: appErr } = await supabase
                 .from('applications')
-                .select('*')
+                .select('id')
                 .eq('applicant_qq', qq)
                 .eq('status', 'approved')
                 .limit(1);
@@ -693,81 +694,25 @@ async function getClientIP() {
                 return;
             }
 
-            // 生成高定圣所序列号格式激活凭证 (如: WH-7K9A-84M2)
-            function generateSeraphimCode() {
-                const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // 剔除 0,1,O,I 防误认
-                let p1 = "", p2 = "";
-                for (let i = 0; i < 4; i++) p1 += chars.charAt(Math.floor(Math.random() * chars.length));
-                for (let i = 0; i < 4; i++) p2 += chars.charAt(Math.floor(Math.random() * chars.length));
-                return `WH-${p1}-${p2}`;
-            }
-
-            const code = generateSeraphimCode();
-            const expires = new Date(Date.now() + 10 * 60 * 1000).toISOString();
             const email = `${qq}@qq.com`;
+            const { error } = await supabase.auth.signInWithOtp({
+                email,
+                options: { shouldCreateUser: true }
+            });
 
-            // 写入凭证表
-            const { error: credErr } = await supabase
-                .from('auth_credentials')
-                .upsert({
-                    qq: qq,
-                    email: email,
-                    activation_code: code,
-                    code_expires_at: expires
-                });
-
-            if (credErr) {
-                setToast("服务器繁忙，激活码发送失败", true);
+            if (error) {
+                console.error(error);
+                setToast("激活码发送失败：" + error.message, true);
                 btnSendCode.disabled = false;
                 return;
             }
 
-            // ================= 方案二：公共域名匿名代发通道 (如果是 test+QQ 则剥离出纯数字投递邮箱) =================
-            const pureNumericQQ = qq.toLowerCase().startsWith('test') ? qq.slice(4) : qq;
-            const targetQQMail = `${pureNumericQQ}@qq.com`;
-            const senderDisplayName = "\u271e Whatever \u271e";
-            const mailSubject = "\u271e Whatever \u271e";
+            setToast(`激活码已发送至 ${email}，请查收（如未收到请检查垃圾箱）`);
 
-            // 绕过 GitHub Secret Scanning 阻断拦截的动态组装 Key
-            const _p1 = "re_3DEjNG7C";
-            const _p2 = "_DeUz5mV2mh";
-            const _p3 = "dxozuB5bz8GpFg";
-            const RESEND_API_KEY = _p1 + _p2 + _p3;
-
-            try {
-                await fetch("https://api.resend.com/emails", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": "Bearer " + RESEND_API_KEY
-                    },
-                    body: JSON.stringify({
-                        from: "Whatever <onboarding@resend.dev>",
-                        to: [targetQQMail],
-                        subject: mailSubject,
-                        html: `
-                            <div style="background:#0e0e12; color:#ffffff; padding:28px 24px; border-radius:18px; font-family:-apple-system,sans-serif; max-width:420px; margin:0 auto; border:1px solid #282832;">
-                                <div style="font-size:16px; font-weight:700; letter-spacing:2px; margin-bottom:14px; text-align:center;">Whatever</div>
-                                <div style="font-size:12px; line-height:1.6; color:#d2d2dc;">
-                                    <b>苦临潭</b> 向你投喂了一个激活码：
-                                </div>
-                                <div style="background:#16161c; border:1px solid #333342; border-radius:14px; padding:16px 10px; text-align:center; margin:18px 0; box-shadow:0 8px 24px rgba(0,0,0,0.5);">
-                                    <span style="font-size:20px; font-weight:800; letter-spacing:3px; color:#ffffff; font-family:monospace;">${code}</span>
-                                </div>
-                                <div style="font-size:10px; color:#888896; line-height:1.6; text-align:center;">
-                                    * 请在 10 分钟内完成密码设置。
-                                </div>
-                            </div>
-                        `
-                    })
-                });
-            } catch(resendErr) {
-                console.warn("Resend email dispatch error:", resendErr);
-            }
-
-            // 倒计时提示
+            // 倒计时
             let seconds = 60;
             btnSendCode.textContent = `${seconds}s`;
+            clearInterval(countdownTimer);
             countdownTimer = setInterval(() => {
                 seconds--;
                 btnSendCode.textContent = `${seconds}s`;
@@ -777,9 +722,6 @@ async function getClientIP() {
                     btnSendCode.textContent = "重新获取";
                 }
             }, 1000);
-
-            // 真实投递成功提示，同时附带直通备用码确保万无一失
-            setToast(`苦临潭向你投喂的激活码已送达 ${targetQQMail} (备用直通码: ${code})`);
         } catch (err) {
             console.error(err);
             setToast("网络异常，无法核验", true);
@@ -787,7 +729,7 @@ async function getClientIP() {
         }
     });
 
-    // 2. 激活并首次设置密码
+    // 2. 激活并首次设置密码：由 Supabase 校验激活码
     btnActivate.addEventListener('click', async () => {
         const qq = actQQ.value.trim();
         const code = actCode.value.trim();
@@ -800,44 +742,38 @@ async function getClientIP() {
 
         btnActivate.textContent = "VERIFYING...";
         try {
-            const { data, error } = await supabase
-                .from('auth_credentials')
-                .select('*')
-                .eq('qq', qq)
-                .limit(1);
+            const email = `${qq}@qq.com`;
+            const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
 
-            if (error || !data || data.length === 0) {
-                setToast("未找到该 QQ 的验证记录，请先获取激活码", true);
+            if (error) {
+                setToast("激活码不正确或已过期，请重新获取", true);
                 btnActivate.textContent = "ACTIVATE & ENTER →";
                 return;
             }
 
-            const record = data[0];
-            // 智能容错对比：自动转大写、去除所有横杠与空格进行校对
-            const inputClean = code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-            const savedClean = (record.activation_code || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-
-            if (inputClean !== savedClean) {
-                setToast("激活凭证不匹配，请检查邮件！", true);
-                btnActivate.textContent = "ACTIVATE & ENTER →";
-                return;
-            }
-
-            // 写入设置的密码，标记激活成功
-            await supabase
+            // 激活码校验通过，保存密码并标记已激活
+            const { error: credErr } = await supabase
                 .from('auth_credentials')
-                .update({
+                .upsert({
+                    qq: qq,
+                    email: email,
                     password_hash: pwd,
                     is_activated: true,
                     last_login_at: new Date().toISOString()
-                })
-                .eq('qq', qq);
+                });
 
-            // 本地记住密码登录凭据
+            if (credErr) {
+                console.error(credErr);
+                setToast("保存密码失败，请稍后重试", true);
+                btnActivate.textContent = "ACTIVATE & ENTER →";
+                return;
+            }
+
             localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: btoa(qq + ':' + pwd) }));
             setToast("激活并设置密码成功，正在进入...");
             setTimeout(() => unlockPortal(qq), 500);
         } catch (e) {
+            console.error(e);
             setToast("系统故障，无法完成激活", true);
             btnActivate.textContent = "ACTIVATE & ENTER →";
         }
