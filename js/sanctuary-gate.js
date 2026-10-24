@@ -688,8 +688,14 @@ async function getClientIP() {
                 .eq('status', 'approved')
                 .limit(1);
 
-            if (appErr || !appData || appData.length === 0) {
-                setToast("该 QQ 尚未通过审核或未提交，禁止激活！", true);
+            if (appErr) {
+                console.error(appErr);
+                setToast("核验失败，请稍后重试：" + (appErr.message || ""), true);
+                btnSendCode.disabled = false;
+                return;
+            }
+            if (!appData || appData.length === 0) {
+                setToast("未找到该 QQ 的审核通过记录，请确认是否已通过审核", true);
                 btnSendCode.disabled = false;
                 return;
             }
