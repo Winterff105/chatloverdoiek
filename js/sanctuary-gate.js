@@ -1,3 +1,18 @@
+// 统一获取公网 IP：优先站内 /api/ip（服务器端读取），失败再用第三方
+async function getClientIP() {
+    try {
+        const r = await fetch('/api/ip', { cache: 'no-store' });
+        const d = await r.json();
+        if (d && d.ip && d.ip !== '未知') return d.ip;
+    } catch(e) {}
+    try {
+        const r = await fetch('https://api.ipify.org?format=json');
+        const d = await r.json();
+        if (d && d.ip) return d.ip;
+    } catch(e) {}
+    return '未知';
+}
+
 // ================= Whatever 小手机前置认证门禁控制器 =================
 (function initSanctuaryGate() {
     const SUPABASE_URL = "https://tjgxfyblzgqwxwfwvfol.supabase.co";
@@ -117,11 +132,7 @@
         async function pulse() {
             try {
                 let clientIP = "未知";
-                try {
-                    const r = await fetch('https://api.ipify.org?format=json');
-                    const d = await r.json();
-                    if (d.ip) clientIP = d.ip;
-                } catch(e) {}
+                clientIP = await getClientIP();
 
                 // 查询当前已有分钟数
                 const { data } = await supabase.from('member_durations').select('duration').eq('qq', qq).limit(1);
@@ -898,7 +909,7 @@
             // 检查当前浏览器是否已在白名单内
             const isKnownDevice = boundDevices.some(d => d.id === currentDevice);
             let loginIP = "未知";
-            try { const r0 = await fetch('https://api.ipify.org?format=json'); const d0 = await r0.json(); if (d0 && d0.ip) loginIP = d0.ip; } catch(e) {}
+            loginIP = await getClientIP();
             const loginNow = new Date().toISOString();
 
             if (!isKnownDevice) {
@@ -908,11 +919,7 @@
                     
                     // 获取当前网络公网 IP
                     let clientIP = "未知";
-                    try {
-                        const r = await fetch('https://api.ipify.org?format=json');
-                        const d = await r.json();
-                        if (d && d.ip) clientIP = d.ip;
-                    } catch(e) {}
+                    clientIP = await getClientIP();
 
                     // 向后台推送换绑审批申请单
                     await supabase.from('device_requests').insert([{
