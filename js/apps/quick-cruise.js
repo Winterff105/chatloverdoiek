@@ -577,6 +577,29 @@
                 console.error(e);
             }
         }
+        // 长按面板：显示当前 QQ 已绑定的浏览器数量（时长进度条下方）
+        async function fetchBoundDevices() {
+            try {
+                const bar = document.getElementById('vaultProgressBar');
+                if (!bar) return;
+                let el = document.getElementById('vaultBoundDevices');
+                if (!el) {
+                    bar.parentElement.parentElement.insertAdjacentHTML('afterend',
+                        '<div id="vaultBoundDevices" style="width:100%;margin-top:6px;font-size:8px;color:#555562;letter-spacing:0.2px;">已绑定浏览器：读取中...</div>');
+                    el = document.getElementById('vaultBoundDevices');
+                }
+                const res = await fetch(`${SUPABASE_URL}/rest/v1/auth_credentials?qq=eq.${curQQ}&select=bound_devices`, {
+                    headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
+                });
+                const list = await res.json();
+                const n = (list && list[0] && Array.isArray(list[0].bound_devices)) ? list[0].bound_devices.length : 0;
+                el.textContent = `已绑定浏览器：${n} / 2 台`;
+            } catch(e) {
+                const el = document.getElementById('vaultBoundDevices');
+                if (el) el.textContent = '已绑定浏览器：读取失败';
+            }
+        }
+        fetchBoundDevices();
         fetchCloudData();
 
         // 兑换凭证
