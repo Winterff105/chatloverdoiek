@@ -61,7 +61,8 @@
 /* ===== 顶栏：黑透液态玻璃 + 蕾丝扇贝花边 ===== */
 .bk-head {
     position: sticky;
-    top: 0;
+    top: 20px !important;
+    margin-top: 20px !important;
     z-index: 50;
     width: 100%;
     min-height: 68px;
@@ -881,7 +882,7 @@
 .bk-dock {
     position: fixed;
     left: 50%;
-    bottom: 15px;
+    bottom: 35px;
     z-index: 60;
     display: flex;
     align-items: center;
@@ -946,7 +947,7 @@
 .bk-toast {
     position: fixed;
     left: 50%;
-    bottom: 68px;
+    bottom: 88px;
     z-index: 70;
     padding: 7px 13px;
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1002,7 +1003,7 @@
 #bkAppRoot #bkDockBar {
     position: fixed !important;
     left: 50% !important;
-    bottom: 15px !important;
+    bottom: 35px !important;
     z-index: 60 !important;
     display: flex !important;
     flex-direction: row !important;
@@ -1181,7 +1182,7 @@
     position: fixed !important;
     left: 50% !important;
     right: auto !important;
-    bottom: 15px !important;
+    bottom: 35px !important;
     z-index: 60 !important;
     display: flex !important;
     flex-direction: row !important;

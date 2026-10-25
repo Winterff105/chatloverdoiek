@@ -1197,7 +1197,8 @@
             /* ===== 纯白顶栏 + 精致蕾丝花边 ===== */
             #bkAppRoot .bk-head {
                 position: sticky !important;
-                top: 0 !important;
+                top: 20px !important;
+                margin-top: 20px !important;
                 z-index: 50 !important;
                 background: #ffffff !important;
                 border-bottom: 0 !important;
@@ -1719,7 +1720,7 @@
                 position: fixed !important;
                 left: 50% !important;
                 right: auto !important;
-                bottom: 16px !important;
+                bottom: 35px !important;
                 z-index: 60 !important;
                 display: flex !important;
                 flex-direction: row !important;
@@ -1803,7 +1804,7 @@
             #bkAppRoot .bk-toast {
                 position: fixed !important;
                 left: 50% !important;
-                bottom: 74px !important;
+                bottom: 94px !important;
                 z-index: 99 !important;
                 padding: 4px 14px !important;
                 height: 24px !important;
