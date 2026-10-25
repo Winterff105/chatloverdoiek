@@ -15,5 +15,10 @@
             "type": "image/jpeg",
             "purpose": "any"
         }
+    ],
+    "display_override": [
+        "fullscreen",
+        "standalone",
+        "minimal-ui"
     ]
 }

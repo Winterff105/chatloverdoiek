@@ -227,7 +227,7 @@ function getSettingsAppHTML() {
                         </div>
                     </div>
 
-                    <div class="setting-row" style="cursor:pointer;" onclick="toggleSettingsFullscreen()">
+                    <div class="setting-row" id="settingsFullscreenRow" style="cursor:pointer;" onclick="toggleSettingsFullscreen()">
                         <div class="row-left">
                             <div class="row-icon-box">
                                 <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
@@ -1297,12 +1297,26 @@ async function showSettingsThemeTip(e) {
     `;
 }
 
+// iOS（含 iPadOS）的 Safari 和主屏幕网页应用不支持 Element Fullscreen，只能靠"添加到主屏幕"实现全屏
+function isIOSDevice() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+// 当前环境是否支持应用内全屏切换
+function supportsAppFullscreen() {
+    const el = document.documentElement;
+    return !!(el.requestFullscreen || el.webkitRequestFullscreen) && !isIOSDevice();
+}
+
 function isFullscreenNow() {
     return !!(document.fullscreenElement || document.webkitFullscreenElement);
 }
 
 // 开关 = 真实的全屏状态；退出全屏（Esc、浏览器按钮等）时开关自动弹回
 function syncFullscreenSwitch() {
+    const row = document.getElementById('settingsFullscreenRow');
+    if (row && !supportsAppFullscreen()) row.style.display = 'none';
     const sw = document.getElementById('settingsFullscreenSwitch');
     const on = isFullscreenNow();
     if (sw) sw.classList.toggle('active', on);
@@ -1311,6 +1325,7 @@ function syncFullscreenSwitch() {
 }
 
 function toggleSettingsFullscreen() {
+    if (!supportsAppFullscreen()) return;
     const docEl = document.documentElement;
     if (!isFullscreenNow()) {
         const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen;
@@ -1339,6 +1354,7 @@ function markFullscreenArmed() {
     try { localStorage.setItem(FS_ARMED_KEY, '1'); } catch (_) {}
 }
 function requestAppFullscreen() {
+    if (!supportsAppFullscreen()) return;
     const docEl = document.documentElement;
     const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen;
     if (!req) return;
@@ -1347,7 +1363,7 @@ function requestAppFullscreen() {
 }
 // 退出全屏后，点击任意位置回到全屏（默认一直开启，不需要设置；进入过一次全屏之后生效）
 document.addEventListener('click', () => {
-    if (!fullscreenArmed || isFullscreenNow()) return;
+    if (!fullscreenArmed || isFullscreenNow() || !supportsAppFullscreen()) return;
     requestAppFullscreen();
 }, true);
 
