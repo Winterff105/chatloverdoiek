@@ -1244,9 +1244,9 @@ function createStudentCardWidgetElement(item) {
 function wkEsc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function wkSizeText(d) { return (d.span || 1) + '×' + (d.rowSpan || 1); }
 
-// 旧布局（已保存在数据库里）补上第三页的内容
-function ensurePage3Items(items) {
-    const page3 = [
+// 智能核对第三页内容：如果全桌面和Dock栏都找不到这个软件/组件，才给它补回第三页，绝不产生分身
+function ensurePage3Items(existingItems, existingDock) {
+    const page3Defaults = [
         { id: 'w-student-card', type: 'widget-student-card', page: 2, slot: 0, span: 4, rowSpan: 2 },
         { id: 'backup', type: 'app', page: 2, slot: 8, span: 1, rowSpan: 1 },
         { id: 'p3-app-b', type: 'app', page: 2, slot: 9, span: 1, rowSpan: 1 },
@@ -1255,8 +1255,21 @@ function ensurePage3Items(items) {
         { id: 'p3-app-c', type: 'app', page: 2, slot: 14, span: 1, rowSpan: 1 },
         { id: 'p3-app-d', type: 'app', page: 2, slot: 15, span: 1, rowSpan: 1 }
     ];
-    const kept = items.filter(i => i.page !== 2);
-    return kept.concat(page3);
+
+    const currentIds = new Set();
+    existingItems.forEach(x => { if (x && x.id) currentIds.add(x.id); });
+    (existingDock || []).forEach(id => currentIds.add(id));
+
+    const result = existingItems.slice();
+    page3Defaults.forEach(def => {
+        // 如果用户以前没在任何页面拥有过这个软件/组件，自动补入第 3 页
+        if (!currentIds.has(def.id)) {
+            result.push(Object.assign({}, def));
+            currentIds.add(def.id);
+        }
+    });
+
+    return result;
 }
 
 async function wkLoad() {
@@ -1271,17 +1284,22 @@ async function wkLoad() {
     }
     customWidgets = Array.isArray(cw) ? cw : [];
     if (layout && Array.isArray(layout.desktopItems)) {
+        if (Array.isArray(layout.dockData)) dockData = layout.dockData;
+        
+        // 自动查漏补缺第三页软件，且不重置已有页面的摆放
+        const merged = ensurePage3Items(layout.desktopItems, dockData);
+        
         const seen = new Set();
         const deduped = [];
-        layout.desktopItems.forEach(it => {
+        merged.forEach(it => {
             if (it && it.id && !seen.has(it.id)) {
                 seen.add(it.id);
                 deduped.push(it);
             }
         });
         desktopItems = deduped;
-        totalPages = Math.max(1, layout.totalPages || 3);
-        if (Array.isArray(layout.dockData)) dockData = layout.dockData;
+        // 保证页面总数至少能容纳到第 3 页 (index 0, 1, 2)
+        totalPages = Math.max(3, layout.totalPages || 3);
     }
     wkReady = true;
     renderUI();
