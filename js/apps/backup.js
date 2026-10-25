@@ -419,10 +419,10 @@
                                 </button>
                             </div>
                             <div class="bk-export-ext-panel" id="bkExportExtPanel">
-                                <span class="bk-export-ext-title">CHOOSE SCOPE // 导出范围</span>
+                                <span class="bk-export-ext-title">导出范围</span>
                                 <div class="bk-export-ext-btns">
-                                    <button class="bk-camera-btn bk-ext-btn" id="bkBtnScopeAll" type="button">全部数据 (ALL)</button>
-                                    <button class="bk-camera-btn pink bk-ext-btn" id="bkBtnScopeDesktop" type="button">桌面与美化 (THEME)</button>
+                                    <button class="bk-camera-btn bk-ext-btn" id="bkBtnScopeAll" type="button">全部数据</button>
+                                    <button class="bk-camera-btn pink bk-ext-btn" id="bkBtnScopeDesktop" type="button">桌面与美化</button>
                                 </div>
                             </div>
                         </div>
@@ -1197,13 +1197,16 @@
             /* ===== 纯白顶栏 + 精致蕾丝花边 ===== */
             #bkAppRoot .bk-head {
                 position: sticky !important;
-                top: 20px !important;
-                margin-top: 20px !important;
+                top: 0 !important;
+                margin-top: 0 !important;
                 z-index: 50 !important;
                 background: #ffffff !important;
                 border-bottom: 0 !important;
                 box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04) !important;
                 isolation: isolate !important;
+                min-height: 113px !important;
+                align-items: flex-end !important;
+                padding-bottom: 14px !important;
             }
 
             #bkAppRoot .bk-head::before {
@@ -1486,6 +1489,32 @@
                 box-shadow: none !important;
             }
 
+            #bkAppRoot .bk-export-ext-panel {
+                background: rgba(255, 255, 255, 0.92) !important;
+                border: 1px solid rgba(210, 224, 235, 0.9) !important;
+                border-radius: 14px !important;
+                padding: 8px 10px !important;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06), inset 0 1px 1px #ffffff !important;
+            }
+
+            #bkAppRoot .bk-export-ext-title {
+                color: #4b6272 !important;
+                font-size: 8px !important;
+                font-weight: 700 !important;
+            }
+
+            #bkAppRoot .bk-ext-btn {
+                background: #eef4f8 !important;
+                color: #2b4555 !important;
+                border: none !important;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+            }
+
+            #bkAppRoot .bk-ext-btn.pink {
+                background: #d8eaf4 !important;
+                color: #1f3d4d !important;
+            }
+
             /* ===== 状态面板：内容横向收窄居中，淡雅婴儿蓝进度条 ===== */
             #bkAppRoot .bk-status-card {
                 background: #ffffff !important;
@@ -1715,7 +1744,7 @@
                 display: none !important;
             }
 
-            /* ===== 底部悬浮液态玻璃 DOCK ===== */
+            /* ===== 底部悬浮液态玻璃 DOCK（实时通透折射底层实际内容） ===== */
             #bkAppRoot #bkDockBar {
                 position: fixed !important;
                 left: 50% !important;
@@ -1735,30 +1764,31 @@
                 padding: 6px 7px !important;
                 gap: 6px !important;
                 transform: translateX(-50%) !important;
-                border: 1px solid rgba(255, 255, 255, 0.85) !important;
+                border: 1px solid rgba(255, 255, 255, 0.72) !important;
                 border-radius: 999px !important;
-                background: rgba(255, 255, 255, 0.12) !important;
+                background: rgba(255, 255, 255, 0.32) !important;
                 box-shadow:
-                    0 16px 36px rgba(0, 0, 0, 0.08),
-                    inset 0 1.5px 2px rgba(255, 255, 255, 0.95),
-                    inset 0 -1px 2px rgba(0, 0, 0, 0.04) !important;
-                backdrop-filter: blur(28px) saturate(180%) !important;
-                -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+                    0 16px 32px rgba(0, 0, 0, 0.12),
+                    inset 0 1px 2px rgba(255, 255, 255, 0.95),
+                    inset 0 -1px 2px rgba(0, 0, 0, 0.06) !important;
+                backdrop-filter: blur(20px) saturate(190%) contrast(108%) !important;
+                -webkit-backdrop-filter: blur(20px) saturate(190%) contrast(108%) !important;
                 overflow: hidden !important;
                 isolation: isolate !important;
             }
 
-            #bkAppRoot #bkDockBar > .lg-cv {
+            #bkAppRoot #bkDockBar::before {
+                content: "" !important;
                 position: absolute !important;
                 inset: 0 !important;
                 z-index: 0 !important;
-                display: block !important;
-                flex: none !important;
-                width: 100% !important;
-                height: 100% !important;
-                margin: 0 !important;
                 border-radius: inherit !important;
+                background: linear-gradient(135deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.22) 100%) !important;
                 pointer-events: none !important;
+            }
+
+            #bkAppRoot #bkDockBar > .lg-cv {
+                display: none !important;
             }
 
             #bkAppRoot #bkDockBar > button {
@@ -1832,20 +1862,13 @@
             }
         `;
 
-        const dockOptions = {
-            scale: 85,
-            bezel: 28,
-            power: 1.3,
-            blur: 1.6,
-            saturate: 1.45,
-            brightness: 1.08,
-            tint: 0.12,
-            invert: false
-        };
-
-        if (!dock._lg) {
-            window.LiquidGlass.apply(dock, dockOptions);
+        // 彻底移除阻挡底层动态元素的 WebGL 离线壁纸画布
+        if (dock._lg && typeof dock._lg.destroy === 'function') {
+            dock._lg.destroy();
+            dock._lg = null;
         }
+        const existingCv = dock.querySelector('.lg-cv');
+        if (existingCv) existingCv.remove();
 
         requestAnimationFrame(() => {
             if (window.LiquidGlass && typeof window.LiquidGlass.wake === 'function') {

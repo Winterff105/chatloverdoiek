@@ -61,17 +61,17 @@
 /* ===== 顶栏：黑透液态玻璃 + 蕾丝扇贝花边 ===== */
 .bk-head {
     position: sticky;
-    top: 20px !important;
-    margin-top: 20px !important;
+    top: 0 !important;
+    margin-top: 0 !important;
     z-index: 50;
     width: 100%;
-    min-height: 68px;
+    min-height: 113px !important;
     display: flex;
-    align-items: center;
+    align-items: flex-end !important;
     gap: 12px;
-    padding: 10px 18px;
+    padding: 10px 18px 14px !important;
     border-bottom: 1px solid rgba(255, 255, 255, 0.22);
-    background: linear-gradient(135deg, rgba(16, 17, 19, 0.38), rgba(42, 43, 47, 0.22));
+    background: #ffffff !important;
     box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.24);
     backdrop-filter: blur(24px) saturate(160%);
     -webkit-backdrop-filter: blur(24px) saturate(160%);
@@ -626,11 +626,16 @@
 .bk-export-ext-panel {
     display: none;
     flex-direction: column;
-    gap: 6px;
+    gap: 7px;
     margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px dashed rgba(255, 255, 255, 0.25);
-    animation: bkFade 0.25s ease both;
+    padding: 8px 10px;
+    background: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(200, 215, 225, 0.8);
+    border-radius: 14px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08), inset 0 1px 1px #ffffff;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    animation: bkFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .bk-export-ext-panel.open {
@@ -638,11 +643,13 @@
 }
 
 .bk-export-ext-title {
-    font-size: 7px;
-    color: #bac4ce;
-    font-family: ui-monospace, monospace;
-    letter-spacing: 0.12em;
+    font-size: 8px;
+    font-weight: 700;
+    color: #4b6272;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    letter-spacing: 0.08em;
     text-align: center;
+    text-transform: uppercase;
 }
 
 .bk-export-ext-btns {
@@ -653,6 +660,26 @@
 
 .bk-ext-btn {
     width: 100%;
+    min-height: 28px !important;
+    font-size: 8px !important;
+    font-weight: 700 !important;
+    border-radius: 999px !important;
+    border: none !important;
+    background: #eef4f8 !important;
+    color: #2b4555 !important;
+    cursor: pointer !important;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+    transition: all 0.2s ease !important;
+}
+
+.bk-ext-btn:active {
+    transform: scale(0.96) !important;
+    background: #ddeaf2 !important;
+}
+
+.bk-ext-btn.pink {
+    background: #d8eaf4 !important;
+    color: #1f3d4d !important;
 }
 
 .bk-sample-note {
@@ -1021,15 +1048,14 @@
 }
 
 #bkAppRoot #bkDockBar > .lg-cv {
-    position: absolute !important;
-    inset: 0 !important;
-    z-index: 0 !important;
-    display: block !important;
-    width: 100% !important;
-    height: 100% !important;
-    flex: none !important;
-    border-radius: inherit !important;
-    pointer-events: none !important;
+    display: none !important;
+}
+
+#bkAppRoot #bkDockBar {
+    backdrop-filter: blur(20px) saturate(190%) contrast(108%) !important;
+    -webkit-backdrop-filter: blur(20px) saturate(190%) contrast(108%) !important;
+    background: rgba(255, 255, 255, 0.32) !important;
+    border: 1px solid rgba(255, 255, 255, 0.72) !important;
 }
 
 #bkAppRoot #bkDockBar > button {
