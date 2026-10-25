@@ -33,6 +33,28 @@
         })();
     </script>
 
+    <!-- iOS 真实视口高度修正：主屏幕模式下 100vh/100dvh 会少算状态栏高度，导致底部白条 -->
+    <script>
+        (function() {
+            function setAppHeight() {
+                var isStandalone = window.navigator.standalone === true ||
+                    window.matchMedia('(display-mode: standalone)').matches;
+                var h = window.innerHeight;
+                if (isStandalone) {
+                    // 主屏幕模式：取屏幕物理高度（竖屏用 height，横屏用 width）
+                    var screenH = window.innerWidth > window.innerHeight ? screen.width : screen.height;
+                    h = Math.max(h, screenH);
+                }
+                document.documentElement.style.setProperty('--app-height', h + 'px');
+            }
+            setAppHeight();
+            window.addEventListener('resize', setAppHeight);
+            window.addEventListener('orientationchange', function() {
+                setTimeout(setAppHeight, 300);
+            });
+        })();
+    </script>
+
     <!-- PWA：添加到桌面后的名字与图标 -->
     <meta name="application-name" content="Whatever">
     <meta name="theme-color" content="#09090b">

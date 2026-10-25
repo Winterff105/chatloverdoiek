@@ -7,6 +7,7 @@
     position: relative;
     overflow: hidden;
     transition: transform 0.35s var(--smooth-ease), opacity 0.25s ease;
+    height: 100%;
 }
 
 .home-screen.scaled {
@@ -115,12 +116,13 @@
 
 /* 底部 Dock 栏 (上抬并应用 3D 浮空液态透镜质感) */
 .dock-wrapper {
-    padding: 0 16px 36px 16px;
-    padding-bottom: calc(36px + env(safe-area-inset-bottom));
+    padding: 0 16px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 10;
+    position: relative;
 }
 
 .dock {
