@@ -516,6 +516,7 @@ async function getClientIP() {
         // 原生可靠点击事件绑定
         btnAgree.onclick = function() {
             if (!isAgreementReady) return;
+            localStorage.setItem('sanctuary_disclaimer_agreed', 'true');
             modal.style.opacity = '0';
             setTimeout(() => {
                 modal.remove();
@@ -524,21 +525,25 @@ async function getClientIP() {
         };
     }
 
-    // 门禁解锁成功后，退场并在进入桌面时强制激活15秒免责声明
+    // 门禁解锁成功后，退场并在进入桌面时检测是否已同意免责声明
     function unlockPortal(authedQQ) {
         if (authedQQ) startUserHeartbeat(authedQQ);
         portal.classList.add('unlocked');
         setTimeout(() => {
             portal.remove();
-            // 唤起强制15秒免责声明，完全同意后才放行开屏动画与主界面
-            showDisclaimerGate(() => {
+            const launchDesktop = () => {
                 if (typeof window.startPhotoLoader === 'function') {
                     window.startPhotoLoader();
                 } else if (document.getElementById('photoLoaderScreen')) {
                     const loader = document.getElementById('photoLoaderScreen');
                     loader.style.display = 'flex';
                 }
-            });
+            };
+            if (localStorage.getItem('sanctuary_disclaimer_agreed') === 'true') {
+                launchDesktop();
+            } else {
+                showDisclaimerGate(launchDesktop);
+            }
         }, 600);
     }
 

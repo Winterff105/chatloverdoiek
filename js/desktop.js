@@ -155,6 +155,39 @@ const APPS = {
             <path class="star-solid-translucent" d="M31 7v3M29.5 8.5h3"/>
         </svg>`
     },
+    'backup': {
+        name: '备份',
+        svg: `<svg viewBox="0 0 40 40">
+            <path class="stroke-primary" d="M11.5 27.5a6 6 0 0 1-.9-11.93A8.5 8.5 0 0 1 27.2 14.3a6.2 6.2 0 0 1 1.3 12.2H26"/>
+            <path class="stroke-secondary" d="M20 30.5V20.5"/>
+            <path class="stroke-secondary" d="M16.6 24l3.4-3.5 3.4 3.5"/>
+        </svg>`
+    },
+    'p3-app-b': {
+        name: '占位 B',
+        svg: `<svg viewBox="0 0 40 40">
+            <rect class="stroke-secondary" x="10.5" y="9" width="19" height="17" rx="2.5" transform="rotate(-6 20 17.5)"/>
+            <rect class="stroke-primary" x="9" y="12" width="20" height="17" rx="2.5" transform="rotate(4 19 20.5)"/>
+            <circle class="stroke-secondary" cx="15" cy="18" r="1.8"/>
+        </svg>`
+    },
+    'p3-app-c': {
+        name: '占位 C',
+        svg: `<svg viewBox="0 0 40 40">
+            <circle class="stroke-primary" cx="20" cy="20" r="10.5"/>
+            <path class="stroke-secondary" d="M20 20V13.5"/>
+            <path class="stroke-secondary" d="M20 20l4.5 2.8"/>
+            <circle class="stroke-secondary" cx="20" cy="20" r="1.2"/>
+        </svg>`
+    },
+    'p3-app-d': {
+        name: '占位 D',
+        svg: `<svg viewBox="0 0 40 40">
+            <path class="stroke-primary" d="M20 9.5l10 17.3H10z"/>
+            <circle class="stroke-secondary" cx="20" cy="20" r="3.2"/>
+            <path class="stroke-secondary" d="M20 22.5v3.5"/>
+        </svg>`
+    },
     'todo': {
         name: '预设',
         svg: `<svg viewBox="0 0 40 40">
@@ -194,11 +227,12 @@ window.APPS = APPS;
 /* =========================================
    2. 状态模型：多页桌面系统 (初始 2 页)
    ========================================= */
-let totalPages = 2;
+let totalPages = 3;
 let currentPageIndex = 0;
 
 let currentUploadedAvatar = "assets/Dark/avatar-female.png";
 let currentCoupleAvatar = "assets/Dark/avatar-male.png";
+let currentStudentCardAvatar = "assets/Dark/avatar-female.png";
 
 let desktopItems = [
     // ===== 第一页 (page: 0) =====
@@ -224,7 +258,16 @@ let desktopItems = [
     { id: 'wallet', type: 'app', page: 1, slot: 9, span: 1, rowSpan: 1 },
     { id: 'w-dialogue', type: 'widget-dialogue', page: 1, slot: 10, span: 2, rowSpan: 2 },
     { id: 'game', type: 'app', page: 1, slot: 12, span: 1, rowSpan: 1 },
-    { id: 'todo', type: 'app', page: 1, slot: 13, span: 1, rowSpan: 1 }
+    { id: 'todo', type: 'app', page: 1, slot: 13, span: 1, rowSpan: 1 },
+
+    // ===== 第三页 (page: 2)：学生卡 4×2 / 左侧两个应用 + 邮票 / 底部胶囊 + 两个应用 =====
+    { id: 'w-student-card', type: 'widget-student-card', page: 2, slot: 0, span: 4, rowSpan: 2 },
+    { id: 'backup', type: 'app', page: 2, slot: 8, span: 1, rowSpan: 1 },
+    { id: 'p3-app-b', type: 'app', page: 2, slot: 9, span: 1, rowSpan: 1 },
+    { id: 'w-stamp', type: 'widget-stamp', page: 2, slot: 10, span: 2, rowSpan: 1 },
+    { id: 'w-capsule', type: 'widget-capsule', page: 2, slot: 12, span: 2, rowSpan: 1 },
+    { id: 'p3-app-c', type: 'app', page: 2, slot: 14, span: 1, rowSpan: 1 },
+    { id: 'p3-app-d', type: 'app', page: 2, slot: 15, span: 1, rowSpan: 1 }
 ];
 
 let dockData = ['phone', 'world', 'music', 'worldbook'];
@@ -301,7 +344,7 @@ function attachDragAndHoldEvents(el, itemData) {
     let isDragging = false;
 
     el.addEventListener('pointerdown', (e) => {
-        if (e.target.closest('.profile-avatar-wrap, .hb-avatar-wrap, .chip-avatar')) return;
+        if (e.target.closest('.profile-avatar-wrap, .hb-avatar-wrap, .chip-avatar, .avatar-frosted-edge, .sc-photo')) return;
 
         // 新的按下之前，先清掉上一次残留的拖拽状态
         resetDragState();
@@ -376,9 +419,19 @@ function attachDragAndHoldEvents(el, itemData) {
                 window.isGlobalDragging = false;
                 const isEditMode = phoneContainer && phoneContainer.classList.contains('edit-mode');
                 if (itemData.type === 'app' && !isEditMode) {
-                    const TAP_OPENS = ['settings', 'chat', 'book', 'worldbook', 'todo', 'world'];
+                    const TAP_OPENS = ['settings', 'chat', 'book', 'worldbook', 'todo', 'world', 'backup'];
                     if (TAP_OPENS.includes(itemData.id)) {
-                        if (typeof openApp === 'function') openApp(itemData.id);
+                        if (typeof openApp === 'function') {
+                            openApp(itemData.id);
+                        } else if (itemData.id === 'backup' && typeof initBackupApp === 'function') {
+                            let root = document.getElementById('bkAppRoot');
+                            if (!root) {
+                                document.body.insertAdjacentHTML('beforeend', getBackupAppHTML());
+                                initBackupApp();
+                            } else {
+                                root.style.display = 'flex';
+                            }
+                        }
                     }
                 }
             }
@@ -493,7 +546,8 @@ function executeDrop(targetEl, session, upEvent) {
             // 空间完全空白 -> 放置成功
             if (obstacles.length === 0) {
                 if (fromLoc === 'dock') {
-                    dockData.splice(fromIdx, 1);
+                    dockData = dockData.filter(id => id !== item.id);
+                    desktopItems = desktopItems.filter(x => x.id !== item.id);
                     desktopItems.push({
                         id: item.id,
                         type: item.type,
@@ -503,12 +557,14 @@ function executeDrop(targetEl, session, upEvent) {
                         rowSpan: item.rowSpan
                     });
                 } else {
-                    const cur = desktopItems.find(x => x.id === item.id);
-                    if (cur) {
-                        cur.slot = targetSlot;
-                        cur.page = currentPageIndex;
-                    }
+                    desktopItems.forEach(x => {
+                        if (x.id === item.id) {
+                            x.slot = targetSlot;
+                            x.page = currentPageIndex;
+                        }
+                    });
                 }
+                wkSaveLayout();
                 renderUI(item.id);
                 return;
             }
@@ -527,9 +583,19 @@ function executeDrop(targetEl, session, upEvent) {
                         obstacleItem.page = tempPage;
                     }
                 } else if (fromLoc === 'dock') {
-                    dockData[fromIdx] = obstacleItem.id;
-                    obstacleItem.id = item.id;
+                    const targetDockId = obstacleItem.id;
+                    dockData[fromIdx] = targetDockId;
+                    desktopItems = desktopItems.filter(x => x.id !== targetDockId);
+                    desktopItems.push({
+                        id: item.id,
+                        type: item.type,
+                        page: currentPageIndex,
+                        slot: obstacleItem.slot,
+                        span: 1,
+                        rowSpan: 1
+                    });
                 }
+                wkSaveLayout();
                 renderUI(item.id);
                 return;
             }
@@ -659,7 +725,7 @@ function createProfileWidgetElement(item) {
             <div class="profile-avatar-stage">
                 <img class="profile-wing wing-left" src="assets/wing-left.png" alt="Left Wing">
                 <img class="profile-wing wing-right" src="assets/wing-right.png" alt="Right Wing">
-                <div class="profile-avatar-wrap" title="点击上传自定义头像照片">
+                <div class="profile-avatar-wrap" title="点击更换头像">
                     <img class="profile-avatar-img" src="${currentUploadedAvatar}" alt="Avatar">
                     <div class="avatar-frosted-edge"></div>
                 </div>
@@ -672,12 +738,6 @@ function createProfileWidgetElement(item) {
             </div>
         </div>
     `;
-
-    const avatarWrap = el.querySelector('.profile-avatar-wrap');
-    avatarWrap.addEventListener('click', (e) => {
-        e.stopPropagation();
-        avatarFileInput.click();
-    });
 
     attachDragAndHoldEvents(el, item);
     return el;
@@ -845,6 +905,12 @@ function renderUI(animateTargetId = null) {
                 el = createHeartbeatWidgetElement(item);
             } else if (item.type === 'widget-profile') {
                 el = createProfileWidgetElement(item);
+            } else if (item.type === 'widget-stamp') {
+                el = createStampWidgetElement(item);
+            } else if (item.type === 'widget-capsule') {
+                el = createCapsuleWidgetElement(item);
+            } else if (item.type === 'widget-student-card') {
+                el = createStudentCardWidgetElement(item);
             } else if (item.type === 'widget-mp3') {
                 el = createMp3WidgetElement(item);
             } else if (item.type === 'widget-dialogue') {
@@ -853,10 +919,8 @@ function renderUI(animateTargetId = null) {
                 el = createCustomWidgetElement(item);
             }
 
-            if (!item.customId && !wkSnap[item.type]) wkSnap[item.type] = el.outerHTML;
             el.style.gridRow = `${row} / span ${item.rowSpan || 1}`;
             el.style.gridColumn = `${col} / span ${item.span || 1}`;
-
 
             if (item.id === animateTargetId) {
                 el.classList.add('just-swapped');
@@ -1099,7 +1163,10 @@ const WK_DEFAULT_LIBRARY = [
     { type: 'widget-heartbeat', name: '心跳', span: 2, rowSpan: 1 },
     { type: 'widget-profile', name: '资料卡', span: 2, rowSpan: 2 },
     { type: 'widget-mp3', name: 'MP3', span: 2, rowSpan: 2 },
-    { type: 'widget-dialogue', name: '对话', span: 2, rowSpan: 2 }
+    { type: 'widget-dialogue', name: '对话', span: 2, rowSpan: 2 },
+    { type: 'widget-student-card', name: '学生卡', span: 4, rowSpan: 2 },
+    { type: 'widget-stamp', name: '邮票', span: 2, rowSpan: 1 },
+    { type: 'widget-capsule', name: '胶囊', span: 2, rowSpan: 1 }
 ];
 const WK_SIZES = [
     { label: '1×1', span: 1, rowSpan: 1 },
@@ -1109,25 +1176,135 @@ const WK_SIZES = [
 ];
 
 function wkToast(msg) { if (typeof window.toast === 'function') window.toast(msg); else alert(msg); }
+// ===== 学生卡套（2×2）：透明卡套 + 学生证，韩英混排 =====
+// ===== 邮票小卡片（2×1）=====
+function createStampWidgetElement(item) {
+    const el = document.createElement('div');
+    el.className = 'widget-item sc-stamp-wrap';
+    el.dataset.id = item.id;
+    el.dataset.type = item.type;
+    el.dataset.location = 'desktop';
+    el.dataset.index = item.slot;
+    el.dataset.page = item.page;
+    el.innerHTML = `
+    <div class="stamp">
+        <div class="st-top"><span>ANGEL POST</span><span>우편</span></div>
+        <div class="st-mid">2026.05.28</div>
+        <div class="st-sub">천사 우체국 · 발송 완료</div>
+        <div class="st-val">₩ 1000</div>
+    </div>`;
+    return el;
+}
+
+// ===== 胶囊（2×1）=====
+function createCapsuleWidgetElement(item) {
+    const el = document.createElement('div');
+    el.className = 'widget-item cap-wrap';
+    el.dataset.id = item.id;
+    el.dataset.type = item.type;
+    el.dataset.location = 'desktop';
+    el.dataset.index = item.slot;
+    el.dataset.page = item.page;
+    el.innerHTML = `
+    <div class="cap-pill">
+        <span class="cap-dot"></span>
+        <div class="cap-text">오늘도 화이팅<small>ANGEL · DAILY</small></div>
+    </div>`;
+    return el;
+}
+
+function createStudentCardWidgetElement(item) {
+    const el = document.createElement('div');
+    el.className = 'widget-item widget-student-card';
+    el.dataset.id = item.id;
+    el.dataset.type = item.type;
+    el.dataset.location = 'desktop';
+    el.dataset.index = item.slot;
+    el.dataset.page = item.page;
+    const bars = [2, 1, 3, 1, 2, 1, 1, 3, 2, 1, 2].map(w => `<i style="width:${w}px"></i>`).join('');
+    el.innerHTML = `
+    <div class="sc-sleeve">
+        <div class="sc-card">
+            <div class="sc-top"><span>STUDENT ID</span><span class="sc-kr">학생증</span></div>
+            <div class="sc-body">
+                <div class="sc-photo" title="点击更换照片"><img src="${currentStudentCardAvatar}" alt="" onerror="this.remove()"></div>
+                <div class="sc-info">
+                    <div class="sc-name">MINJI</div>
+                    <div class="sc-kr">민지 · 민지</div>
+                    <div class="sc-meta">ANGEL ACADEMY<br>학교 · 천사학원<br>Class 3-A · 반</div>
+                </div>
+            </div>
+            <div class="sc-foot"><span class="sc-id">ID 2026-0528</span><div class="sc-bars">${bars}</div></div>
+        </div>
+    </div>`;
+    attachDragAndHoldEvents(el, item);
+    return el;
+}
+
 function wkEsc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function wkSizeText(d) { return (d.span || 1) + '×' + (d.rowSpan || 1); }
+
+// 旧布局（已保存在数据库里）补上第三页的内容
+function ensurePage3Items(items) {
+    const page3 = [
+        { id: 'w-student-card', type: 'widget-student-card', page: 2, slot: 0, span: 4, rowSpan: 2 },
+        { id: 'backup', type: 'app', page: 2, slot: 8, span: 1, rowSpan: 1 },
+        { id: 'p3-app-b', type: 'app', page: 2, slot: 9, span: 1, rowSpan: 1 },
+        { id: 'w-stamp', type: 'widget-stamp', page: 2, slot: 10, span: 2, rowSpan: 1 },
+        { id: 'w-capsule', type: 'widget-capsule', page: 2, slot: 12, span: 2, rowSpan: 1 },
+        { id: 'p3-app-c', type: 'app', page: 2, slot: 14, span: 1, rowSpan: 1 },
+        { id: 'p3-app-d', type: 'app', page: 2, slot: 15, span: 1, rowSpan: 1 }
+    ];
+    const kept = items.filter(i => i.page !== 2);
+    return kept.concat(page3);
+}
 
 async function wkLoad() {
     let cw = [], layout = null;
     try { cw = window.DB ? await window.DB.load(WK_CUSTOM_KEY, []) : []; } catch (_) {}
     try { layout = window.DB ? await window.DB.load(WK_LAYOUT_KEY, null) : null; } catch (_) {}
+    if (!layout) {
+        try {
+            const raw = localStorage.getItem(`noir_os_${WK_LAYOUT_KEY}`) || localStorage.getItem(WK_LAYOUT_KEY);
+            if (raw) layout = JSON.parse(raw);
+        } catch (_) {}
+    }
     customWidgets = Array.isArray(cw) ? cw : [];
     if (layout && Array.isArray(layout.desktopItems)) {
-        desktopItems = layout.desktopItems;
-        totalPages = Math.max(1, layout.totalPages || 1);
+        const seen = new Set();
+        const deduped = [];
+        layout.desktopItems.forEach(it => {
+            if (it && it.id && !seen.has(it.id)) {
+                seen.add(it.id);
+                deduped.push(it);
+            }
+        });
+        desktopItems = deduped;
+        totalPages = Math.max(1, layout.totalPages || 3);
         if (Array.isArray(layout.dockData)) dockData = layout.dockData;
     }
     wkReady = true;
     renderUI();
 }
 function wkSaveLayout() {
-    if (!wkReady || !window.DB) return;
-    window.DB.save(WK_LAYOUT_KEY, { totalPages, desktopItems, dockData });
+    if (!wkReady) return;
+    const seen = new Set();
+    const cleanItems = [];
+    desktopItems.forEach(it => {
+        if (!seen.has(it.id)) {
+            seen.add(it.id);
+            cleanItems.push(it);
+        }
+    });
+    desktopItems = cleanItems;
+    const payload = { totalPages, desktopItems, dockData };
+    try {
+        localStorage.setItem(`noir_os_${WK_LAYOUT_KEY}`, JSON.stringify(payload));
+        localStorage.setItem(WK_LAYOUT_KEY, JSON.stringify(payload));
+    } catch (_) {}
+    if (window.DB && typeof window.DB.save === 'function') {
+        window.DB.save(WK_LAYOUT_KEY, payload);
+    }
 }
 async function wkSaveCustom() {
     if (window.DB) await window.DB.saveLarge(WK_CUSTOM_KEY, customWidgets);
@@ -1254,17 +1431,38 @@ function openWidgetLibrary() {
         wkLibraryAction(b.dataset.wk, b.dataset);
     });
     document.body.appendChild(ov);
-    wkFillPreviews(ov);
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            wkFillPreviews(ov);
+        });
+    });
 }
 /* 一个格子的像素大小（按当前桌面量），用来把预览按真实比例缩放 */
 function wkCell() {
     const tr = document.getElementById('desktopTrack');
     const r = tr ? tr.getBoundingClientRect() : null;
-    return { cw: (r && r.width) ? r.width / 4 : 90, ch: (r && r.height) ? r.height / 5 : 90 };
+    return { cw: (r && r.width > 50) ? r.width / 4 : 85, ch: (r && r.height > 50) ? r.height / 5 : 88 };
 }
+function wkCreateWidgetPreviewElement(type, span, rowSpan) {
+    const dummy = { id: 'preview-' + type, type, slot: 0, page: 0, span: Number(span) || 1, rowSpan: Number(rowSpan) || 1 };
+    if (type === 'widget-polaroid') return createPolaroidWidgetElement(dummy);
+    if (type === 'widget-heartbeat') return createHeartbeatWidgetElement(dummy);
+    if (type === 'widget-profile') return createProfileWidgetElement(dummy);
+    if (type === 'widget-stamp') return createStampWidgetElement(dummy);
+    if (type === 'widget-capsule') return createCapsuleWidgetElement(dummy);
+    if (type === 'widget-student-card') return createStudentCardWidgetElement(dummy);
+    if (type === 'widget-mp3') return createMp3WidgetElement(dummy);
+    if (type === 'widget-dialogue') return createDialogueWidgetElement(dummy);
+    const fallback = document.createElement('div');
+    fallback.className = 'wk-frame-name';
+    fallback.textContent = type;
+    return fallback;
+}
+
 function wkFillPreviews(ov) {
     const cell = wkCell();
     ov.querySelectorAll('.wk-frame').forEach(pv => {
+        pv.innerHTML = '';
         let vw, vh, node = null;
         if (pv.dataset.pv === 'c') {
             const def = customWidgets.find(x => x.id === pv.dataset.id);
@@ -1276,32 +1474,21 @@ function wkFillPreviews(ov) {
             root.innerHTML = '<style>:host{display:block;width:100%;height:100%;overflow:hidden;border-radius:18px;}' + def.css + '</style><div style="width:100%;height:100%;box-sizing:border-box;">' + def.html + '</div>';
             node = host;
         } else {
-            const span = +pv.dataset.span, row = +pv.dataset.row;
+            const span = +pv.dataset.span || 1, row = +pv.dataset.row || 1;
             vw = cell.cw * span; vh = cell.ch * row;
-            let src = document.querySelector('#desktopTrack .widget-item[data-type="' + pv.dataset.type + '"]');
-            if (!src && wkSnap[pv.dataset.type]) {
-                const tmp = document.createElement('div');
-                tmp.innerHTML = wkSnap[pv.dataset.type];
-                src = tmp.firstElementChild;
-            }
-            if (src) {
-                const clone = src.cloneNode(true);
-                clone.removeAttribute('style');
-                clone.classList.remove('just-swapped', 'wk-enter');
-                clone.style.cssText = 'width:' + vw + 'px;height:' + vh + 'px;position:relative;';
-                node = clone;
-            } else {
-                node = document.createElement('div');
-                node.className = 'wk-frame-name';
-                node.textContent = pv.dataset.name;
-                node.style.cssText = 'width:' + vw + 'px;height:' + vh + 'px;';
-            }
+            const widgetEl = wkCreateWidgetPreviewElement(pv.dataset.type, span, row);
+            widgetEl.removeAttribute('style');
+            widgetEl.classList.remove('just-swapped', 'wk-enter', 'dragging');
+            widgetEl.style.cssText = 'width:' + vw + 'px;height:' + vh + 'px;position:relative;pointer-events:none;';
+            node = widgetEl;
         }
-        const sc = (pv.clientWidth || 150) / vw;
+        const pw = pv.clientWidth || pv.offsetWidth || 150;
+        const sc = pw / (vw || 1);
         pv.style.aspectRatio = vw + ' / ' + vh;
+        pv.style.minHeight = Math.round(vh * sc) + 'px';
         const inner = document.createElement('div');
         inner.className = 'wk-scale';
-        inner.style.cssText = 'width:' + vw + 'px;height:' + vh + 'px;transform:scale(' + sc + ');transform-origin:0 0;';
+        inner.style.cssText = 'width:' + vw + 'px;height:' + vh + 'px;transform:scale(' + sc + ');transform-origin:0 0;position:absolute;left:0;top:0;';
         inner.appendChild(node);
         pv.appendChild(inner);
     });
@@ -1618,6 +1805,7 @@ function wkRemoveFromBadge(badge) {
     const id = badge.dataset.id;
     if (!id) return;
     desktopItems = desktopItems.filter(it => it.id !== id);
+    wkSaveLayout();
     renderUI();
 }
 document.addEventListener('pointerdown', e => {

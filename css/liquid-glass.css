@@ -1,0 +1,36 @@
+/* 液态玻璃：画面与高光由 liquid-glass.js 绘制在 .lg-cv 中 */
+.lg {
+  position: relative;
+  isolation: isolate;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.lg > .lg-cv {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.lg > *:not(.lg-cv) {
+  position: relative;
+  z-index: 1;
+}
+
+/* 不支持 WebGL 或壁纸读取失败时，退回普通毛玻璃 */
+.lg-fallback {
+  -webkit-backdrop-filter: blur(14px) saturate(1.5) brightness(1.08);
+  backdrop-filter: blur(14px) saturate(1.5) brightness(1.08);
+  box-shadow:
+    inset 1.5px 1.5px 0 rgba(255, 255, 255, 0.55),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.18),
+    0 10px 28px rgba(0, 0, 0, 0.22);
+}
+
+.lg-fallback > .lg-cv {
+  display: none;
+}

@@ -29,6 +29,16 @@ function loadWorldApp(done) {
     s.onload = done; s.onerror = done;
     document.body.appendChild(s);
 }
+/* 备份：按需加载 js/apps/backup.js（只加载一次） */
+function loadBackupApp(done) {
+    if (window.initBackupApp) { done(); return; }
+    const existing = document.querySelector('script[data-backup-js]');
+    if (existing) { existing.addEventListener('load', done); existing.addEventListener('error', done); return; }
+    const s = document.createElement('script');
+    s.src = 'js/apps/backup.js'; s.dataset.backupJs = '1';
+    s.onload = done; s.onerror = done;
+    document.body.appendChild(s);
+}
 function openApp(appId) {
     const def = (typeof APPS !== 'undefined' && APPS[appId]) || { name: appId === 'chat' ? 'chat' : appId, svg: '' };
     const home = document.getElementById('homeScreen');
@@ -42,7 +52,23 @@ function openApp(appId) {
     home.classList.add('scaled');
     win.classList.add('active');
     try {
-        if (appId === 'settings') {
+        if (appId === 'backup') {
+            win.classList.add('noir-mode');
+            contentArea.innerHTML = '<div style="padding:24px;color:#fff;font-size:12px;">备份模块加载中…</div>';
+            loadBackupApp(() => {
+                try {
+                    if (typeof getBackupAppHTML !== 'function' || typeof initBackupApp !== 'function') {
+                        contentArea.innerHTML = '<div style="padding:24px;color:#fff;font-size:12px;line-height:1.7;">备份模块未加载，请确认文件位置：js/apps/backup.js</div>';
+                        return;
+                    }
+                    contentArea.innerHTML = getBackupAppHTML();
+                    initBackupApp();
+                } catch (err) {
+                    console.error('[Whatever] 备份应用打开失败', err);
+                    contentArea.innerHTML = '<div style="padding:24px;color:#fff;font-size:12px;line-height:1.7;">备份应用打开失败：' + (err && err.message ? err.message : err) + '</div>';
+                }
+            });
+        } else if (appId === 'settings') {
             win.classList.add('noir-mode');
             if (typeof getSettingsAppHTML === 'function') {
                 contentArea.innerHTML = getSettingsAppHTML();

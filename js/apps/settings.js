@@ -376,6 +376,36 @@ function getSettingsAppHTML() {
                         </div>
                     </div>
                 </div>
+
+                <div class="section-tag mono-font" style="margin-top: 8px;">Section 04c — Settings Font Size</div>
+                <div class="setting-card">
+                    <div class="setting-row" onclick="toggleSettingsFontSizePanel()">
+                        <div class="row-left">
+                            <div class="row-icon-box">
+                                <svg viewBox="0 0 24 24"><path d="M4 19 L9 4 L14 19"/><path d="M6 14 H12"/><path d="M16 19 L19 10 L22 19"/><path d="M17.5 15.5 H20.5"/></svg>
+                            </div>
+                            <div class="row-text-group">
+                                <span class="row-label">设置字体大小</span>
+                                <span class="row-note mono-font">Settings Text Scale</span>
+                            </div>
+                        </div>
+                        <div class="row-right">
+                            <div class="action-text-btn restore-btn" onclick="resetSettingsFontSize(event)" style="opacity:0.6;">Reset</div>
+                            <svg id="settingsFontSizeArrow" class="viewport-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+                        </div>
+                    </div>
+                    <div class="viewport-panel collapsed" id="settingsFontSizePanel">
+                        <div class="viewport-panel-inner">
+                            <div class="appicon-slider-head" style="font-size: 11px;">
+                                <span class="modal-text">字体缩放 (Font Scale)</span>
+                                <span class="modal-text appicon-val" id="settingsFontSizeVal">100%</span>
+                            </div>
+                            <input type="range" class="appicon-range" id="settingsFontSizeRange" min="75" max="140" step="1" value="100" style="--p:38.46%"
+                                oninput="previewSettingsFontSize(this.value, this)"
+                                onchange="commitSettingsFontSize(this.value)">
+                        </div>
+                    </div>
+                </div>
                 <div class="section-tag mono-font" style="margin-top: 8px;">Section 04 — Home Icon</div>
                 <div class="setting-card">
                     <div class="setting-row pwa-toggle-row" onclick="togglePwaIconPanel()">
@@ -629,6 +659,16 @@ async function initSettingsApp() {
             botRange.style.setProperty('--p', ((savedVpBottom - botRange.min) / (botRange.max - botRange.min) * 100) + '%');
         }
         if (botValLabel) botValLabel.innerText = savedVpBottom + 'px';
+
+        const savedSettingsFontSize = await safeDB.load('settings_font_scale', 100);
+        applySettingsFontSize(savedSettingsFontSize);
+        const fontScaleRange = document.getElementById('settingsFontSizeRange');
+        const fontScaleValLabel = document.getElementById('settingsFontSizeVal');
+        if (fontScaleRange) {
+            fontScaleRange.value = savedSettingsFontSize;
+            fontScaleRange.style.setProperty('--p', ((savedSettingsFontSize - fontScaleRange.min) / (fontScaleRange.max - fontScaleRange.min) * 100) + '%');
+        }
+        if (fontScaleValLabel) fontScaleValLabel.innerText = savedSettingsFontSize + '%';
     } else {
         applyCurrentSettingsBackground();
     }
@@ -2137,11 +2177,23 @@ async function openCenterModal(type) {
 
         // 名称来自真实的 APPS；这五个应用的图标保留固定示意图形
         const FIXED_ICON_IDS = ['chat', 'weather', 'gallery', 'notes', 'settings'];
-        const registry = (typeof APPS !== 'undefined') ? APPS : (window.APPS || {});
+        const registry = (typeof APPS !== 'undefined') ? APPS : (window.APPS || (typeof window !== 'undefined' && window.APPS) || {});
+        const p3Extra = [
+            { id: 'backup', name: '备份' },
+            { id: 'p3-app-b', name: '占位 B' },
+            { id: 'p3-app-c', name: '占位 C' },
+            { id: 'p3-app-d', name: '占位 D' }
+        ];
+        const knownKeys = new Set(Object.keys(registry));
         const appsList = Object.keys(registry).map(id => ({
             id,
-            name: registry[id].name
+            name: registry[id].name || id
         }));
+        p3Extra.forEach(it => {
+            if (!knownKeys.has(it.id)) {
+                appsList.push(it);
+            }
+        });
 
         appsList.forEach(app => {
             const customImg = customIcons[app.id];
@@ -3157,7 +3209,8 @@ function outsideAvatarMorph(ev) {
 function openAvatarMorph(el) {
     const phone = document.getElementById('phoneContainer');
     if (!phone) return;
-    const slot = el.closest('.hb-right, .hb-dialogue-right, .chat-chip.right') ? 'male' : 'female';
+    const isStudentCard = !!el.closest('.sc-photo, .widget-student-card, [data-type="widget-student-card"]');
+    const slot = isStudentCard ? 'studentcard' : (el.closest('.hb-right, .hb-dialogue-right, .chat-chip.right') ? 'male' : 'female');
     closeAvatarMorph(true);
     const pr = phone.getBoundingClientRect();
     const tr = el.getBoundingClientRect();
@@ -3195,7 +3248,10 @@ async function avatarMorphRestore(slot, e) {
     const phone = document.getElementById('phoneContainer');
     const isLight = phone && phone.classList.contains('theme-light');
     const theme = isLight ? 'Light' : 'Dark';
-    if (slot === 'female') {
+    if (slot === 'studentcard') {
+        currentStudentCardAvatar = 'assets/Dark/avatar-female.png';
+        await safeDB.save('student_card_avatar', null);
+    } else if (slot === 'female') {
         currentUploadedAvatar = `assets/${theme}/avatar-female.png`;
         await safeDB.save('avatar_female', null);
     } else {
@@ -3208,6 +3264,31 @@ async function avatarMorphRestore(slot, e) {
 function avatarMorphUpload(slot, e) {
     if (e) e.stopPropagation();
     closeAvatarMorph(true);
+    if (slot === 'studentcard') {
+        let scInput = document.getElementById('studentCardAvatarInput');
+        if (!scInput) {
+            scInput = document.createElement('input');
+            scInput.type = 'file';
+            scInput.id = 'studentCardAvatarInput';
+            scInput.accept = 'image/*';
+            scInput.style.display = 'none';
+            scInput.onchange = (ev) => {
+                const file = ev.target.files && ev.target.files[0];
+                if (!file) return;
+                const rd = new FileReader();
+                rd.onload = async (res) => {
+                    currentStudentCardAvatar = res.target.result;
+                    await safeDB.save('student_card_avatar', currentStudentCardAvatar);
+                    if (typeof renderUI === 'function') renderUI();
+                };
+                rd.readAsDataURL(file);
+                ev.target.value = '';
+            };
+            document.body.appendChild(scInput);
+        }
+        scInput.click();
+        return;
+    }
     const input = document.getElementById(slot === 'female' ? 'avatarFileInput' : 'coupleAvatarInput');
     if (input) input.click();
 }
@@ -3216,11 +3297,12 @@ function avatarMorphUpload(slot, e) {
 document.addEventListener('click', (e) => {
     // 小组件右上角的 × 自己处理，这里不能拦
     if (e.target.closest && e.target.closest('.wk-del-badge')) return;
-    const avatar = e.target.closest('#desktopTrack .profile-avatar-wrap, #desktopTrack .hb-left, #desktopTrack .hb-right, #desktopTrack .chip-avatar');
+    const avatar = e.target.closest('#desktopTrack .profile-avatar-wrap, #desktopTrack .profile-avatar-stage, #desktopTrack .avatar-frosted-edge, #desktopTrack .hb-left, #desktopTrack .hb-right, #desktopTrack .chip-avatar, #desktopTrack .sc-photo');
     if (avatar) {
         e.stopPropagation();
         e.preventDefault();
-        openAvatarMorph(avatar.classList.contains('chip-avatar') ? avatar : avatar);
+        const targetEl = avatar.classList.contains('profile-avatar-wrap') ? avatar : (avatar.closest('.profile-avatar-wrap') || avatar);
+        openAvatarMorph(targetEl);
         return;
     }
     const phone = document.getElementById('phoneContainer');
@@ -3239,6 +3321,10 @@ function observeWidgetOverrides() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    const savedScAvatar = await safeDB.load('student_card_avatar', null);
+    if (savedScAvatar) {
+        currentStudentCardAvatar = savedScAvatar;
+    }
     widgetOverrides = (await safeDB.load('widget_text_overrides', {})) || {};
     observeWidgetOverrides();
     applyWidgetOverridesToDom();
@@ -3732,3 +3818,82 @@ async function refreshChatFontList() {
     el.innerHTML = '<button class="font-btn font-preset-item" type="button" onclick="pickDefaultChatFont()">默认字体</button>' + (items || '<div class="font-preset-empty">还没有字体预设</div>');
 }
 window.addEventListener('load', () => { applyChatFontFromStore(); refreshChatFontList(); });
+
+function toggleSettingsFontSizePanel() {
+    const panel = document.getElementById('settingsFontSizePanel');
+    const arrow = document.getElementById('settingsFontSizeArrow');
+    if (!panel) return;
+    panel.classList.toggle('collapsed');
+    const open = !panel.classList.contains('collapsed');
+    if (arrow) arrow.style.transform = open ? 'rotate(90deg)' : 'rotate(0deg)';
+}
+
+function applySettingsFontSize(val) {
+    const scale = (parseFloat(val) || 100) / 100;
+    let st = document.getElementById('settingsFontSizeStyle');
+    if (!st) {
+        st = document.createElement('style');
+        st.id = 'settingsFontSizeStyle';
+        document.head.appendChild(st);
+    }
+    st.textContent = `
+        #noirSettingsRoot .hero-main { font-size: calc(24px * ${scale}) !important; }
+        #noirSettingsRoot .hero-kicker { font-size: calc(9px * ${scale}) !important; }
+        #noirSettingsRoot .hero-sub { font-size: calc(10px * ${scale}) !important; }
+        #noirSettingsRoot .section-tag { font-size: calc(8.5px * ${scale}) !important; }
+        #noirSettingsRoot .row-label { font-size: calc(12px * ${scale}) !important; }
+        #noirSettingsRoot .row-note { font-size: calc(8px * ${scale}) !important; }
+        #noirSettingsRoot .field-label { font-size: calc(8.5px * ${scale}) !important; }
+        #noirSettingsRoot .api-input-field { font-size: calc(12px * ${scale}) !important; }
+        #noirSettingsRoot .model-dropdown { font-size: calc(11.5px * ${scale}) !important; }
+        #noirSettingsRoot .preset-name-text { font-size: calc(11.5px * ${scale}) !important; }
+        #noirSettingsRoot .preset-tag-badge { font-size: calc(8px * ${scale}) !important; }
+        #noirSettingsRoot .preset-edit-input { font-size: calc(11px * ${scale}) !important; }
+        #noirSettingsRoot .preset-sub-btn { font-size: calc(9px * ${scale}) !important; }
+        #noirSettingsRoot .tune-name { font-size: calc(13px * ${scale}) !important; }
+        #noirSettingsRoot .tune-value { font-size: calc(12px * ${scale}) !important; }
+        #noirSettingsRoot .tune-seg button { font-size: calc(12px * ${scale}) !important; }
+        #noirSettingsRoot .seg-pill { font-size: calc(10px * ${scale}) !important; }
+        #noirSettingsRoot .action-text-btn { font-size: calc(10px * ${scale}) !important; }
+        #noirSettingsRoot .pill-btn { font-size: calc(10px * ${scale}) !important; }
+        #noirSettingsRoot .switcher-text { font-size: calc(10px * ${scale}) !important; }
+        #noirSettingsRoot .stage-footer { font-size: calc(8px * ${scale}) !important; }
+        #noirSettingsRoot .header-title { font-size: calc(10px * ${scale}) !important; }
+        #noirSettingsRoot .top-glass-pill span { font-size: calc(10.5px * ${scale}) !important; }
+    `;
+}
+
+function previewSettingsFontSize(val, el) {
+    if (el) {
+        const pct = ((val - el.min) / (el.max - el.min)) * 100;
+        el.style.setProperty('--p', pct + '%');
+    }
+    const label = document.getElementById('settingsFontSizeVal');
+    if (label) label.innerText = val + '%';
+    applySettingsFontSize(val);
+}
+
+async function commitSettingsFontSize(val) {
+    const num = parseInt(val, 10) || 100;
+    await safeDB.save('settings_font_scale', num);
+}
+
+async function resetSettingsFontSize(e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const defaultVal = 100;
+    await safeDB.save('settings_font_scale', defaultVal);
+    applySettingsFontSize(defaultVal);
+    const range = document.getElementById('settingsFontSizeRange');
+    const label = document.getElementById('settingsFontSizeVal');
+    if (range) {
+        range.value = defaultVal;
+        range.style.setProperty('--p', ((defaultVal - range.min) / (range.max - range.min) * 100) + '%');
+    }
+    if (label) label.innerText = defaultVal + '%';
+    showSettingsToast('设置字体大小已恢复默认');
+}
+
+window.toggleSettingsFontSizePanel = toggleSettingsFontSizePanel;
+window.previewSettingsFontSize = previewSettingsFontSize;
+window.commitSettingsFontSize = commitSettingsFontSize;
+window.resetSettingsFontSize = resetSettingsFontSize;

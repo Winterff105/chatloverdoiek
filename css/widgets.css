@@ -1164,3 +1164,147 @@
     font-family: monospace;
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
+
+/* ===== 学生卡套（4×2）===== */
+.widget-student-card.widget-item {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 4px;
+    box-sizing: border-box;
+}
+.sc-sleeve {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border-radius: 18px;
+    padding: 9px;
+    background: linear-gradient(150deg, rgba(255,255,255,.28), rgba(255,255,255,.05));
+    border: 1px solid rgba(255,255,255,.4);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 10px 24px rgba(0,0,0,.35);
+    overflow: hidden;
+}
+.sc-sleeve::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(120deg, rgba(255,255,255,0) 35%, rgba(255,255,255,.2) 50%, rgba(255,255,255,0) 65%);
+    pointer-events: none;
+}
+.sc-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border-radius: 12px;
+    padding: 10px 12px;
+    background: #f7f7f9;
+    color: #17171c;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+}
+.sc-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 8px;
+    letter-spacing: 1.6px;
+    font-weight: 700;
+}
+.sc-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.sc-photo {
+    height: 100%;
+    aspect-ratio: 3 / 4;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #dedee6;
+    flex-shrink: 0;
+}
+.sc-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.sc-info { min-width: 0; }
+.sc-name {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: .5px;
+    line-height: 1.1;
+}
+.sc-kr {
+    font-size: 10px;
+    font-weight: 700;
+    margin-top: 3px;
+}
+.sc-meta {
+    font-size: 8px;
+    color: #5b5b66;
+    margin-top: 6px;
+    line-height: 1.6;
+}
+.sc-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+.sc-id {
+    font-size: 7px;
+    color: #7a7a86;
+    letter-spacing: 1px;
+}
+.sc-bars {
+    display: flex;
+    gap: 1.5px;
+    height: 12px;
+    align-items: stretch;
+}
+.sc-bars i {
+    display: block;
+    background: #17171c;
+}
+
+/* ===== 邮票小卡片（2×1）===== */
+.sc-stamp-wrap.widget-item { display: block; width: 100%; height: 100%; padding: 4px; box-sizing: border-box; }
+.stamp {
+    width: 100%; height: 100%; box-sizing: border-box;
+    background: rgba(255,255,255,.62); color: #17171c;
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    padding: 7px 10px;
+    border: 2px dotted rgba(255,255,255,.9); border-radius: 6px;
+    box-shadow: 0 8px 18px rgba(0,0,0,.22);
+    display: flex; flex-direction: column; justify-content: space-between;
+    font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+}
+.stamp .st-top { display: flex; justify-content: space-between; font-size: 7px; letter-spacing: 1.5px; color: #8a8a98; }
+.stamp .st-mid { font-size: 13px; font-weight: 800; letter-spacing: .5px; }
+.stamp .st-sub { font-size: 8px; color: #5b5b66; }
+.stamp .st-val { font-size: 7px; letter-spacing: 1px; text-align: right; }
+
+/* ===== 胶囊（2×1）===== */
+.cap-wrap.widget-item { display: flex; align-items: center; width: 100%; height: 100%; padding: 0 4px; box-sizing: border-box; }
+.cap-pill {
+    width: 100%; height: 44px; box-sizing: border-box;
+    border-radius: 999px;
+    background: #000000 !important;
+    border: 1px solid rgba(255,255,255,.14) !important;
+    box-shadow: 0 8px 20px rgba(0,0,0,.45) !important;
+    display: flex; align-items: center; gap: 9px; padding: 0 14px;
+    color: #ffffff !important;
+}
+.cap-dot { width: 8px; height: 8px; border-radius: 50%; background: #ffffff !important; box-shadow: 0 0 0 3px rgba(255,255,255,.2) !important; flex-shrink: 0; }
+.cap-text { font-size: 10px; font-weight: 700; letter-spacing: .5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #ffffff !important; }
+.cap-text small { display: block; font-size: 7.5px; color: #8e8e93 !important; font-weight: 400; letter-spacing: 1px; }
