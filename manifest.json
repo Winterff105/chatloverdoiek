@@ -11,9 +11,15 @@
     "icons": [
         {
             "src": "assets/IMG_20261008_161846.jpg",
-            "sizes": "any",
+            "sizes": "192x192",
             "type": "image/jpeg",
-            "purpose": "any"
+            "purpose": "any maskable"
+        },
+        {
+            "src": "assets/IMG_20261008_161846.jpg",
+            "sizes": "512x512",
+            "type": "image/jpeg",
+            "purpose": "any maskable"
         }
     ],
     "display_override": [

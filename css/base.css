@@ -8,8 +8,6 @@
 }
 
 body, html {
-    position: fixed;
-    inset: 0;
     height: 100%;
     width: 100%;
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
@@ -31,7 +29,7 @@ body, html {
     flex-direction: column;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
     overflow: hidden;
-    padding-top: 24px;
+    padding-top: max(24px, env(safe-area-inset-top, 0px));
 }
 
 .phone-container::before {
@@ -49,15 +47,36 @@ body, html {
 /* ---- iOS 底部黑条修复 ----
    独立模式（添加到主屏幕）下 100% 高度会少算底部安全区，导致底部露出黑色。
    用 dvh / fill-available 让页面和容器撑满整屏，壁纸一直铺到 Home 指示条下方。 */
-
-
-.phone-container {
-    height: 100%;
-    min-height: 0;
+html, body {
+    height: 100vh;                 /* 老版本 Safari 兜底 */
+    height: -webkit-fill-available;/* 早期独立模式 */
+    height: 100dvh;                /* 新版本 */
+    position: fixed;               /* 阻止地址栏滑动出现 */
+    width: 100%;
+    overflow: hidden;
 }
 
-/* 浅色壁纸时，露出的页面底色同步成浅色，不再出现黑条 */
+.phone-container {
+    height: 100vh;
+    height: -webkit-fill-available;
+    height: 100dvh;
+    padding-bottom: env(safe-area-inset-bottom, 0px); /* 避免内容被底部遮挡 */
+}
+
+/* 全屏：禁止整体回弹，左右与底部让出安全区（横屏刘海、底部 Home 条） */
+html, body {
+    overscroll-behavior: none;
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 浅色壁纸时，露出的页面底色同步成浅色，不再出现黑条；同时配合壁纸背景 */
 html:has(.phone-container.theme-light),
 body:has(.phone-container.theme-light) {
     background-color: #FCFAFB;
+}
+
+html, body {
+    background-color: #09090b; /* 默认深色，跟随壁纸动态变化 */
 }
