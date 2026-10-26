@@ -1,0 +1,29 @@
+// 拦截核心 JS 的静态直链访问，只允许通过 /api/protected-js 加载
+const BLOCKED_PATHS = new Set([
+  '/js/db.js',
+  '/js/desktop.js',
+  '/js/main.js',
+  '/js/liquid-glass.js',
+  '/js/apps/settings.js',
+  '/js/apps/quick-cruise.js',
+  '/js/apps/messages-api.js',
+  '/js/apps/messages-markup.js',
+  '/js/apps/messages.js',
+  '/js/apps/archangel.js',
+  '/js/apps/worldbook.js',
+  '/js/apps/world.js',
+  '/js/apps/preset.js',
+  '/js/apps/backup.js',
+  '/js/apps/app-manager.js'
+]);
+
+export async function onRequest(context) {
+  const url = new URL(context.request.url);
+  const path = decodeURIComponent(url.pathname);
+
+  if (BLOCKED_PATHS.has(path)) {
+    return new Response('Not Found', { status: 404 });
+  }
+
+  return context.next();
+}
