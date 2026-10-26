@@ -790,127 +790,72 @@ async function getClientIP() {
         }
     });
 
-    // 3. 登录判定（专属规则：仅 3793947089ismy 可免密秒通，若若/猫猫羽/79 等其余管理员均必须走发码与激活流程）
-    btnLogin.addEventListener('click', async () => {
-        const qq = loginQQ.value.trim();
-        const pwd = loginPwd.value.trim();
+        // 3. 登录判定 - 改用服务端验证
+        btnLogin.addEventListener('click', async () => {
+            const qq = loginQQ.value.trim();
+            const pwd = loginPwd.value.trim();
 
-        if (!qq) {
-            setToast("请输入 QQ 号！", true);
-            return;
-        }
-
-        // 仅限苦临潭(开发者本人)特权暗号秒通
-        if (qq === "3793947089ismy" || (qq === "3793947089" && pwd === "3793947089ismy")) {
-            setToast("开发者【苦临潭】身份确认，免审直通中...");
-            localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq: "3793947089", token: "super_root" }));
-            setTimeout(unlockPortal, 400);
-            return;
-        }
-
-        if (!pwd) {
-            setToast("请输入登录密码！", true);
-            return;
-        }
-
-        btnLogin.textContent = "LOGGING IN...";
-        try {
-            const { data, error } = await supabase
-                .from('auth_credentials')
-                .select('*')
-                .eq('qq', qq)
-                .limit(1);
-
-            if (error || !data || data.length === 0) {
-                setToast("该账号未激活，请先点击上方【激活与设置密码】", true);
-                btnLogin.textContent = "LOG IN →";
+            if (!qq) {
+                setToast("请输入 QQ 号！", true);
                 return;
             }
 
-            const user = data[0];
-            if (!user.is_activated) {
-                setToast("账号尚未激活，请先获取激活码激活", true);
-                btnLogin.textContent = "LOG IN →";
+            if (!pwd) {
+                setToast("请输入登录密码！", true);
                 return;
             }
 
-            if (user.password_hash !== pwd) {
-                setToast("密码错误，请重新输入！", true);
-                btnLogin.textContent = "LOG IN →";
-                return;
-            }
-
-            // ================= 严格设备风控：限绑2个浏览器，超额阻断上报 =================
-            function getBrowserFingerprint() {
-                let did = localStorage.getItem('whatever_device_fingerprint');
-                if (!did) {
-                    did = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
-                    localStorage.setItem('whatever_device_fingerprint', did);
+            btnLogin.textContent = "LOGGING IN...";
+            try {
+                function getBrowserFingerprint() {
+                    let did = localStorage.getItem('whatever_device_fingerprint');
+                    if (!did) {
+                        did = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
+                        localStorage.setItem('whatever_device_fingerprint', did);
+                    }
+                    return did;
                 }
-                return did;
-            }
 
-            const currentDevice = getBrowserFingerprint();
-            const boundDevices = Array.isArray(user.bound_devices) ? user.bound_devices : [];
+                const currentDevice = getBrowserFingerprint();
+                const loginIP = await getClientIP();
 
-            // 检查当前浏览器是否已在白名单内
-            const isKnownDevice = boundDevices.some(d => d.id === currentDevice);
-            let loginIP = "未知";
-            loginIP = await getClientIP();
-            const loginNow = new Date().toISOString();
-
-            if (!isKnownDevice) {
-                // 如果是新设备，且已有设备数已满 2 个，阻断并上报给管理员确认
-                if (boundDevices.length >= 2) {
-                    btnLogin.textContent = "WAITING AUDIT...";
-                    
-                    // 获取当前网络公网 IP
-                    let clientIP = "未知";
-                    clientIP = await getClientIP();
-
-                    // 向后台推送换绑审批申请单
-                    await supabase.from('device_requests').insert([{
-                        applicant_qq: qq,
-                        device_fingerprint: currentDevice,
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        qq,
+                        password: pwd,
+                        device_id: currentDevice,
                         user_agent: navigator.userAgent,
-                        ip: clientIP,
-                        status: 'pending'
-                    }]);
+                        ip: loginIP
+                    })
+                });
 
-                    setToast("尝试绑定第三个浏览器 已发送给管理员确认 请向管理员说明", true);
+                const result = await response.json();
+
+                if (!response.ok) {
+                    if (result.reason === 'pending_approval') {
+                        btnLogin.textContent = "WAITING AUDIT...";
+                        setToast("尝试绑定第三个浏览器 已发送给管理员确认 请向管理员说明", true);
+                        return;
+                    }
+                    setToast(result.error || "登录失败", true);
+                    btnLogin.textContent = "LOG IN →";
                     return;
-                } else {
-                    // 未满 2 个，自动将当前浏览器登记为新设备
-                    boundDevices.push({
-                        id: currentDevice,
-                        ua: navigator.userAgent,
-                        ip: loginIP,
-                        last_active: loginNow,
-                        bound_at: loginNow
-                    });
-                    await supabase.from('auth_credentials').update({
-                        bound_devices: boundDevices
-                    }).eq('qq', qq);
                 }
+
+                if (!result.success) {
+                    setToast("登录验证失败", true);
+                    btnLogin.textContent = "LOG IN →";
+                    return;
+                }
+
+                localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: result.token }));
+                setToast("登录验证通过，正在进入...");
+                setTimeout(() => unlockPortal(qq), 400);
+            } catch (e) {
+                setToast("登录核验超时", true);
+                btnLogin.textContent = "LOG IN →";
             }
-
-            if (isKnownDevice) {
-                const updated = boundDevices.map(d => d.id === currentDevice ? { ...d, ip: loginIP, last_active: loginNow } : d);
-                await supabase.from('auth_credentials').update({ bound_devices: updated }).eq('qq', qq);
-            }
-
-            // 登录成功
-            await supabase
-                .from('auth_credentials')
-                .update({ last_login_at: new Date().toISOString() })
-                .eq('qq', qq);
-
-            localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: btoa(qq + ':' + pwd) }));
-            setToast("登录验证通过，正在进入...");
-            setTimeout(() => unlockPortal(qq), 400);
-        } catch (e) {
-            setToast("登录核验超时", true);
-            btnLogin.textContent = "LOG IN →";
-        }
-    });
+        });
 })();
