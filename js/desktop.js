@@ -988,16 +988,20 @@ function goToPage(pageIdx) {
 
 /* 测量桌面网格宽度，同步 Dock 栏尺寸与间距 */
 function checkDockAnimation() {
+    if (!dockBar || !phoneContainer) return;
     const currentCount = dockData.length;
     const containerRect = phoneContainer.getBoundingClientRect();
     const colWidth = (containerRect.width - 32 - 30) / 4;
-    const colGap = 10;
+    // 间距读取 Dock 面板写入的 --dock-gap（「软件间距同桌面」开关），没有则 10px
+    const colGap = parseFloat(getComputedStyle(dockBar).getPropertyValue('--dock-gap')) || 10;
 
     document.querySelectorAll('.dock-slot').forEach(slot => {
         slot.style.width = `${colWidth}px`;
     });
 
-    const targetWidth = currentCount === 0 ? 90 : (currentCount * colWidth + (currentCount - 1) * colGap + 16);
+    let targetWidth = currentCount === 0 ? 90 : (currentCount * colWidth + (currentCount - 1) * colGap + 16);
+    // 间距调大时不超出屏幕（左右各留 16px）
+    targetWidth = Math.min(targetWidth, containerRect.width - 32);
     dockBar.style.gap = `${colGap}px`;
     dockBar.style.width = `${targetWidth}px`;
 }

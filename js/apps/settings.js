@@ -2792,11 +2792,15 @@ async function commitViewportPadding(type, val) {
 }
 
 // ---------- 桌面视口：独立于应用窗口的视口，只控制桌面 ----------
+// 顶部：沿用原来的 top 下移，默认位置不变
+// 底部：relative 元素同时设 top 和 bottom 时 bottom 无效，改用底部内边距把 Dock 往上推
 function applyDesktopViewport(topVal, bottomVal) {
     const home = document.getElementById('homeScreen');
     if (!home) return;
     home.style.top = topVal + 'px';
-    home.style.bottom = bottomVal + 'px';
+    home.style.bottom = '';
+    home.style.paddingTop = '';
+    home.style.paddingBottom = bottomVal + 'px';
 }
 
 function previewDesktopViewport(type, val, el) {
@@ -2808,8 +2812,10 @@ function previewDesktopViewport(type, val, el) {
     if (label) label.innerText = val + 'px';
     const home = document.getElementById('homeScreen');
     if (!home) return;
+    home.style.bottom = '';
+    home.style.paddingTop = '';
     if (type === 'top') home.style.top = val + 'px';
-    else home.style.bottom = val + 'px';
+    else home.style.paddingBottom = val + 'px';
 }
 
 async function commitDesktopViewport(type, val) {
@@ -2918,12 +2924,18 @@ function applyDockStyle(style) {
         : 'url(#lens-refraction) blur(1.5px) saturate(180%)');
     pc.style.setProperty('--dock-before-display', s.disperse ? 'block' : 'none');
     pc.style.setProperty('--dock-gap', dockGapPx(s.spacingSync) + 'px');
+    // 间距变了要重新算 Dock 宽度
+    if (typeof checkDockAnimation === 'function' && typeof dockBar !== 'undefined' && dockBar) {
+        checkDockAnimation();
+    }
 }
 
 // 桌面的列间距（中心到中心）减去 Dock 图标宽度，就是“和桌面一样”的 Dock 间距；
 // 同时不超过 Dock 的可用宽度
 function dockGapPx(sync) {
-    const DEFAULT_GAP = 10, SLOT = 56;
+    const DEFAULT_GAP = 10;
+    const dockSlotEl = document.querySelector('#dockBar .dock-slot .app-item');
+    const SLOT = (dockSlotEl && dockSlotEl.getBoundingClientRect().width) || 56;
     if (!sync) return DEFAULT_GAP;
     const pc = document.getElementById('phoneContainer');
     if (!pc) return DEFAULT_GAP;

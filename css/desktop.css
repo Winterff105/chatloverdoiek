@@ -114,49 +114,33 @@
     transform: scale(1);
 }
 
-/* Dock 视口缩放参数：想调只改这里
-   --dock-unit：1 个缩放单位。以 360px 宽、780px 高为 1 倍，取宽高两者中较小的比例，矮屏不会过大
-   --dock-scale：Dock 整体额外放大倍数，1 为原始比例，调大 Dock 整体变大
-   --dock-bottom-ratio：Dock 距屏幕底部的距离占屏幕高度的比例，调大上移，调小下移 */
-:root {
-    --dock-unit: min(calc(min(100vw, 430px) / 360), calc(var(--app-height, 100dvh) / 780));
-    --dock-scale: 1;
-    --dock-bottom-ratio: 0.04;
-    --dock-bottom-gap: calc(var(--app-height, 100dvh) * var(--dock-bottom-ratio));
-}
-
 /* 底部 Dock 栏 (上抬并应用 3D 浮空液态透镜质感) */
 .dock-wrapper {
-    padding: 0 calc(16 * var(--dock-unit));
-    padding-bottom: var(--dock-bottom-gap) !important;
-    margin-bottom: 0 !important;
+    padding: 0 16px;
+    padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 10;
     position: relative;
-    flex-shrink: 0;
 }
 
 .dock {
-    /* Dock 内部的图标尺寸跟随视口缩放，图标、圆角、线条图案一起变化；
-       桌面上的其他图标不受影响 */
-    --app-size: calc(56 * var(--dock-unit) * var(--dock-scale));
     background: rgba(255, 255, 255, 0.035) !important;
     backdrop-filter: url(#lens-refraction) blur(1.5px) saturate(180%);
     -webkit-backdrop-filter: url(#lens-refraction) blur(1.5px) saturate(180%);
     border: 0.5px solid rgba(255, 255, 255, 0.18) !important;
     border-top: 0.75px solid rgba(255, 255, 255, 0.4) !important;
-    border-radius: calc(32 * var(--dock-unit) * var(--dock-scale));
-    height: calc(86 * var(--dock-unit) * var(--dock-scale));
-    padding: 0 calc(12 * var(--dock-unit) * var(--dock-scale));
+    border-radius: 32px;
+    height: 86px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     box-shadow: 
         inset 0 0.8px 1px 0 rgba(255, 255, 255, 0.45),
         inset 0 -1px 2px 0 rgba(255, 255, 255, 0.08),
-        0 calc(24 * var(--dock-unit)) calc(50 * var(--dock-unit)) rgba(0, 0, 0, 0.5);
+        0 24px 50px rgba(0, 0, 0, 0.5);
     transition: width 0.36s var(--smooth-ease);
     will-change: width;
     overflow: hidden;
@@ -183,4 +167,19 @@
     justify-content: center;
     align-items: center;
     flex-shrink: 0 !important;
+}
+
+/* 「小组件库 → 桌面视口设置 → Dock」面板接入：
+   面板把变量写在 phoneContainer 上，这里读取；没调过时括号里的默认值和原样式完全一致。
+   用 ID 选择器 + !important，其他样式文件里的 .dock 规则盖不住它 */
+#phoneContainer #dockBar {
+    background: rgba(255, 255, 255, var(--dock-alpha, 0.035)) !important;
+    backdrop-filter: var(--dock-filter, url(#lens-refraction) blur(1.5px) saturate(180%)) !important;
+    -webkit-backdrop-filter: var(--dock-filter, url(#lens-refraction) blur(1.5px) saturate(180%)) !important;
+    border-radius: var(--dock-radius, 32px) !important;
+    gap: var(--dock-gap, 10px) !important;
+}
+
+#phoneContainer #dockBar::before {
+    display: var(--dock-before-display, block) !important;
 }
