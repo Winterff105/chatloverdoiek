@@ -235,6 +235,79 @@
         };
     </script>
     <script src="js/sanctuary-gate.js"></script>
+<!-- 移动端浮动调试控制台 -->
+<div id="mobileDebugConsole" style="position:fixed;bottom:0;left:0;right:0;height:200px;background:rgba(0,0,0,0.95);color:#0f0;font-family:monospace;font-size:11px;overflow-y:auto;z-index:999999999;display:none;padding:10px;box-sizing:border-box;">
+    <div id="consoleOutput" style="white-space:pre-wrap;word-break:break-all;"></div>
+</div>
 
+<button id="toggleConsoleBtn" style="position:fixed;bottom:10px;right:10px;z-index:1000000000;background:#000;color:#0f0;border:2px solid #0f0;border-radius:50%;width:50px;height:50px;font-size:16px;font-weight:bold;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.5);">
+    DEV
+</button>
+
+<script>
+(function() {
+    const console_orig = window.console;
+    const consoleDiv = document.getElementById('mobileDebugConsole');
+    const outputDiv = document.getElementById('consoleOutput');
+    const toggleBtn = document.getElementById('toggleConsoleBtn');
+
+    let consoleVisible = false;
+
+    toggleBtn.addEventListener('click', () => {
+        consoleVisible = !consoleVisible;
+        consoleDiv.style.display = consoleVisible ? 'block' : 'none';
+        toggleBtn.textContent = consoleVisible ? 'X' : 'DEV';
+    });
+
+    function appendLog(type, args) {
+        const timestamp = new Date().toLocaleTimeString();
+        const prefix = `[${timestamp}] ${type.toUpperCase()}: `;
+        const message = Array.from(args).map(arg => {
+            if (typeof arg === 'object') {
+                try {
+                    return JSON.stringify(arg, null, 2);
+                } catch (e) {
+                    return String(arg);
+                }
+            }
+            return String(arg);
+        }).join(' ');
+        
+        const line = document.createElement('div');
+        line.style.marginBottom = '4px';
+        line.style.borderBottom = '1px solid #333';
+        line.style.paddingBottom = '4px';
+        
+        if (type === 'error') {
+            line.style.color = '#ff4444';
+        } else if (type === 'warn') {
+            line.style.color = '#ffaa00';
+        } else {
+            line.style.color = '#00ff00';
+        }
+        
+        line.textContent = prefix + message;
+        outputDiv.appendChild(line);
+        consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        
+        console_orig[type].apply(console_orig, args);
+    }
+
+    window.console = {
+        log: function() { appendLog('log', arguments); },
+        error: function() { appendLog('error', arguments); },
+        warn: function() { appendLog('warn', arguments); },
+        info: function() { appendLog('info', arguments); }
+    };
+
+    window.addEventListener('error', (e) => {
+        appendLog('error', ['未捕获错误:', e.message, '在', e.filename, '行', e.lineno]);
+    });
+
+    window.addEventListener('unhandledrejection', (e) => {
+        appendLog('error', ['未处理的Promise拒绝:', e.reason]);
+    });
+})();
+</script>
 </body>
 </html>
