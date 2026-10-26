@@ -30,7 +30,7 @@
         }, 800);
     })();
     */
-    console.log('【调试模式】防调试代码已禁用');
+    console.log('[Debug] Anti-debug disabled…');
 </script>
 
     <!-- iOS 真实视口高度修正 + 壁纸同步到 html 兜底层 -->
@@ -219,7 +219,7 @@
                         return await fetch(url, { cache: 'no-store' });
                     } catch (e) {
                         lastErr = e;
-                        console.warn('【核心模块】请求失败，第', i + 1, '次重试', url);
+                        console.warn('[Core] Request failed, retrying…', i + 1, url);
                         await new Promise(r => setTimeout(r, 800 * (i + 1)));
                     }
                 }
@@ -252,9 +252,15 @@
 
                 if (!cssRes.ok) {
                     const detail = await cssRes.text();
-                    const err = new Error(`${href} 返回 ${cssRes.status}：${detail.slice(0, 120)}`);
-                    err.status = cssRes.status;
-                    throw err;
+                    console.warn('[Style] Blocked, fallback to public file…', href, cssRes.status, detail.slice(0, 120));
+                    // 后端没放行时，退回公开的 css 文件，保证页面有样式
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = href;
+                    link.dataset.src = href;
+                    document.head.appendChild(link);
+                    window.__loadedCoreScripts.add(href);
+                    continue;
                 }
 
                 let css = await cssRes.text();
@@ -266,14 +272,14 @@
                 style.textContent = css;
                 document.head.appendChild(style);
                 window.__loadedCoreScripts.add(href);
-                console.log('【核心样式】已注入', href, '长度=', css.length);
+                console.log('[Style] Injected…', href, 'size =', css.length);
             }
 
             let injectedCount = 0;
 
             for (const src of scripts) {
                 if (window.__loadedCoreScripts.has(src)) {
-                    console.log('【核心模块】已加载过，跳过', src);
+                    console.log('[Core] Already loaded, skipping…', src);
                     continue;
                 }
 
@@ -293,7 +299,7 @@
                 document.head.appendChild(script);
                 window.__loadedCoreScripts.add(src);
                 injectedCount++;
-                console.log('【核心模块】已注入', src, '长度=', code.length);
+                console.log('[Core] Injected…', src, 'size =', code.length);
             }
 
             // 核心脚本是页面加载完之后才注入的，DOMContentLoaded 和 load 早已触发过。
@@ -301,10 +307,10 @@
             // 只在本次确实注入了新文件时派发，避免重复初始化。
             if (injectedCount > 0 && !window.__coreInitDispatched) {
                 window.__coreInitDispatched = true;
-                console.log('【核心模块】派发 DOMContentLoaded，启动桌面初始化');
+                console.log('[Core] Booting desktop…');
                 document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
                 window.dispatchEvent(new Event('load'));
-                console.log('【核心模块】初始化事件派发完成');
+                console.log('[Core] Boot events dispatched…');
             }
         };
     </script>
