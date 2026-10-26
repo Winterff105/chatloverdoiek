@@ -165,3 +165,19 @@
     border-radius: 8px;
     padding: 6px 8px;
 }
+
+/* 报错：白色闪烁 */
+.gate-toast-pill.is-error {
+    color: #ffffff;
+    animation: gateToastBlink 1.2s ease-in-out infinite;
+}
+
+@keyframes gateToastBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+/* 系统开启「减少动态效果」时不闪烁 */
+@media (prefers-reduced-motion: reduce) {
+    .gate-toast-pill.is-error { animation: none; }
+}
