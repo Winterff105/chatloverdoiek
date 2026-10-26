@@ -2792,15 +2792,24 @@ async function commitViewportPadding(type, val) {
 }
 
 // ---------- 桌面视口：独立于应用窗口的视口，只控制桌面 ----------
-// 顶部：沿用原来的 top 下移，默认位置不变
-// 底部：relative 元素同时设 top 和 bottom 时 bottom 无效，改用底部内边距把 Dock 往上推
+// 整个桌面固定下移 24px（保持原来的位置，Dock 和分页点不动）
+// 顶部距离：只把桌面图标 / 小组件这一层往下推，默认 32px
+// 底部距离：用底部内边距把 Dock 往上推
+const DESKTOP_HOME_BASE_TOP = 24;
+const DESKTOP_LAYOUT_TOP_DEFAULT = 32;
+
 function applyDesktopViewport(topVal, bottomVal) {
     const home = document.getElementById('homeScreen');
+    const track = document.getElementById('desktopTrack');
     if (!home) return;
-    home.style.top = topVal + 'px';
+    home.style.top = DESKTOP_HOME_BASE_TOP + 'px';
     home.style.bottom = '';
     home.style.paddingTop = '';
     home.style.paddingBottom = bottomVal + 'px';
+    if (track) {
+        track.style.position = 'relative';
+        track.style.top = topVal + 'px';
+    }
 }
 
 function previewDesktopViewport(type, val, el) {
@@ -2811,21 +2820,26 @@ function previewDesktopViewport(type, val, el) {
     const label = document.getElementById(type === 'top' ? 'dvpTopVal' : 'dvpBottomVal');
     if (label) label.innerText = val + 'px';
     const home = document.getElementById('homeScreen');
+    const track = document.getElementById('desktopTrack');
     if (!home) return;
-    home.style.bottom = '';
-    home.style.paddingTop = '';
-    if (type === 'top') home.style.top = val + 'px';
-    else home.style.paddingBottom = val + 'px';
+    if (type === 'top') {
+        if (track) {
+            track.style.position = 'relative';
+            track.style.top = val + 'px';
+        }
+    } else {
+        home.style.paddingBottom = val + 'px';
+    }
 }
 
 async function commitDesktopViewport(type, val) {
     const num = parseInt(val, 10);
-    await safeDB.save(type === 'top' ? 'desktop_viewport_top' : 'desktop_viewport_bottom', num);
+    await safeDB.save(type === 'top' ? 'desktop_layout_top' : 'desktop_viewport_bottom', num);
 }
 
 async function resetDesktopViewport() {
-    const top = 24, bottom = 0;
-    await safeDB.save('desktop_viewport_top', top);
+    const top = DESKTOP_LAYOUT_TOP_DEFAULT, bottom = 0;
+    await safeDB.save('desktop_layout_top', top);
     await safeDB.save('desktop_viewport_bottom', bottom);
     applyDesktopViewport(top, bottom);
     const tr = document.getElementById('dvpTopRange');
@@ -2866,7 +2880,7 @@ async function openDesktopViewportPopup() {
     subtitle.innerText = '桌面视口';
     body.style.maxHeight = 'none';
 
-    const top = await safeDB.load('desktop_viewport_top', 24);
+    const top = await safeDB.load('desktop_layout_top', DESKTOP_LAYOUT_TOP_DEFAULT);
     const bottom = await safeDB.load('desktop_viewport_bottom', 0);
     const pct = (v) => ((v - 0) / (200 - 0)) * 100;
     const dock = await loadDockStyle();
@@ -3057,7 +3071,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const topVal = await safeDB.load('viewport_padding_top', 24);
     const bottomVal = await safeDB.load('viewport_padding_bottom', 0);
     applyViewportPadding(topVal, bottomVal);
-    const dTop = await safeDB.load('desktop_viewport_top', 24);
+    const dTop = await safeDB.load('desktop_layout_top', DESKTOP_LAYOUT_TOP_DEFAULT);
     const dBottom = await safeDB.load('desktop_viewport_bottom', 0);
     applyDesktopViewport(dTop, dBottom);
     applyDockStyle(await loadDockStyle());

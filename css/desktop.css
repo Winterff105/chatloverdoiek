@@ -119,8 +119,8 @@
 /* 底部 Dock 栏 (上抬并应用 3D 浮空液态透镜质感) */
 .dock-wrapper {
     padding: 0 16px;
-    /* 默认在原位置基础上再往上 30px；桌面视口设置里的底部距离会在此基础上继续叠加 */
-    padding-bottom: calc(max(24px, env(safe-area-inset-bottom, 0px)) + 30px);
+    /* 默认在原位置基础上再往上 35px；桌面视口设置里的底部距离会在此基础上继续叠加 */
+    padding-bottom: calc(max(24px, env(safe-area-inset-bottom, 0px)) + 35px);
     display: flex;
     justify-content: center;
     align-items: center;
