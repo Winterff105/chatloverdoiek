@@ -112,7 +112,8 @@ async function getClientIP() {
     async function bootAndUnlock(qq, token) {
         if (!coreLoadPromise) {
             if (typeof window.__appBootstrap !== 'function') {
-                throw new Error('__appBootstrap 函数不存在');
+                const early = (window.__earlyErrors || []).slice(-2).join(' | ');
+                throw new Error('__appBootstrap 函数不存在' + (early ? '（' + early + '）' : '（可能是旧缓存，请清缓存后刷新）'));
             }
             console.log('【核心模块】开始加载，QQ=', qq);
             coreLoadPromise = window.__appBootstrap(token).then(() => {
