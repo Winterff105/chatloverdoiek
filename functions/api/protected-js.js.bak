@@ -39,22 +39,29 @@ export async function onRequest(context) {
     return new Response('Forbidden', { status: 403 });
   }
 
+  if (!env.SUPABASE_SERVICE_KEY) {
+    return new Response('Server error: 未读取到环境变量 SUPABASE_SERVICE_KEY', { status: 500 });
+  }
+
   try {
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      'https://tjgxfyblzgqwxwfwvfol.supabase.co',
-      env.SUPABASE_SERVICE_KEY
-    );
+    const serviceKey = env.SUPABASE_SERVICE_KEY;
+    // 逐段编码路径，保留目录分隔符 /
+    const objectPath = file.split('/').map(encodeURIComponent).join('/');
 
-    const { data, error } = await supabase.storage
-      .from('protected-scripts')
-      .download(file);
+    // 直接调用 Supabase Storage REST 接口下载私有文件
+    const res = await fetch(`https://tjgxfyblzgqwxwfwvfol.supabase.co/storage/v1/object/protected-scripts/${objectPath}`, {
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`
+      }
+    });
 
-    if (error || !data) {
-      return new Response('File not found', { status: 404 });
+    if (!res.ok) {
+      const detail = await res.text();
+      return new Response(`File not found (${res.status}): ${detail}`, { status: 404 });
     }
 
-    const content = await data.text();
+    const content = await res.text();
 
     return new Response(content, {
       status: 200,

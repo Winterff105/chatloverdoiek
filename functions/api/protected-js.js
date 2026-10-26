@@ -32,7 +32,21 @@ export async function onRequest(context) {
     'js/apps/preset.js',
     'js/apps/backup.js',
     'js/apps/app-manager.js',
-    'js/main.js'
+    'js/main.js',
+    'css/base.css',
+    'css/desktop.css',
+    'css/app-icon.css',
+    'css/widgets.css',
+    'css/app-window.css',
+    'css/settings.css',
+    'css/messages.css',
+    'css/archangel.css',
+    'css/worldbook.css',
+    'css/preset.css',
+    'css/world.css',
+    'css/liquid-glass.css',
+    'css/backup.css',
+    'css/widget-kit.css'
   ];
 
   if (!file || !allowedFiles.includes(file)) {
@@ -63,10 +77,14 @@ export async function onRequest(context) {
 
     const content = await res.text();
 
+    const contentType = file.endsWith('.css')
+      ? 'text/css; charset=utf-8'
+      : 'application/javascript; charset=utf-8';
+
     return new Response(content, {
       status: 200,
       headers: {
-        'Content-Type': 'application/javascript; charset=utf-8',
+        'Content-Type': contentType,
         'Cache-Control': 'no-store'
       }
     });
