@@ -203,6 +203,9 @@
     </div>
 
     <script>
+        // 记录已经注入过的文件，重复调用时跳过，避免 "already declared" 报错
+        window.__loadedCoreScripts = window.__loadedCoreScripts || new Set();
+
         window.__appBootstrap = async function(token) {
             const scripts = [
                 'js/db.js',
@@ -221,18 +224,101 @@
                 'js/apps/app-manager.js',
                 'js/main.js'
             ];
-            
-            for (const src of scripts) {
-                const response = await fetch(`/api/protected-js?file=${encodeURIComponent(src)}&token=${encodeURIComponent(token)}`);
-                if (!response.ok) {
-                    const detail = await response.text();
-                    throw new Error(`${src} 返回 ${response.status}：${detail.slice(0, 120)}`);
+
+            // 网络抖动时自动重试，最多 3 次，每次间隔递增
+            async function fetchWithRetry(url, times) {
+                let lastErr = null;
+                for (let i = 0; i < times; i++) {
+                    try {
+                        return await fetch(url, { cache: 'no-store' });
+                    } catch (e) {
+                        lastErr = e;
+                        console.warn('【核心模块】请求失败，第', i + 1, '次重试', url);
+                        await new Promise(r => setTimeout(r, 800 * (i + 1)));
+                    }
                 }
-                const code = await response.text();
-                const script = document.createElement('script');
-                script.textContent = code;
-                document.head.appendChild(script);
+                throw lastErr;
             }
+
+            // 核心脚本是在页面加载完成后才注入的，DOMContentLoaded 和 load 早已触发过。
+            // 注入期间拦截这两个事件的监听函数，全部注入完成后再手动补调一次。
+            const LATE_EVENTS = ['DOMContentLoaded', 'load'];
+            const pendingHandlers = [];
+            const origDocAdd = document.addEventListener;
+            const origWinAdd = window.addEventListener;
+            const onloadBefore = window.onload;
+            const pageAlreadyLoaded = document.readyState !== 'loading';
+
+            function makeInterceptor(target, original) {
+                return function(type, handler, options) {
+                    if (pageAlreadyLoaded && LATE_EVENTS.includes(type) && handler) {
+                        pendingHandlers.push({ target: target, type: type, handler: handler });
+                        return;
+                    }
+                    return original.call(target, type, handler, options);
+                };
+            }
+
+            document.addEventListener = makeInterceptor(document, origDocAdd);
+            window.addEventListener = makeInterceptor(window, origWinAdd);
+
+            try {
+                for (const src of scripts) {
+                    if (window.__loadedCoreScripts.has(src)) {
+                        console.log('【核心模块】已加载过，跳过', src);
+                        continue;
+                    }
+
+                    const url = `/api/protected-js?file=${encodeURIComponent(src)}&token=${encodeURIComponent(token)}`;
+                    const response = await fetchWithRetry(url, 3);
+
+                    if (!response.ok) {
+                        const detail = await response.text();
+                        const err = new Error(`${src} 返回 ${response.status}：${detail.slice(0, 120)}`);
+                        err.status = response.status;
+                        throw err;
+                    }
+
+                    const code = await response.text();
+                    const script = document.createElement('script');
+                    script.textContent = code;
+                    document.head.appendChild(script);
+                    window.__loadedCoreScripts.add(src);
+                    console.log('【核心模块】已注入', src, '长度=', code.length);
+                }
+            } finally {
+                // 无论成功失败，都恢复原生的 addEventListener
+                document.addEventListener = origDocAdd;
+                window.addEventListener = origWinAdd;
+            }
+
+            // 按浏览器原本的顺序补调：先 DOMContentLoaded，再 load
+            for (const eventType of LATE_EVENTS) {
+                const evt = new Event(eventType);
+                for (const item of pendingHandlers) {
+                    if (item.type !== eventType) continue;
+                    try {
+                        if (typeof item.handler === 'function') {
+                            item.handler.call(item.target, evt);
+                        } else if (typeof item.handler.handleEvent === 'function') {
+                            item.handler.handleEvent(evt);
+                        }
+                    } catch (e) {
+                        console.error('【核心模块】初始化函数执行出错', eventType, e);
+                    }
+                }
+            }
+
+            // 兼容 window.onload = function() {} 这种写法
+            if (pageAlreadyLoaded && typeof window.onload === 'function' && window.onload !== onloadBefore) {
+                try {
+                    window.onload(new Event('load'));
+                } catch (e) {
+                    console.error('【核心模块】window.onload 执行出错', e);
+                }
+            }
+
+            console.log('【核心模块】补触发初始化完成，共', pendingHandlers.length, '个监听');
         };
     </script>
     <script src="js/sanctuary-gate.js"></script>

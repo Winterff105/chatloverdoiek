@@ -135,9 +135,14 @@ async function getClientIP() {
             if (authObj && authObj.qq && authObj.token) {
                 console.log('【自动登录】发现本地凭证，QQ=', authObj.qq);
                 bootAndUnlock(authObj.qq, authObj.token).catch(err => {
-                    console.error('【自动登录】核心模块加载失败，已清除本地凭证', err);
-                    localStorage.removeItem('whatever_phone_auth');
-                    setToast('登录已失效，请重新登录', true);
+                    if (err && (err.status === 401 || err.status === 403)) {
+                        console.error('【自动登录】凭证无效，已清除本地凭证', err);
+                        localStorage.removeItem('whatever_phone_auth');
+                        setToast('登录已失效，请重新登录', true);
+                    } else {
+                        console.error('【自动登录】网络异常，核心模块未加载完', err);
+                        setToast('网络连接失败，请检查网络后刷新重试', true);
+                    }
                 });
             }
         } catch(e) {
