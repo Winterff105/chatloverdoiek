@@ -87,25 +87,6 @@
                 setTimeout(syncWallpaper, 500);
                 setTimeout(syncWallpaper, 1500);
                 setTimeout(syncWallpaper, 3000);
-
-                // ===== 临时调试角标：确认修好后删掉这一段 =====
-                var dbg = document.createElement('div');
-                dbg.style.cssText = 'position:fixed;left:8px;top:50%;z-index:999999;background:rgba(0,0,0,.75);color:#0f0;font:11px/1.4 monospace;padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre;';
-                function renderDbg() {
-                    var pcEl = document.getElementById('phoneContainer');
-                    dbg.textContent =
-                        'standalone: ' + isStandalone() + '\n' +
-                        'innerH: ' + window.innerHeight + '\n' +
-                        'screenH: ' + screen.height + '\n' +
-                        '--app-height: ' + root.style.getPropertyValue('--app-height') + '\n' +
-                        'html: ' + root.offsetHeight + '\n' +
-                        'body: ' + document.body.offsetHeight + '\n' +
-                        'container: ' + (pcEl ? pcEl.offsetHeight : 'none');
-                }
-                document.body.appendChild(dbg);
-                renderDbg();
-                setInterval(renderDbg, 1000);
-                // ===== 临时调试角标结束 =====
             });
         })();
     </script>

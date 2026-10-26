@@ -72,7 +72,3 @@ body {
 html:has(.phone-container.theme-light) {
     background-color: #FCFAFB;
 }
-
-html, body {
-    background-color: #09090b;
-}
