@@ -192,15 +192,17 @@ async function getClientIP() {
                 });
                 window.__pulseN = (window.__pulseN || 0) + 1;
                 if (window.__pulseN % 5 === 1) {
-                    const myId = localStorage.getItem('whatever_device_fingerprint');
-                    const { data: cred } = await supabase.from('auth_credentials').select('bound_devices').eq('qq', qq).limit(1);
-                    const list = (cred && cred[0] && Array.isArray(cred[0].bound_devices)) ? cred[0].bound_devices : [];
-                    const me = list.find(d => d.id === myId);
-                    if (me) {
-                        me.ip = clientIP;
-                        me.last_active = new Date().toISOString();
-                        await supabase.from('auth_credentials').update({ bound_devices: list }).eq('qq', qq);
-                    }
+                    let tk = '';
+                    try { tk = (JSON.parse(localStorage.getItem('whatever_phone_auth') || '{}') || {}).token || ''; } catch (_) {}
+                    await fetch('/api/devices', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            token: tk,
+                            action: 'touch',
+                            deviceId: localStorage.getItem('whatever_device_fingerprint')
+                        })
+                    });
                 }
             } catch(e) {}
         }
@@ -793,39 +795,31 @@ async function getClientIP() {
             return;
         }
 
+        if (pwd.length < 6) {
+            setToast("密码至少 6 位", true);
+            return;
+        }
+
         btnActivate.textContent = "VERIFYING...";
         try {
-            const email = `${qq}@qq.com`;
-            const { error } = await supabase.auth.verifyOtp({ email, token: code, type: 'email' });
+            // 验证码校验与保存密码都在后端完成，前端不再直接写入账号表
+            const actRes = await fetch('/api/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ qq, code, password: pwd })
+            });
+            const actOut = await actRes.json();
+            console.log('[Activate] Response…', actRes.status, actOut);
 
-            if (error) {
-                setToast("激活码不正确或已过期，请重新获取", true);
+            if (!actRes.ok || !actOut.success || !actOut.token) {
+                setToast((actOut.message || "激活失败") + (actOut.error ? "：" + actOut.error : ""), true);
                 btnActivate.textContent = "ACTIVATE & ENTER →";
                 return;
             }
 
-            // 激活码校验通过，保存密码并标记已激活
-            const { error: credErr } = await supabase
-                .from('auth_credentials')
-                .upsert({
-                    qq: qq,
-                    email: email,
-                    password_hash: pwd,
-                    is_activated: true,
-                    last_login_at: new Date().toISOString()
-                });
-
-            if (credErr) {
-                console.error(credErr);
-                setToast("保存密码失败：" + (credErr.message || credErr.code || "未知错误"), true);
-                btnActivate.textContent = "ACTIVATE & ENTER →";
-                return;
-            }
-
-            const actToken = btoa(qq + ':' + Date.now());
-            localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: actToken }));
+            localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: actOut.token }));
             setToast("激活并设置密码成功，正在加载核心模块...");
-            await bootAndUnlock(qq, actToken);
+            await bootAndUnlock(qq, actOut.token);
         } catch (e) {
             console.error(e);
             setToast("系统故障，无法完成激活", true);

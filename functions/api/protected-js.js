@@ -1,20 +1,43 @@
+const enc = new TextEncoder();
+
+function fromB64url(str) {
+  const s = String(str).replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(s + '='.repeat((4 - s.length % 4) % 4));
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
+}
+
+async function hmacKey(secret) {
+  return crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+}
+
+// 校验签名和有效期，通过时返回 { qq }，否则返回 null
+async function verifyToken(token, secret) {
+  try {
+    const [payload, sig] = String(token || '').split('.');
+    if (!payload || !sig) return null;
+    const ok = await crypto.subtle.verify('HMAC', await hmacKey(secret), fromB64url(sig), enc.encode(payload));
+    if (!ok) return null;
+    const [qq, exp] = new TextDecoder().decode(fromB64url(payload)).split(':');
+    if (!qq || !(Number(exp) > Date.now())) return null;
+    return { qq };
+  } catch (_) {
+    return null;
+  }
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
   const file = url.searchParams.get('file');
   const token = url.searchParams.get('token');
 
-  if (!token) {
-    return new Response('Unauthorized', { status: 401 });
+  if (!env.TOKEN_SECRET) {
+    return new Response('Server error: 未读取到环境变量 TOKEN_SECRET', { status: 500 });
   }
 
-  try {
-    const decoded = atob(token);
-    if (!decoded.includes(':')) {
-      return new Response('Invalid token', { status: 401 });
-    }
-  } catch {
-    return new Response('Invalid token', { status: 401 });
+  const authed = await verifyToken(token, env.TOKEN_SECRET);
+  if (!authed) {
+    return new Response('Unauthorized', { status: 401 });
   }
 
   const allowedFiles = [

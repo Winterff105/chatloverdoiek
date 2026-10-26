@@ -1,3 +1,54 @@
+const enc = new TextEncoder();
+const PBKDF2_ITER = 100000;
+
+function b64url(bytes) {
+  let s = '';
+  new Uint8Array(bytes).forEach(b => { s += String.fromCharCode(b); });
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromB64url(str) {
+  const s = String(str).replace(/-/g, '+').replace(/_/g, '/');
+  const bin = atob(s + '='.repeat((4 - s.length % 4) % 4));
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
+}
+
+async function hmacKey(secret) {
+  return crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+}
+
+// token 格式：base64url("qq:过期时间") + "." + 签名
+async function signToken(qq, secret, days = 30) {
+  const exp = Date.now() + days * 86400000;
+  const payload = b64url(enc.encode(`${qq}:${exp}`));
+  const sig = await crypto.subtle.sign('HMAC', await hmacKey(secret), enc.encode(payload));
+  return `${payload}.${b64url(sig)}`;
+}
+
+async function pbkdf2(pwd, salt, iter) {
+  const key = await crypto.subtle.importKey('raw', enc.encode(pwd), 'PBKDF2', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, key, 256));
+}
+
+async function hashPassword(pwd) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const hash = await pbkdf2(pwd, salt, PBKDF2_ITER);
+  return `pbkdf2$${PBKDF2_ITER}$${b64url(salt)}$${b64url(hash)}`;
+}
+
+// legacy=true 表示数据库里还是旧的明文密码
+async function checkPassword(pwd, stored) {
+  if (!stored) return { ok: false, legacy: false };
+  if (!String(stored).startsWith('pbkdf2$')) return { ok: stored === pwd, legacy: true };
+  const [, iter, salt, hash] = String(stored).split('$');
+  const got = await pbkdf2(pwd, fromB64url(salt), Number(iter));
+  const want = fromB64url(hash);
+  if (got.length !== want.length) return { ok: false, legacy: false };
+  let diff = 0;
+  for (let i = 0; i < got.length; i++) diff |= got[i] ^ want[i];
+  return { ok: diff === 0, legacy: false };
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   
@@ -9,7 +60,8 @@ export async function onRequest(context) {
   }
 
   try {
-    const { qq, password, deviceId, user_agent, ip } = await request.json();
+    const { qq, password, deviceId, user_agent, ip: clientIp } = await request.json();
+    const ip = request.headers.get('CF-Connecting-IP') || clientIp || '';
     
     if (!qq || !password || !deviceId) {
       return new Response(JSON.stringify({ success: false, message: '缺少必要参数' }), {
@@ -20,6 +72,13 @@ export async function onRequest(context) {
 
     if (!env.SUPABASE_SERVICE_KEY) {
       return new Response(JSON.stringify({ success: false, message: '服务器错误', error: '未读取到环境变量 SUPABASE_SERVICE_KEY' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (!env.TOKEN_SECRET) {
+      return new Response(JSON.stringify({ success: false, message: '服务器错误', error: '未读取到环境变量 TOKEN_SECRET' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -60,11 +119,20 @@ export async function onRequest(context) {
       });
     }
 
-    // 比对密码（明文）
-    if (user.password_hash !== password) {
+    // 比对密码：支持新的哈希格式，也兼容旧的明文
+    const pwdCheck = await checkPassword(password, user.password_hash);
+    if (!pwdCheck.ok) {
       return new Response(JSON.stringify({ success: false, message: '密码错误' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // 旧明文密码登录成功后，自动改存为哈希
+    if (pwdCheck.legacy) {
+      await sbRest(`auth_credentials?${qqFilter}`, {
+        method: 'PATCH',
+        body: { password_hash: await hashPassword(password) }
       });
     }
 
@@ -122,8 +190,8 @@ export async function onRequest(context) {
       });
     }
 
-    // 生成 token（简单方案：base64(qq:timestamp)）
-    const token = btoa(`${qq}:${Date.now()}`);
+    // 签发带签名和有效期的 token
+    const token = await signToken(String(qq), env.TOKEN_SECRET);
 
     return new Response(JSON.stringify({ 
       success: true, 
