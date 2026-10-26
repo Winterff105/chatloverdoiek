@@ -39,10 +39,12 @@
     flex-shrink: 0;
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(5, 80px);
+    /* 行高与间隔按图标尺寸等比缩放：360px 宽屏幕上仍是 80px / 10px / 8px，
+       宽屏 iPhone 上按同样比例放大，图标与间隔的比例在所有设备上一致 */
+    grid-template-rows: repeat(5, calc(var(--app-size, 56px) * 80 / 56));
     align-content: center;
     padding: 0 16px;
-    gap: 10px 8px;
+    gap: calc(var(--app-size, 56px) * 10 / 56) calc(var(--app-size, 56px) * 8 / 56);
     position: relative;
 }
 
@@ -117,7 +119,8 @@
 /* 底部 Dock 栏 (上抬并应用 3D 浮空液态透镜质感) */
 .dock-wrapper {
     padding: 0 16px;
-    padding-bottom: max(24px, env(safe-area-inset-bottom, 0px));
+    /* 默认在原位置基础上再往上 30px；桌面视口设置里的底部距离会在此基础上继续叠加 */
+    padding-bottom: calc(max(24px, env(safe-area-inset-bottom, 0px)) + 30px);
     display: flex;
     justify-content: center;
     align-items: center;

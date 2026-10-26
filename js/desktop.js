@@ -509,7 +509,7 @@ function executeDrop(targetEl, session, upEvent) {
                     const colGap = parseFloat(style.columnGap || style.gridColumnGap) || 10;
                     const rowGap = parseFloat(style.rowGap || style.gridRowGap) || 12;
 
-                    const rowHeight = 88;
+                    const rowHeight = parseFloat((style.gridTemplateRows || '').split(' ')[0]) || 80;
                     const totalGridHeight = 5 * rowHeight + 4 * rowGap;
                     const gridTopOffset = Math.max(0, (pageRect.height - totalGridHeight) / 2);
 
