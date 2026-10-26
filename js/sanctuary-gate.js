@@ -153,7 +153,13 @@ async function getClientIP() {
 
     function setToast(msg, isError = false) {
         gateToast.textContent = msg;
-        gateToast.style.color = isError ? '#ff6b6b' : '#92929e';
+        gateToast.style.color = '';
+        // 先移除再加回，连续报错时闪烁动画会从头开始
+        gateToast.classList.remove('is-error');
+        if (isError) {
+            void gateToast.offsetWidth;
+            gateToast.classList.add('is-error');
+        }
     }
 
     // 启动小手机真实心跳与时长累计上报引擎
