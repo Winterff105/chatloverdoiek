@@ -105,17 +105,25 @@ async function getClientIP() {
     const btnActivate = document.getElementById('btnActionActivate');
 
     // 先加载核心 JS，再解锁门禁（手动登录、自动登录、激活三处共用）
-    let coreLoaded = false;
+    // 用同一个 Promise 做锁：并发调用只会加载一次，门禁和心跳也只启动一次
+    let coreLoadPromise = null;
+    let portalUnlocked = false;
+    let loginInFlight = false;
     async function bootAndUnlock(qq, token) {
-        if (!coreLoaded) {
+        if (!coreLoadPromise) {
             if (typeof window.__appBootstrap !== 'function') {
                 throw new Error('__appBootstrap 函数不存在');
             }
             console.log('【核心模块】开始加载，QQ=', qq);
-            await window.__appBootstrap(token);
-            coreLoaded = true;
-            console.log('【核心模块】加载完成');
+            coreLoadPromise = window.__appBootstrap(token).then(() => {
+                console.log('【核心模块】加载完成');
+            });
+            // 加载失败时释放锁，允许重新登录再试
+            coreLoadPromise.catch(() => { coreLoadPromise = null; });
         }
+        await coreLoadPromise;
+        if (portalUnlocked) return;
+        portalUnlocked = true;
         unlockPortal(qq);
     }
 
@@ -828,6 +836,10 @@ async function getClientIP() {
             return;
         }
 
+        if (loginInFlight) return;
+        loginInFlight = true;
+        btnLogin.disabled = true;
+
         console.log('【登录】开始，QQ=', qq);
         btnLogin.textContent = "LOGGING IN...";
 
@@ -890,8 +902,15 @@ async function getClientIP() {
             }
         } catch (e) {
             console.error('【登录】异常', e);
-            setToast("登录核验超时", true);
+            if (e && e.message === 'Failed to fetch') {
+                setToast("网络连接失败，请检查网络后重试", true);
+            } else {
+                setToast("登录核验超时", true);
+            }
             btnLogin.textContent = "LOG IN →";
+        } finally {
+            loginInFlight = false;
+            btnLogin.disabled = false;
         }
     });
 })();

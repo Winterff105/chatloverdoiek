@@ -866,7 +866,7 @@ async function getClientIP() {
                     setToast("尝试绑定第三个浏览器 已发送给管理员确认 请向管理员说明", true);
                     return;
                 }
-                setToast(result.message || result.error || "登录失败", true);
+                setToast((result.message || "登录失败") + (result.error ? "：" + result.error : ""), true);
                 btnLogin.textContent = "LOG IN →";
                 return;
             }
