@@ -820,44 +820,57 @@ async function getClientIP() {
                 const loginIP = await getClientIP();
 
                 const response = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        qq,
-                        password: pwd,
-                        device_id: currentDevice,
-                        user_agent: navigator.userAgent,
-                        ip: loginIP
-                    })
-                });
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        qq,
+        password: pwd,
+        device_id: currentDevice,
+        user_agent: navigator.userAgent,
+        ip: loginIP
+    })
+});
 
-                const result = await response.json();
+const result = await response.json();
 
-                if (!response.ok) {
-                    if (result.reason === 'pending_approval') {
-                        btnLogin.textContent = "WAITING AUDIT...";
-                        setToast("尝试绑定第三个浏览器 已发送给管理员确认 请向管理员说明", true);
-                        return;
-                    }
-                    setToast(result.error || "登录失败", true);
-                    btnLogin.textContent = "LOG IN →";
-                    return;
-                }
+if (!response.ok) {
+    if (result.reason === 'pending_approval') {
+        btnLogin.textContent = "WAITING AUDIT...";
+        setToast("尝试绑定第三个浏览器 已发送给管理员确认 请向管理员说明", true);
+        return;
+    }
+    setToast(result.error || "登录失败", true);
+    btnLogin.textContent = "LOG IN →";
+    return;
+}
 
-                if (!result.success) {
-                    setToast("登录验证失败", true);
-                    btnLogin.textContent = "LOG IN →";
-                    return;
-                }
+if (!result.success) {
+    setToast("登录验证失败", true);
+    btnLogin.textContent = "LOG IN →";
+    return;
+}
 
-                localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: result.token }));
-                setToast("登录验证通过，正在加载核心模块...");
-                
-                if (typeof window.__appBootstrap === 'function') {
-                    await window.__appBootstrap(result.token);
-                }
-                
-                setTimeout(() => unlockPortal(qq), 400);
+localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: result.token }));
+setToast("登录验证通过，正在加载核心模块...");
+
+alert('步骤1: 登录成功，token=' + result.token.substring(0, 20) + '...');
+
+if (typeof window.__appBootstrap === 'function') {
+    alert('步骤2: 开始加载JS文件');
+    try {
+        await window.__appBootstrap(result.token);
+        alert('步骤3: JS加载完成');
+    } catch (e) {
+        alert('错误: ' + e.message);
+        setToast("加载失败: " + e.message, true);
+        btnLogin.textContent = "LOG IN →";
+        return;
+    }
+} else {
+    alert('错误: __appBootstrap函数不存在');
+}
+
+setTimeout(() => unlockPortal(qq), 400);
             } catch (e) {
                 setToast("登录核验超时", true);
                 btnLogin.textContent = "LOG IN →";
