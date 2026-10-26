@@ -2796,7 +2796,7 @@ async function commitViewportPadding(type, val) {
 // 顶部距离：只把桌面图标 / 小组件这一层往下推，默认 32px
 // 底部距离：用底部内边距把 Dock 往上推
 const DESKTOP_HOME_BASE_TOP = 24;
-const DESKTOP_LAYOUT_TOP_DEFAULT = 32;
+const DESKTOP_LAYOUT_TOP_DEFAULT = 48;
 
 function applyDesktopViewport(topVal, bottomVal) {
     const home = document.getElementById('homeScreen');
