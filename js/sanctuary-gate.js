@@ -851,7 +851,12 @@ async function getClientIP() {
                 }
 
                 localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: result.token }));
-                setToast("登录验证通过，正在进入...");
+                setToast("登录验证通过，正在加载核心模块...");
+                
+                if (typeof window.__appBootstrap === 'function') {
+                    await window.__appBootstrap(result.token);
+                }
+                
                 setTimeout(() => unlockPortal(qq), 400);
             } catch (e) {
                 setToast("登录核验超时", true);

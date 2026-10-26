@@ -202,24 +202,39 @@
 
     </div>
 
-    <!-- 优先挂载前置登录与激活门禁 -->
+    <script>
+        window.__appBootstrap = async function(token) {
+            const scripts = [
+                'js/db.js',
+                'js/desktop.js',
+                'js/apps/settings.js',
+                'js/apps/quick-cruise.js',
+                'js/apps/messages-api.js',
+                'js/apps/messages-markup.js',
+                'js/apps/messages.js',
+                'js/apps/archangel.js',
+                'js/apps/worldbook.js',
+                'js/apps/world.js',
+                'js/liquid-glass.js',
+                'js/apps/preset.js',
+                'js/apps/backup.js',
+                'js/apps/app-manager.js',
+                'js/main.js'
+            ];
+            
+            for (const src of scripts) {
+                const response = await fetch(`/api/protected-js?file=${encodeURIComponent(src)}&token=${encodeURIComponent(token)}`);
+                if (!response.ok) {
+                    throw new Error(`加载失败: ${src}`);
+                }
+                const code = await response.text();
+                const script = document.createElement('script');
+                script.textContent = code;
+                document.head.appendChild(script);
+            }
+        };
+    </script>
     <script src="js/sanctuary-gate.js"></script>
-    <!-- 引入 JS 脚本 (严格按照依赖顺序) -->
-    <script src="js/db.js"></script>
-    <script src="js/desktop.js"></script>
-    <script src="js/apps/settings.js"></script>
-    <script src="js/apps/quick-cruise.js"></script>
-    <script src="js/apps/messages-api.js"></script>
-    <script src="js/apps/messages-markup.js"></script>
-    <script src="js/apps/messages.js"></script>
-    <script src="js/apps/archangel.js"></script>
-    <script src="js/apps/worldbook.js"></script>
-    <script src="js/apps/world.js"></script>
-    <script src="js/liquid-glass.js"></script>
-    <script src="js/apps/preset.js"></script>
-    <script src="js/apps/backup.js"></script>
-    <script src="js/apps/app-manager.js"></script>
-    <script src="js/main.js"></script>
 
 </body>
 </html>
