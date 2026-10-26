@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Whatever</title>
 
+    <!-- 记录 Eruda 加载前的报错，控制台输入 __earlyErrors 查看 -->
+    <script>
+        window.__earlyErrors = [];
+        window.addEventListener('error', function (e) {
+            window.__earlyErrors.push((e.message || 'error') + ' @ ' + (e.filename || 'inline') + ':' + (e.lineno || 0));
+        });
+    </script>
+
     <!-- 零侵入防扒防偷暗锁：禁用右键/长按菜单/开发者审查工具 -->
     <script>
     // 临时注释掉防调试代码，方便调试
@@ -315,10 +323,16 @@
         };
     </script>
     <script src="js/sanctuary-gate.js"></script>
-<!-- Eruda 移动端调试控制台 -->
+<!-- Eruda 移动端调试控制台：放在最高层，登录页也能打开 -->
 <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>
-    eruda.init();
+    (function () {
+        var box = document.createElement('div');
+        box.id = 'erudaTopLayer';
+        box.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;z-index:2147483647;';
+        document.body.appendChild(box);
+        eruda.init({ container: box });
+    })();
 </script>
 </body>
 </html>
