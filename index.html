@@ -33,24 +33,79 @@
         })();
     </script>
 
-    <!-- iOS 真实视口高度修正：主屏幕模式下 100vh/100dvh 会少算状态栏高度，导致底部白条 -->
+    <!-- iOS 真实视口高度修正 + 壁纸同步到 html 兜底层 -->
     <script>
         (function() {
-            function setAppHeight() {
-                var isStandalone = window.navigator.standalone === true ||
+            var root = document.documentElement;
+
+            function isStandalone() {
+                return window.navigator.standalone === true ||
                     window.matchMedia('(display-mode: standalone)').matches;
+            }
+
+            // 主屏幕模式下 innerHeight 会少算状态栏高度，改取物理屏幕高度
+            function setAppHeight() {
                 var h = window.innerHeight;
-                if (isStandalone) {
-                    // 主屏幕模式：取屏幕物理高度（竖屏用 height，横屏用 width）
-                    var screenH = window.innerWidth > window.innerHeight ? screen.width : screen.height;
+                if (isStandalone()) {
+                    var landscape = window.innerWidth > window.innerHeight;
+                    var screenH = landscape
+                        ? Math.min(screen.width, screen.height)
+                        : Math.max(screen.width, screen.height);
                     h = Math.max(h, screenH);
                 }
-                document.documentElement.style.setProperty('--app-height', h + 'px');
+                root.style.setProperty('--app-height', h + 'px');
             }
+
+            // 把 phone-container 上的壁纸变量复制到 html，让 html 背景层也显示壁纸
+            var lastBg = '';
+            function syncWallpaper() {
+                var pc = document.getElementById('phoneContainer');
+                if (!pc) return;
+                var bg = getComputedStyle(pc).getPropertyValue('--wallpaper-bg').trim();
+                if (bg && bg !== lastBg) {
+                    lastBg = bg;
+                    root.style.setProperty('--wallpaper-bg-root', bg);
+                }
+            }
+
             setAppHeight();
             window.addEventListener('resize', setAppHeight);
             window.addEventListener('orientationchange', function() {
                 setTimeout(setAppHeight, 300);
+            });
+
+            document.addEventListener('DOMContentLoaded', function() {
+                setAppHeight();
+                syncWallpaper();
+                var pc = document.getElementById('phoneContainer');
+                var observer = new MutationObserver(syncWallpaper);
+                if (pc) {
+                    observer.observe(pc, { attributes: true, attributeFilter: ['style', 'class'] });
+                }
+                observer.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'] });
+                // 壁纸可能由异步脚本稍后写入，再补几次同步
+                setTimeout(syncWallpaper, 500);
+                setTimeout(syncWallpaper, 1500);
+                setTimeout(syncWallpaper, 3000);
+
+                // ===== 临时调试角标：确认修好后删掉这一段 =====
+                var dbg = document.createElement('div');
+                dbg.style.cssText = 'position:fixed;left:8px;top:50%;z-index:999999;background:rgba(0,0,0,.75);color:#0f0;font:11px/1.4 monospace;padding:6px 8px;border-radius:6px;pointer-events:none;white-space:pre;';
+                function renderDbg() {
+                    var pcEl = document.getElementById('phoneContainer');
+                    dbg.textContent =
+                        'standalone: ' + isStandalone() + '\n' +
+                        'innerH: ' + window.innerHeight + '\n' +
+                        'screenH: ' + screen.height + '\n' +
+                        '--app-height: ' + root.style.getPropertyValue('--app-height') + '\n' +
+                        'html: ' + root.offsetHeight + '\n' +
+                        'body: ' + document.body.offsetHeight + '\n' +
+                        'container: ' + (pcEl ? pcEl.offsetHeight : 'none');
+                }
+                document.body.appendChild(dbg);
+                renderDbg();
+                setInterval(renderDbg, 1000);
+                // ===== 临时调试角标结束 =====
             });
         })();
     </script>
