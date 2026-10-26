@@ -7,31 +7,31 @@
 
     <!-- 零侵入防扒防偷暗锁：禁用右键/长按菜单/开发者审查工具 -->
     <script>
-        (function() {
-            // 1. 禁用右键与长按呼出系统菜单
-            window.addEventListener('contextmenu', e => e.preventDefault(), true);
-            // 2. 严禁页面元素拖拽偷图
-            window.addEventListener('dragstart', e => e.preventDefault(), true);
-            // 3. 拦截常见调试快捷键
-            window.addEventListener('keydown', e => {
-                if (e.keyCode === 123 || 
-                   (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || 
-                   (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83))) {
-                    e.preventDefault();
-                    return false;
-                }
-            }, true);
-            // 4. 无限 Debugger 陷阱：只要有人试图注入控制台或连接电脑审查，立即自爆卡死
-            setInterval(function() {
-                const startTime = performance.now();
-                (function() { return false; })['constructor']('debugger')['call']();
-                if (performance.now() - startTime > 100) {
-                    document.body.innerHTML = '<div style="background:#000;color:#fff;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;letter-spacing:2px;">SECURITY_BREACH: ACCESS TERMINATED</div>';
-                    window.location.reload();
-                }
-            }, 800);
-        })();
-    </script>
+    // 临时注释掉防调试代码，方便调试
+    /*
+    (function() {
+        window.addEventListener('contextmenu', e => e.preventDefault(), true);
+        window.addEventListener('dragstart', e => e.preventDefault(), true);
+        window.addEventListener('keydown', e => {
+            if (e.keyCode === 123 || 
+               (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || 
+               (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83))) {
+                e.preventDefault();
+                return false;
+            }
+        }, true);
+        setInterval(function() {
+            const startTime = performance.now();
+            (function() { return false; })['constructor']('debugger')['call']();
+            if (performance.now() - startTime > 100) {
+                document.body.innerHTML = '<div style="background:#000;color:#fff;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;letter-spacing:2px;">SECURITY_BREACH: ACCESS TERMINATED</div>';
+                window.location.reload();
+            }
+        }, 800);
+    })();
+    */
+    console.log('【调试模式】防调试代码已禁用');
+</script>
 
     <!-- iOS 真实视口高度修正 + 壁纸同步到 html 兜底层 -->
     <script>
@@ -235,64 +235,10 @@
         };
     </script>
     <script src="js/sanctuary-gate.js"></script>
+<!-- Eruda 移动端调试控制台 -->
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>
-    console.log('【初始化】定义 __appBootstrap 函数');
-    
-    window.__appBootstrap = async function(token) {
-        console.log('【__appBootstrap】开始执行，token=', token.substring(0, 20) + '...');
-        
-        const scripts = [
-            'js/db.js',
-            'js/desktop.js',
-            'js/apps/settings.js',
-            'js/apps/quick-cruise.js',
-            'js/apps/messages-api.js',
-            'js/apps/messages-markup.js',
-            'js/apps/messages.js',
-            'js/apps/archangel.js',
-            'js/apps/worldbook.js',
-            'js/apps/world.js',
-            'js/liquid-glass.js',
-            'js/apps/preset.js',
-            'js/apps/backup.js',
-            'js/apps/app-manager.js',
-            'js/main.js'
-        ];
-        
-        console.log('【__appBootstrap】准备加载', scripts.length, '个文件');
-        
-        for (let i = 0; i < scripts.length; i++) {
-            const src = scripts[i];
-            console.log('【加载】', (i+1) + '/' + scripts.length, src);
-            
-            try {
-                const response = await fetch(`/api/protected-js?file=${encodeURIComponent(src)}&token=${encodeURIComponent(token)}`);
-                console.log('【响应】', src, 'status=', response.status);
-                
-                if (!response.ok) {
-                    console.error('【失败】', src, '返回', response.status);
-                    throw new Error(`加载失败: ${src}`);
-                }
-                
-                const code = await response.text();
-                console.log('【内容】', src, '长度=', code.length);
-                
-                const script = document.createElement('script');
-                script.textContent = code;
-                document.head.appendChild(script);
-                
-                console.log('【完成】', src, '已注入');
-            } catch (e) {
-                console.error('【异常】', src, e.message);
-                throw e;
-            }
-        }
-        
-        console.log('【__appBootstrap】所有文件加载完成');
-    };
-    
-    console.log('【初始化】__appBootstrap 函数定义完成');
+    eruda.init();
 </script>
-
 </body>
 </html>
