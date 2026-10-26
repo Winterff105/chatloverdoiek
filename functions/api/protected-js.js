@@ -4,7 +4,6 @@ export async function onRequest(context) {
   const file = url.searchParams.get('file');
   const token = url.searchParams.get('token');
 
-  // 校验 token
   if (!token) {
     return new Response('Unauthorized', { status: 401 });
   }
@@ -18,7 +17,6 @@ export async function onRequest(context) {
     return new Response('Invalid token', { status: 401 });
   }
 
-  // 文件白名单
   const allowedFiles = [
     'js/db.js',
     'js/desktop.js',
@@ -41,20 +39,31 @@ export async function onRequest(context) {
     return new Response('Forbidden', { status: 403 });
   }
 
-  // 从 Pages 静态资源读取文件
-  const assetResponse = await env.ASSETS.fetch(new URL(file, request.url));
-  
-  if (!assetResponse.ok) {
-    return new Response('File not found', { status: 404 });
-  }
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      'https://tjgxfyblzgqwxwfwvfol.supabase.co',
+      env.SUPABASE_SERVICE_KEY
+    );
 
-  const content = await assetResponse.text();
+    const { data, error } = await supabase.storage
+      .from('protected-scripts')
+      .download(file);
 
-  return new Response(content, {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'no-store'
+    if (error || !data) {
+      return new Response('File not found', { status: 404 });
     }
-  });
+
+    const content = await data.text();
+
+    return new Response(content, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Cache-Control': 'no-store'
+      }
+    });
+  } catch (error) {
+    return new Response('Server error: ' + error.message, { status: 500 });
+  }
 }
