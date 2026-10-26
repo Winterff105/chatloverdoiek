@@ -240,6 +240,8 @@
                 throw lastErr;
             }
 
+            let injectedCount = 0;
+
             for (const src of scripts) {
                 if (window.__loadedCoreScripts.has(src)) {
                     console.log('【核心模块】已加载过，跳过', src);
@@ -261,7 +263,19 @@
                 script.textContent = code;
                 document.head.appendChild(script);
                 window.__loadedCoreScripts.add(src);
+                injectedCount++;
                 console.log('【核心模块】已注入', src, '长度=', code.length);
+            }
+
+            // 核心脚本是页面加载完之后才注入的，DOMContentLoaded 和 load 早已触发过。
+            // main.js 等文件注册的初始化监听不会自动执行，这里手动派发一次真实事件。
+            // 只在本次确实注入了新文件时派发，避免重复初始化。
+            if (injectedCount > 0 && !window.__coreInitDispatched) {
+                window.__coreInitDispatched = true;
+                console.log('【核心模块】派发 DOMContentLoaded，启动桌面初始化');
+                document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
+                window.dispatchEvent(new Event('load'));
+                console.log('【核心模块】初始化事件派发完成');
             }
         };
     </script>

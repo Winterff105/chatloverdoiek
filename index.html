@@ -108,22 +108,9 @@
     <link rel="preload" as="image" href="assets/ovo.png">
     <link rel="preload" as="image" href="assets/IMG_20261008_161846.jpg">
     
-    <!-- 引入 CSS 样式 -->
+    <!-- 公开 CSS：登录前就要用到的样式，其余样式在鉴权通过后从后端加载 -->
     <link rel="stylesheet" href="css/variables.css">
-    <link rel="stylesheet" href="css/base.css">
-    <link rel="stylesheet" href="css/desktop.css">
-    <link rel="stylesheet" href="css/app-icon.css">
-    <link rel="stylesheet" href="css/widgets.css">
-    <link rel="stylesheet" href="css/app-window.css">
-    <link rel="stylesheet" href="css/settings.css">
-    <link rel="stylesheet" href="css/messages.css">
     <link rel="stylesheet" href="css/photo-loader.css">
-    <link rel="stylesheet" href="css/archangel.css">
-    <link rel="stylesheet" href="css/worldbook.css">
-    <link rel="stylesheet" href="css/preset.css">
-    <link rel="stylesheet" href="css/world.css">
-    <link rel="stylesheet" href="css/liquid-glass.css">
-    <link rel="stylesheet" href="css/backup.css">
     <!-- 极高优先级：小手机前置认证门禁 -->
     <link rel="stylesheet" href="css/sanctuary-gate.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -135,7 +122,6 @@
             });
         }
     </script>
-    <link rel="stylesheet" href="css/widget-kit.css">
 </head>
 <body>
     <!-- 开场资源配置（先挂起，待门禁鉴权通过后由 sanctuary-gate.js 唤醒启动） -->
@@ -238,6 +224,49 @@
                     }
                 }
                 throw lastErr;
+            }
+
+            // 受保护的样式：顺序与原来 <link> 的顺序保持一致，后面的会覆盖前面的
+            const styles = [
+                'css/base.css',
+                'css/desktop.css',
+                'css/app-icon.css',
+                'css/widgets.css',
+                'css/app-window.css',
+                'css/settings.css',
+                'css/messages.css',
+                'css/archangel.css',
+                'css/worldbook.css',
+                'css/preset.css',
+                'css/world.css',
+                'css/liquid-glass.css',
+                'css/backup.css',
+                'css/widget-kit.css'
+            ];
+
+            for (const href of styles) {
+                if (window.__loadedCoreScripts.has(href)) continue;
+
+                const cssUrl = `/api/protected-js?file=${encodeURIComponent(href)}&token=${encodeURIComponent(token)}`;
+                const cssRes = await fetchWithRetry(cssUrl, 3);
+
+                if (!cssRes.ok) {
+                    const detail = await cssRes.text();
+                    const err = new Error(`${href} 返回 ${cssRes.status}：${detail.slice(0, 120)}`);
+                    err.status = cssRes.status;
+                    throw err;
+                }
+
+                let css = await cssRes.text();
+                // 原文件在 css/ 目录下，url('../assets/...') 内联到页面后要改成 url('assets/...')
+                css = css.replace(/url\(\s*(['"]?)\.\.\//g, 'url($1');
+
+                const style = document.createElement('style');
+                style.dataset.src = href;
+                style.textContent = css;
+                document.head.appendChild(style);
+                window.__loadedCoreScripts.add(href);
+                console.log('【核心样式】已注入', href, '长度=', css.length);
             }
 
             let injectedCount = 0;
