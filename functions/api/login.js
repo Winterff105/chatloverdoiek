@@ -144,6 +144,15 @@ export async function onRequest(context) {
       });
     }
 
+    // 被后台吊销资格的账号不允许登录
+    const durRows = await sbRest(`member_durations?${qqFilter}&select=status&limit=1`);
+    if (Array.isArray(durRows) && durRows[0] && durRows[0].status === 'revoked') {
+      return new Response(JSON.stringify({ success: false, message: '资格已被吊销，请联系管理员' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // 设备绑定检查：bound_devices 存的是对象 {id, ua, ip, bound_at}，同时兼容旧的纯字符串
     const boundDevices = Array.isArray(user.bound_devices) ? user.bound_devices : [];
     const deviceIdOf = d => (typeof d === 'string' ? d : (d && d.id));

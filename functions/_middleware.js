@@ -14,7 +14,21 @@ const BLOCKED_PATHS = new Set([
   '/js/apps/world.js',
   '/js/apps/preset.js',
   '/js/apps/backup.js',
-  '/js/apps/app-manager.js'
+  '/js/apps/app-manager.js',
+  '/css/base.css',
+  '/css/desktop.css',
+  '/css/app-icon.css',
+  '/css/widgets.css',
+  '/css/app-window.css',
+  '/css/settings.css',
+  '/css/messages.css',
+  '/css/archangel.css',
+  '/css/worldbook.css',
+  '/css/preset.css',
+  '/css/world.css',
+  '/css/liquid-glass.css',
+  '/css/backup.css',
+  '/css/widget-kit.css'
 ]);
 
 export async function onRequest(context) {

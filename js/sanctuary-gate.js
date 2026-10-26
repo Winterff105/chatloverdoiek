@@ -165,31 +165,33 @@ async function getClientIP() {
 
     // 启动小手机真实心跳与时长累计上报引擎
     function startUserHeartbeat(qq) {
-        if (!supabase) return;
-        
-        // 探测设备系统与真实公网 IP
+        if (!supabase || window.__heartbeatStarted) return;
+        window.__heartbeatStarted = true;
+
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const osName = isIOS ? 'iOS' : 'Android';
+        let cachedIP = '';
+        let pulsing = false;
+
+        // 带超时的 IP 获取：最多等 5 秒，拿不到就先不填
+        function getIPWithTimeout() {
+            return Promise.race([
+                getClientIP(),
+                new Promise(r => setTimeout(() => r(''), 5000))
+            ]);
+        }
 
         async function pulse() {
+            // 上一次还没跑完，或者页面在后台，都跳过
+            if (pulsing || document.visibilityState === 'hidden') return;
+            pulsing = true;
             try {
-                let clientIP = "未知";
-                clientIP = await getClientIP();
+                if (!cachedIP || cachedIP === '未知') cachedIP = (await getIPWithTimeout()) || '';
 
-                // 查询当前已有分钟数
-                const { data } = await supabase.from('member_durations').select('duration').eq('qq', qq).limit(1);
-                let curDur = 0;
-                if (data && data.length > 0) curDur = data[0].duration || 0;
+                // 加时长由数据库函数一次完成，多标签页、多设备也不会算重或算丢
+                const { error } = await supabase.rpc('heartbeat_tick', { p_qq: qq, p_os: osName, p_ip: cachedIP });
+                if (error) console.warn('[Heartbeat] Failed…', error.message);
 
-                // 每发一次心跳加 1 分钟时长并刷新最后心跳时间
-                await supabase.from('member_durations').upsert({
-                    qq: qq,
-                    os: osName,
-                    duration: curDur + 1,
-                    last_heartbeat: new Date().toISOString(),
-                    ip: clientIP,
-                    updated_at: new Date().toISOString()
-                });
                 window.__pulseN = (window.__pulseN || 0) + 1;
                 if (window.__pulseN % 5 === 1) {
                     let tk = '';
@@ -204,13 +206,19 @@ async function getClientIP() {
                         })
                     });
                 }
-            } catch(e) {}
+            } catch (e) {
+                console.warn('[Heartbeat] Error…', e);
+            } finally {
+                pulsing = false;
+            }
         }
 
-        // 登录立即打点一次
         pulse();
-        // 之后每 60 秒发送一次心跳
         setInterval(pulse, 60000);
+        // 从后台切回来时立刻打一次点，重新开始计时
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') pulse();
+        });
     }
 
     // ================= 小手机进入后必须阅读15秒的高定严肃免责声明 =================
