@@ -165,56 +165,63 @@ async function getClientIP() {
 
     // 启动小手机真实心跳与时长累计上报引擎
     function startUserHeartbeat(qq) {
-        if (!supabase || window.__heartbeatStarted) return;
+        if (window.__heartbeatStarted) return;
         window.__heartbeatStarted = true;
 
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
         const osName = isIOS ? 'iOS' : 'Android';
-        let cachedIP = '';
         let pulsing = false;
-
-        // 带超时的 IP 获取：最多等 5 秒，拿不到就先不填
-        function getIPWithTimeout() {
-            return Promise.race([
-                getClientIP(),
-                new Promise(r => setTimeout(() => r(''), 5000))
-            ]);
-        }
+        let stopped = false;
+        let timer = null;
 
         async function pulse() {
-            // 上一次还没跑完，或者页面在后台，都跳过
-            if (pulsing || document.visibilityState === 'hidden') return;
+            // 上一次还没跑完、页面在后台、或登录已失效，都跳过
+            if (stopped || pulsing || document.visibilityState === 'hidden') return;
             pulsing = true;
             try {
-                if (!cachedIP || cachedIP === '未知') cachedIP = (await getIPWithTimeout()) || '';
-
-                // 加时长由数据库函数一次完成，多标签页、多设备也不会算重或算丢
-                const { error } = await supabase.rpc('heartbeat_tick', { p_qq: qq, p_os: osName, p_ip: cachedIP });
-                if (error) console.warn('[Heartbeat] Failed…', error.message);
-
+                let tk = '';
+                try { tk = (JSON.parse(localStorage.getItem('whatever_phone_auth') || '{}') || {}).token || ''; } catch (_) {}
                 window.__pulseN = (window.__pulseN || 0) + 1;
-                if (window.__pulseN % 5 === 1) {
-                    let tk = '';
-                    try { tk = (JSON.parse(localStorage.getItem('whatever_phone_auth') || '{}') || {}).token || ''; } catch (_) {}
-                    await fetch('/api/devices', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            token: tk,
-                            action: 'touch',
-                            deviceId: localStorage.getItem('whatever_device_fingerprint')
-                        })
-                    });
+
+                // 走自己的域名，国内网络也能稳定访问；最多等 15 秒
+                const ctrl = new AbortController();
+                const t = setTimeout(() => ctrl.abort(), 15000);
+                const res = await fetch('/api/heartbeat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    signal: ctrl.signal,
+                    body: JSON.stringify({
+                        token: tk,
+                        os: osName,
+                        touch: window.__pulseN % 5 === 1,
+                        deviceId: localStorage.getItem('whatever_device_fingerprint')
+                    })
+                });
+                clearTimeout(t);
+
+                if (res.status === 401) {
+                    stopped = true;
+                    clearInterval(timer);
+                    console.warn('[Heartbeat] Session expired, stopped…');
+                    return;
                 }
+                const out = await res.json().catch(() => ({}));
+                if (!res.ok || !out.success) {
+                    console.warn('[Heartbeat] Failed…', res.status, out.message || '');
+                    return;
+                }
+                // 服务器上的最新时长，其他模块可以监听这个事件来显示
+                window.__myDuration = out.duration;
+                window.dispatchEvent(new CustomEvent('whatever:duration', { detail: out.duration }));
             } catch (e) {
-                console.warn('[Heartbeat] Error…', e);
+                console.warn('[Heartbeat] Error…', e && e.name === 'AbortError' ? 'timeout' : e);
             } finally {
                 pulsing = false;
             }
         }
 
         pulse();
-        setInterval(pulse, 60000);
+        timer = setInterval(pulse, 60000);
         // 从后台切回来时立刻打一次点，重新开始计时
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') pulse();
@@ -868,8 +875,9 @@ async function getClientIP() {
             }
 
             const currentDevice = getBrowserFingerprint();
-            const loginIP = await getClientIP();
-            console.log('【登录】设备ID=', currentDevice, 'IP=', loginIP);
+            // IP 由后端从 CF-Connecting-IP 读取，前端不再请求第三方接口（国内经常卡住）
+            const loginIP = '';
+            console.log('[Login] Device…', currentDevice);
 
             const response = await fetch('/api/login', {
                 method: 'POST',
