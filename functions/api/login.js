@@ -9,7 +9,7 @@ export async function onRequest(context) {
   }
 
   try {
-    const { qq, password, deviceId } = await request.json();
+    const { qq, password, deviceId, user_agent, ip } = await request.json();
     
     if (!qq || !password || !deviceId) {
       return new Response(JSON.stringify({ success: false, message: '缺少必要参数' }), {
@@ -54,15 +54,19 @@ export async function onRequest(context) {
       });
     }
 
-    // 设备绑定检查
-    const boundDevices = user.bound_devices || [];
-    if (!boundDevices.includes(deviceId)) {
+    // 设备绑定检查：bound_devices 存的是对象 {id, ua, ip, bound_at}，同时兼容旧的纯字符串
+    const boundDevices = Array.isArray(user.bound_devices) ? user.bound_devices : [];
+    const deviceIdOf = d => (typeof d === 'string' ? d : (d && d.id));
+    const alreadyBound = boundDevices.some(d => deviceIdOf(d) === deviceId);
+
+    if (!alreadyBound) {
       if (boundDevices.length >= 2) {
-        // 超出上限，写申请记录
+        // 超出上限：写申请记录，字段名与后台 overseer.js 读取的保持一致
         await supabase.from('device_requests').insert({
-          qq: qq,
-          device_id: deviceId,
-          request_time: new Date().toISOString(),
+          applicant_qq: qq,
+          device_fingerprint: deviceId,
+          user_agent: user_agent || '',
+          ip: ip || '',
           status: 'pending'
         });
         return new Response(JSON.stringify({ 
@@ -74,13 +78,23 @@ export async function onRequest(context) {
           headers: { 'Content-Type': 'application/json' }
         });
       } else {
-        // 自动绑定
-        const newDevices = [...boundDevices, deviceId];
+        // 自动绑定：存成对象，和心跳、后台换绑逻辑格式一致
+        const newDevices = [...boundDevices, {
+          id: deviceId,
+          ua: user_agent || '',
+          ip: ip || '',
+          bound_at: new Date().toISOString()
+        }];
         await supabase
           .from('auth_credentials')
-          .update({ bound_devices: newDevices })
+          .update({ bound_devices: newDevices, last_login_at: new Date().toISOString() })
           .eq('qq', qq);
       }
+    } else {
+      await supabase
+        .from('auth_credentials')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('qq', qq);
     }
 
     // 生成 token（简单方案：base64(qq:timestamp)）

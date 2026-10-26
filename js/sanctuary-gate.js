@@ -104,16 +104,38 @@ async function getClientIP() {
     const btnSendCode = document.getElementById('btnSendMailCode');
     const btnActivate = document.getElementById('btnActionActivate');
 
-    // 本地持久化凭据自动快速免登
+    // 先加载核心 JS，再解锁门禁（手动登录、自动登录、激活三处共用）
+    let coreLoaded = false;
+    async function bootAndUnlock(qq, token) {
+        if (!coreLoaded) {
+            if (typeof window.__appBootstrap !== 'function') {
+                throw new Error('__appBootstrap 函数不存在');
+            }
+            console.log('【核心模块】开始加载，QQ=', qq);
+            await window.__appBootstrap(token);
+            coreLoaded = true;
+            console.log('【核心模块】加载完成');
+        }
+        unlockPortal(qq);
+    }
+
+    // 本地持久化凭据自动快速免登：必须先加载核心 JS，并带上 QQ 启动心跳计时
     const localSavedAuth = localStorage.getItem('whatever_phone_auth');
     if (localSavedAuth) {
         try {
             const authObj = JSON.parse(localSavedAuth);
             if (authObj && authObj.qq && authObj.token) {
-                // 已有合法登录记录，平滑解锁进入小手机
-                unlockPortal();
+                console.log('【自动登录】发现本地凭证，QQ=', authObj.qq);
+                bootAndUnlock(authObj.qq, authObj.token).catch(err => {
+                    console.error('【自动登录】核心模块加载失败，已清除本地凭证', err);
+                    localStorage.removeItem('whatever_phone_auth');
+                    setToast('登录已失效，请重新登录', true);
+                });
             }
-        } catch(e) {}
+        } catch(e) {
+            console.error('【自动登录】本地凭证解析失败', e);
+            localStorage.removeItem('whatever_phone_auth');
+        }
     }
 
     function setToast(msg, isError = false) {
@@ -780,9 +802,10 @@ async function getClientIP() {
                 return;
             }
 
-            localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: btoa(qq + ':' + pwd) }));
-            setToast("激活并设置密码成功，正在进入...");
-            setTimeout(() => unlockPortal(qq), 500);
+            const actToken = btoa(qq + ':' + Date.now());
+            localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: actToken }));
+            setToast("激活并设置密码成功，正在加载核心模块...");
+            await bootAndUnlock(qq, actToken);
         } catch (e) {
             console.error(e);
             setToast("系统故障，无法完成激活", true);
@@ -790,103 +813,85 @@ async function getClientIP() {
         }
     });
 
-        // 3. 登录判定 - 改用服务端验证
-        btnLogin.addEventListener('click', async () => {
-    const qq = loginQQ.value.trim();
-    const pwd = loginPwd.value.trim();
+    // 3. 登录判定 - 服务端验证
+    btnLogin.addEventListener('click', async () => {
+        const qq = loginQQ.value.trim();
+        const pwd = loginPwd.value.trim();
 
-    if (!qq) {
-        alert('调试：QQ号为空');
-        setToast("请输入 QQ 号！", true);
-        return;
-    }
-
-    if (!pwd) {
-        alert('调试：密码为空');
-        setToast("请输入登录密码！", true);
-        return;
-    }
-
-    alert('调试A: 开始登录，QQ=' + qq);
-    btnLogin.textContent = "LOGGING IN...";
-    
-    try {
-        function getBrowserFingerprint() {
-            let did = localStorage.getItem('whatever_device_fingerprint');
-            if (!did) {
-                did = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
-                localStorage.setItem('whatever_device_fingerprint', did);
-            }
-            return did;
-        }
-
-        const currentDevice = getBrowserFingerprint();
-        const loginIP = await getClientIP();
-        
-        alert('调试B: 设备ID=' + currentDevice.substring(0, 15) + '... IP=' + loginIP);
-
-        const response = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                qq,
-                password: pwd,
-                deviceId: currentDevice,
-                user_agent: navigator.userAgent,
-                ip: loginIP
-            })
-        });
-
-        alert('调试C: 接口返回状态=' + response.status);
-
-        const result = await response.json();
-        
-        alert('调试D: 返回内容=' + JSON.stringify(result).substring(0, 100));
-
-        if (!response.ok) {
-            if (result.reason === 'pending_approval') {
-                btnLogin.textContent = "WAITING AUDIT...";
-                setToast("尝试绑定第三个浏览器 已发送给管理员确认 请向管理员说明", true);
-                return;
-            }
-            alert('调试E: 登录失败=' + (result.message || result.error || '未知错误'));
-            setToast(result.message || result.error || "登录失败", true);
-            btnLogin.textContent = "LOG IN →";
+        if (!qq) {
+            setToast("请输入 QQ 号！", true);
             return;
         }
 
-        if (!result.success) {
-            alert('调试F: success=false');
-            setToast("登录验证失败", true);
-            btnLogin.textContent = "LOG IN →";
+        if (!pwd) {
+            setToast("请输入登录密码！", true);
             return;
         }
 
-        alert('调试G: 登录成功，token=' + result.token.substring(0, 20) + '...');
-        
-        localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: result.token }));
-        setToast("登录验证通过，正在加载核心模块...");
+        console.log('【登录】开始，QQ=', qq);
+        btnLogin.textContent = "LOGGING IN...";
 
-        if (typeof window.__appBootstrap === 'function') {
-            alert('调试H: 开始加载15个JS文件');
-            try {
-                await window.__appBootstrap(result.token);
-                alert('调试I: JS加载完成');
-            } catch (e) {
-                alert('调试J: JS加载出错=' + e.message);
-                setToast("加载失败: " + e.message, true);
+        try {
+            function getBrowserFingerprint() {
+                let did = localStorage.getItem('whatever_device_fingerprint');
+                if (!did) {
+                    did = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 9);
+                    localStorage.setItem('whatever_device_fingerprint', did);
+                }
+                return did;
+            }
+
+            const currentDevice = getBrowserFingerprint();
+            const loginIP = await getClientIP();
+            console.log('【登录】设备ID=', currentDevice, 'IP=', loginIP);
+
+            const response = await fetch('/api/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    qq,
+                    password: pwd,
+                    deviceId: currentDevice,
+                    user_agent: navigator.userAgent,
+                    ip: loginIP
+                })
+            });
+
+            const result = await response.json();
+            console.log('【登录】接口状态=', response.status, '返回=', result);
+
+            if (!response.ok) {
+                if (result.reason === 'pending_approval') {
+                    btnLogin.textContent = "WAITING AUDIT...";
+                    setToast("尝试绑定第三个浏览器 已发送给管理员确认 请向管理员说明", true);
+                    return;
+                }
+                setToast(result.message || result.error || "登录失败", true);
                 btnLogin.textContent = "LOG IN →";
                 return;
             }
-        } else {
-            alert('调试K: __appBootstrap函数不存在');
-        }
 
-        setTimeout(() => unlockPortal(qq), 400);
-        
-    } catch (e) {
-        alert('调试L: catch捕获异常=' + e.message);
-        setToast("登录核验超时", true);
-        btnLogin.textContent = "LOG IN →";
-    }
-});
+            if (!result.success || !result.token) {
+                setToast("登录验证失败", true);
+                btnLogin.textContent = "LOG IN →";
+                return;
+            }
+
+            localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: result.token }));
+            setToast("登录验证通过，正在加载核心模块...");
+
+            try {
+                await bootAndUnlock(qq, result.token);
+            } catch (e) {
+                console.error('【登录】核心模块加载失败', e);
+                localStorage.removeItem('whatever_phone_auth');
+                setToast("加载失败: " + e.message, true);
+                btnLogin.textContent = "LOG IN →";
+            }
+        } catch (e) {
+            console.error('【登录】异常', e);
+            setToast("登录核验超时", true);
+            btnLogin.textContent = "LOG IN →";
+        }
+    });
+})();
