@@ -18,6 +18,13 @@ export async function onRequest(context) {
       });
     }
 
+    if (!env.SUPABASE_SERVICE_KEY) {
+      return new Response(JSON.stringify({ success: false, message: '服务器错误', error: '未读取到环境变量 SUPABASE_SERVICE_KEY' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const { createClient } = await import('@supabase/supabase-js');
     const supabase = createClient(
       'https://tjgxfyblzgqwxwfwvfol.supabase.co',
