@@ -225,7 +225,8 @@
             for (const src of scripts) {
                 const response = await fetch(`/api/protected-js?file=${encodeURIComponent(src)}&token=${encodeURIComponent(token)}`);
                 if (!response.ok) {
-                    throw new Error(`加载失败: ${src}`);
+                    const detail = await response.text();
+                    throw new Error(`${src} 返回 ${response.status}：${detail.slice(0, 120)}`);
                 }
                 const code = await response.text();
                 const script = document.createElement('script');

@@ -25,20 +25,35 @@ export async function onRequest(context) {
       });
     }
 
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      'https://tjgxfyblzgqwxwfwvfol.supabase.co',
-      env.SUPABASE_SERVICE_KEY
-    );
+    const SUPABASE_URL = 'https://tjgxfyblzgqwxwfwvfol.supabase.co';
+    const serviceKey = env.SUPABASE_SERVICE_KEY;
+
+    // 直接调用 Supabase REST 接口，不依赖 @supabase/supabase-js 包
+    async function sbRest(path, options = {}) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+        method: options.method || 'GET',
+        headers: {
+          'apikey': serviceKey,
+          'Authorization': `Bearer ${serviceKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`Supabase ${res.status}: ${text}`);
+      }
+      return text ? JSON.parse(text) : null;
+    }
+
+    const qqFilter = `qq=eq.${encodeURIComponent(String(qq))}`;
 
     // 查账号
-    const { data: user, error: userError } = await supabase
-      .from('auth_credentials')
-      .select('qq, password_hash, is_activated, bound_devices')
-      .eq('qq', qq)
-      .single();
+    const rows = await sbRest(`auth_credentials?${qqFilter}&select=qq,password_hash,is_activated,bound_devices&limit=1`);
+    const user = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 
-    if (userError || !user) {
+    if (!user) {
       return new Response(JSON.stringify({ success: false, message: '账号不存在' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' }
@@ -69,12 +84,15 @@ export async function onRequest(context) {
     if (!alreadyBound) {
       if (boundDevices.length >= 2) {
         // 超出上限：写申请记录，字段名与后台 overseer.js 读取的保持一致
-        await supabase.from('device_requests').insert({
-          applicant_qq: qq,
-          device_fingerprint: deviceId,
-          user_agent: user_agent || '',
-          ip: ip || '',
-          status: 'pending'
+        await sbRest('device_requests', {
+          method: 'POST',
+          body: {
+            applicant_qq: qq,
+            device_fingerprint: deviceId,
+            user_agent: user_agent || '',
+            ip: ip || '',
+            status: 'pending'
+          }
         });
         return new Response(JSON.stringify({ 
           success: false, 
@@ -92,16 +110,16 @@ export async function onRequest(context) {
           ip: ip || '',
           bound_at: new Date().toISOString()
         }];
-        await supabase
-          .from('auth_credentials')
-          .update({ bound_devices: newDevices, last_login_at: new Date().toISOString() })
-          .eq('qq', qq);
+        await sbRest(`auth_credentials?${qqFilter}`, {
+          method: 'PATCH',
+          body: { bound_devices: newDevices, last_login_at: new Date().toISOString() }
+        });
       }
     } else {
-      await supabase
-        .from('auth_credentials')
-        .update({ last_login_at: new Date().toISOString() })
-        .eq('qq', qq);
+      await sbRest(`auth_credentials?${qqFilter}`, {
+        method: 'PATCH',
+        body: { last_login_at: new Date().toISOString() }
+      });
     }
 
     // 生成 token（简单方案：base64(qq:timestamp)）

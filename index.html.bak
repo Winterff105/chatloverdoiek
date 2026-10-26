@@ -7,31 +7,31 @@
 
     <!-- 零侵入防扒防偷暗锁：禁用右键/长按菜单/开发者审查工具 -->
     <script>
-        (function() {
-            // 1. 禁用右键与长按呼出系统菜单
-            window.addEventListener('contextmenu', e => e.preventDefault(), true);
-            // 2. 严禁页面元素拖拽偷图
-            window.addEventListener('dragstart', e => e.preventDefault(), true);
-            // 3. 拦截常见调试快捷键
-            window.addEventListener('keydown', e => {
-                if (e.keyCode === 123 || 
-                   (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || 
-                   (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83))) {
-                    e.preventDefault();
-                    return false;
-                }
-            }, true);
-            // 4. 无限 Debugger 陷阱：只要有人试图注入控制台或连接电脑审查，立即自爆卡死
-            setInterval(function() {
-                const startTime = performance.now();
-                (function() { return false; })['constructor']('debugger')['call']();
-                if (performance.now() - startTime > 100) {
-                    document.body.innerHTML = '<div style="background:#000;color:#fff;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;letter-spacing:2px;">SECURITY_BREACH: ACCESS TERMINATED</div>';
-                    window.location.reload();
-                }
-            }, 800);
-        })();
-    </script>
+    // 临时注释掉防调试代码，方便调试
+    /*
+    (function() {
+        window.addEventListener('contextmenu', e => e.preventDefault(), true);
+        window.addEventListener('dragstart', e => e.preventDefault(), true);
+        window.addEventListener('keydown', e => {
+            if (e.keyCode === 123 || 
+               (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) || 
+               (e.ctrlKey && (e.keyCode === 85 || e.keyCode === 83))) {
+                e.preventDefault();
+                return false;
+            }
+        }, true);
+        setInterval(function() {
+            const startTime = performance.now();
+            (function() { return false; })['constructor']('debugger')['call']();
+            if (performance.now() - startTime > 100) {
+                document.body.innerHTML = '<div style="background:#000;color:#fff;width:100vw;height:100vh;display:flex;align-items:center;justify-content:center;font-family:monospace;letter-spacing:2px;">SECURITY_BREACH: ACCESS TERMINATED</div>';
+                window.location.reload();
+            }
+        }, 800);
+    })();
+    */
+    console.log('【调试模式】防调试代码已禁用');
+</script>
 
     <!-- iOS 真实视口高度修正 + 壁纸同步到 html 兜底层 -->
     <script>
