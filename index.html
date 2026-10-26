@@ -201,6 +201,24 @@
         window.__loadedCoreScripts = window.__loadedCoreScripts || new Set();
 
         window.__appBootstrap = async function(token) {
+            // 受保护的样式：顺序与原来 <link> 的顺序一致，后面的会覆盖前面的
+            const styles = [
+                'css/base.css',
+                'css/desktop.css',
+                'css/app-icon.css',
+                'css/widgets.css',
+                'css/app-window.css',
+                'css/settings.css',
+                'css/messages.css',
+                'css/archangel.css',
+                'css/worldbook.css',
+                'css/preset.css',
+                'css/world.css',
+                'css/liquid-glass.css',
+                'css/backup.css',
+                'css/widget-kit.css'
+            ];
+
             const scripts = [
                 'js/db.js',
                 'js/desktop.js',
@@ -219,101 +237,63 @@
                 'js/main.js'
             ];
 
-            // 网络抖动时自动重试，最多 3 次，每次间隔递增
-            async function fetchWithRetry(url, times) {
+            // 网络抖动时自动重试，最多 3 次；401/403 不重试，直接交给门禁处理
+            async function fetchFile(file) {
+                const url = `/api/protected-js?file=${encodeURIComponent(file)}&token=${encodeURIComponent(token)}`;
                 let lastErr = null;
-                for (let i = 0; i < times; i++) {
+                for (let i = 0; i < 3; i++) {
                     try {
-                        return await fetch(url, { cache: 'no-store' });
+                        const res = await fetch(url, { cache: 'no-store' });
+                        if (res.ok) return await res.text();
+                        const detail = (await res.text()).slice(0, 120);
+                        const err = new Error(`${file} 返回 ${res.status}：${detail}`);
+                        err.status = res.status;
+                        if (res.status === 401 || res.status === 403) throw err;
+                        lastErr = err;
                     } catch (e) {
+                        if (e && (e.status === 401 || e.status === 403)) throw e;
                         lastErr = e;
-                        console.warn('[Core] Request failed, retrying…', i + 1, url);
-                        await new Promise(r => setTimeout(r, 800 * (i + 1)));
                     }
+                    console.warn('[Core] Request failed, retrying…', i + 1, file);
+                    await new Promise(r => setTimeout(r, 800 * (i + 1)));
                 }
                 throw lastErr;
             }
 
-            // 受保护的样式：顺序与原来 <link> 的顺序保持一致，后面的会覆盖前面的
-            const styles = [
-                'css/base.css',
-                'css/desktop.css',
-                'css/app-icon.css',
-                'css/widgets.css',
-                'css/app-window.css',
-                'css/settings.css',
-                'css/messages.css',
-                'css/archangel.css',
-                'css/worldbook.css',
-                'css/preset.css',
-                'css/world.css',
-                'css/liquid-glass.css',
-                'css/backup.css',
-                'css/widget-kit.css'
-            ];
+            const needStyles = styles.filter(f => !window.__loadedCoreScripts.has(f));
+            const needScripts = scripts.filter(f => !window.__loadedCoreScripts.has(f));
 
-            for (const href of styles) {
-                if (window.__loadedCoreScripts.has(href)) continue;
+            // 所有文件同时下载；任何一个失败就整体报错，不注入任何东西
+            const t0 = Date.now();
+            const [cssTexts, jsTexts] = await Promise.all([
+                Promise.all(needStyles.map(fetchFile)),
+                Promise.all(needScripts.map(fetchFile))
+            ]);
+            console.log('[Core] Downloaded…', needStyles.length + needScripts.length, 'files in', Date.now() - t0, 'ms');
 
-                const cssUrl = `/api/protected-js?file=${encodeURIComponent(href)}&token=${encodeURIComponent(token)}`;
-                const cssRes = await fetchWithRetry(cssUrl, 3);
-
-                if (!cssRes.ok) {
-                    const detail = await cssRes.text();
-                    console.warn('[Style] Blocked, fallback to public file…', href, cssRes.status, detail.slice(0, 120));
-                    // 后端没放行时，退回公开的 css 文件，保证页面有样式
-                    const link = document.createElement('link');
-                    link.rel = 'stylesheet';
-                    link.href = href;
-                    link.dataset.src = href;
-                    document.head.appendChild(link);
-                    window.__loadedCoreScripts.add(href);
-                    continue;
-                }
-
-                let css = await cssRes.text();
+            // 1. 按顺序注入样式
+            needStyles.forEach((href, i) => {
                 // 原文件在 css/ 目录下，url('../assets/...') 内联到页面后要改成 url('assets/...')
-                css = css.replace(/url\(\s*(['"]?)\.\.\//g, 'url($1');
-
+                const css = cssTexts[i].replace(/url\(\s*(['"]?)\.\.\//g, 'url($1');
                 const style = document.createElement('style');
                 style.dataset.src = href;
                 style.textContent = css;
                 document.head.appendChild(style);
                 window.__loadedCoreScripts.add(href);
                 console.log('[Style] Injected…', href, 'size =', css.length);
-            }
+            });
 
-            let injectedCount = 0;
-
-            for (const src of scripts) {
-                if (window.__loadedCoreScripts.has(src)) {
-                    console.log('[Core] Already loaded, skipping…', src);
-                    continue;
-                }
-
-                const url = `/api/protected-js?file=${encodeURIComponent(src)}&token=${encodeURIComponent(token)}`;
-                const response = await fetchWithRetry(url, 3);
-
-                if (!response.ok) {
-                    const detail = await response.text();
-                    const err = new Error(`${src} 返回 ${response.status}：${detail.slice(0, 120)}`);
-                    err.status = response.status;
-                    throw err;
-                }
-
-                const code = await response.text();
+            // 2. 按顺序注入脚本
+            needScripts.forEach((src, i) => {
                 const script = document.createElement('script');
-                script.textContent = code;
+                script.textContent = jsTexts[i];
                 document.head.appendChild(script);
                 window.__loadedCoreScripts.add(src);
-                injectedCount++;
-                console.log('[Core] Injected…', src, 'size =', code.length);
-            }
+                console.log('[Core] Injected…', src, 'size =', jsTexts[i].length);
+            });
 
-            // 核心脚本是页面加载完之后才注入的，DOMContentLoaded 和 load 早已触发过。
-            // main.js 等文件注册的初始化监听不会自动执行，这里手动派发一次真实事件。
-            // 只在本次确实注入了新文件时派发，避免重复初始化。
-            if (injectedCount > 0 && !window.__coreInitDispatched) {
+            // 核心脚本是页面加载完之后才注入的，这里手动派发一次初始化事件
+            if (needScripts.length > 0 && !window.__coreInitDispatched) {
                 window.__coreInitDispatched = true;
                 console.log('[Core] Booting desktop…');
                 document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
