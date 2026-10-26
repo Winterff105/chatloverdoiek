@@ -115,9 +115,11 @@ async function getClientIP() {
                 const early = (window.__earlyErrors || []).slice(-2).join(' | ');
                 throw new Error('__appBootstrap 函数不存在' + (early ? '（' + early + '）' : '（可能是旧缓存，请清缓存后刷新）'));
             }
-            console.log('【核心模块】开始加载，QQ=', qq);
+            console.log('[Core] Loading…', qq);
+            setToast('正在加载核心模块...');
             coreLoadPromise = window.__appBootstrap(token).then(() => {
-                console.log('【核心模块】加载完成');
+                console.log('[Core] Loaded…');
+                setToast('');
             });
             // 加载失败时释放锁，允许重新登录再试
             coreLoadPromise.catch(() => { coreLoadPromise = null; });
@@ -134,7 +136,8 @@ async function getClientIP() {
         try {
             const authObj = JSON.parse(localSavedAuth);
             if (authObj && authObj.qq && authObj.token) {
-                console.log('【自动登录】发现本地凭证，QQ=', authObj.qq);
+                console.log('[Login] Auto-login…', authObj.qq);
+                setToast('正在验证登录状态...');
                 bootAndUnlock(authObj.qq, authObj.token).catch(err => {
                     if (err && (err.status === 401 || err.status === 403)) {
                         console.error('【自动登录】凭证无效，已清除本地凭证', err);

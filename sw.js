@@ -1,5 +1,5 @@
 // Whatever · Service Worker：让应用可以被"添加到主屏幕"，并在离线时用缓存打开
-const CACHE_NAME = 'Whatever-v4';
+const CACHE_NAME = 'Whatever-v7';
 const CRITICAL_ASSETS = [
     './index.html',
     './manifest.json',
@@ -23,6 +23,12 @@ self.addEventListener('activate', (event) => {
                     .map(key => caches.delete(key))
             )
         ).then(() => self.clients.claim())
+         .then(() => {
+            // 通知所有打开的页面"有新版本了"
+            return self.clients.matchAll({ type: 'window' }).then(clients => {
+                clients.forEach(client => client.postMessage({ type: 'NEW_VERSION' }));
+            });
+        })
     );
 });
 
