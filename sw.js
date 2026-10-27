@@ -1,6 +1,6 @@
 // Whatever · Service Worker：让应用可以被"添加到主屏幕"，并在离线时用缓存打开
 // 每次改了 index.html 或公开资源，把这里的数字 +1，用户端就会收到更新提示
-const CACHE_NAME = 'Whatever-v8';
+const CACHE_NAME = 'Whatever-v9';
 const CRITICAL_ASSETS = [
     './index.html',
     './manifest.json',

@@ -209,17 +209,15 @@
         <div class="app-version-badge">Whatever v1.0.0</div>
     </div>
 
-    <!-- 英文底栏更新提示 -->
-    <div id="appUpdateToast" style="position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);transform:translateX(-50%) translateY(120px);z-index:2147483646;background:rgba(0,0,0,0.92);backdrop-filter:blur(20px);color:#fff;padding:11px 18px;border-radius:999px;box-shadow:0 8px 32px rgba(0,0,0,0.18),0 2px 8px rgba(0,0,0,0.12);display:flex;align-items:center;gap:12px;transition:transform 0.4s cubic-bezier(0.16,1,0.3,1);font-family:-apple-system,sans-serif;">
-        <svg style="width:16px;height:16px;flex-shrink:0;" viewBox="0 0 24 24" fill="none">
+    <!-- 英文更新提示：单行细条，位于分页圆点上方 -->
+    <div id="appUpdateToast" style="position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 160px);transform:translateX(-50%) translateY(16px);opacity:0;visibility:hidden;pointer-events:none;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;white-space:nowrap;z-index:2147483646;background:rgba(0,0,0,0.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#fff;padding:5px 5px 5px 12px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,0.18);display:flex;align-items:center;gap:8px;transition:transform 0.4s cubic-bezier(0.16,1,0.3,1),opacity 0.3s ease,visibility 0.3s ease;font-family:-apple-system,sans-serif;">
+        <svg style="width:12px;height:12px;flex-shrink:0;" viewBox="0 0 24 24" fill="none">
             <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" fill="url(#sparkleGrad)"/>
             <defs><linearGradient id="sparkleGrad" x1="0" y1="0" x2="24" y2="24"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#e5e5ea"/></linearGradient></defs>
         </svg>
-        <div style="display:flex;flex-direction:column;gap:2px;">
-            <span style="font-size:11px;font-weight:600;letter-spacing:0.3px;color:#fff;">New version ready</span>
-            <span style="font-size:9px;font-weight:500;letter-spacing:0.3px;color:rgba(255,255,255,0.7);">v1.1.0 · Bug fixes & improvements</span>
-        </div>
-        <button type="button" onclick="window.__applyUpdate()" style="border:0;background:#fff;color:#000;padding:5px 14px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:0.4px;cursor:pointer;font-family:inherit;">Update Now</button>
+        <span style="font-size:11px;font-weight:600;letter-spacing:0.3px;color:#fff;">New version ready</span>
+        <span style="font-size:10px;font-weight:500;letter-spacing:0.3px;color:rgba(255,255,255,0.55);">v1.1.0</span>
+        <button type="button" onclick="window.__applyUpdate()" style="border:0;background:#fff;color:#000;padding:4px 11px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:0.4px;cursor:pointer;font-family:inherit;flex-shrink:0;">Update Now</button>
     </div>
 
     <!-- 中文更新公告弹窗（点击英文底栏的"查看详情"按钮时显示） -->
@@ -457,7 +455,12 @@
         navigator.serviceWorker.addEventListener('message', e => {
             if (e.data && e.data.type === 'NEW_VERSION') {
                 // 弹出更新提示
-                if (updateToast) updateToast.style.transform = 'translateX(-50%) translateY(0)';
+                if (updateToast) {
+                    updateToast.style.visibility = 'visible';
+                    updateToast.style.opacity = '1';
+                    updateToast.style.pointerEvents = 'auto';
+                    updateToast.style.transform = 'translateX(-50%) translateY(0)';
+                }
             }
         });
     }
@@ -471,32 +474,70 @@
         });
     }
 
-    // 页面加载完后隐藏加载页
+    // 本地有登录凭证：说明之前登录过，加载期间不露出登录页
+    let hasSavedAuth = false;
+    try {
+        const saved = JSON.parse(localStorage.getItem('whatever_phone_auth') || 'null');
+        hasSavedAuth = !!(saved && saved.qq && saved.token);
+    } catch (e) {
+        hasSavedAuth = false;
+    }
+
+    let loadingHidden = false;
+    let checkReady = null;
+    let fallbackTimer = null;
+
+    // 隐藏加载页（只执行一次）
     function hideLoading() {
+        if (loadingHidden) return;
+        loadingHidden = true;
+        if (checkReady) clearInterval(checkReady);
+        if (fallbackTimer) clearTimeout(fallbackTimer);
         if (loadScreen) {
             loadScreen.style.opacity = '0';
+            loadScreen.style.pointerEvents = 'none';
             setTimeout(() => loadScreen.remove(), 600);
         }
     }
 
-    // 等待门禁解锁或核心模块加载完成
-    const checkReady = setInterval(() => {
+    // 门禁脚本在自动登录失败时调用，露出登录页
+    window.__hideAppLoading = hideLoading;
+
+    checkReady = setInterval(() => {
         const gate = document.getElementById('sanctuaryGatePortal');
-        const desktop = document.getElementById('phoneContainer');
-        // 门禁消失、或桌面已经显示，说明加载完了
-        if (!gate || (desktop && getComputedStyle(desktop).display !== 'none')) {
-            clearInterval(checkReady);
+
+        // 门禁脚本已标记需要手动登录（凭证失效或网络失败）
+        if (window.__gateNeedsLogin) {
+            hideLoading();
+            return;
+        }
+
+        // 没登录过：门禁出现后就关掉加载页，让用户登录
+        if (!hasSavedAuth && gate) {
+            hideLoading();
+            return;
+        }
+
+        // 登录过：等门禁解锁（开始淡出或已移除）后再关掉加载页，直接进桌面
+        if (!gate || gate.classList.contains('unlocked')) {
             hideLoading();
         }
     }, 200);
 
-    // 兜底：10 秒后强制隐藏，避免卡在加载页
-    setTimeout(hideLoading, 10000);
+    // 兜底：30 秒后强制隐藏，避免网络极差时卡在加载页
+    fallbackTimer = setTimeout(hideLoading, 30000);
 
-    // 更新加载文字（可选）
+    // 更新加载文字
     if (loadText) {
-        setTimeout(() => { loadText.textContent = 'Loading core modules...'; }, 1000);
-        setTimeout(() => { loadText.textContent = 'Almost ready...'; }, 3000);
+        if (hasSavedAuth) {
+            loadText.textContent = 'Restoring session...';
+            setTimeout(() => { if (!loadingHidden) loadText.textContent = 'Loading core modules...'; }, 1500);
+            setTimeout(() => { if (!loadingHidden) loadText.textContent = 'Almost ready...'; }, 4000);
+            setTimeout(() => { if (!loadingHidden) loadText.textContent = 'Slow network, still loading...'; }, 9000);
+        } else {
+            setTimeout(() => { if (!loadingHidden) loadText.textContent = 'Loading core modules...'; }, 1000);
+            setTimeout(() => { if (!loadingHidden) loadText.textContent = 'Almost ready...'; }, 3000);
+        }
     }
 })();
 </script>

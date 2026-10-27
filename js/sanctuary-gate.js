@@ -130,7 +130,15 @@ async function getClientIP() {
         unlockPortal(qq);
     }
 
+    // 自动登录失败时，关掉加载圈露出登录页
+    // 先打标记：如果 index.html 的加载页脚本还没执行到，它会读取这个标记
+    function revealLoginGate() {
+        window.__gateNeedsLogin = true;
+        if (typeof window.__hideAppLoading === 'function') window.__hideAppLoading();
+    }
+
     // 本地持久化凭据自动快速免登：必须先加载核心 JS，并带上 QQ 启动心跳计时
+    // 加载期间由 index.html 的加载圈遮住登录页，成功后直接进入桌面
     const localSavedAuth = localStorage.getItem('whatever_phone_auth');
     if (localSavedAuth) {
         try {
@@ -147,11 +155,15 @@ async function getClientIP() {
                         console.error('【自动登录】网络异常，核心模块未加载完', err);
                         setToast('网络连接失败，请检查网络后刷新重试', true);
                     }
+                    revealLoginGate();
                 });
+            } else {
+                revealLoginGate();
             }
         } catch(e) {
             console.error('【自动登录】本地凭证解析失败', e);
             localStorage.removeItem('whatever_phone_auth');
+            revealLoginGate();
         }
     }
 
