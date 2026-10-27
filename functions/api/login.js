@@ -164,55 +164,49 @@ export async function onRequest(context) {
       });
     }
 
-    // 设备绑定检查：bound_devices 存的是对象 {id, ua, ip, bound_at}，同时兼容旧的纯字符串
-    const boundDevices = Array.isArray(user.bound_devices) ? user.bound_devices : [];
-    const deviceIdOf = d => (typeof d === 'string' ? d : (d && d.id));
-    const alreadyBound = boundDevices.some(d => deviceIdOf(d) === deviceId);
+    // 设备绑定交给数据库函数 device_bind 一次完成：读取、踢人、绑定在同一个事务里，并发登录不会互相覆盖
+    // 密码已在上面校验通过，才会走到这里
+    const bindRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/device_bind`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        p_qq: String(qq),
+        p_device: {
+          id: String(deviceId),
+          ua: user_agent || '',
+          ip: ip || '',
+          bound_at: new Date().toISOString()
+        },
+        p_kick_id: kickDeviceId ? String(kickDeviceId) : null
+      })
+    });
+    if (!bindRes.ok) {
+      throw new Error(`device_bind ${bindRes.status}: ${await bindRes.text()}`);
+    }
+    const bind = await bindRes.json();
 
-    if (!alreadyBound) {
-      let keepDevices = boundDevices;
-
-      if (boundDevices.length >= 2) {
-        const kickId = kickDeviceId ? String(kickDeviceId) : '';
-        const canKick = kickId && boundDevices.some(d => deviceIdOf(d) === kickId);
-
-        if (!canKick) {
-          // 超出上限且没指定要踢的设备：返回已绑定设备，由前端弹出踢设备面板
-          return new Response(JSON.stringify({
-            success: false,
-            reason: 'device_limit',
-            message: '设备数量已达上限，请选择踢掉一个浏览器',
-            devices: boundDevices.map(d => (typeof d === 'string'
-              ? { id: d }
-              : { id: d.id, ua: d.ua || '', ip: d.ip || '', last_active: d.last_active || d.bound_at || '' }))
-          }), {
-            status: 403,
-            headers: { 'Content-Type': 'application/json' }
-          });
-        }
-
-        // 密码已在上面校验通过：移除被踢的设备，它的下一次心跳会收到 kicked
-        keepDevices = boundDevices.filter(d => deviceIdOf(d) !== kickId);
-        // 历史数据如果超过 2 台，只保留最近的一台，加上本机正好 2 台
-        if (keepDevices.length >= 2) keepDevices = keepDevices.slice(-1);
-      }
-
-      // 绑定本机：存成对象，和心跳、后台换绑逻辑格式一致
-      const newDevices = [...keepDevices, {
-        id: deviceId,
-        ua: user_agent || '',
-        ip: ip || '',
-        bound_at: new Date().toISOString()
-      }];
-      await sbRest(`auth_credentials?${qqFilter}`, {
-        method: 'PATCH',
-        body: { bound_devices: newDevices, last_login_at: new Date().toISOString() }
+    if (bind && bind.code === 'limit') {
+      // 超出上限且没指定要踢的设备：返回已绑定设备，由前端弹出踢设备面板
+      const list = Array.isArray(bind.devices) ? bind.devices : [];
+      return new Response(JSON.stringify({
+        success: false,
+        reason: 'device_limit',
+        message: '设备数量已达上限，请选择踢掉一个浏览器',
+        devices: list.map(d => (typeof d === 'string'
+          ? { id: d }
+          : { id: d.id, ua: d.ua || '', ip: d.ip || '', last_active: d.last_active || d.bound_at || '' }))
+      }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' }
       });
-    } else {
-      await sbRest(`auth_credentials?${qqFilter}`, {
-        method: 'PATCH',
-        body: { last_login_at: new Date().toISOString() }
-      });
+    }
+
+    if (!bind || (bind.code !== 'ok' && bind.code !== 'already')) {
+      throw new Error('设备绑定失败：' + (bind && bind.code));
     }
 
     // 签发带签名和有效期的 token

@@ -49,20 +49,25 @@ export async function onRequestPost({ request, env }) {
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
 
   try {
-    const qqFilter = `qq=eq.${encodeURIComponent(qq)}`;
-
-    // 1. 先确认本机还在绑定列表里，被其他浏览器踢掉就返回 kicked，不再加时长
+    // 1. 由数据库函数 device_touch 一次完成：检查本机是否被踢；带 touch 时顺便更新活跃时间和 IP
+    //    写入时加锁，不会和登录绑定、踢设备互相覆盖
     //    新 token 自带设备 id；旧 token 没有，就用请求里带的 deviceId
     const myDeviceId = authed.deviceId || String(body.deviceId || '');
-    let devices = [];
     if (myDeviceId) {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/auth_credentials?${qqFilter}&select=bound_devices&limit=1`, { headers });
-      // 数据库读取失败时不判定为被踢，避免误下线
-      if (res.ok) {
-        const rows = await res.json();
-        devices = rows && rows[0] && Array.isArray(rows[0].bound_devices) ? rows[0].bound_devices : [];
-        const idOf = d => (typeof d === 'string' ? d : (d && d.id));
-        if (devices.length > 0 && !devices.some(d => idOf(d) === myDeviceId)) {
+      const tr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/device_touch`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          p_qq: qq,
+          p_device_id: myDeviceId,
+          p_ip: ip,
+          p_touch: !!body.touch
+        })
+      });
+      // 数据库调用失败时不判定为被踢，避免误下线
+      if (tr.ok) {
+        const state = await tr.json();
+        if (state === 'kicked') {
           return json({ success: false, reason: 'kicked', message: '账号已在其他浏览器登录，本机已下线' }, 401);
         }
       }
@@ -77,21 +82,7 @@ export async function onRequestPost({ request, env }) {
     if (!r.ok) return json({ success: false, message: '记录失败', error: await r.text() }, 500);
     const duration = await r.json();
 
-    // 3. 顺便更新当前设备的活跃时间和 IP（前端每 5 次心跳带一次 touch，复用上面读到的设备列表）
-    if (body.touch && myDeviceId) {
-      const me = devices.find(d => d && typeof d === 'object' && d.id === myDeviceId);
-      if (me) {
-        try {
-          me.ip = ip || me.ip || '';
-          me.last_active = new Date().toISOString();
-          await fetch(`${SUPABASE_URL}/rest/v1/auth_credentials?${qqFilter}`, {
-            method: 'PATCH',
-            headers: { ...headers, Prefer: 'return=minimal' },
-            body: JSON.stringify({ bound_devices: devices })
-          });
-        } catch (_) {}
-      }
-    }
+    // 活跃时间和 IP 已在第 1 步的 device_touch 里更新，这里不再整块写回设备列表
 
     return json({ success: true, duration });
   } catch (error) {

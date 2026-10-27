@@ -95,7 +95,7 @@ export async function onRequest(context) {
       return json({ success: true, devices: devices.map(publicDevice) });
     }
 
-    // 在已登录状态下踢掉自己账号的另一台设备
+    // 在已登录状态下踢掉自己账号的另一台设备：由数据库函数 device_kick 加锁一次完成
     if (body.action === 'kick') {
       // 新 token 自带设备 id；旧 token 没有，就用请求里带的 deviceId
       const myId = authed.deviceId || String(body.deviceId || '');
@@ -104,40 +104,44 @@ export async function onRequest(context) {
       if (!myId) {
         return json({ success: false, message: '本机未绑定设备，请退出后重新登录再操作' }, 403);
       }
-      // 发起者自己必须还在绑定列表里：已被踢掉的设备不能反过来踢别人
-      if (!devices.some(d => idOf(d) === myId)) {
-        return json({ success: false, reason: 'kicked', message: '本机已下线，请重新登录' }, 401);
-      }
       if (!targetId) return json({ success: false, message: '缺少要踢掉的设备' }, 400);
-      if (targetId === myId) return json({ success: false, message: '不能踢掉本机' }, 400);
-      if (!devices.some(d => idOf(d) === targetId)) {
-        return json({ success: false, message: '该设备已不在绑定列表中' }, 404);
-      }
 
-      const left = devices.filter(d => idOf(d) !== targetId);
-      const up = await fetch(`${SUPABASE_URL}/rest/v1/auth_credentials?${qqFilter}`, {
-        method: 'PATCH',
-        headers: { ...headers, Prefer: 'return=minimal' },
-        body: JSON.stringify({ bound_devices: left })
+      const kr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/device_kick`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ p_qq: authed.qq, p_my_id: myId, p_target_id: targetId })
       });
-      if (!up.ok) return json({ success: false, message: '踢出失败', error: await up.text() }, 500);
+      if (!kr.ok) return json({ success: false, message: '踢出失败', error: await kr.text() }, 500);
+      const out = await kr.json();
+      const code = out && out.code;
+
+      // 发起者自己已被踢掉：不能反过来踢别人
+      if (code === 'kicked') return json({ success: false, reason: 'kicked', message: '本机已下线，请重新登录' }, 401);
+      if (code === 'self') return json({ success: false, message: '不能踢掉本机' }, 400);
+      if (code === 'not_found') return json({ success: false, message: '该设备已不在绑定列表中' }, 404);
+      if (code !== 'ok') return json({ success: false, message: '踢出失败', error: String(code) }, 500);
 
       // 被踢的设备下一次心跳会收到 kicked 并自动下线
+      const left = Array.isArray(out.devices) ? out.devices : [];
       return json({ success: true, devices: left.map(publicDevice) });
     }
 
     if (body.action === 'touch') {
-      const me = devices.find(d => d && typeof d === 'object' && d.id === body.deviceId);
-      if (!me) return json({ success: true, touched: false });
-      me.ip = request.headers.get('CF-Connecting-IP') || me.ip || '';
-      me.last_active = new Date().toISOString();
-      const up = await fetch(`${SUPABASE_URL}/rest/v1/auth_credentials?${qqFilter}`, {
-        method: 'PATCH',
-        headers: { ...headers, Prefer: 'return=minimal' },
-        body: JSON.stringify({ bound_devices: devices })
+      const myId = authed.deviceId || String(body.deviceId || '');
+      if (!myId) return json({ success: true, touched: false });
+      const tr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/device_touch`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          p_qq: authed.qq,
+          p_device_id: myId,
+          p_ip: request.headers.get('CF-Connecting-IP') || '',
+          p_touch: true
+        })
       });
-      if (!up.ok) return json({ success: false, message: '更新失败', error: await up.text() }, 500);
-      return json({ success: true, touched: true });
+      if (!tr.ok) return json({ success: false, message: '更新失败', error: await tr.text() }, 500);
+      const state = await tr.json();
+      return json({ success: true, touched: state === 'ok' });
     }
 
     return json({ success: false, message: '未知操作' }, 400);
