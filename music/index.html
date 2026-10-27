@@ -497,19 +497,51 @@
 
 <audio id="realAudio" preload="auto"></audio>
 
-<script src="./music.js"></script>
-<script src="./music-api.js"></script>
 <script>
 function exitMusicApp() {
   try {
     if (parent !== window && parent.WhateverMusicApp) {
       parent.WhateverMusicApp.close({ remove: true });
-      if (typeof parent.closeApp === 'function') parent.closeApp();
       return;
     }
   } catch (_) { /* no-op */ }
   if (history.length > 1) history.back();
 }
+</script>
+<script>
+// Core music JS is supplied by the same-origin Cloudflare backend after
+// validating the QQ session. The HTML and CSS remain public static assets.
+(async function startMusicApp() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('whatever_phone_auth') || '{}');
+    if (!stored?.token) throw new Error('请先登录小手机，再打开音乐 App');
+    const response = await fetch('/api/music-core', {
+      method: 'POST', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: stored.token })
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.success) throw new Error(payload.message || '音乐资源加载失败');
+    for (const name of ['music.js', 'music-api.js']) {
+      const code = payload.files?.[name];
+      if (typeof code !== 'string') throw new Error('核心文件缺失：' + name);
+      const script = document.createElement('script');
+      script.textContent = code + '\n//# sourceURL=/music/' + name;
+      document.body.appendChild(script);
+    }
+    // The core module normally binds DOMContentLoaded synchronously. Since
+    // it is loaded asynchronously here, fire its boot event only when needed.
+    if (document.readyState !== 'loading') {
+      document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
+    }
+  } catch (err) {
+    console.error('[Chérie Music]', err);
+    const notice = document.createElement('p');
+    notice.textContent = err?.message || '音乐 App 加载失败';
+    notice.style.cssText = 'position:fixed;top:44%;left:10%;width:80%;text-align:center;color:#fff;z-index:999;font-size:14px;line-height:1.6;';
+    document.body.appendChild(notice);
+  }
+})();
 </script>
 </body>
 </html>

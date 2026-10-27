@@ -1,6 +1,6 @@
 // Whatever · Service Worker：让应用可以被"添加到主屏幕"，并在离线时用缓存打开
 // 每次改了 index.html 或公开资源，把这里的数字 +1，用户端就会收到更新提示
-const APP_VERSION = '13';
+const APP_VERSION = '14';
 const CACHE_NAME = 'Whatever-v' + APP_VERSION;
 // 首页缓存用 './' 而不是 './index.html'：Cloudflare 会把 /index.html 308 跳转到 /，
 // 缓存进去的就是"跳转过的响应"，Safari 会拒绝显示
