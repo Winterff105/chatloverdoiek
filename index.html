@@ -133,7 +133,7 @@
     <link rel="apple-touch-icon" sizes="167x167" href="assets/IMG_20261008_161846.jpg">
     <link rel="apple-touch-icon" sizes="152x152" href="assets/IMG_20261008_161846.jpg">
     <link rel="apple-touch-icon" sizes="120x120" href="assets/IMG_20261008_161846.jpg">
-    <link rel="preload" as="image" href="assets/前景/ovo.png">
+    <link rel="preload" as="image" href="assets/ovo.png">
     <link rel="preload" as="image" href="assets/IMG_20261008_161846.jpg">
     
     <!-- 公开 CSS：登录前就要用到的样式，其余样式在鉴权通过后从后端加载 -->
@@ -270,7 +270,7 @@
     <!-- 开场资源配置（先挂起，待门禁鉴权通过后由 sanctuary-gate.js 唤醒启动） -->
     <script>
         window.PHOTO_LIST = window.PHOTO_LIST || [
-            'assets/前景/ovo.png',
+            'assets/ovo.png',
             'assets/IMG_20261008_161846.jpg'
         ];
         // 门禁前置标志：通知 photo-loader 先不要立即开跑
@@ -448,8 +448,6 @@
         };
     </script>
     <script src="js/sanctuary-gate.js"></script>
-    <!-- Chérie Music: launcher is isolated from protected desktop modules -->
-    <script src="js/apps/music.js"></script>
 <!-- Eruda 移动端调试控制台：放在最高层，登录页也能打开 -->
 <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>

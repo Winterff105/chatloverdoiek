@@ -30,9 +30,7 @@
     "/css/world.css",
     "/css/liquid-glass.css",
     "/css/backup.css",
-    "/css/widget-kit.css",
-    "/music/music.js",
-    "/music/music-api.js"
+    "/css/widget-kit.css"
   ],
   "exclude": []
 }

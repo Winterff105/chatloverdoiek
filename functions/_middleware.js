@@ -28,9 +28,7 @@ const BLOCKED_PATHS = new Set([
   '/css/world.css',
   '/css/liquid-glass.css',
   '/css/backup.css',
-  '/css/widget-kit.css',
-  '/music/music.js',
-  '/music/music-api.js'
+  '/css/widget-kit.css'
 ]);
 
 export async function onRequest(context) {
