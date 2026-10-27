@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Whatever</title>
 
+    <!-- 首屏兜底底色：CSS 还没加载时 html/body 也不是白色，iOS 26 Safari 状态栏取色依赖它 -->
+    <style id="earlyBgFix">
+        html {
+            background-color: #09090b;
+        }
+        body {
+            background-color: #09090b;
+        }
+    </style>
+
     <!-- 记录 Eruda 加载前的报错，控制台输入 __earlyErrors 查看 -->
     <script>
         window.__earlyErrors = [];
@@ -64,8 +74,9 @@
                 root.style.setProperty('--app-height', h + 'px');
             }
 
-            // 把 phone-container 上的壁纸变量复制到 html，让 html 背景层也显示壁纸
+            // 把 phone-container 上的壁纸变量复制到 html，让 html/body 背景层也显示壁纸
             var lastBg = '';
+            var lastTint = '';
             function syncWallpaper() {
                 var pc = document.getElementById('phoneContainer');
                 if (!pc) return;
@@ -73,6 +84,15 @@
                 if (bg && bg !== lastBg) {
                     lastBg = bg;
                     root.style.setProperty('--wallpaper-bg-root', bg);
+                }
+                // 状态栏取色：深色壁纸用深色，浅色壁纸用浅色
+                // iOS 26 Safari 读取 html/body 背景色，iOS 15~18 读取 theme-color
+                var tint = pc.classList.contains('theme-light') ? '#FCFAFB' : '#09090b';
+                if (tint !== lastTint) {
+                    lastTint = tint;
+                    root.style.setProperty('--status-tint', tint);
+                    var meta = document.querySelector('meta[name="theme-color"]');
+                    if (meta) meta.setAttribute('content', tint);
                 }
             }
 
@@ -126,9 +146,40 @@
         // 注册 Service Worker（添加到桌面需要它；需要通过 https 或 localhost 访问）
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').catch(err => console.warn('Service Worker 注册失败:', err));
+                // 核心脚本加载后会再派发一次 load 事件，这里防止重复注册
+                if (window.__swRegistered) return;
+                window.__swRegistered = true;
+
+                // updateViaCache: 'none'：检查更新时不读 HTTP 缓存，iOS 才能及时拿到新的 sw.js
+                navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+                    .then(reg => {
+                        // iOS 主屏幕模式经常不冷启动，切回前台时主动检查一次更新
+                        document.addEventListener('visibilitychange', () => {
+                            if (document.visibilityState === 'visible') {
+                                reg.update().catch(() => {});
+                            }
+                        });
+                    })
+                    .catch(err => console.warn('Service Worker 注册失败:', err));
             });
         }
+
+        // 一键更新：清空所有 SW 缓存，检查新版 SW，然后刷新页面
+        window.__applyUpdate = async function() {
+            try {
+                if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                }
+                if ('serviceWorker' in navigator) {
+                    const reg = await navigator.serviceWorker.getRegistration();
+                    if (reg) await reg.update();
+                }
+            } catch (e) {
+                console.warn('[Update] 清理缓存失败，直接刷新', e);
+            }
+            location.reload();
+        };
     </script>
 </head>
 <body>
@@ -168,7 +219,7 @@
             <span style="font-size:11px;font-weight:600;letter-spacing:0.3px;color:#fff;">New version ready</span>
             <span style="font-size:9px;font-weight:500;letter-spacing:0.3px;color:rgba(255,255,255,0.7);">v1.1.0 · Bug fixes & improvements</span>
         </div>
-        <button type="button" onclick="location.reload()" style="border:0;background:#fff;color:#000;padding:5px 14px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:0.4px;cursor:pointer;font-family:inherit;">Update Now</button>
+        <button type="button" onclick="window.__applyUpdate()" style="border:0;background:#fff;color:#000;padding:5px 14px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:0.4px;cursor:pointer;font-family:inherit;">Update Now</button>
     </div>
 
     <!-- 中文更新公告弹窗（点击英文底栏的"查看详情"按钮时显示） -->
@@ -205,7 +256,7 @@
                 </div>
                 <div style="display:flex;gap:8px;">
                     <button type="button" onclick="document.getElementById('appUpdateModal').style.display='none'" style="flex:1;border:0;padding:10px;border-radius:12px;font-size:12px;font-weight:600;letter-spacing:0.3px;background:rgba(0,0,0,0.04);color:#3a3a3c;cursor:pointer;font-family:inherit;">稍后</button>
-                    <button type="button" onclick="location.reload()" style="flex:1;border:0;padding:10px;border-radius:12px;font-size:12px;font-weight:600;letter-spacing:0.3px;background:#000;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,0.15);cursor:pointer;font-family:inherit;">立即更新</button>
+                    <button type="button" onclick="window.__applyUpdate()" style="flex:1;border:0;padding:10px;border-radius:12px;font-size:12px;font-weight:600;letter-spacing:0.3px;background:#000;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,0.15);cursor:pointer;font-family:inherit;">立即更新</button>
                 </div>
             </div>
         </div>
