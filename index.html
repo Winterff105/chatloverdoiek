@@ -372,16 +372,28 @@
                 'js/main.js'
             ];
 
-            // 网络抖动时自动重试，最多 3 次；401/403 不重试，直接交给门禁处理
-            async function fetchFile(file) {
-                const url = `/api/protected-js?file=${encodeURIComponent(file)}&token=${encodeURIComponent(token)}`;
+            const needStyles = styles.filter(f => !window.__loadedCoreScripts.has(f));
+            const needScripts = scripts.filter(f => !window.__loadedCoreScripts.has(f));
+            const needFiles = needStyles.concat(needScripts);
+
+            // 一次请求拿到全部核心文件；网络抖动时自动重试，最多 3 次；401/403 不重试，直接交给门禁处理
+            async function fetchBundle() {
                 let lastErr = null;
                 for (let i = 0; i < 3; i++) {
                     try {
-                        const res = await fetch(url, { cache: 'no-store' });
-                        if (res.ok) return await res.text();
+                        const res = await fetch('/api/protected-bundle', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            cache: 'no-store',
+                            body: JSON.stringify({ token, files: needFiles })
+                        });
+                        if (res.ok) {
+                            const out = await res.json();
+                            if (out && out.success && out.files) return out.files;
+                            throw new Error((out && out.message) || '核心文件返回格式错误');
+                        }
                         const detail = (await res.text()).slice(0, 120);
-                        const err = new Error(`${file} 返回 ${res.status}：${detail}`);
+                        const err = new Error(`核心文件返回 ${res.status}：${detail}`);
                         err.status = res.status;
                         if (res.status === 401 || res.status === 403) throw err;
                         lastErr = err;
@@ -389,21 +401,19 @@
                         if (e && (e.status === 401 || e.status === 403)) throw e;
                         lastErr = e;
                     }
-                    console.warn('[Core] Request failed, retrying…', i + 1, file);
+                    console.warn('[Core] Request failed, retrying…', i + 1);
                     await new Promise(r => setTimeout(r, 800 * (i + 1)));
                 }
                 throw lastErr;
             }
 
-            const needStyles = styles.filter(f => !window.__loadedCoreScripts.has(f));
-            const needScripts = scripts.filter(f => !window.__loadedCoreScripts.has(f));
-
-            // 所有文件同时下载；任何一个失败就整体报错，不注入任何东西
+            // 任何一个文件缺失就整体报错，不注入任何东西
             const t0 = Date.now();
-            const [cssTexts, jsTexts] = await Promise.all([
-                Promise.all(needStyles.map(fetchFile)),
-                Promise.all(needScripts.map(fetchFile))
-            ]);
+            const files = needFiles.length ? await fetchBundle() : {};
+            const missing = needFiles.filter(f => typeof files[f] !== 'string');
+            if (missing.length) throw new Error('核心文件缺失：' + missing.join(', '));
+            const cssTexts = needStyles.map(f => files[f]);
+            const jsTexts = needScripts.map(f => files[f]);
             console.log('[Core] Downloaded…', needStyles.length + needScripts.length, 'files in', Date.now() - t0, 'ms');
 
             // 1. 按顺序注入样式

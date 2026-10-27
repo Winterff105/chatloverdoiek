@@ -181,3 +181,138 @@
 @media (prefers-reduced-motion: reduce) {
     .gate-toast-pill.is-error { animation: none; }
 }
+
+/* ===== 设备上限 · 踢设备面板 / 下线提示 ===== */
+.gate-kick-mask {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(4, 4, 6, 0.72);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+
+/* 下线提示挂在 body 上，需要盖住桌面 */
+.gate-kick-mask.gate-kicked-global {
+    position: fixed;
+    z-index: 2147483647;
+}
+
+.gate-kick-card {
+    width: 100%;
+    max-width: 300px;
+    background: #121216;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 22px;
+    padding: 18px 16px 14px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-sizing: border-box;
+    color: #f4f4f6;
+}
+
+.gate-kick-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-align: center;
+}
+
+.gate-kick-sub {
+    font-size: 9px;
+    line-height: 1.55;
+    color: #92929e;
+    text-align: center;
+}
+
+.gate-kick-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.gate-kick-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    background: #18181e;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 12px;
+}
+
+.gate-kick-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.gate-kick-name {
+    font-size: 10px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.gate-kick-meta {
+    margin-top: 2px;
+    font-size: 8px;
+    color: #888894;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gate-kick-btn {
+    flex-shrink: 0;
+    height: 26px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 999px;
+    background: #ffffff;
+    color: #000000;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    transition: transform 0.15s ease, opacity 0.2s ease;
+}
+
+.gate-kick-btn:active { transform: scale(0.95); }
+.gate-kick-btn:disabled { opacity: 0.45; cursor: default; }
+
+.gate-kick-msg {
+    min-height: 11px;
+    font-size: 8px;
+    line-height: 1.4;
+    color: #e2e2e8;
+    text-align: center;
+}
+
+.gate-kick-cancel,
+.gate-kick-relogin {
+    width: 100%;
+    height: 34px;
+    border: none;
+    border-radius: 999px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+}
+
+.gate-kick-cancel {
+    background: rgba(255, 255, 255, 0.06);
+    color: #c4c4cc;
+}
+
+.gate-kick-cancel:disabled { opacity: 0.45; cursor: default; }
+
+.gate-kick-relogin {
+    background: #ffffff;
+    color: #000000;
+}

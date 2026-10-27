@@ -217,7 +217,9 @@ async function getClientIP() {
                 if (res.status === 401) {
                     stopped = true;
                     clearInterval(timer);
-                    console.warn('[Heartbeat] Session expired, stopped…');
+                    const info = await res.json().catch(() => ({}));
+                    console.warn('[Heartbeat] Session expired, stopped…', info.reason || '');
+                    showKickedNotice(info.reason === 'kicked');
                     return;
                 }
                 const out = await res.json().catch(() => ({}));
@@ -847,15 +849,133 @@ async function getClientIP() {
                 return;
             }
 
-            localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq, token: actOut.token }));
-            setToast("激活并设置密码成功，正在加载核心模块...");
-            await bootAndUnlock(qq, actOut.token);
+            // 激活成功后走一遍正常登录：绑定本机设备，设备满 2 台时同样弹出踢设备面板
+            // 不直接使用激活返回的 token，否则激活这条路可以绕过 2 台设备的上限
+            btnActivate.textContent = "ACTIVATE & ENTER →";
+            switchGateTab('login');
+            loginQQ.value = qq;
+            loginPwd.value = pwd;
+            setToast("激活并设置密码成功，正在登录...");
+            btnLogin.click();
         } catch (e) {
             console.error(e);
             setToast("系统故障，无法完成激活", true);
             btnActivate.textContent = "ACTIVATE & ENTER →";
         }
     });
+
+    // ================= 第三个浏览器登录：选择踢掉一台旧设备 =================
+    function escHtml(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function gateDeviceType(ua) {
+        if (!ua) return '未知设备';
+        if (/iPhone|iPad|iPod/.test(ua)) return 'iPhone';
+        if (/Android/.test(ua)) return 'Android';
+        if (/Windows|Macintosh|Linux/.test(ua)) return '电脑浏览器';
+        return '其他设备';
+    }
+    function gateFmtTime(iso) {
+        if (!iso) return '未知';
+        const d = new Date(iso);
+        return isNaN(d) ? '未知' : d.toLocaleString();
+    }
+
+    function showDeviceKickPanel(ctx) {
+        const old = document.getElementById('gateKickPanel');
+        if (old) old.remove();
+
+        const devices = Array.isArray(ctx.devices) ? ctx.devices : [];
+        const panel = document.createElement('div');
+        panel.id = 'gateKickPanel';
+        panel.className = 'gate-kick-mask';
+
+        const listHtml = devices.map(d => `
+            <div class="gate-kick-item">
+                <div class="gate-kick-info">
+                    <div class="gate-kick-name">${escHtml(gateDeviceType(d.ua))}</div>
+                    <div class="gate-kick-meta">IP：${escHtml(d.ip || '未知')}</div>
+                    <div class="gate-kick-meta">最后活跃：${escHtml(gateFmtTime(d.last_active))}</div>
+                </div>
+                <button type="button" class="gate-kick-btn" data-kick-id="${escHtml(d.id)}">踢掉</button>
+            </div>`).join('');
+
+        panel.innerHTML = `
+            <div class="gate-kick-card" role="dialog" aria-modal="true" aria-labelledby="gateKickTitle">
+                <div class="gate-kick-title" id="gateKickTitle">设备已达上限</div>
+                <div class="gate-kick-sub">该账号已在 ${devices.length} 个浏览器登录。踢掉其中一个后本机即可登录，被踢的浏览器会自动下线。</div>
+                <div class="gate-kick-list">${listHtml}</div>
+                <div class="gate-kick-msg" id="gateKickMsg" aria-live="polite"></div>
+                <button type="button" class="gate-kick-cancel" id="gateKickCancel">取消</button>
+            </div>`;
+        portal.appendChild(panel);
+
+        const msg = panel.querySelector('#gateKickMsg');
+        const allBtns = () => panel.querySelectorAll('button');
+
+        panel.querySelector('#gateKickCancel').onclick = () => panel.remove();
+
+        panel.querySelectorAll('[data-kick-id]').forEach(btn => {
+            btn.onclick = async () => {
+                if (loginInFlight) return;
+                loginInFlight = true;
+                allBtns().forEach(b => { b.disabled = true; });
+                btn.textContent = '处理中...';
+                msg.textContent = '';
+                let tokenSaved = false;
+                try {
+                    // 带上同一个密码再登录一次，后端校验密码后踢掉指定设备并绑定本机
+                    const res = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            qq: ctx.qq,
+                            password: ctx.password,
+                            deviceId: ctx.deviceId,
+                            user_agent: navigator.userAgent,
+                            ip: '',
+                            kickDeviceId: btn.dataset.kickId
+                        })
+                    });
+                    const out = await res.json().catch(() => ({}));
+                    if (!res.ok || !out.success || !out.token) {
+                        throw new Error(out.message || ('HTTP ' + res.status));
+                    }
+                    localStorage.setItem('whatever_phone_auth', JSON.stringify({ qq: ctx.qq, token: out.token }));
+                    tokenSaved = true;
+                    msg.textContent = '已将该设备下线，正在加载核心模块...';
+                    setToast('已将旧设备下线，正在加载核心模块...');
+                    await bootAndUnlock(ctx.qq, out.token);
+                    panel.remove();
+                } catch (e) {
+                    console.error('【踢设备】失败', e);
+                    if (tokenSaved) localStorage.removeItem('whatever_phone_auth');
+                    msg.textContent = '操作失败：' + ((e && e.message) || '网络异常');
+                    allBtns().forEach(b => { b.disabled = false; });
+                    btn.textContent = '踢掉';
+                } finally {
+                    loginInFlight = false;
+                }
+            };
+        });
+    }
+
+    // 本机被踢下线或登录失效：清掉凭证，提示后回到登录页
+    function showKickedNotice(isKicked) {
+        localStorage.removeItem('whatever_phone_auth');
+        if (document.getElementById('gateKickedNotice')) return;
+        const box = document.createElement('div');
+        box.id = 'gateKickedNotice';
+        box.className = 'gate-kick-mask gate-kicked-global';
+        box.innerHTML = `
+            <div class="gate-kick-card" role="alertdialog" aria-modal="true" aria-labelledby="gateKickedTitle">
+                <div class="gate-kick-title" id="gateKickedTitle">${isKicked ? '本机已下线' : '登录已失效'}</div>
+                <div class="gate-kick-sub">${isKicked ? '你的账号已在其他浏览器登录，本机已被下线。' : '登录状态已过期，请重新登录。'}</div>
+                <button type="button" class="gate-kick-relogin" id="gateKickedRelogin">重新登录</button>
+            </div>`;
+        document.body.appendChild(box);
+        box.querySelector('#gateKickedRelogin').onclick = () => location.reload();
+    }
 
     // 3. 登录判定 - 服务端验证
     btnLogin.addEventListener('click', async () => {
@@ -910,9 +1030,18 @@ async function getClientIP() {
             console.log('【登录】接口状态=', response.status, '返回=', result);
 
             if (!response.ok) {
-                if (result.reason === 'pending_approval') {
-                    btnLogin.textContent = "WAITING AUDIT...";
-                    setToast("尝试绑定第三个浏览器 已发送给管理员确认 请向管理员说明", true);
+                if (result.reason === 'device_limit' || result.reason === 'pending_approval') {
+                    btnLogin.textContent = "LOG IN →";
+                    const devices = Array.isArray(result.devices) ? result.devices : [];
+                    if (devices.length > 0) {
+                        // 后端返回了已绑定设备：让用户选择踢掉一台后登录
+                        setToast("该账号已绑定 2 个浏览器，可选择踢掉一个后登录", true);
+                        showDeviceKickPanel({ qq, password: pwd, deviceId: currentDevice, devices });
+                    } else {
+                        // 后端还没返回设备列表：保持原来的管理员审核提示
+                        btnLogin.textContent = "WAITING AUDIT...";
+                        setToast("尝试绑定第三个浏览器 已发送给管理员确认 请向管理员说明", true);
+                    }
                     return;
                 }
                 setToast((result.message || "登录失败") + (result.error ? "：" + result.error : ""), true);

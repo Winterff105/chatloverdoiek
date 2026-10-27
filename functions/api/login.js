@@ -17,10 +17,11 @@ async function hmacKey(secret) {
   return crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
 }
 
-// token 格式：base64url("qq:过期时间") + "." + 签名
-async function signToken(qq, secret, days = 30) {
+// token 格式：base64url("qq:过期时间:设备id") + "." + 签名
+// 设备 id 用于心跳时判断本机是否已被其他浏览器踢掉
+async function signToken(qq, secret, deviceId = '', days = 30) {
   const exp = Date.now() + days * 86400000;
-  const payload = b64url(enc.encode(`${qq}:${exp}`));
+  const payload = b64url(enc.encode(`${qq}:${exp}:${deviceId}`));
   const sig = await crypto.subtle.sign('HMAC', await hmacKey(secret), enc.encode(payload));
   return `${payload}.${b64url(sig)}`;
 }
@@ -60,11 +61,19 @@ export async function onRequest(context) {
   }
 
   try {
-    const { qq, password, deviceId, user_agent, ip: clientIp } = await request.json();
+    const { qq, password, deviceId, user_agent, ip: clientIp, kickDeviceId } = await request.json();
     const ip = request.headers.get('CF-Connecting-IP') || clientIp || '';
     
     if (!qq || !password || !deviceId) {
       return new Response(JSON.stringify({ success: false, message: '缺少必要参数' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // 设备 id 会写进 token，只允许字母、数字、下划线和短横线
+    if (!/^[\w-]{4,64}$/.test(String(deviceId))) {
+      return new Response(JSON.stringify({ success: false, message: '设备标识格式错误' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' }
       });
@@ -108,8 +117,11 @@ export async function onRequest(context) {
 
     const qqFilter = `qq=eq.${encodeURIComponent(String(qq))}`;
 
-    // 查账号
-    const rows = await sbRest(`auth_credentials?${qqFilter}&select=qq,password_hash,is_activated,bound_devices&limit=1`);
+    // 查账号和吊销状态：两个查询同时发出，少等一次数据库往返
+    const [rows, durRows] = await Promise.all([
+      sbRest(`auth_credentials?${qqFilter}&select=qq,password_hash,is_activated,bound_devices&limit=1`),
+      sbRest(`member_durations?${qqFilter}&select=status&limit=1`)
+    ]);
     const user = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
 
     if (!user) {
@@ -144,8 +156,7 @@ export async function onRequest(context) {
       });
     }
 
-    // 被后台吊销资格的账号不允许登录
-    const durRows = await sbRest(`member_durations?${qqFilter}&select=status&limit=1`);
+    // 被后台吊销资格的账号不允许登录（durRows 已在上面和账号一起查询）
     if (Array.isArray(durRows) && durRows[0] && durRows[0].status === 'revoked') {
       return new Response(JSON.stringify({ success: false, message: '资格已被吊销，请联系管理员' }), {
         status: 403,
@@ -159,39 +170,44 @@ export async function onRequest(context) {
     const alreadyBound = boundDevices.some(d => deviceIdOf(d) === deviceId);
 
     if (!alreadyBound) {
+      let keepDevices = boundDevices;
+
       if (boundDevices.length >= 2) {
-        // 超出上限：写申请记录，字段名与后台 overseer.js 读取的保持一致
-        await sbRest('device_requests', {
-          method: 'POST',
-          body: {
-            applicant_qq: qq,
-            device_fingerprint: deviceId,
-            user_agent: user_agent || '',
-            ip: ip || '',
-            status: 'pending'
-          }
-        });
-        return new Response(JSON.stringify({ 
-          success: false, 
-          reason: 'pending_approval',
-          message: '设备数量已达上限，已提交审核申请' 
-        }), {
-          status: 403,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      } else {
-        // 自动绑定：存成对象，和心跳、后台换绑逻辑格式一致
-        const newDevices = [...boundDevices, {
-          id: deviceId,
-          ua: user_agent || '',
-          ip: ip || '',
-          bound_at: new Date().toISOString()
-        }];
-        await sbRest(`auth_credentials?${qqFilter}`, {
-          method: 'PATCH',
-          body: { bound_devices: newDevices, last_login_at: new Date().toISOString() }
-        });
+        const kickId = kickDeviceId ? String(kickDeviceId) : '';
+        const canKick = kickId && boundDevices.some(d => deviceIdOf(d) === kickId);
+
+        if (!canKick) {
+          // 超出上限且没指定要踢的设备：返回已绑定设备，由前端弹出踢设备面板
+          return new Response(JSON.stringify({
+            success: false,
+            reason: 'device_limit',
+            message: '设备数量已达上限，请选择踢掉一个浏览器',
+            devices: boundDevices.map(d => (typeof d === 'string'
+              ? { id: d }
+              : { id: d.id, ua: d.ua || '', ip: d.ip || '', last_active: d.last_active || d.bound_at || '' }))
+          }), {
+            status: 403,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        // 密码已在上面校验通过：移除被踢的设备，它的下一次心跳会收到 kicked
+        keepDevices = boundDevices.filter(d => deviceIdOf(d) !== kickId);
+        // 历史数据如果超过 2 台，只保留最近的一台，加上本机正好 2 台
+        if (keepDevices.length >= 2) keepDevices = keepDevices.slice(-1);
       }
+
+      // 绑定本机：存成对象，和心跳、后台换绑逻辑格式一致
+      const newDevices = [...keepDevices, {
+        id: deviceId,
+        ua: user_agent || '',
+        ip: ip || '',
+        bound_at: new Date().toISOString()
+      }];
+      await sbRest(`auth_credentials?${qqFilter}`, {
+        method: 'PATCH',
+        body: { bound_devices: newDevices, last_login_at: new Date().toISOString() }
+      });
     } else {
       await sbRest(`auth_credentials?${qqFilter}`, {
         method: 'PATCH',
@@ -200,7 +216,7 @@ export async function onRequest(context) {
     }
 
     // 签发带签名和有效期的 token
-    const token = await signToken(String(qq), env.TOKEN_SECRET);
+    const token = await signToken(String(qq), env.TOKEN_SECRET, String(deviceId));
 
     return new Response(JSON.stringify({ 
       success: true, 

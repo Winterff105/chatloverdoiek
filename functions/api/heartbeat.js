@@ -18,9 +18,9 @@ async function verifyToken(token, secret) {
     if (!payload || !sig) return null;
     const ok = await crypto.subtle.verify('HMAC', await hmacKey(secret), fromB64url(sig), enc.encode(payload));
     if (!ok) return null;
-    const [qq, exp] = new TextDecoder().decode(fromB64url(payload)).split(':');
+    const [qq, exp, deviceId] = new TextDecoder().decode(fromB64url(payload)).split(':');
     if (!qq || !(Number(exp) > Date.now())) return null;
-    return { qq };
+    return { qq, deviceId: deviceId || '' };
   } catch (_) {
     return null;
   }
@@ -49,7 +49,26 @@ export async function onRequestPost({ request, env }) {
   const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' };
 
   try {
-    // 1. 加时长（规则在数据库函数 heartbeat_tick 里：50 秒内不重复加，超过 3 分钟重新计时）
+    const qqFilter = `qq=eq.${encodeURIComponent(qq)}`;
+
+    // 1. 先确认本机还在绑定列表里，被其他浏览器踢掉就返回 kicked，不再加时长
+    //    新 token 自带设备 id；旧 token 没有，就用请求里带的 deviceId
+    const myDeviceId = authed.deviceId || String(body.deviceId || '');
+    let devices = [];
+    if (myDeviceId) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/auth_credentials?${qqFilter}&select=bound_devices&limit=1`, { headers });
+      // 数据库读取失败时不判定为被踢，避免误下线
+      if (res.ok) {
+        const rows = await res.json();
+        devices = rows && rows[0] && Array.isArray(rows[0].bound_devices) ? rows[0].bound_devices : [];
+        const idOf = d => (typeof d === 'string' ? d : (d && d.id));
+        if (devices.length > 0 && !devices.some(d => idOf(d) === myDeviceId)) {
+          return json({ success: false, reason: 'kicked', message: '账号已在其他浏览器登录，本机已下线' }, 401);
+        }
+      }
+    }
+
+    // 2. 加时长（规则在数据库函数 heartbeat_tick 里：50 秒内不重复加，超过 3 分钟重新计时）
     const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/heartbeat_tick`, {
       method: 'POST',
       headers,
@@ -58,15 +77,11 @@ export async function onRequestPost({ request, env }) {
     if (!r.ok) return json({ success: false, message: '记录失败', error: await r.text() }, 500);
     const duration = await r.json();
 
-    // 2. 顺便更新当前设备的活跃时间和 IP（前端每 5 次心跳带一次 touch）
-    if (body.touch && body.deviceId) {
-      try {
-        const qqFilter = `qq=eq.${encodeURIComponent(qq)}`;
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/auth_credentials?${qqFilter}&select=bound_devices&limit=1`, { headers });
-        const rows = await res.json();
-        const devices = rows && rows[0] && Array.isArray(rows[0].bound_devices) ? rows[0].bound_devices : [];
-        const me = devices.find(d => d && typeof d === 'object' && d.id === body.deviceId);
-        if (me) {
+    // 3. 顺便更新当前设备的活跃时间和 IP（前端每 5 次心跳带一次 touch，复用上面读到的设备列表）
+    if (body.touch && myDeviceId) {
+      const me = devices.find(d => d && typeof d === 'object' && d.id === myDeviceId);
+      if (me) {
+        try {
           me.ip = ip || me.ip || '';
           me.last_active = new Date().toISOString();
           await fetch(`${SUPABASE_URL}/rest/v1/auth_credentials?${qqFilter}`, {
@@ -74,8 +89,8 @@ export async function onRequestPost({ request, env }) {
             headers: { ...headers, Prefer: 'return=minimal' },
             body: JSON.stringify({ bound_devices: devices })
           });
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
     }
 
     return json({ success: true, duration });
