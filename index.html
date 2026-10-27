@@ -164,8 +164,15 @@
             });
         }
 
-        // 一键更新：清空所有 SW 缓存，检查新版 SW，然后刷新页面
+        // 一键更新：记下已更新到的版本，清空所有 SW 缓存，检查新版 SW，然后刷新页面
         window.__applyUpdate = async function() {
+            var v = window.__pendingAppVersion;
+            try {
+                if (v) {
+                    localStorage.setItem('whatever_app_version', v);
+                    sessionStorage.setItem('whatever_just_updated', v);
+                }
+            } catch (e) {}
             try {
                 if ('caches' in window) {
                     const keys = await caches.keys();
@@ -206,7 +213,7 @@
             <div class="app-ring-highlight"></div>
         </div>
         <div class="app-load-text" id="appLoadText">Initializing...</div>
-        <div class="app-version-badge">Whatever v1.0.0</div>
+        <div class="app-version-badge" id="appVersionBadge">Whatever</div>
     </div>
 
     <!-- 英文更新提示：单行细条，位于分页圆点上方 -->
@@ -216,7 +223,7 @@
             <defs><linearGradient id="sparkleGrad" x1="0" y1="0" x2="24" y2="24"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#e5e5ea"/></linearGradient></defs>
         </svg>
         <span style="font-size:11px;font-weight:600;letter-spacing:0.3px;color:#fff;">New version ready</span>
-        <span style="font-size:10px;font-weight:500;letter-spacing:0.3px;color:rgba(255,255,255,0.55);">v1.1.0</span>
+        <span id="appUpdateVersion" style="font-size:10px;font-weight:500;letter-spacing:0.3px;color:rgba(255,255,255,0.55);"></span>
         <button type="button" onclick="window.__applyUpdate()" style="border:0;background:#fff;color:#000;padding:4px 11px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:0.4px;cursor:pointer;font-family:inherit;flex-shrink:0;">Update Now</button>
     </div>
 
@@ -232,11 +239,11 @@
                 <div style="font-size:18px;font-weight:700;letter-spacing:-0.3px;color:#1d1d1f;margin-bottom:4px;">发现新版本</div>
                 <div style="font-size:11px;font-weight:500;letter-spacing:0.3px;color:#86868b;margin-bottom:14px;">New Version Available</div>
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-                    <span style="font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#000;">v1.0.0</span>
+                    <span id="appUpdateFrom" style="font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#000;"></span>
                     <div style="width:16px;height:2px;background:linear-gradient(90deg,rgba(0,0,0,0.2) 0%,rgba(0,0,0,0.1) 100%);position:relative;">
                         <div style="position:absolute;right:-3px;top:50%;transform:translateY(-50%) rotate(45deg);width:5px;height:5px;border-right:2px solid rgba(0,0,0,0.2);border-top:2px solid rgba(0,0,0,0.2);"></div>
                     </div>
-                    <span style="font-size:22px;font-weight:800;letter-spacing:-0.5px;background:linear-gradient(135deg,#1d1d1f 0%,#3a3a3c 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">v1.1.0</span>
+                    <span id="appUpdateTo" style="font-size:22px;font-weight:800;letter-spacing:-0.5px;background:linear-gradient(135deg,#1d1d1f 0%,#3a3a3c 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;"></span>
                 </div>
                 <div style="background:rgba(0,0,0,0.02);border-radius:14px;padding:12px 14px;margin-bottom:16px;">
                     <div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.04);">
@@ -450,19 +457,75 @@
     const updateToast = document.getElementById('appUpdateToast');
     const updateModal = document.getElementById('appUpdateModal');
 
-    // 监听 Service Worker 发来的"新版本"消息
+    // 本地记录"用户已经在用的版本"，和 SW 的版本对比，不同才提示
+    const VERSION_KEY = 'whatever_app_version';
+    function readStoredVersion() {
+        try { return localStorage.getItem(VERSION_KEY) || ''; } catch (e) { return ''; }
+    }
+    function setText(id, text) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = text;
+    }
+
+    // 加载页显示当前已安装的版本
+    const storedVersion = readStoredVersion();
+    if (storedVersion) setText('appVersionBadge', 'Whatever v' + storedVersion);
+
+    function showUpdateToast(version) {
+        window.__pendingAppVersion = version;
+        const from = readStoredVersion();
+        setText('appUpdateVersion', 'v' + version);
+        setText('appUpdateFrom', from ? 'v' + from : '—');
+        setText('appUpdateTo', 'v' + version);
+        if (updateToast) {
+            updateToast.style.visibility = 'visible';
+            updateToast.style.opacity = '1';
+            updateToast.style.pointerEvents = 'auto';
+            updateToast.style.transform = 'translateX(-50%) translateY(0)';
+        }
+    }
+
+    function handleVersion(version) {
+        if (!version) return;
+        const stored = readStoredVersion();
+        if (!stored) {
+            // 首次安装：直接记下，不提示
+            try { localStorage.setItem(VERSION_KEY, version); } catch (e) {}
+            setText('appVersionBadge', 'Whatever v' + version);
+            return;
+        }
+        // 已经是这个版本，不提示
+        if (stored === version) return;
+        showUpdateToast(version);
+    }
+
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('message', e => {
-            if (e.data && e.data.type === 'NEW_VERSION') {
-                // 弹出更新提示
-                if (updateToast) {
-                    updateToast.style.visibility = 'visible';
-                    updateToast.style.opacity = '1';
-                    updateToast.style.pointerEvents = 'auto';
-                    updateToast.style.transform = 'translateX(-50%) translateY(0)';
-                }
-            }
+            const d = e.data || {};
+            if (d.type === 'NEW_VERSION' || d.type === 'VERSION') handleVersion(d.version);
         });
+        // 每次打开都主动问一次版本：SW 可能在页面开始监听之前就激活了，消息会漏掉
+        navigator.serviceWorker.ready.then(reg => {
+            if (reg.active) reg.active.postMessage({ type: 'GET_VERSION' });
+        }).catch(() => {});
+    }
+
+    // 刚点过更新：显示"已更新到 vX"，3.5 秒后消失
+    let justUpdated = '';
+    try {
+        justUpdated = sessionStorage.getItem('whatever_just_updated') || '';
+        sessionStorage.removeItem('whatever_just_updated');
+    } catch (e) {}
+    if (justUpdated) {
+        const pill = document.createElement('div');
+        pill.textContent = '已更新到 v' + justUpdated;
+        pill.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 160px);transform:translateX(-50%);z-index:2147483647;background:rgba(0,0,0,0.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#fff;padding:7px 14px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:0.3px;white-space:nowrap;font-family:-apple-system,sans-serif;opacity:0;transition:opacity 0.3s ease;pointer-events:none;';
+        document.body.appendChild(pill);
+        requestAnimationFrame(() => { pill.style.opacity = '1'; });
+        setTimeout(() => {
+            pill.style.opacity = '0';
+            setTimeout(() => pill.remove(), 400);
+        }, 3500);
     }
 
     // 点击底栏更新提示时打开详情弹窗（可选）

@@ -1,8 +1,11 @@
 // Whatever · Service Worker：让应用可以被"添加到主屏幕"，并在离线时用缓存打开
 // 每次改了 index.html 或公开资源，把这里的数字 +1，用户端就会收到更新提示
-const CACHE_NAME = 'Whatever-v10';
+const APP_VERSION = '12';
+const CACHE_NAME = 'Whatever-v' + APP_VERSION;
+// 首页缓存用 './' 而不是 './index.html'：Cloudflare 会把 /index.html 308 跳转到 /，
+// 缓存进去的就是"跳转过的响应"，Safari 会拒绝显示
 const CRITICAL_ASSETS = [
-    './index.html',
+    './',
     './manifest.json',
     './assets/IMG_20261008_161846.jpg',
     './assets/ovo.png'
@@ -22,12 +25,17 @@ self.addEventListener('activate', (event) => {
         const oldKeys = keys.filter(key => key !== CACHE_NAME);
         await Promise.all(oldKeys.map(key => caches.delete(key)));
         await self.clients.claim();
-        // 存在旧版本缓存，说明是升级而不是首次安装，才通知页面"有新版本了"
-        if (oldKeys.length > 0) {
-            const clients = await self.clients.matchAll({ type: 'window' });
-            clients.forEach(client => client.postMessage({ type: 'NEW_VERSION' }));
-        }
+        // 把当前版本号告诉所有打开的页面，由页面对比本地记录决定要不要提示
+        const clients = await self.clients.matchAll({ type: 'window' });
+        clients.forEach(client => client.postMessage({ type: 'NEW_VERSION', version: APP_VERSION }));
     })());
+});
+
+// 页面每次打开都会主动询问当前版本号
+self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'GET_VERSION' && event.source) {
+        event.source.postMessage({ type: 'VERSION', version: APP_VERSION });
+    }
 });
 
 // 把"被重定向过的响应"重新包装成普通响应，导航请求才能使用
@@ -53,31 +61,30 @@ self.addEventListener('fetch', (event) => {
     // sw.js 自身不缓存，保证浏览器每次都能拿到最新版本
     if (url.pathname.endsWith('/sw.js')) return;
 
-    // 打开页面：直接用浏览器原始的导航请求，跳转（如 /index.html → /）交给浏览器自己处理
-    // 不能自己 new Request 去跟随跳转，否则会返回"被重定向的响应"，页面直接打不开
+    // 打开页面：网络优先，断网用缓存
+    // Safari 不接受带跳转记录的页面响应，所以无论来自网络还是缓存，返回前都先清洗一遍
     if (req.mode === 'navigate') {
-        event.respondWith(
-            fetch(req)
-                .then((res) => {
-                    if (res && res.ok && res.type === 'basic') {
-                        const copy = res.clone();
-                        caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
-                    }
-                    return res;
-                })
-                .catch(async () => {
-                    // 断网时用缓存的 index.html 打开；缓存里如果是重定向过的响应，先洗干净
-                    const cached = await caches.match('./index.html');
-                    if (!cached) return Response.error();
-                    return cleanRedirect(cached);
-                })
-        );
+        event.respondWith((async () => {
+            try {
+                const res = await fetch(req);
+                const clean = await cleanRedirect(res);
+                if (clean.ok) {
+                    const copy = clean.clone();
+                    caches.open(CACHE_NAME).then((cache) => cache.put('./', copy));
+                }
+                return clean;
+            } catch (e) {
+                const cached = (await caches.match('./')) || (await caches.match('./index.html'));
+                if (!cached) return Response.error();
+                return cleanRedirect(cached);
+            }
+        })());
         return;
     }
 
     // 关键资源（图标、manifest）优先使用缓存，加快启动
     const isCritical = CRITICAL_ASSETS
-        .filter(asset => !asset.endsWith('.html'))
+        .filter(asset => asset !== './' && !asset.endsWith('.html'))
         .some(asset => url.pathname.endsWith(asset.replace(/^\./, '')));
 
     if (isCritical) {
