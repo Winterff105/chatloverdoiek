@@ -18,9 +18,9 @@ async function verifyToken(token, secret) {
     if (!payload || !sig) return null;
     const ok = await crypto.subtle.verify('HMAC', await hmacKey(secret), fromB64url(sig), enc.encode(payload));
     if (!ok) return null;
-    const [qq, exp] = new TextDecoder().decode(fromB64url(payload)).split(':');
+    const [qq, exp, deviceId] = new TextDecoder().decode(fromB64url(payload)).split(':');
     if (!qq || !(Number(exp) > Date.now())) return null;
-    return { qq };
+    return { qq, deviceId: deviceId || '' };
   } catch (_) {
     return null;
   }
@@ -86,9 +86,44 @@ export async function onRequest(context) {
     if (!res.ok) return json({ success: false, message: '读取失败', error: await res.text() }, 500);
     const rows = await res.json();
     const devices = rows && rows[0] && Array.isArray(rows[0].bound_devices) ? rows[0].bound_devices : [];
+    const idOf = d => (typeof d === 'string' ? d : (d && d.id));
+    const publicDevice = d => (typeof d === 'string'
+      ? { id: d }
+      : { id: d.id, ua: d.ua || '', ip: d.ip || '', last_active: d.last_active || d.bound_at || '' });
 
     if (body.action === 'list') {
-      return json({ success: true, devices: devices.map(d => (typeof d === 'string' ? { id: d } : d)) });
+      return json({ success: true, devices: devices.map(publicDevice) });
+    }
+
+    // 在已登录状态下踢掉自己账号的另一台设备
+    if (body.action === 'kick') {
+      // 新 token 自带设备 id；旧 token 没有，就用请求里带的 deviceId
+      const myId = authed.deviceId || String(body.deviceId || '');
+      const targetId = String(body.targetId || '');
+
+      if (!myId) {
+        return json({ success: false, message: '本机未绑定设备，请退出后重新登录再操作' }, 403);
+      }
+      // 发起者自己必须还在绑定列表里：已被踢掉的设备不能反过来踢别人
+      if (!devices.some(d => idOf(d) === myId)) {
+        return json({ success: false, reason: 'kicked', message: '本机已下线，请重新登录' }, 401);
+      }
+      if (!targetId) return json({ success: false, message: '缺少要踢掉的设备' }, 400);
+      if (targetId === myId) return json({ success: false, message: '不能踢掉本机' }, 400);
+      if (!devices.some(d => idOf(d) === targetId)) {
+        return json({ success: false, message: '该设备已不在绑定列表中' }, 404);
+      }
+
+      const left = devices.filter(d => idOf(d) !== targetId);
+      const up = await fetch(`${SUPABASE_URL}/rest/v1/auth_credentials?${qqFilter}`, {
+        method: 'PATCH',
+        headers: { ...headers, Prefer: 'return=minimal' },
+        body: JSON.stringify({ bound_devices: left })
+      });
+      if (!up.ok) return json({ success: false, message: '踢出失败', error: await up.text() }, 500);
+
+      // 被踢的设备下一次心跳会收到 kicked 并自动下线
+      return json({ success: true, devices: left.map(publicDevice) });
     }
 
     if (body.action === 'touch') {
