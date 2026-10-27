@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chérie Music · Whatever</title>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="./music.css">
+</head>
+<body>
+
+<header class="top-navbar">
+    <div class="nav-left" style="display:flex;align-items:center;gap:10px">
+        <button class="music-back-btn" type="button" aria-label="返回小手机" title="返回小手机" onclick="exitMusicApp()"><i class="ri-arrow-left-s-line"></i></button>
+        <div class="nav-logo">
+            <span>CHÉRIE</span>
+            <div class="nav-logo-dot"></div>
+        </div>
+    </div>
+    <div class="top-nav-right">
+        <button class="btn-action-ghost" onclick="openImportModal()">
+            <i class="ri-play-list-add-line"></i>
+            <span>导入歌单</span>
+        </button>
+        <button class="btn-action-ghost" onclick="fetchHotSongs()">
+            <i class="ri-refresh-line"></i>
+            <span>刷新</span>
+        </button>
+    </div>
+</header>
+
+<main class="main-workspace">
+    <!-- 场景 1：唱片柜子（热歌展示） -->
+    <div class="view-scene active" id="scene-cabinet">
+        <div class="content-container">
+            <div class="section-header" style="margin-top: 14px;">
+                <div class="section-title">
+                    <i class="ri-disc-line"></i>
+                    <span>热门唱片柜</span>
+                </div>
+                <span class="section-subtitle" id="cabinetCounter">HOT 30</span>
+            </div>
+            <div class="vinyl-cabinet" id="vinylCabinet">
+                <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-faint); font-size: 11px;">
+                    正在加载唱片...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 场景 2：歌曲列表页（原主发现页） -->
+    <div class="view-scene" id="scene-discover">
+        <div class="content-container">
+            <section class="collage-section">
+                <div class="collage-inner">
+                    <div class="hero-disc-glow" aria-hidden="true">
+                        <img id="heroGlowArt" src="../assets/changpianmoren.jpg" alt="">
+                    </div>
+                    <div class="vinyl-disc paused" id="heroVinylDisc" role="button" aria-label="打开播放器" onclick="openDrawerPlayer()">
+                        <img class="vinyl-center-art" id="heroVinylCover" src="../assets/changpianmoren.jpg" alt="唱片封面">
+                        <div class="vinyl-hole"></div>
+                        <span class="disc-engrave e1" aria-hidden="true">♪</span>
+                        <span class="disc-engrave e2" aria-hidden="true">♫</span>
+                        <span class="disc-engrave e3" aria-hidden="true">♩</span>
+                    </div>
+                    <div class="hero-disc-sheen" aria-hidden="true"></div>
+                    <div class="hero-notes" aria-hidden="true">
+                        <span class="hero-note n1">♪</span>
+                        <span class="hero-note n2">♫</span>
+                        <span class="hero-note n3">♩</span>
+                        <span class="hero-note n4">♪</span>
+                        <span class="hero-note n5">♬</span>
+                    </div>
+
+                    <div class="collage-frame" onclick="openDrawerPlayer()">
+                        <div class="collage-tape"></div>
+                        <div class="collage-photo-wrap">
+                            <img class="collage-photo" id="heroPhotoCover" src="../assets/changpianmoren.jpg" alt="当前播放封面">
+                        </div>
+                        <div class="collage-caption">
+                            <span class="collage-tag">ON AIR · DAILY VIBE</span>
+                            <span class="collage-song-title" id="heroSongTitle">点击曲目开启播放</span>
+                            <div class="hero-lyric">
+                                <div class="hero-lyric-list" id="heroLyricList">
+                                    <div class="hero-lyric-line">♪ 播放后歌词在这里滚动</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="collage-floating-pill">
+                        <i class="ri-heart-3-fill floating-heart"></i>
+                        <span class="floating-text">Today's Pick</span>
+                    </div>
+                </div>
+            </section>
+
+            <div class="search-row">
+                <div class="search-capsule lg" id="searchCapsule">
+                    <i class="ri-search-line"></i>
+                    <input class="search-input" id="searchInput" type="text" placeholder="搜索网易云单曲、歌手名并回车...">
+                </div>
+            </div>
+
+            <div class="section-header">
+                <div class="section-title">
+                    <span>曲目列表</span>
+                    <span id="listBadge" style="font-size: 8.5px; font-weight: 700; color: var(--accent-pink); background: rgba(217, 154, 165, 0.12); padding: 1px 5px; border-radius: 4px;">HOT 30</span>
+                </div>
+                <span class="section-subtitle" id="songCounterLabel">Ready</span>
+            </div>
+
+            <div class="track-grid" id="trackGrid">
+                <div style="grid-column: 1/-1; text-align: center; padding: 40px; color: var(--text-faint); font-size: 11px;">
+                    正在通过网易云 API 抓取数据...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 场景 3：账号 + 歌单库 -->
+    <div class="view-scene" id="scene-playlists">
+        <div class="content-container">
+            <div id="accountArea"></div>
+
+            <div class="section-header">
+                <div class="section-title">
+                    <i class="ri-shopping-bag-3-line"></i>
+                    <span>我的歌单库</span>
+                </div>
+                <button class="btn-action-ghost" onclick="openImportModal()">+ 手动导入</button>
+            </div>
+            <div class="bag-grid" id="playlistLibraryGrid"></div>
+        </div>
+    </div>
+
+    <!-- 场景 4：喜欢与收藏 -->
+    <div class="view-scene" id="scene-favorites">
+        <div class="content-container">
+            <div class="section-header" style="margin-top: 14px;">
+                <div class="section-title">收藏曲目</div>
+                <span class="section-subtitle">FAVORITES</span>
+            </div>
+            <div class="track-grid" id="favoritesGrid">
+                <div style="grid-column:1/-1; text-align:center; padding: 50px 0; color: var(--text-faint); font-size: 11px;">暂无收藏歌曲</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 场景 5：我的（大头像 + 唱片展柜） -->
+    <div class="view-scene" id="scene-profile">
+        <div class="content-container">
+            <section class="profile-hero">
+                <div class="profile-avatar-ring">
+                    <img class="profile-avatar" id="profileAvatar" src="../assets/morentouxiang.jpg" alt="babydoll 的头像">
+                </div>
+                <div class="profile-name-wrap">
+                    <span class="profile-name" id="profileName" tabindex="0" role="textbox" aria-label="名字，点击修改" spellcheck="false">babydoll</span>
+                    <button class="profile-name-edit" type="button" aria-label="修改名字" onclick="startEditName()">
+                        <i class="ri-edit-2-line"></i>
+                    </button>
+                </div>
+                <div class="profile-stats">
+                    <span><b id="profileFavCount">0</b>收藏</span>
+                    <i></i>
+                    <span><b id="profileRecentCount">0</b>最近播放</span>
+                </div>
+            </section>
+
+            <section class="record-cabinet">
+                <div class="section-header">
+                    <div class="section-title">
+                        <i class="ri-album-line"></i>
+                        <span>我的唱片展柜</span>
+                    </div>
+                    <span class="section-subtitle" id="shelfCounter">0 张</span>
+                </div>
+                <div class="shelf-frame" id="recordShelf"></div>
+            </section>
+        </div>
+    </div>
+</main>
+
+<!-- 悬浮在底栏上方：播放胶囊（左）+ 用户头像（右） -->
+<div class="dock-float-cluster">
+    <div class="capsule-wrap" id="capsuleWrap">
+        <!-- 播放列表：在胶囊上往上滑展开 -->
+        <section class="queue-panel" id="queuePanel" role="dialog" aria-label="播放列表" aria-hidden="true">
+            <header class="queue-head" id="queueHead">
+                <div class="queue-title">播放列表<span id="queueCount"></span></div>
+                <button class="modal-close" type="button" aria-label="收起播放列表" onclick="PlayQueue.close()"><i class="ri-arrow-down-s-line"></i></button>
+            </header>
+            <div class="queue-list" id="queueList"></div>
+        </section>
+
+        <!-- 播放列表右侧书签 -->
+        <div class="queue-tabs" id="queueTabs">
+            <button class="queue-tab" id="playModeTab" type="button" aria-label="播放模式：列表循环，点击切换" onclick="cyclePlayMode()">
+                <i class="ri-repeat-line" id="playModeIcon"></i>
+                <span id="playModeLabel">循环</span>
+            </button>
+            <button class="queue-tab pick" id="partnerPickTab" type="button" aria-label="让恋人选下一首" onclick="askPartnerPick()">
+                <i class="ri-user-heart-line"></i>
+                <span>TA选</span>
+            </button>
+        </div>
+
+        <div class="now-playing-capsule" id="nowPlayingCapsule" onclick="openDrawerPlayer()" style="display: none;">
+            <div class="playing-vinyl-disc paused" id="playingVinylDisc">
+                <img class="playing-vinyl-art" id="playingVinylArt" src="../assets/changpianmoren.jpg" alt="当前播放封面">
+            </div>
+            <div class="playing-info">
+                <div class="playing-track-name" id="playingTrackName">点击曲目开始播放</div>
+                <div class="playing-track-artist" id="playingTrackArtist">Chérie Music</div>
+            </div>
+            <div class="playing-controls">
+                <button class="playing-ctrl-btn" aria-label="播放/暂停" onclick="event.stopPropagation(); togglePlayState()">
+                    <i class="ri-play-fill" id="capsulePlayIcon"></i>
+                </button>
+                <button class="playing-ctrl-btn" aria-label="下一首" onclick="event.stopPropagation(); nextTrack()">
+                    <i class="ri-skip-forward-line"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="dock-avatar-wrap">
+        <div class="dock-vinyl-avatar" id="userAvatar" role="button" tabindex="0" aria-label="我的"
+             onclick="onDockAvatarClick()" onkeydown="if (event.key === 'Enter') onDockAvatarClick()">
+            <img id="dockAvatarImg" src="../assets/morentouxiang.jpg" alt="babydoll 的头像">
+        </div>
+        <span class="dock-unread" id="dockUnread" aria-hidden="true"></span>
+        <div class="thought" id="dockThought" aria-hidden="true">
+            <span class="thought-dot d1"></span>
+            <span class="thought-dot d2"></span>
+            <div class="thought-cloud" id="dockThoughtText"></div>
+        </div>
+    </div>
+</div>
+
+<!-- 底部直栏导航 -->
+<nav class="page-switch-dock" id="dockBarGlass">
+    <button class="dock-page-btn active" data-target="scene-cabinet" aria-label="唱片柜" onclick="switchPageTab(this)">
+        <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 3v18M3 12h18"/>
+        </svg>
+    </button>
+    <button class="dock-page-btn" data-target="scene-discover" aria-label="曲目列表" onclick="switchPageTab(this)">
+        <svg viewBox="0 0 24 24">
+            <path d="M4 6h16M4 12h10M4 18h7"/>
+            <circle cx="18" cy="15" r="3"/>
+            <path d="M21 15v-5"/>
+        </svg>
+    </button>
+    <button class="dock-page-btn" data-target="scene-playlists" aria-label="歌单库" onclick="switchPageTab(this)">
+        <svg viewBox="0 0 24 24">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+        </svg>
+    </button>
+    <button class="dock-page-btn" data-target="scene-favorites" aria-label="收藏" onclick="switchPageTab(this)">
+        <svg viewBox="0 0 24 24">
+            <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8z"/>
+        </svg>
+    </button>
+    <button class="dock-page-btn" data-target="scene-profile" aria-label="个人设置" onclick="switchPageTab(this)">
+        <svg viewBox="0 0 24 24">
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-4 4-6 8-6s8 2 8 6"/>
+        </svg>
+    </button>
+</nav>
+
+<!-- 全屏黑胶播放器抽屉 -->
+<div class="drawer-player" id="drawerPlayer">
+    <div class="drawer-backdrop" aria-hidden="true">
+        <img id="drawerBgArt" src="../assets/changpianmoren.jpg" alt="">
+    </div>
+
+    <div class="drawer-head">
+        <button class="drawer-close-btn" aria-label="收起播放器" onclick="closeDrawerPlayer()">
+            <i class="ri-arrow-down-s-line"></i>
+        </button>
+        <span class="drawer-head-title">NOW PLAYING</span>
+        <button class="drawer-close-btn" aria-label="收藏" onclick="toggleLikeCurrentSong()">
+            <i class="ri-heart-3-line" id="drawerLikeIcon"></i>
+        </button>
+    </div>
+
+    <div class="drawer-body">
+        <!-- 一起听：两人头像相对，谁说话谁头像下冒气泡，点击打开聊天 -->
+        <div class="duet" id="duet" role="button" tabindex="0" aria-label="打开聊天"
+             onclick="ListenTogether.openChat()" onkeydown="if (event.key === 'Enter') ListenTogether.openChat()">
+            <div class="duet-person me">
+                <div class="duet-avatar"><img id="duetMeImg" src="../assets/morentouxiang.jpg" alt=""></div>
+                <span class="duet-name" id="duetMeName">babydoll</span>
+                <div class="duet-bubble" id="duetMeBubble"></div>
+            </div>
+            <div class="duet-link" aria-hidden="true">
+                <i class="ri-heart-3-fill duet-heart"></i>
+                <div class="duet-line">
+                    <span class="duet-bars"><span></span><span></span><span></span><span></span><span></span></span>
+                </div>
+                <span class="duet-time" id="duetTime">刚刚开始一起听</span>
+            </div>
+            <div class="duet-person them">
+                <div class="duet-avatar"><img id="duetThemImg" src="../assets/morentouxiang.jpg" alt=""></div>
+                <span class="duet-name" id="duetThemName">恋人</span>
+                <div class="duet-bubble" id="duetThemBubble"></div>
+            </div>
+        </div>
+
+        <div class="drawer-stage" id="drawerStage">
+            <!-- 唱片（点一下切到歌词） -->
+            <div class="turntable" role="button" aria-label="查看歌词" onclick="toggleLyricView()">
+                <div class="turntable-glow" aria-hidden="true">
+                    <img id="drawerGlowArt" src="../assets/changpianmoren.jpg" alt="">
+                </div>
+                <div class="drawer-disc-stage paused" id="drawerDiscStage">
+                    <img class="drawer-disc-art" id="drawerDiscArt" src="../assets/changpianmoren.jpg" alt="唱片封面">
+                    <div class="disc-spindle"></div>
+                </div>
+                <div class="disc-sheen" aria-hidden="true"></div>
+                <div class="tonearm" aria-hidden="true">
+                    <div class="tonearm-weight"></div>
+                    <div class="tonearm-rod"></div>
+                    <div class="tonearm-head"></div>
+                    <div class="tonearm-base"></div>
+                </div>
+            </div>
+
+            <!-- 歌词（点空白处切回唱片，点某行跳转） -->
+            <div class="lyric-view" id="lyricView" onclick="toggleLyricView()">
+                <div class="lyric-list" id="lyricList">
+                    <p class="lyric-tip">暂无播放</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="drawer-song-meta">
+            <div class="drawer-song-name" id="drawerSongName">未播放曲目</div>
+            <div class="drawer-artist" id="drawerSongArtist">Chérie Music</div>
+        </div>
+
+        <div class="drawer-actions">
+            <button class="drawer-action-btn" id="lyricToggleBtn" onclick="toggleLyricView()">
+                <i class="ri-file-music-line"></i>
+                <span>歌词</span>
+            </button>
+            <button class="drawer-action-btn" onclick="openComments()">
+                <i class="ri-chat-3-line"></i>
+                <span id="commentBtnLabel">评论</span>
+            </button>
+            <button class="drawer-action-btn" id="togetherBtn" onclick="toggleTogether()">
+                <i class="ri-user-heart-line"></i>
+                <span id="togetherBtnLabel">一起听</span>
+            </button>
+        </div>
+
+        <div class="drawer-slider" id="drawerSlider" onclick="seekAudio(event)">
+            <div class="drawer-slider-fill" id="drawerSliderFill"></div>
+        </div>
+        <div class="drawer-time-row">
+            <span id="drawerTimeCurrent">0:00</span>
+            <span id="drawerTimeTotal">0:00</span>
+        </div>
+
+        <div class="drawer-controls">
+            <button class="drawer-ctrl-btn" aria-label="上一首" onclick="prevTrack()"><i class="ri-skip-back-fill"></i></button>
+            <button class="drawer-play-btn" aria-label="播放/暂停" onclick="togglePlayState()"><i class="ri-play-fill" id="drawerPlayIcon"></i></button>
+            <button class="drawer-ctrl-btn" aria-label="下一首" onclick="nextTrack()"><i class="ri-skip-forward-fill"></i></button>
+        </div>
+    </div>
+
+    <!-- 一起听：右侧聊天栏（上：查看聊天记录，下：在播放器里聊天） -->
+    <div class="duet-rail" id="duetRail">
+        <button class="rail-btn" id="historyBtn" type="button" aria-label="查看聊天记录" onclick="ListenTogether.openHistory()">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="rail-btn" id="duetChatBtn" type="button" aria-label="在播放器里聊天" aria-expanded="false" onclick="ListenTogether.toggleInline()">
+            <svg viewBox="0 0 24 24">
+                <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>
+                <path d="M8 12h.01M12 12h.01M16 12h.01"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- 播放器内聊天输入栏 -->
+    <div class="duet-input" id="duetInput">
+        <div class="quick-panel" id="duetQuick" data-for="duetChatInput" aria-label="对方说过的话"></div>
+        <input class="chat-input" id="duetChatInput" type="text" maxlength="200" placeholder="说点什么..." autocomplete="off" aria-label="输入消息">
+        <div class="chat-split">
+            <button type="button" aria-label="调取对方说的话" aria-expanded="false" onclick="toggleQuick('duetQuick', this)"><i class="ri-chat-quote-line"></i></button>
+            <button type="button" aria-label="发送" onclick="sendDuetChat()"><i class="ri-send-plane-2-fill"></i></button>
+        </div>
+    </div>
+
+    <!-- 聊天记录遮罩 -->
+    <div class="history-mask" id="historyMask" role="dialog" aria-modal="true" aria-labelledby="historyTitle" aria-hidden="true"
+         onclick="if (event.target === this) ListenTogether.closeHistory()">
+        <div class="history-head">
+            <div class="history-title" id="historyTitle">聊天记录<span id="historyCount"></span></div>
+            <button class="drawer-close-btn" id="historyCloseBtn" aria-label="关闭聊天记录" onclick="ListenTogether.closeHistory()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+    </div>
+
+    <!-- 评论面板 -->
+    <div class="comment-mask" id="commentMask" onclick="closeComments()"></div>
+    <section class="comment-sheet" id="commentSheet" aria-label="评论">
+        <div class="comment-sheet-grip"></div>
+        <div class="comment-sheet-head">
+            <div class="comment-sheet-title">评论<span id="commentTotal"></span></div>
+            <button class="drawer-close-btn" aria-label="关闭评论" onclick="closeComments()">
+                <i class="ri-close-line"></i>
+            </button>
+        </div>
+        <div class="comment-list" id="commentList"></div>
+    </section>
+</div>
+
+<!-- 导入网易云歌单弹窗 -->
+<div class="modal-mask" id="importModal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle" onclick="if (event.target === this) closeImportModal()">
+    <div class="modal-card">
+        <div class="modal-header">
+            <span class="modal-title" id="importModalTitle">导入网易云歌单</span>
+            <button class="modal-close" aria-label="关闭" onclick="closeImportModal()"><i class="ri-close-line"></i></button>
+        </div>
+        <input type="text" class="modal-input" id="importInput" placeholder="输入歌单 ID 或完整分享链接...">
+        <div class="modal-footer">
+            <button class="modal-btn-cancel" onclick="closeImportModal()">取消</button>
+            <button class="modal-btn-confirm" id="importConfirmBtn" onclick="submitImportPlaylist()">解析并导入</button>
+        </div>
+    </div>
+</div>
+
+<!-- 网易云二维码登录弹窗 -->
+<div class="modal-mask" id="qrModal" role="dialog" aria-modal="true" aria-labelledby="qrModalTitle" onclick="if (event.target === this) closeQrLogin()">
+    <div class="modal-card">
+        <div class="modal-header">
+            <span class="modal-title" id="qrModalTitle">扫码登录网易云</span>
+            <button class="modal-close" aria-label="关闭" onclick="closeQrLogin()"><i class="ri-close-line"></i></button>
+        </div>
+        <div class="qr-box">
+            <img id="qrImage" alt="登录二维码" hidden>
+            <div class="qr-overlay" id="qrOverlay">获取中...</div>
+        </div>
+        <p class="qr-status" id="qrStatus">打开网易云音乐 App 扫一扫</p>
+        <div class="modal-footer">
+            <button class="modal-btn-cancel" onclick="closeQrLogin()">取消</button>
+            <button class="modal-btn-confirm" onclick="startQrLogin()">刷新二维码</button>
+        </div>
+    </div>
+</div>
+
+<!-- 通用内置弹窗（替代系统 alert / confirm / prompt） -->
+<div class="modal-mask" id="appDialog" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle" aria-hidden="true">
+    <div class="modal-card">
+        <div class="modal-header">
+            <span class="modal-title" id="appDialogTitle">提示</span>
+        </div>
+        <div class="modal-message" id="appDialogMessage"></div>
+        <input type="text" class="modal-input" id="appDialogInput" hidden>
+        <div class="modal-footer">
+            <button class="modal-btn-cancel" id="appDialogCancel" type="button">取消</button>
+            <button class="modal-btn-confirm" id="appDialogOk" type="button">确定</button>
+        </div>
+    </div>
+</div>
+
+<!-- 一起听聊天悬浮窗 -->
+<section class="chat-panel" id="chatPanel" role="dialog" aria-label="聊天" aria-hidden="true">
+    <header class="chat-head" id="chatHead" title="按住拖动">
+        <div class="chat-head-avatar"><img id="chatPartnerImg" src="../assets/morentouxiang.jpg" alt=""></div>
+        <div class="chat-head-text">
+            <div class="chat-head-name" id="chatPartnerName">恋人</div>
+            <div class="chat-head-status"><span id="chatStatus">一起听中</span></div>
+        </div>
+        <button class="modal-close" aria-label="结束一起听" onclick="toggleTogether()"><i class="ri-logout-circle-r-line"></i></button>
+        <button class="modal-close" aria-label="收起聊天" onclick="ListenTogether.closeChat()"><i class="ri-close-line"></i></button>
+    </header>
+    <div class="chat-list" id="chatList" role="log" aria-live="polite"></div>
+    <div class="chat-input-row">
+        <div class="quick-panel" id="chatQuick" data-for="chatInput" aria-label="对方说过的话"></div>
+        <input class="chat-input" id="chatInput" type="text" maxlength="200" placeholder="说点什么..." autocomplete="off" aria-label="输入消息">
+        <div class="chat-split">
+            <button type="button" aria-label="调取对方说的话" aria-expanded="false" onclick="toggleQuick('chatQuick', this)"><i class="ri-chat-quote-line"></i></button>
+            <button type="button" aria-label="发送" onclick="sendChat()"><i class="ri-send-plane-2-fill"></i></button>
+        </div>
+    </div>
+</section>
+
+<div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+<audio id="realAudio" preload="auto"></audio>
+
+<script src="./music.js"></script>
+<script src="./music-api.js"></script>
+<script>
+function exitMusicApp() {
+  try {
+    if (parent !== window && parent.WhateverMusicApp) {
+      parent.WhateverMusicApp.close({ remove: true });
+      if (typeof parent.closeApp === 'function') parent.closeApp();
+      return;
+    }
+  } catch (_) { /* no-op */ }
+  if (history.length > 1) history.back();
+}
+</script>
+</body>
+</html>
