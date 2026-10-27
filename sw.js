@@ -1,6 +1,6 @@
 // Whatever · Service Worker：让应用可以被"添加到主屏幕"，并在离线时用缓存打开
 // 每次改了 index.html 或公开资源，把这里的数字 +1，用户端就会收到更新提示
-const CACHE_NAME = 'Whatever-v9';
+const CACHE_NAME = 'Whatever-v10';
 const CRITICAL_ASSETS = [
     './index.html',
     './manifest.json',
@@ -30,6 +30,17 @@ self.addEventListener('activate', (event) => {
     })());
 });
 
+// 把"被重定向过的响应"重新包装成普通响应，导航请求才能使用
+async function cleanRedirect(res) {
+    if (!res.redirected) return res;
+    const body = await res.blob();
+    return new Response(body, {
+        status: res.status,
+        statusText: res.statusText,
+        headers: res.headers
+    });
+}
+
 self.addEventListener('fetch', (event) => {
     const req = event.request;
     if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
@@ -42,18 +53,24 @@ self.addEventListener('fetch', (event) => {
     // sw.js 自身不缓存，保证浏览器每次都能拿到最新版本
     if (url.pathname.endsWith('/sw.js')) return;
 
-    // 打开页面：绕过 Safari 的 HTTP 缓存直接拿最新 index.html，断网时回退到缓存
+    // 打开页面：直接用浏览器原始的导航请求，跳转（如 /index.html → /）交给浏览器自己处理
+    // 不能自己 new Request 去跟随跳转，否则会返回"被重定向的响应"，页面直接打不开
     if (req.mode === 'navigate') {
         event.respondWith(
-            fetch(new Request(req.url, { cache: 'no-store', credentials: 'same-origin' }))
+            fetch(req)
                 .then((res) => {
-                    if (res && res.ok) {
+                    if (res && res.ok && res.type === 'basic') {
                         const copy = res.clone();
                         caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', copy));
                     }
                     return res;
                 })
-                .catch(() => caches.match('./index.html'))
+                .catch(async () => {
+                    // 断网时用缓存的 index.html 打开；缓存里如果是重定向过的响应，先洗干净
+                    const cached = await caches.match('./index.html');
+                    if (!cached) return Response.error();
+                    return cleanRedirect(cached);
+                })
         );
         return;
     }
