@@ -8,7 +8,7 @@ const CRITICAL_ASSETS = [
     './',
     './manifest.json',
     './assets/IMG_20261008_161846.jpg',
-    './assets/ovo.png'
+    './assets/前景/ovo.png'
 ];
 
 self.addEventListener('install', (event) => {
