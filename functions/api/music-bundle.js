@@ -17,10 +17,20 @@ export async function onRequestPost({request,env}){
  let params;try{params=await request.json();}catch{return output({success:false,message:'请求格式错误'},400);}
  if(!await auth(params?.token,env.TOKEN_SECRET))return output({success:false,message:'登录凭证无效'},401);
  try{
-  const res=await fetch(URL+'/functions/v1/cherie-music-source',{headers:{apikey:env.SUPABASE_SERVICE_KEY,Authorization:'Bearer '+env.SUPABASE_SERVICE_KEY},signal:AbortSignal.timeout(25000)});
-  if(!res.ok){console.warn('Supabase music status',res.status);return output({success:false,message:'音乐后端获取失败'},502);}
-  const data=await res.json();
-  if(!data.success||!['html','js','css','api'].every(k=>typeof data.files?.[k]==='string'))return output({success:false,message:'音乐后端文件不完整'},502);
-  return output({success:true,files:data.files});
- }catch(e){console.warn('music proxy',e?.message);return output({success:false,message:'音乐后端网络失败'},502);}
+  const required=['html/music.html','css/music.css','js/apps/music.js','js/apps/music-api.js'];
+  const files={};
+  const downloaded=await Promise.all(required.map(async path=>{
+   const key=path.split('/').map(encodeURIComponent).join('/');
+   const url=URL+'/storage/v1/object/protected-scripts/'+key;
+   const res=await fetch(url,{
+    headers:{apikey:env.SUPABASE_SERVICE_KEY,Authorization:'Bearer '+env.SUPABASE_SERVICE_KEY},
+    signal:AbortSignal.timeout(25000),
+    cache:'no-store'
+   });
+   if(!res.ok)throw new Error('Storage '+path+' HTTP '+res.status);
+   return [path,await res.text()];
+  }));
+  downloaded.forEach(([path,text])=>{files[path]=text;});
+  return output({success:true,files});
+ }catch(e){console.warn('[Music Storage]',e?.message);return output({success:false,message:'音乐 Storage 文件加载失败'},502);}
 }
