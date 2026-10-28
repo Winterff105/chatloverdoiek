@@ -197,14 +197,14 @@
         e.preventDefault();
         openChoices();
         focusOption(e.key==='ArrowUp'?optionButtons.length-1:0);
-      }else if(e.key==='Escape')closeChoices();
+      }else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeChoices(true);}
     });
     choices.addEventListener('keydown',e=>{
       if(e.key==='ArrowDown'||e.key==='ArrowUp'){
         e.preventDefault();
         focusOption(activeOption+(e.key==='ArrowDown'?1:-1));
       }else if(e.key==='Escape'||e.key==='Tab'){
-        if(e.key==='Escape')e.preventDefault();
+        if(e.key==='Escape'){e.preventDefault();e.stopPropagation();}
         closeChoices(e.key==='Escape');
       }else if(e.key==='Home'||e.key==='End'){
         e.preventDefault();focusOption(e.key==='Home'?0:optionButtons.length-1);
