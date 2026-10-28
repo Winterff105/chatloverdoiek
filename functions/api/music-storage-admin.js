@@ -10,6 +10,18 @@ const TYPES=Object.freeze({
  'css/music.css':'text/css'
 });
 const MAX=384*1024, TE=new TextEncoder();
+// Exactly approved source transformations from the owner's verified export.
+const APPROVED_SOURCE_FIX=Object.freeze({
+ 'js/apps/music.js':Object.freeze({
+  before:'afbaa0c112109155ee9e898f9ac52ddbcd677e40f24614627ff3035a87211906',
+  after:'e09b3eadcd66ff00394dabed69d0e1940815a5d23f9232ee2edc90a4778bcd2b'
+ }),
+ 'js/apps/music-api.js':Object.freeze({
+  before:'46200810f6f3008cd58805cf96fbc220e6a3236f570a1e2a043d5929c001347c',
+  after:'c02a11db0ee0df978de217d633383c91d5ca1db6a2e8e9a9113ff1ae8b0bb0cc'
+ })
+});
+
 const respond=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{
  'Content-Type':'application/json;charset=utf-8','Cache-Control':'private,no-store',
  'X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer'
@@ -84,7 +96,7 @@ export async function onRequestPost({request,env}){
  }catch{return respond({ok:false,error:'admin_verification_unavailable'},503);}
  const path=String(data.path||'');
  if(!Object.hasOwn(TYPES,path))return respond({ok:false,error:'unlisted_file'},400);
- if(!['inspect','read','backup','replace'].includes(data.action))return respond({ok:false,error:'invalid_action'},400);
+ if(!['inspect','read','backup','replace','apply-approved'].includes(data.action))return respond({ok:false,error:'invalid_action'},400);
  try{
   const original=await download(path,env.SUPABASE_SERVICE_KEY);
   const checksum=await hash(original);
@@ -94,6 +106,28 @@ export async function onRequestPost({request,env}){
   if(data.action==='backup'){
    const saved=await backup(path,original,checksum,env.SUPABASE_SERVICE_KEY);
    return respond({ok:true,path,sha256:checksum,backup:saved,verified:true});
+  }
+  // Self-service, explicitly clicked and cryptographically approved *exact*
+  // source bytes. No code/text is accepted except the two reviewed hashes.
+  // General replace remains disabled; no Cloudflare flag needs switching.
+  if(data.action==='apply-approved'){
+   const approved=APPROVED_SOURCE_FIX[path];
+   if(!approved)return respond({ok:false,error:'source_not_approved'},403);
+   if(checksum!==approved.before || data.expectedSha256!==checksum)
+    return respond({ok:false,error:'source_conflict',sha256:checksum},409);
+   if(typeof data.content!=='string')return respond({ok:false,error:'missing_content'},400);
+   const patched=TE.encode(data.content);
+   if(!patched.length||patched.length>MAX)return respond({ok:false,error:'invalid_size'},413);
+   if(await hash(patched)!==approved.after)
+    return respond({ok:false,error:'unapproved_content'},403);
+   // Store an immutable private backup, verify it byte-for-byte, then update.
+   const saved=await backup(path,original,checksum,env.SUPABASE_SERVICE_KEY);
+   await upload(path,patched,TYPES[path],env.SUPABASE_SERVICE_KEY,true);
+   const actual=await hash(await download(path,env.SUPABASE_SERVICE_KEY));
+   if(actual!==approved.after)
+    return respond({ok:false,error:'verify_failed',backup:saved,sha256:actual},502);
+   return respond({ok:true,path,previousSha256:checksum,sha256:actual,
+    backup:saved,verified:true,applied:true});
   }
   // Deliberately OFF by default, even for administrators.
   if(env.MUSIC_STORAGE_WRITE_ENABLED!=='true')return respond({ok:false,error:'write_disabled'},403);
