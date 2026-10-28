@@ -26,19 +26,22 @@
   // app-manager has used more than one frame title across versions; relying
   // only on title="音乐" left invitations without a response.
   const playerFrames = () => {
-    const appWindow = document.getElementById('appWindow') || document.querySelector('.app-window');
-    const content = appWindow?.querySelector('.app-content');
-    const windowTitle = document.getElementById('appTitle')?.textContent || '';
-    const byTitle = frame => /音乐|music|ch[ée]rie/i.test([
-      frame.getAttribute('title')||'', frame.getAttribute('data-app')||'',
-      frame.getAttribute('src')||'', frame.id||''
-    ].join(' '));
-    if (content) {
-      const frames = Array.from(content.querySelectorAll('iframe'));
-      if (frames.length === 1 && /音乐|music|ch[ée]rie/i.test(windowTitle)) return frames;
-      return frames.filter(byTitle);
+    const appWindow=document.getElementById('appWindow') || document.querySelector('.app-window');
+    const layer=document.getElementById('whatever-music-layer');
+    const content=appWindow?.querySelector('.app-content');
+    const windowTitle=document.getElementById('appTitle')?.textContent || '';
+    // Dedicated Chérie Music is a FULL-SCREEN sibling of appWindow, not
+    // inside appWindow. Always include that actual launcher frame first.
+    const fullScreen=Array.from(layer?.querySelectorAll('iframe')||[]);
+    const desktop=Array.from(appWindow?.querySelectorAll('iframe')||[])
+      .filter(f=>/音乐|music|ch[ée]rie/i.test([
+        f.getAttribute('title')||'',f.getAttribute('data-app')||'',
+        f.getAttribute('src')||'',f.id||''
+      ].join(' ')));
+    if(!desktop.length&&content&&/音乐|music|ch[ée]rie/i.test(windowTitle)){
+      desktop.push(...Array.from(content.querySelectorAll('iframe')));
     }
-    return Array.from(document.querySelectorAll('iframe')).filter(byTitle);
+    return [...new Set([...fullScreen,...desktop])];
   };
   // The private music app may run inside a sandboxed srcdoc iframe whose
   // browser origin is literally "null".  Trust only the currently mounted
@@ -380,7 +383,7 @@
   // Never create a replacement chat form, send button, or quick-recall panel.
   const float={
     node:null,lyric:null,frame:null,origin:null,data:null,lastText:'',
-    preservedPane:null,sparePane:null,shelvedLayer:null,guarded:false,
+    preservedPane:null,sparePane:null,shelvedLayer:null,nativePanelVisible:false,guarded:false,
     create(){
       if(this.node)return;
       const el=document.createElement('button');
@@ -394,10 +397,8 @@
       el.addEventListener('click',()=>{
         if(this.ignoreNextClick){this.ignoreNextClick=false;return;}
         if(!this.frame?.isConnected)return;
-        // If another in-app page is displayed, revive the SAME music iframe.
-        // The existing chatPanel is inside that iframe and cannot be detached
-        // and floated independently without duplicating/reloading the player.
-        this.restoreMusic();
+        // Ask original iframe to open its native chatPanel. It reports
+        // its exact viewport bounds so only that panel appears above other apps.
         this.command('chat');
       });
       let drag=null;
@@ -433,6 +434,44 @@
           this.origin==='null'?'*':this.origin);
       }catch(error){console.warn('[Music Lyrics] command failed:',error?.message);}
     },
+    // Reveal only the original music iframe's existing chatPanel over other
+    // Whatever apps. Clipping on the FULL-SCREEN host preserves its iframe,
+    // audio graph and base.css geometry. No second chat UI is created.
+    setNativePanel(panel){
+      const musicLayer=document.getElementById('whatever-music-layer');
+      if(panel?.open===false){
+        this.nativePanelVisible=false;
+        if(this.shelvedLayer){
+          musicLayer.style.clipPath='inset(0 0 100% 0)';
+          musicLayer.style.pointerEvents='none';
+        }
+        return;
+      }
+      if(!panel?.open)return;
+      const rect=panel.rect;
+      if(!rect||!Number.isFinite(rect.left)||!Number.isFinite(rect.top)||
+          !Number.isFinite(rect.width)||!Number.isFinite(rect.height))return;
+      if(musicLayer?.contains(this.frame)){
+        // Only clip while another app is visible. On the music page the
+        // user's original full-screen music/chat styling remains untouched.
+        if(!this.shelvedLayer)return;
+        const vw=window.innerWidth,vh=window.innerHeight;
+        const pad=8;
+        const top=Math.max(0,rect.top-pad),left=Math.max(0,rect.left-pad);
+        const right=Math.max(0,vw-rect.left-rect.width-pad);
+        const bottom=Math.max(0,vh-rect.top-rect.height-pad);
+        musicLayer.style.clipPath='inset('+top+'px '+right+'px '+bottom+'px '+left+'px round 24px)';
+        musicLayer.style.pointerEvents='auto';
+        this.nativePanelVisible=true;
+        return;
+      }
+      // Other app-manager variants may put music in an appWindow iframe. Keep
+      // the original pane mounted and return to it rather than clone the chat.
+      if(this.preservedPane){
+        this.restoreMusic();
+        this.nativePanelVisible=true;
+      }
+    },
     guardNavigation(){
       if(this.guarded)return;
       this.guarded=true;
@@ -463,7 +502,12 @@
         const original=app.close.bind(app);
         app.__wmcKeepAlive=true;
         app.close=function(opts){
-          if(root.frame?.isConnected&&root.data){root.shelveLayer();return;}
+          if(root.frame?.isConnected&&root.data){
+            root.shelveLayer();
+            // Original panel may already be open; ask its iframe for geometry.
+            root.command('panel-sync');
+            return;
+          }
           return original(opts);
         };
       }
@@ -511,6 +555,12 @@
       }
     },
     close(){
+      this.nativePanelVisible=false;
+      if(this.shelvedLayer){
+        const layer=this.shelvedLayer.layer;
+        layer.style.clipPath='inset(0 0 100% 0)';
+        layer.style.pointerEvents='none';
+      }
       if(this.node)this.node.hidden=true;
       this.frame=null;this.origin=null;this.data=null;this.lastText='';
       // Leave the original player's base layout and data untouched.
@@ -524,17 +574,22 @@
         || (this.frame?.isConnected&&this.frame.contentWindow===source?this.frame:null);
       if(!sourceFrame)throw Error('音乐窗口未认证');
       this.create();
-      this.frame=sourceFrame;this.origin=origin;this.data=data;
+      this.frame=sourceFrame;this.origin=origin;
+      if(data.panel)this.setNativePanel(data.panel);
+      // Preserve contact identity across lightweight panel-only updates.
+      if(data.contactId)this.data={...(this.data||{}),...data};
       this.node.hidden=false;
-      const lyric=truncate(data.lyric||data.music?.lyric||'',220)
-        || ('♪ '+truncate(data.music?.title||'一起听',80));
-      if(this.lastText!==lyric){
-        this.lyric.textContent=lyric;
-        this.lastText=lyric;
-        // Restart a soft right-to-left lyric scroll only when the text changes.
-        this.lyric.style.animation='none';
-        void this.lyric.offsetWidth;
-        this.lyric.style.animation='';
+      if(Object.prototype.hasOwnProperty.call(data,'lyric')||data.music){
+        const lyric=truncate(data.lyric||data.music?.lyric||'',220)
+          || ('♪ '+truncate(data.music?.title||'一起听',80));
+        if(this.lastText!==lyric){
+          this.lyric.textContent=lyric;
+          this.lastText=lyric;
+          // Rise from below and drift upward, without a bordered overlay.
+          this.lyric.style.animation='none';
+          void this.lyric.offsetWidth;
+          this.lyric.style.animation='';
+        }
       }
       this.guardNavigation();
       return {ok:true};
@@ -543,13 +598,13 @@
   setInterval(()=>{if(float.frame&&!float.frame.isConnected)float.close();},8000);
   const miniStyle=document.createElement('style');
   miniStyle.textContent=[
-    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 84px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(248px,calc(100vw - 22px));height:36px;padding:0;border:0;border-radius:999px;background:rgba(9,9,11,.84);color:#fff;box-shadow:0 4px 13px #0005;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent}',
+    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 85px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(268px,calc(100vw - 24px));height:57px;padding:0;border:0!important;outline:0;background:none!important;color:#fff;box-shadow:none!important;border-radius:0;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;text-align:center}',
     '#wmc-floating-player[hidden]{display:none!important}',
-    '#wmc-floating-player .wmc-lyric-track{display:block;position:relative;width:100%;height:100%;overflow:hidden;mask-image:linear-gradient(90deg,transparent 0%,#000 8%,#000 92%,transparent 100%);-webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 8%,#000 92%,transparent 100%)}',
-    '#wmc-floating-player .wmc-fp-lyric{position:absolute;top:0;left:0;display:inline-flex;align-items:center;height:100%;white-space:nowrap;width:max-content;max-width:none;padding:0 10px;box-sizing:border-box;font:12px/36px system-ui,-apple-system,sans-serif;animation:wmc-lyric-roll 11s linear infinite;will-change:transform}',
-    '@keyframes wmc-lyric-roll{from{transform:translateX(248px)}to{transform:translateX(-100%)}}',
-    '#wmc-floating-player:focus-visible{outline:2px solid #fff;outline-offset:3px}',
-    '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-fp-lyric{animation:none;position:static;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:36px}}'
+    '#wmc-floating-player .wmc-lyric-track{display:grid;place-items:center;width:100%;height:100%;overflow:hidden;background:none!important;mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 84%,transparent 100%);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 84%,transparent 100%)}',
+    '#wmc-floating-player .wmc-fp-lyric{display:block;max-width:100%;padding:0 6px;background:none!important;border:0!important;color:#fff;font:600 13px/1.55 system-ui,-apple-system,sans-serif;letter-spacing:.02em;white-space:normal;overflow-wrap:anywhere;text-shadow:0 1px 5px #000d,0 2px 12px #000a;animation:wmc-lyric-rise 7.2s ease-in-out both}',
+    '@keyframes wmc-lyric-rise{0%{opacity:0;transform:translateY(23px)}23%{opacity:1;transform:translateY(0)}100%{opacity:1;transform:translateY(-8px)}}',
+    '#wmc-floating-player:focus-visible{outline:1px dashed #fff;outline-offset:1px}',
+    '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-fp-lyric{animation:none!important;opacity:1;transform:none}}'
   ].join('\n');
   document.head.appendChild(miniStyle);
   const handlers={
@@ -563,7 +618,7 @@
     try{
       const handler=handlers[d.action];
       if(!handler&&d.action!=='ui')throw Error('未知操作');
-      // Only the sender already validated by validSender may control the dock.
+      // Both lyric and original-chat geometry come from this authenticated iframe.
       const result=d.action==='ui'?float.update(d.payload||{},e.source,e.origin):await handler(d.payload||{});
       e.source.postMessage({type:'whatever:music:response',id:d.id,ok:true,result},responseOrigin(e));
     }catch(error){
@@ -578,18 +633,22 @@
   });
   const theme=document.createElement('style');
   theme.textContent=[
-    // Mirror the existing white file-message card, not a black player card.
+    // Reuse the private messages.css file attachment shape and dimensions.
+    // Its old pink folder icon becomes a real album sleeve + black vinyl.
     '.messages-app #thread .mrow.wmc-card-row{display:flex!important;width:100%;box-sizing:border-box;flex-direction:row-reverse!important;align-items:flex-end;margin:9px 0;gap:0;min-width:0}',
-    '.messages-app #thread .wmc-song-card{all:unset;box-sizing:border-box;display:inline-flex!important;align-items:center;gap:10px;min-width:190px;width:min(250px,calc(100% - 12px));max-width:100%;min-height:68px;padding:10px 14px 10px 10px;border-radius:14px;background:#fff!important;color:#3a3a3e!important;border:0!important;box-shadow:0 4px 12px rgba(60,40,55,.12);cursor:pointer;overflow:hidden;text-align:left;flex-shrink:1}',
-    '.messages-app .wmc-card-disc{display:grid;place-items:center;position:relative;width:38px;height:38px;flex:0 0 38px;border:1px solid #dddde1;border-radius:50%;background:repeating-radial-gradient(circle,#f5f5f7 0 2px,#e2e2e8 3px,#f3f3f5 4px,#dad9df 5px);box-shadow:0 2px 5px #00000010}',
-    '.messages-app .wmc-card-disc-center{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#f2dce4;color:#47434a;font-size:11px}',
-    '.messages-app .wmc-card-main{display:flex;flex-direction:column;justify-content:center;min-width:0;flex:1;gap:2px;overflow:hidden}',
-    '.messages-app .wmc-card-head{display:block;font-size:9px;letter-spacing:.08em;color:#aaa0a7;line-height:1.1;font-weight:650}',
-    '.messages-app .wmc-card-title{display:block;font-size:14px;font-weight:600;line-height:1.4;color:#3a3a3e!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '.messages-app .wmc-card-artist{display:block;color:#8a8a90!important;font-size:11px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '.messages-app .wmc-card-status{display:block;font-size:10px;line-height:1.3;color:#8a8a90!important}',
+    '.messages-app #thread .wmc-song-card.ff-card{appearance:none;border:0!important;background:#fff!important;color:#3a3a3e!important;min-width:200px;max-width:250px;display:inline-flex!important;align-items:center;gap:11px;cursor:pointer;box-shadow:0 4px 12px rgba(60,40,50,.08)}',
+    '.messages-app .wmc-song-art.ff-mini{position:relative;flex:0 0 60px!important;width:60px!important;height:49px!important;overflow:visible}',
+    '.messages-app .wmc-card-vinyl{position:absolute;right:0;top:4px;width:42px;height:42px;border-radius:50%;background:repeating-radial-gradient(circle,#101010 0 2px,#262626 3px,#080808 4px,#191919 5px);box-shadow:0 1px 5px #0004}',
+    '.messages-app .wmc-card-vinyl:after{content:"";position:absolute;left:17px;top:17px;width:8px;height:8px;border-radius:50%;background:#dedee1;border:2px solid #555}',
+    '.messages-app .wmc-card-sleeve{position:absolute;left:0;top:3px;width:43px;height:43px;border-radius:5px;background:#e2dce2;overflow:hidden;box-shadow:1px 2px 5px #0004;display:grid;place-items:center}',
+    '.messages-app .wmc-card-sleeve:before{content:"♫";font:600 19px system-ui,sans-serif;color:#777;position:absolute;inset:0;display:grid;place-items:center}',
+    '.messages-app .wmc-card-cover{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:cover;border:0}',
+    '.messages-app .wmc-card-cover[hidden]{display:none!important}',
+    '.messages-app .wmc-song-text.ff-txt{display:flex;flex-direction:column;min-width:0;gap:3px;flex:1}',
+    '.messages-app .wmc-song-text .ff-n{font-size:14px;color:#3a3a3e!important;font-weight:600;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.messages-app .wmc-song-text .ff-m{font-size:11px;color:#8a8a90!important;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.messages-app .wmc-song-card:focus-visible{outline:2px solid #222;outline-offset:3px}',
-    '@media(max-width:350px){.messages-app #thread .wmc-song-card{width:min(238px,calc(100% - 8px))}}',
+    '@media(max-width:350px){.messages-app #thread .wmc-song-card{min-width:170px!important;max-width:235px!important;gap:8px!important}}',
     '.messages-app #memPage .mem-fold .mem-chatlog{max-height:360px;overflow-y:auto;overscroll-behavior:contain}',
     '.messages-app #memPage .mem-fold .mem-chatlog .mem-cl-bub{white-space:pre-wrap;overflow-wrap:anywhere}'
   ].join('\n');

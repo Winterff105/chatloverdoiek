@@ -420,8 +420,62 @@
       if(!audio)return;
       if(audio.paused)Promise.resolve(audio.play()).catch(()=>{});
       else audio.pause();
-    }else if(d.command==='sync')sendFloatState(true);
+    }else if(d.command==='panel-sync'){lastBounds='';requestNativeBounds();}
+    else if(d.command==='sync')sendFloatState(true);
   });
+  // Send the ORIGINAL chatPanel's geometry to the parent. A clipped, mounted
+  // iframe can render its real, draggable chat over any other Whatever app.
+  // No duplicated chat form, no audio.src or base style modifications.
+  let boundsPending=false,lastBounds='';
+  function sendNativePanelState(open){
+    if(!participant)return;
+    if(!open){
+      lastBounds='';
+      rpc('ui',{active:true,contactId:participant.id,panel:{open:false}}).catch(()=>{});
+      return;
+    }
+    const panel=document.getElementById('chatPanel');
+    if(!panel?.classList.contains('open'))return;
+    const r=panel.getBoundingClientRect();
+    if(r.width<=0||r.height<=0)return;
+    const rect={left:r.left,top:r.top,width:r.width,height:r.height};
+    const fingerprint=[Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)].join('/');
+    if(lastBounds===fingerprint)return;
+    lastBounds=fingerprint;
+    rpc('ui',{active:true,contactId:participant.id,panel:{open:true,rect}}).catch(()=>{});
+  }
+  function requestNativeBounds(){
+    if(boundsPending)return;
+    boundsPending=true;
+    requestAnimationFrame(()=>{
+      boundsPending=false;
+      sendNativePanelState(true);
+    });
+  }
+  function mountNativePanelSync(){
+    const lt=w.ListenTogether;
+    if(!lt||lt.__wmcPanelSync)return;
+    if(typeof lt.openChat!=='function'||typeof lt.closeChat!=='function')return;
+    lt.__wmcPanelSync=true;
+    const originalOpen=lt.openChat.bind(lt);
+    const originalClose=lt.closeChat.bind(lt);
+    lt.openChat=function(...args){
+      const result=originalOpen(...args);
+      lastBounds='';requestNativeBounds();
+      return result;
+    };
+    lt.closeChat=function(...args){
+      const result=originalClose(...args);
+      sendNativePanelState(false);
+      return result;
+    };
+    const head=document.getElementById('chatHead');
+    if(head){
+      head.addEventListener('pointermove',requestNativeBounds);
+      head.addEventListener('pointerup',requestNativeBounds);
+    }
+    w.addEventListener('resize',requestNativeBounds);
+  }
   let installAttempts=0;
   let canonicalTransport=null;
   function install(){
@@ -467,6 +521,7 @@
     }};
     w.ListenTogether.setTransport(canonicalTransport);
     mountPlayerEvents();
+    mountNativePanelSync();
     if(!w.__wmcDecoratedReceive){
       const originalReceive=w.ListenTogether.receive.bind(w.ListenTogether);
       w.ListenTogether.receive=function(text){
