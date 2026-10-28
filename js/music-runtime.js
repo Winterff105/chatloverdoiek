@@ -367,7 +367,7 @@
     lastFloatSample=now;
     // Lightweight lyric probe: no 50-song playlist map, album cover, or
     // AI-context preparation on audio timeupdate (often 4-10 times/sec).
-    let songId='',title='',artist='',lyric='';
+    let songId='',title='',artist='',lyric='',lyricPrev='',lyricNext='',lyricIndex=-1;
     try {
       if(typeof currentTrackList!=='undefined'&&typeof currentIndex!=='undefined'&&currentIndex>=0){
         const track=currentTrackList[currentIndex];
@@ -376,8 +376,13 @@
         artist=String(track?.artist||'');
       }
       if(typeof lyricState!=='undefined'){
+        const lines=Array.isArray(lyricState.lines)?lyricState.lines:[];
         const index=lyricState.active;
-        lyric=String(lyricState.lines?.[index]?.text||'');
+        lyricIndex=Number.isInteger(index)?index:-1;
+        const readLine=i=>i>=0&&i<lines.length?String(lines[i]?.text||''):'';
+        lyric=readLine(lyricIndex);
+        lyricPrev=readLine(lyricIndex-1);
+        lyricNext=readLine(lyricIndex+1);
       }
     }catch(_){}
     if(!title)title=document.getElementById('playingTrackName')?.textContent||'未知歌曲';
@@ -385,12 +390,13 @@
     if(!lyric)lyric=document.querySelector('.lyric-line.active .lyric-main')?.textContent||'';
     const audio=document.getElementById('realAudio');
     const playing=!!audio&&!audio.paused&&!audio.ended;
-    const fingerprint=[songId,title,lyric,playing].join('\u001f');
+    const fingerprint=[songId,title,lyricIndex,lyricPrev,lyric,lyricNext,playing].join('\u001f');
     if(!force&&!entry&&fingerprint===lastFloatKey)return;
     lastFloatKey=fingerprint;
     const payload={active:true,contactId:participant.id,name:participant.name,avatar:participant.avatar||'',
       music:{title:trim(title,160),artist:trim(artist,120),songId:trim(songId,90)},
-      lyric:trim(lyric,170),playing};
+      lyric:trim(lyric,170),lyricPrev:trim(lyricPrev,170),
+      lyricNext:trim(lyricNext,170),lyricIndex,playing};
     if(entry)payload.entry={id:'music-entry-'+(++entrySeq),me:!!entry.me,text:trim(entry.text,200)};
     rpc('ui',payload).catch(e=>console.warn('[Music Float] update unavailable',e.message));
   }
@@ -439,10 +445,11 @@
     const r=panel.getBoundingClientRect();
     if(r.width<=0||r.height<=0)return;
     const rect={left:r.left,top:r.top,width:r.width,height:r.height};
+    const viewport={width:w.innerWidth,height:w.innerHeight};
     const fingerprint=[Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)].join('/');
     if(lastBounds===fingerprint)return;
     lastBounds=fingerprint;
-    rpc('ui',{active:true,contactId:participant.id,panel:{open:true,rect}}).catch(()=>{});
+    rpc('ui',{active:true,contactId:participant.id,panel:{open:true,rect,viewport}}).catch(()=>{});
   }
   function requestNativeBounds(){
     if(boundsPending)return;

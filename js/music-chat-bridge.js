@@ -383,17 +383,20 @@
   // Never create a replacement chat form, send button, or quick-recall panel.
   const float={
     node:null,lyric:null,frame:null,origin:null,data:null,lastText:'',
-    preservedPane:null,sparePane:null,shelvedLayer:null,nativePanelVisible:false,guarded:false,
+    preservedPane:null,sparePane:null,shelvedLayer:null,nativePanelVisible:false,homeMode:false,guarded:false,
+    originalWinClip:null,paneStyles:null,panelBounds:null,
     create(){
       if(this.node)return;
       const el=document.createElement('button');
       el.id='wmc-floating-player';el.type='button';el.hidden=true;
       el.setAttribute('aria-label','点击滚动歌词打开原一起听聊天窗口');
       const track=document.createElement('span');track.className='wmc-lyric-track';
-      const lyric=document.createElement('span');lyric.className='wmc-fp-lyric';
-      lyric.textContent='♪';
-      track.appendChild(lyric);el.appendChild(track);document.body.appendChild(el);
-      this.node=el;this.lyric=lyric;
+      const previous=document.createElement('span');previous.className='wmc-lyric-row wmc-lyric-prev';
+      const lyric=document.createElement('span');lyric.className='wmc-lyric-row wmc-fp-lyric';
+      const next=document.createElement('span');next.className='wmc-lyric-row wmc-lyric-next';
+      lyric.textContent='♪';previous.textContent=' ';next.textContent=' ';
+      track.append(previous,lyric,next);el.appendChild(track);document.body.appendChild(el);
+      this.node=el;this.track=track;this.previous=previous;this.lyric=lyric;this.next=next;this.lastLyricIndex=null;
       el.addEventListener('click',()=>{
         if(this.ignoreNextClick){this.ignoreNextClick=false;return;}
         if(!this.frame?.isConnected)return;
@@ -434,42 +437,73 @@
           this.origin==='null'?'*':this.origin);
       }catch(error){console.warn('[Music Lyrics] command failed:',error?.message);}
     },
+    // Translate ORIGINAL iframe-local chat coordinates into the retaining
+    // host's clipping coordinates. Browser layout offsets vary with base.css.
+    panelInsets(host,panel){
+      const rect=panel?.rect,frame=this.frame;
+      if(!rect||!frame||typeof host?.getBoundingClientRect!=='function')return null;
+      const fr=frame.getBoundingClientRect(),hr=host.getBoundingClientRect();
+      const width=Number(panel.viewport?.width)||fr.width||window.innerWidth;
+      const height=Number(panel.viewport?.height)||fr.height||window.innerHeight;
+      if(!fr.width||!fr.height||!hr.width||!hr.height||width<=0||height<=0)return null;
+      const sx=fr.width/width,sy=fr.height/height;
+      const x=fr.left+rect.left*sx-hr.left;
+      const y=fr.top+rect.top*sy-hr.top;
+      const right=hr.width-x-rect.width*sx;
+      const bottom=hr.height-y-rect.height*sy;
+      const pad=8;
+      return {top:Math.max(0,y-pad),right:Math.max(0,right-pad),
+        bottom:Math.max(0,bottom-pad),left:Math.max(0,x-pad)};
+    },
+    clipOnlyPanel(host,panel){
+      const insets=this.panelInsets(host,panel);
+      if(!insets)return false;
+      host.style.clipPath='inset('+insets.top+'px '+insets.right+'px '+
+        insets.bottom+'px '+insets.left+'px round 24px)';
+      host.style.pointerEvents='auto';
+      return true;
+    },
+    hideRetainedPane(){
+      if(!this.preservedPane)return;
+      // Never use display:none or visibility:hidden for a playing iframe.
+      // Both can suspend mobile WebViews' nested media/audio contexts.
+      this.preservedPane.style.clipPath='inset(0 0 100% 0)';
+      this.preservedPane.style.pointerEvents='none';
+      this.nativePanelVisible=false;
+    },
+    hideWindowOnHome(){
+      if(!this.homeMode)return;
+      const win=document.getElementById('appWindow');
+      if(win){win.style.clipPath='inset(0 0 100% 0)';win.style.pointerEvents='none';}
+    },
     // Reveal only the original music iframe's existing chatPanel over other
     // Whatever apps. Clipping on the FULL-SCREEN host preserves its iframe,
     // audio graph and base.css geometry. No second chat UI is created.
     setNativePanel(panel){
       const musicLayer=document.getElementById('whatever-music-layer');
       if(panel?.open===false){
-        this.nativePanelVisible=false;
+        this.panelBounds=null;this.nativePanelVisible=false;
         if(this.shelvedLayer){
           musicLayer.style.clipPath='inset(0 0 100% 0)';
           musicLayer.style.pointerEvents='none';
         }
+        this.hideRetainedPane();
+        this.hideWindowOnHome();
         return;
       }
       if(!panel?.open)return;
-      const rect=panel.rect;
-      if(!rect||!Number.isFinite(rect.left)||!Number.isFinite(rect.top)||
-          !Number.isFinite(rect.width)||!Number.isFinite(rect.height))return;
+      this.panelBounds=panel;
       if(musicLayer?.contains(this.frame)){
-        // Only clip while another app is visible. On the music page the
-        // user's original full-screen music/chat styling remains untouched.
-        if(!this.shelvedLayer)return;
-        const vw=window.innerWidth,vh=window.innerHeight;
-        const pad=8;
-        const top=Math.max(0,rect.top-pad),left=Math.max(0,rect.left-pad);
-        const right=Math.max(0,vw-rect.left-rect.width-pad);
-        const bottom=Math.max(0,vh-rect.top-rect.height-pad);
-        musicLayer.style.clipPath='inset('+top+'px '+right+'px '+bottom+'px '+left+'px round 24px)';
-        musicLayer.style.pointerEvents='auto';
-        this.nativePanelVisible=true;
+        if(!this.shelvedLayer)return; // original fullscreen remains unchanged
+        this.nativePanelVisible=this.clipOnlyPanel(musicLayer,panel);
         return;
       }
-      // Other app-manager variants may put music in an appWindow iframe. Keep
-      // the original pane mounted and return to it rather than clone the chat.
       if(this.preservedPane){
-        this.restoreMusic();
-        this.nativePanelVisible=true;
+        this.nativePanelVisible=this.clipOnlyPanel(this.preservedPane,panel);
+        if(this.homeMode){
+          const win=document.getElementById('appWindow');
+          if(win)this.clipOnlyPanel(win,panel);
+        }
       }
     },
     guardNavigation(){
@@ -479,22 +513,40 @@
       if(typeof w.openApp==='function'){
         const original=w.openApp;
         w.openApp=function(appId){
+          if(appId==='music'&&root.preservedPane){root.restoreMusic();return;}
           if(root.frame?.isConnected&&appId!=='music'){
             root.preservePane();
             if(root.preservedPane){
-              root.preservedPane.style.display='none';
+              root.homeMode=false;
+              const win=document.getElementById('appWindow');
+              if(win&&root.originalWinClip){
+                win.style.clipPath=root.originalWinClip.clipPath;
+                win.style.pointerEvents=root.originalWinClip.pointerEvents;
+              }
+              root.hideRetainedPane();
               if(root.sparePane)root.sparePane.style.display='';
             }
           }
-          if(appId==='music'&&root.preservedPane){root.restoreMusic();return;}
-          return original.apply(this,arguments);
+          const result=original.apply(this,arguments);
+          if(root.preservedPane&&root.panelBounds)root.setNativePanel(root.panelBounds);
+          return result;
         };
       }
       if(typeof w.closeApp==='function'){
         const original=w.closeApp;
         w.closeApp=function(){
           if(root.frame?.isConnected)root.preservePane();
-          return original.apply(this,arguments);
+          const result=original.apply(this,arguments);
+          if(root.preservedPane){
+            const win=document.getElementById('appWindow');
+            root.homeMode=true;
+            if(win){
+              win.classList.add('active'); // keep original iframe/audio loaded
+              root.hideWindowOnHome();
+              if(root.panelBounds)root.setNativePanel(root.panelBounds);
+            }
+          }
+          return result;
         };
       }
       const app=w.WhateverMusicApp;
@@ -526,10 +578,21 @@
       if(!this.frame||!win?.contains(this.frame))return;
       const pane=this.frame.closest('.app-content');if(!pane)return;
       const spare=document.createElement('div');spare.className='app-content';
-      // No iframe reparenting/reloading and NO changes to base.css.
+      // Never reparent iframe or change base.css. It must stay rendered;
+      // display:none can suspend the nested media on mobile WebViews.
       pane.parentNode.insertBefore(spare,pane);
-      pane.style.display='none';
+      if(!this.originalWinClip)this.originalWinClip={
+        clipPath:win.style.clipPath,pointerEvents:win.style.pointerEvents
+      };
+      this.paneStyles={
+        position:pane.style.position,inset:pane.style.inset,zIndex:pane.style.zIndex,
+        clipPath:pane.style.clipPath,pointerEvents:pane.style.pointerEvents
+      };
+      pane.style.position='absolute';
+      pane.style.inset='0';
+      pane.style.zIndex='24';
       this.preservedPane=pane;this.sparePane=spare;
+      this.hideRetainedPane();
     },
     shelveLayer(){
       const layer=document.getElementById('whatever-music-layer');
@@ -545,10 +608,16 @@
         this.shelvedLayer=null;
       }
       if(this.preservedPane){
-        this.preservedPane.style.display='';
+        this.homeMode=false;
+        this.preservedPane.style.clipPath=this.paneStyles?.clipPath||'';
+        this.preservedPane.style.pointerEvents=this.paneStyles?.pointerEvents||'';
         if(this.sparePane)this.sparePane.style.display='none';
         const win=document.getElementById('appWindow');
-        win?.classList.add('active');
+        if(win){
+          win.style.clipPath=this.originalWinClip?.clipPath||'';
+          win.style.pointerEvents=this.originalWinClip?.pointerEvents||'';
+          win.classList.add('active');
+        }
         document.getElementById('homeScreen')?.classList.add('scaled');
         const title=document.getElementById('appTitle');
         if(title)title.textContent='音乐';
@@ -580,16 +649,24 @@
       if(data.contactId)this.data={...(this.data||{}),...data};
       this.node.hidden=false;
       if(Object.prototype.hasOwnProperty.call(data,'lyric')||data.music){
-        const lyric=truncate(data.lyric||data.music?.lyric||'',220)
+        const current=truncate(data.lyric||data.music?.lyric||'',220)
           || ('♪ '+truncate(data.music?.title||'一起听',80));
-        if(this.lastText!==lyric){
-          this.lyric.textContent=lyric;
-          this.lastText=lyric;
-          // Rise from below and drift upward, without a bordered overlay.
-          this.lyric.style.animation='none';
-          void this.lyric.offsetWidth;
-          this.lyric.style.animation='';
+        const previous=truncate(data.lyricPrev||'',220);
+        const following=truncate(data.lyricNext||'',220);
+        const key=[previous,current,following].join('\u001f');
+        if(this.lastText!==key){
+          const moved=Number.isInteger(data.lyricIndex)&&this.lastLyricIndex!==null
+            &&data.lyricIndex!==this.lastLyricIndex;
+          this.previous.textContent=previous||' ';
+          this.lyric.textContent=current;
+          this.next.textContent=following||' ';
+          this.lastText=key;
+          if(moved){
+            this.track.classList.remove('wmc-lyric-moving');
+            requestAnimationFrame(()=>this.track?.classList.add('wmc-lyric-moving'));
+          }
         }
+        if(Number.isInteger(data.lyricIndex))this.lastLyricIndex=data.lyricIndex;
       }
       this.guardNavigation();
       return {ok:true};
@@ -598,13 +675,16 @@
   setInterval(()=>{if(float.frame&&!float.frame.isConnected)float.close();},8000);
   const miniStyle=document.createElement('style');
   miniStyle.textContent=[
-    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 85px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(268px,calc(100vw - 24px));height:57px;padding:0;border:0!important;outline:0;background:none!important;color:#fff;box-shadow:none!important;border-radius:0;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;text-align:center}',
+    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 66px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(290px,calc(100vw - 24px));min-height:90px;height:90px;padding:0;border:0!important;outline:0;background:none!important;color:#fff;box-shadow:none!important;border-radius:0;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;text-align:center}',
     '#wmc-floating-player[hidden]{display:none!important}',
-    '#wmc-floating-player .wmc-lyric-track{display:grid;place-items:center;width:100%;height:100%;overflow:hidden;background:none!important;mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 84%,transparent 100%);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 84%,transparent 100%)}',
-    '#wmc-floating-player .wmc-fp-lyric{display:block;max-width:100%;padding:0 6px;background:none!important;border:0!important;color:#fff;font:600 13px/1.55 system-ui,-apple-system,sans-serif;letter-spacing:.02em;white-space:normal;overflow-wrap:anywhere;text-shadow:0 1px 5px #000d,0 2px 12px #000a;animation:wmc-lyric-rise 7.2s ease-in-out both}',
-    '@keyframes wmc-lyric-rise{0%{opacity:0;transform:translateY(23px)}23%{opacity:1;transform:translateY(0)}100%{opacity:1;transform:translateY(-8px)}}',
+    '#wmc-floating-player .wmc-lyric-track{display:grid;grid-template-rows:24px 30px 24px;align-content:center;justify-items:center;width:100%;height:100%;overflow:hidden;background:none!important;mask-image:linear-gradient(180deg,transparent 0%,#000 14%,#000 86%,transparent 100%);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 14%,#000 86%,transparent 100%)}',
+    '#wmc-floating-player .wmc-lyric-row{display:block;box-sizing:border-box;max-width:100%;height:100%;padding:0 5px;background:none!important;border:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:system-ui,-apple-system,sans-serif;text-shadow:0 1px 6px #000e,0 2px 12px #000a}',
+    '#wmc-floating-player .wmc-lyric-prev,#wmc-floating-player .wmc-lyric-next{font-size:11px;font-weight:500;color:rgba(255,255,255,.7);opacity:.60;line-height:24px}',
+    '#wmc-floating-player .wmc-fp-lyric{font-size:14px;line-height:30px;font-weight:750;color:#fff;opacity:1}',
+    '#wmc-floating-player .wmc-lyric-track.wmc-lyric-moving{animation:wmc-three-lyrics-rise .5s ease-out both}',
+    '@keyframes wmc-three-lyrics-rise{from{transform:translateY(13px);opacity:.65}to{transform:translateY(0);opacity:1}}',
     '#wmc-floating-player:focus-visible{outline:1px dashed #fff;outline-offset:1px}',
-    '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-fp-lyric{animation:none!important;opacity:1;transform:none}}'
+    '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-lyric-track{animation:none!important}}'
   ].join('\n');
   document.head.appendChild(miniStyle);
   const handlers={
