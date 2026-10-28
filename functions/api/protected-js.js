@@ -1,4 +1,18 @@
 const enc = new TextEncoder();
+// Allow the existing music dock icon to use openApp('music').
+// The desktop module is stored in the private Supabase bucket; keep it private.
+function allowExistingMusicTap(file, source) {
+  if (file !== 'js/desktop.js') return source;
+  const pattern = /const TAP_OPENS\s*=\s*\[([^\]]*)\]/;
+  const match = source.match(pattern);
+  if (!match) {
+    console.warn('[Music] Desktop TAP_OPENS whitelist not found');
+    return source;
+  }
+  if (/(?:'|")music(?:'|")/.test(match[1])) return source;
+  return source.replace(pattern, (whole) => whole.slice(0, -1) + ", 'music']");
+}
+
 
 function fromB64url(str) {
   const s = String(str).replace(/-/g, '+').replace(/_/g, '/');
@@ -98,7 +112,7 @@ export async function onRequest(context) {
       return new Response(`File not found (${res.status}): ${detail}`, { status: 404 });
     }
 
-    const content = await res.text();
+    const content = allowExistingMusicTap(file, await res.text());
 
     const contentType = file.endsWith('.css')
       ? 'text/css; charset=utf-8'

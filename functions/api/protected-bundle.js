@@ -2,6 +2,20 @@
 const enc = new TextEncoder();
 const SUPABASE_URL = 'https://tjgxfyblzgqwxwfwvfol.supabase.co';
 const CACHE_TTL = 5 * 60 * 1000;
+// Allow the existing music dock icon to use openApp('music').
+// The desktop module is stored in the private Supabase bucket; keep it private.
+function allowExistingMusicTap(file, source) {
+  if (file !== 'js/desktop.js') return source;
+  const pattern = /const TAP_OPENS\s*=\s*\[([^\]]*)\]/;
+  const match = source.match(pattern);
+  if (!match) {
+    console.warn('[Music] Desktop TAP_OPENS whitelist not found');
+    return source;
+  }
+  if (/(?:'|")music(?:'|")/.test(match[1])) return source;
+  return source.replace(pattern, (whole) => whole.slice(0, -1) + ", 'music']");
+}
+
 
 const CORE_FILES = [
   'css/base.css',
@@ -78,7 +92,7 @@ async function downloadOne(file, serviceKey) {
   for (let i = 0; i < 2; i++) {
     try {
       const res = await fetch(url, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });
-      if (res.ok) return await res.text();
+      if (res.ok) return allowExistingMusicTap(file, await res.text());
       lastErr = new Error(`${file} 下载失败 (${res.status})`);
     } catch (e) {
       lastErr = e;
