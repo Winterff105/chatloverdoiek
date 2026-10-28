@@ -411,10 +411,33 @@
       audio.addEventListener('timeupdate',()=>sendFloatState(false));
     }
   }
+  // The same ORIGINAL chatPanel is presented as the only visible part of
+  // the music document while the iframe is mounted over another Whatever App.
+  // No cloned chat DOM, no second send/quick-recall implementation.
+  const isolationStyle=document.createElement('style');
+  isolationStyle.textContent=[
+    'html.wmc-chat-isolated,html.wmc-chat-isolated body{background:transparent!important;background-image:none!important}',
+    'html.wmc-chat-isolated body *{visibility:hidden!important}',
+    'html.wmc-chat-isolated #chatPanel,html.wmc-chat-isolated #chatPanel *{visibility:visible!important}',
+    'html.wmc-chat-isolated body::before,html.wmc-chat-isolated body::after{display:none!important}',
+    'html.wmc-chat-isolated #chatPanel{background:#121216!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:0 18px 38px #0009!important;opacity:1!important}',
+    'html.wmc-chat-isolated .chat-panel:not(.open){visibility:hidden!important;opacity:0!important}'
+  ].join('\n');
+  document.head.appendChild(isolationStyle);
+  function setChatIsolated(on){
+    document.documentElement.classList.toggle('wmc-chat-isolated',!!on);
+    if(on){
+      // Remove any potentially opaque iframe document background, while
+      // keeping the original audio element and all chat state mounted.
+      requestNativeBounds();
+    }
+  }
   w.addEventListener('message',ev=>{
     if(ev.source!==w.parent||(parentOrigin!=='*'&&ev.origin!==parentOrigin))return;
     const d=ev.data||{};
-    if(d.type!=='whatever:music:ui:command'||!participant)return;
+    if(d.type!=='whatever:music:ui:command')return;
+    if(d.command==='chat-isolated'){setChatIsolated(d.value===true);return;}
+    if(!participant)return;
     if(d.command==='chat'){
       // Open the ORIGINAL music chatPanel, exactly as its partner avatar does.
       w.ListenTogether?.openChat?.();
