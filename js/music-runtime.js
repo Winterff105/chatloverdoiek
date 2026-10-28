@@ -41,7 +41,7 @@
     return new Promise((resolve,reject)=>{
       if(w.parent===w){reject(Error('请从 Whatever 主应用打开音乐'));return;}
       const id='music-'+Date.now()+'-'+(++seq);
-      const timer=setTimeout(()=>{waiting.delete(id);reject(Error(action==='contacts'?'联系人读取超时，请重试':'聊天室响应超时'));},action==='contacts'?10000:55000);
+      const timer=setTimeout(()=>{waiting.delete(id);reject(Error(action==='contacts'?'联系人读取超时，请重试':'聊天室响应超时'));},action==='contacts'?10000:action==='ui'?5000:55000);
       waiting.set(id,{resolve,reject,timer});
       w.parent.postMessage({type:'whatever:music:request',id,action,payload},parentOrigin);
     });
@@ -246,7 +246,7 @@
           w.ListenTogether.start({id:contactId,name:result.contact.name,avatar:result.contact.avatar});
           closeDialog();
           if(Array.isArray(result.messages))for(const t of result.messages)w.ListenTogether.receive(t);
-          mountMinimizeAndPlayerEvents();
+          mountPlayerEvents();
           sendFloatState(true,false);
           notify('已和 '+result.contact.name+' 开始一起听');
         }else{
@@ -342,51 +342,66 @@
       b.tabIndex=-1;
     });
   }
-  let lastState=0;
-  function sendFloatState(force=false,minimize=false){
+  // Sync only CHANGED lyrics, never the whole playlist on every time tick.
+  let lastFloatSample=0,lastFloatKey='',entrySeq=0;
+  function sendFloatState(force=false,entry=null){
     if(!participant)return;
-    if(!force&&Date.now()-lastState<2000)return;
-    lastState=Date.now();
-    const music=snapshot();
+    const now=Date.now();
+    if(!force&&!entry&&now-lastFloatSample<900)return;
+    lastFloatSample=now;
+    // Lightweight lyric probe: no 50-song playlist map, album cover, or
+    // AI-context preparation on audio timeupdate (often 4-10 times/sec).
+    let songId='',title='',artist='',lyric='';
+    try {
+      if(typeof currentTrackList!=='undefined'&&typeof currentIndex!=='undefined'&&currentIndex>=0){
+        const track=currentTrackList[currentIndex];
+        songId=String(track?.id||'');
+        title=String(track?.title||'');
+        artist=String(track?.artist||'');
+      }
+      if(typeof lyricState!=='undefined'){
+        const index=lyricState.active;
+        lyric=String(lyricState.lines?.[index]?.text||'');
+      }
+    }catch(_){}
+    if(!title)title=document.getElementById('playingTrackName')?.textContent||'未知歌曲';
+    if(!artist)artist=document.getElementById('playingTrackArtist')?.textContent||'';
+    if(!lyric)lyric=document.querySelector('.lyric-line.active .lyric-main')?.textContent||'';
     const audio=document.getElementById('realAudio');
-    rpc('ui',{active:true,minimize,contactId:participant.id,name:participant.name,
-      avatar:participant.avatar||'',music,playing:audio?!audio.paused:false})
-      .catch(e=>console.warn('[Music Float] state not delivered',e.message));
+    const playing=!!audio&&!audio.paused&&!audio.ended;
+    const fingerprint=[songId,title,lyric,playing].join('\u001f');
+    if(!force&&!entry&&fingerprint===lastFloatKey)return;
+    lastFloatKey=fingerprint;
+    const payload={active:true,contactId:participant.id,name:participant.name,avatar:participant.avatar||'',
+      music:{title:trim(title,160),artist:trim(artist,120),songId:trim(songId,90)},
+      lyric:trim(lyric,170),playing};
+    if(entry)payload.entry={id:'music-entry-'+(++entrySeq),me:!!entry.me,text:trim(entry.text,200)};
+    rpc('ui',payload).catch(e=>console.warn('[Music Float] update unavailable',e.message));
   }
-  function mountMinimizeAndPlayerEvents(){
+  function mountPlayerEvents(){
     disableAutoKeyboardAndRecall();
-    const header=document.getElementById('chatHead');
-    if(header&&!document.getElementById('wmcMinimize')){
-      const btn=node('button','wmc-minimize','—');
-      btn.id='wmcMinimize';btn.type='button';
-      btn.setAttribute('aria-label','把音乐收起成悬浮小窗');
-      btn.title='收起到悬浮小窗';
-      const end=header.querySelector('button[aria-label="结束一起听"]');
-      header.insertBefore(btn,end||null);
-      btn.addEventListener('click',e=>{
-        e.stopPropagation();
-        w.ListenTogether?.closeChat?.();
-        sendFloatState(true,true);
-      });
-    }
+    document.getElementById('wmcMinimize')?.remove();
     const audio=document.getElementById('realAudio');
     if(audio&&!audio.__wmcWatch){
       audio.__wmcWatch=true;
       for(const event of ['play','pause','loadedmetadata','ended','durationchange'])
-        audio.addEventListener(event,()=>sendFloatState(true,false));
-      audio.addEventListener('timeupdate',()=>sendFloatState(false,false));
+        audio.addEventListener(event,()=>sendFloatState(true));
+      audio.addEventListener('timeupdate',()=>sendFloatState(false));
     }
   }
   w.addEventListener('message',ev=>{
     if(ev.source!==w.parent||(parentOrigin!=='*'&&ev.origin!==parentOrigin))return;
     const d=ev.data||{};
-    if(d.type!=='whatever:music:ui:command')return;
-    if(!participant)return;
-    if(d.command==='chat')w.ListenTogether?.openChat?.();
-    if(d.command==='play')document.getElementById('realAudio')?.paused
-      ? document.getElementById('realAudio')?.play?.().catch(()=>{})
-      : document.getElementById('realAudio')?.pause?.();
-    if(d.command==='sync')sendFloatState(true,false);
+    if(d.type!=='whatever:music:ui:command'||!participant)return;
+    if(d.command==='send'){
+      const message=trim(d.text,200);
+      if(message)w.ListenTogether?.send?.(message);
+    }else if(d.command==='play'){
+      const audio=document.getElementById('realAudio');
+      if(!audio)return;
+      if(audio.paused)Promise.resolve(audio.play()).catch(()=>{});
+      else audio.pause();
+    }else if(d.command==='sync')sendFloatState(true);
   });
   let installAttempts=0;
   let canonicalTransport=null;
@@ -432,12 +447,13 @@
       }
     }};
     w.ListenTogether.setTransport(canonicalTransport);
-    mountMinimizeAndPlayerEvents();
+    mountPlayerEvents();
     if(!w.__wmcDecoratedReceive){
       const originalReceive=w.ListenTogether.receive.bind(w.ListenTogether);
       w.ListenTogether.receive=function(text){
         originalReceive(text);
         stackBubble('them',text);
+        sendFloatState(true,{me:false,text});
       };
       w.__wmcDecoratedReceive=true;
     }
@@ -445,7 +461,7 @@
       const originalSend=w.ListenTogether.send.bind(w.ListenTogether);
       w.ListenTogether.send=function(text){
         const ok=originalSend(text);
-        if(ok)stackBubble('me',text);
+        if(ok){stackBubble('me',text);sendFloatState(true,{me:true,text});}
         return ok;
       };
       w.__wmcDecoratedSend=true;
@@ -514,7 +530,6 @@
     '.wmc-eyebrow{text-align:center;font-size:8px;letter-spacing:.15em;color:#8c8c8c}.wmc-title{text-align:center;font-size:29px;line-height:1.1;font-weight:400;letter-spacing:0;margin:0 0 1px;font-family:"Snell Roundhand","Brush Script MT","Segoe Script",cursive;font-style:italic}',
     '.wmc-subtitle{text-align:center;margin:0 0 8px;font:italic 10px/1.25 Georgia,serif;letter-spacing:.02em;color:#8f8f8f}.wmc-album{margin-bottom:9px;padding:6px 10px}.wmc-pick-label,.wmc-action-label{margin-bottom:4px}.wmc-picker{margin-bottom:9px}',
     '.wmc-option{min-height:43px;padding:5px 9px}.wmc-option-icon{width:25px;height:25px}.wmc-actions{gap:6px}.wmc-footer{margin-top:4px;font-size:9px}.wmc-notice{margin-top:5px}',
-    '.wmc-minimize{flex:none;border:1px solid #ffffff50;border-radius:50%;background:#111;color:#fff;width:27px;height:27px;display:grid;place-items:center;font-size:20px;line-height:1;cursor:pointer}',
     '.wmc-speech-stack{position:fixed;right:13px;bottom:calc(env(safe-area-inset-bottom,0px) + 146px);z-index:1200;width:min(285px,75vw);display:flex;flex-direction:column;align-items:flex-end;gap:9px;pointer-events:none}',
     '.wmc-speech-row{position:relative;max-width:95%;border:1px solid #ffffff1e;border-radius:14px;padding:9px 12px;font:12px/1.5 system-ui,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 5px 18px #0006;opacity:0;transform:translateY(13px);transition:opacity .38s ease,transform .38s ease}',
     '.wmc-speech-row.wmc-speech-me{align-self:flex-end;background:#fff;color:#111}.wmc-speech-row.wmc-speech-them{align-self:flex-start;background:#181818;color:#fff}',
