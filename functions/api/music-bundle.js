@@ -68,7 +68,14 @@ export async function onRequestPost({request, env}) {
         signal:AbortSignal.timeout(25000),cache:'no-store'
       });
       if(!r.ok) throw new Error('Storage '+path+' HTTP '+r.status);
-      return [path,await r.text()];
+      let contents = await r.text();
+      // Add a small integration adapter AFTER the original music-api module.
+      // It reuses window.ListenTogether.chatPanel; no replacement of music.js,
+      // song library, lyrics implementation, miniplayer or existing CSS.
+      if (path === 'js/apps/music-api.js') {
+        contents += '\n;(function(){ if (window.__whateverMusicRuntimeLoading) return; window.__whateverMusicRuntimeLoading=true; var s=document.createElement("script"); s.src="/js/music-runtime.js"; s.async=false; document.head.appendChild(s); })();';
+      }
+      return [path,contents];
     }));
     return json({success:true,files:Object.fromEntries(results)});
   } catch(error) {
