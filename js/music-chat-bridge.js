@@ -585,7 +585,10 @@
         if(!this.data||String(data.contactId)===String(this.data.contactId))this.close();
         return {ok:true};
       }
-      const sourceFrame=playerFrames().find(f=>f.contentWindow===source);
+      // During app switching the preserved music pane is intentionally not
+      // marked .app-content; the same authenticated WindowProxy stays valid.
+      const sourceFrame=playerFrames().find(f=>f.contentWindow===source)
+        || (this.frame?.isConnected&&this.frame.contentWindow===source?this.frame:null);
       if(!sourceFrame)throw Error('音乐窗口未认证');
       this.create();
       const isNew=!this.frame||this.frame!==sourceFrame||
