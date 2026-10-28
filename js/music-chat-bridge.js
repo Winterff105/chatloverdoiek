@@ -673,6 +673,7 @@
       if(typeof w.openApp==='function'){
         const original=w.openApp;
         w.openApp=function(appId){
+          if(appId!=='music')audioHandoff.takeOver();
           if(appId==='music'&&root.persistentLayer()){
             root.restoreMusic();
             audioHandoff.requestReturn();
@@ -703,6 +704,10 @@
             }
           }
           const result=original.apply(this,arguments);
+          if(appId==='music'&&audioHandoff.active){
+            audioHandoff.returning=true;
+            audioHandoff.sendReturn();
+          }
           if(root.preservedPane&&root.panelBounds)root.setNativePanel(root.panelBounds);
           return result;
         };
@@ -710,6 +715,7 @@
       if(typeof w.closeApp==='function'){
         const original=w.closeApp;
         w.closeApp=function(){
+          audioHandoff.takeOver();
           if(root.persistentLayer()){
             audioHandoff.takeOver();
             root.shelveLayer();
