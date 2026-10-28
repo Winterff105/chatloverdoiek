@@ -602,7 +602,12 @@
       });
       const end=e=>{
         if(drag?.id===e.pointerId){
-          if(drag.moved)this.ignoreNextClick=true;
+          if(drag.moved){
+            this.ignoreNextClick=true;
+            // Touch devices do not always emit a click after a drag.
+            // Never let an old drag swallow the user's next real tap.
+            setTimeout(()=>{this.ignoreNextClick=false;},350);
+          }
           drag=null;
         }
       };
@@ -679,6 +684,7 @@
       }
       this.panelBounds={open:true,rect:local,viewport:{width:fr.width,height:fr.height}};
       this.clipOnlyPanel(layer,this.panelBounds);
+      layer.style.opacity='1';
 
     },
     resizeOriginalChat(dx,dy){
@@ -805,6 +811,7 @@
       if(panel?.open===false){
         this.panelBounds=null;this.nativePanelVisible=false;this.lastDockLayout='';
         if(this.shelvedLayer&&musicLayer){
+          musicLayer.style.opacity='0';
           // Do not reveal the full opaque player before its iframe reports
           // chat-isolation readiness; that produced a one-frame flash.
           musicLayer.style.clipPath='inset(0 0 100% 0)';
@@ -822,8 +829,11 @@
         if(!this.shelvedLayer)return; // original fullscreen remains unchanged
         this.nativePanelVisible=true;
         musicLayer.style.zIndex='2147483490';
+        // Keep hidden until the original panel has been clipped to its
+        // smaller bounds, avoiding a fullscreen player flash.
         this.command('chat-isolated',true);
         this.layoutDock();
+        if(this.lastDockLayout)musicLayer.style.opacity='1';
         return;
       }
       if(this.preservedPane){
@@ -967,9 +977,10 @@
     shelveLayer(){
       const layer=this.persistentLayer()||document.getElementById('whatever-music-layer');
       if(!layer||!layer.contains(this.frame)||this.shelvedLayer)return;
-      this.shelvedLayer={layer,clipPath:layer.style.clipPath,pointerEvents:layer.style.pointerEvents,zIndex:layer.style.zIndex};
+      this.shelvedLayer={layer,clipPath:layer.style.clipPath,pointerEvents:layer.style.pointerEvents,zIndex:layer.style.zIndex,opacity:layer.style.opacity};
       // Briefly hide until the iframe confirms its own transparent document;
       // then remove clipping entirely so the browser keeps audio rendering.
+      layer.style.opacity='0';
       layer.style.clipPath='inset(0 0 100% 0)';
       layer.style.pointerEvents='none';
       // Other Whatever widgets (including the API floating orb) must stay
@@ -985,9 +996,9 @@
     },
     restoreMusic(){
       if(this.shelvedLayer){
-        const {layer,clipPath,pointerEvents,zIndex}=this.shelvedLayer;
+        const {layer,clipPath,pointerEvents,zIndex,opacity}=this.shelvedLayer;
         layer.style.clipPath=clipPath;layer.style.pointerEvents=pointerEvents;
-        layer.style.zIndex=zIndex;
+        layer.style.zIndex=zIndex;layer.style.opacity=opacity;
         this.shelvedLayer=null;
       }
       if(this.persistentLayer()){
@@ -1024,6 +1035,7 @@
       this.nativePanelVisible=false;
       if(this.shelvedLayer){
         const layer=this.shelvedLayer.layer;
+        layer.style.opacity='0';
         layer.style.clipPath='none';
         layer.style.pointerEvents='none';
       }
