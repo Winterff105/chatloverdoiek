@@ -539,6 +539,11 @@
     'html.wmc-chat-isolated #chatPanel,html.wmc-chat-isolated #chatPanel *{visibility:visible!important}',
     'html.wmc-chat-isolated body::before,html.wmc-chat-isolated body::after,html.wmc-chat-isolated::before,html.wmc-chat-isolated::after{display:none!important}',
     'html.wmc-chat-isolated #chatPanel{background:#08080a!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}',
+    // Compact bubbles only in the isolated floating music chat.
+    'html.wmc-chat-isolated #chatPanel .chat-list{padding:14px 10px!important;gap:7px!important}',
+    'html.wmc-chat-isolated #chatPanel .chat-msg{gap:4px!important}',
+    'html.wmc-chat-isolated #chatPanel .chat-msg img{width:28px!important;height:28px!important}',
+    'html.wmc-chat-isolated #chatPanel .chat-bubble{padding:6px 10px!important;font-size:11px!important;line-height:1.38!important}',
     'html:not(.wmc-chat-isolated) #wmc-native-chat-resize{display:none!important}',
     // A barely visible corner mark; keep a 28px touch target for resizing.
     '#wmc-native-chat-resize{position:absolute;right:0;bottom:0;z-index:8;width:28px;height:28px;padding:0;border:0!important;outline:0;background:transparent!important;color:transparent!important;font-size:0;touch-action:none;cursor:nwse-resize;-webkit-tap-highlight-color:transparent}',
