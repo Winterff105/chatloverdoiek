@@ -1400,7 +1400,7 @@
   theme.textContent=[
     // Reuse the private messages.css file attachment shape and dimensions.
     // Its old pink folder icon becomes a real album sleeve + black vinyl.
-    '.messages-app #thread .mrow.wmc-card-row{display:flex!important;width:100%;box-sizing:border-box;flex-direction:row-reverse!important;align-items:flex-end;margin:9px 0;gap:0;min-width:0;padding-right:18px!important}',
+    '.messages-app #thread .mrow.wmc-card-row{display:flex!important;width:100%;box-sizing:border-box;flex-direction:row-reverse!important;align-items:flex-end;margin:9px 0;gap:0;min-width:0;padding-right:26px!important}',
     '.messages-app #thread .wmc-song-card.ff-card{appearance:none;border:1px solid #d9dadd!important;background:#fff!important;color:#3a3a3e!important;min-width:0;max-width:min(216px,calc(100vw - 80px));width:auto;box-sizing:border-box;padding:9px 10px;display:inline-flex!important;align-items:center;gap:8px;cursor:pointer;box-shadow:none!important;filter:none!important}',
     '.messages-app .wmc-song-art.ff-mini{position:relative;flex:0 0 54px!important;width:54px!important;height:45px!important;overflow:visible}',
     '.messages-app .wmc-card-vinyl{position:absolute;right:0;top:4px;width:38px;height:38px;border-radius:50%;background:repeating-radial-gradient(circle,#101010 0 2px,#262626 3px,#080808 4px,#191919 5px);box-shadow:none}',
