@@ -72,6 +72,7 @@ async function backup(path,bytes,checksum,key){
  if(await hash(copy)!==checksum)throw new Error('Backup verification failed');
  return dest;
 }
+export function onRequestGet(){return respond({ok:false,error:'post_only'},405);}
 export async function onRequestPost({request,env}){
  if(!env.SUPABASE_SERVICE_KEY||!env.TOKEN_SECRET)return respond({ok:false,error:'not_configured'},503);
  if(Number(request.headers.get('content-length')||0)>MAX*2)return respond({ok:false,error:'too_large'},413);
