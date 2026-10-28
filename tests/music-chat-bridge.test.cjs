@@ -19,9 +19,14 @@ const store=new Map([
 const frame={output:[],postMessage(message){this.output.push(message);}};
 let onMessage;
 // Match the real playerFrames() lookup used by the production bridge.
-const mountedMusicFrame={contentWindow:frame,isConnected:true};
+const mountedMusicFrame={contentWindow:frame,isConnected:true,style:{}};
 const layer={querySelectorAll(){return [mountedMusicFrame]}};
-const document={getElementById(id){return id==='whatever-music-layer'?layer:null;},
+const preservedMusicLayer={contains:frame=>frame===mountedMusicFrame,style:{}};
+const document={getElementById(id){
+    if(id==='whatever-music-layer')return layer;
+    if(id==='wmc-persistent-music')return preservedMusicLayer;
+    return null;
+  },
   querySelectorAll(){return []},addEventListener(){},head:{appendChild(){}},
   createElement(){return {textContent:'',className:'',style:{},addEventListener(){},setAttribute(){}}},querySelector(){return null}};
 class FakeElement{
@@ -30,8 +35,14 @@ class FakeElement{
   replaceChildren(){}
   append(){}
 }
+let musicPauseCalls=0;
 const window={location:{origin:'https://test.example',href:'https://test.example/'},localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)},
-  addEventListener(t,fn){if(t==='message')onMessage=fn},openApp(){}};
+  addEventListener(t,fn){if(t==='message')onMessage=fn},openApp(){},
+  __whateverMusicFrame:mountedMusicFrame,
+  closeApp(){
+    if(this.__whateverMusicFrame)musicPauseCalls++;
+    this.__whateverMusicFrame=null;
+  }};
 let summaries=0,contexts=[],recallApiCalls=0;
 window.MessagesAPI={isConfigured:()=>true,async replyFor(c,instruction){
   contexts.push({history:c.msgs.map(x=>x.text),persona:c.persona,memories:c.memories,system:instruction});
@@ -89,6 +100,12 @@ window.WhateverMusicChatBridge.registerHost({
   window.WhateverMusicChatBridge.onMainThreadChanged('alice',beforeMain[0].threads.self);
   assert.equal(mainCommands().length,1);
 
+  // Exiting a retained music iframe must never pause the same audio element
+  // or replace its frame reference with a second player.
+  window.closeApp();
+  assert.equal(musicPauseCalls,0);
+  assert.equal(window.__whateverMusicFrame,mountedMusicFrame);
+
   // Automatic/legacy recall without a real click intent is rejected.
   await onMessage({origin:'https://test.example',source:frame,
     data:{type:'whatever:music:request',id:'no-click',action:'recall',
@@ -130,5 +147,5 @@ window.WhateverMusicChatBridge.registerHost({
   assert.equal(mirrored.filter(x=>x.text==='这一句你喜欢吗').length,1);
   assert.ok(contexts.some(x=>x.history.includes('从主聊天室同步过来')));
   assert.ok(mirrored.every(x=>x.music.source==='music'));
-  console.log('PASS: main/listening two-way sync, one AI reply, recall dedupe, sandbox identity, invite, song pick, memory, leave');
+  console.log('PASS: two-way main/listening sync, seamless retained-player exit, recall dedupe, invite, memory, leave');
 })().catch(e=>{console.error(e);process.exitCode=1});
