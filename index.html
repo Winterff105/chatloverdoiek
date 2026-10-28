@@ -13,6 +13,12 @@
         body {
             background-color: #09090b;
         }
+        #appUpdateNotes li { margin: 0 0 7px; padding-left: 2px; }
+        #appUpdateNotes li:last-child { margin-bottom: 0; }
+        @media (max-height: 560px) {
+            #appUpdateModal > section { padding-top: 15px !important; padding-bottom: 15px !important; }
+            #appUpdateNotes { max-height: 105px !important; }
+        }
     </style>
 
     <!-- 记录 Eruda 加载前的报错，控制台输入 __earlyErrors 查看 -->
@@ -61,17 +67,9 @@
                     window.matchMedia('(display-mode: standalone)').matches;
             }
 
-            // Keep the phone shell height stable while Messages' keyboard
-            // animates. Resizing the whole shell AND lifting its composer at
-            // the same time exposes a black frame behind the conversation.
-            var stableAppHeight = 0;
-            var stableAppWidth = 0;
-            var lastChatBlur = 0;
-            document.addEventListener('focusout', function () {
-                if (root.classList.contains('wmc-messages-input-focused')) {
-                    lastChatBlur = Date.now();
-                }
-            }, true);
+            // Let Android resize the app shell naturally when the keyboard
+            // opens. Only the standalone iOS screen-height workaround remains;
+            // the chat keyboard adapter compensates when native resize cannot.
             function setAppHeight() {
                 var h = window.innerHeight;
                 if (isStandalone()) {
@@ -80,17 +78,6 @@
                         ? Math.min(screen.width, screen.height)
                         : Math.max(screen.width, screen.height);
                     h = Math.max(h, screenH);
-                }
-                var vv = window.visualViewport;
-                var visualBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-                var typing = root.classList.contains('wmc-messages-input-focused');
-                var sameWidth = stableAppWidth === window.innerWidth;
-                var keyboardResizing = sameWidth && stableAppHeight - visualBottom > 90;
-                if (keyboardResizing && (typing || Date.now() - lastChatBlur < 900)) {
-                    h = Math.max(h, stableAppHeight);
-                } else {
-                    stableAppWidth = window.innerWidth;
-                    stableAppHeight = h;
                 }
                 if (root.style.getPropertyValue('--app-height') !== h + 'px') {
                     root.style.setProperty('--app-height', h + 'px');
@@ -199,18 +186,18 @@
         <span>发现新版本 <b id="appUpdateVersion"></b></span>
         <button type="button" id="appUpdateOpen" style="border:0;background:#fff;color:#000;border-radius:50%;width:42px;height:42px;padding:0;display:grid;place-items:center;font-size:11px;font-weight:700;white-space:nowrap;">查看</button>
     </div>
-    <div id="appUpdateModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="appUpdateHeading" style="position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:none;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;">
-        <section style="width:min(355px,100%);max-height:min(235px,70dvh);overflow-y:auto;overscroll-behavior:contain;box-sizing:border-box;background:#000;border:1px solid #3c3c3c;border-radius:30px;color:#fff;padding:13px 18px;box-shadow:0 22px 80px #000b;text-align:center;">
-            <div style="font-size:9px;letter-spacing:2px;color:#aaa;font-weight:700;margin-bottom:5px;">WHATEVER · UPDATE</div>
-            <h2 id="appUpdateHeading" style="font-size:17px;margin:0 0 5px;font-weight:700;">发现新版本</h2>
-            <div style="border:1px solid #333;background:#090909;border-radius:999px;padding:5px 12px;margin-bottom:7px;display:flex;align-items:center;justify-content:center;gap:10px;">
-                <span id="appUpdateFrom" style="font-size:13px;font-weight:650;color:#999;"></span><span style="color:#777;font-size:14px;">→</span><span id="appUpdateTo" style="font-size:13px;font-weight:750;color:#fff;"></span>
+    <div id="appUpdateModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="appUpdateHeading" style="position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:none;align-items:center;justify-content:center;padding:22px 18px;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;">
+        <section style="width:min(345px,100%);max-height:calc(100dvh - 44px);overflow:hidden;box-sizing:border-box;background:#101012;border:1px solid #38383b;border-radius:26px;color:#fff;padding:20px 20px 18px;box-shadow:0 20px 65px #0009;text-align:center;display:flex;flex-direction:column;">
+            <div style="font-size:10px;letter-spacing:1.6px;color:#aaa;font-weight:650;margin:0 0 7px;line-height:1.4;">WHATEVER · UPDATE</div>
+            <h2 id="appUpdateHeading" style="font-size:20px;line-height:1.3;margin:0 0 14px;font-weight:700;">发现新版本</h2>
+            <div style="border:1px solid #343438;background:#19191b;border-radius:999px;padding:8px 12px;margin:0 0 14px;display:flex;align-items:center;justify-content:center;gap:12px;flex-shrink:0;line-height:1.4;">
+                <span id="appUpdateFrom" style="font-size:13px;font-weight:650;color:#aaa;"></span><span style="color:#777;font-size:14px;">→</span><span id="appUpdateTo" style="font-size:13px;font-weight:750;color:#fff;"></span>
             </div>
-            <ul id="appUpdateNotes" style="padding-left:16px;color:#bbb;font-size:10px;line-height:1.35;margin:0 0 5px;text-align:left;max-height:31px;overflow:auto;"></ul>
-            <p id="appUpdateStatus" role="status" style="color:#999;font-size:10px;line-height:1.25;margin:0 0 6px;">只更新应用文件，不删除聊天记录。</p>
-            <div style="display:flex;gap:24px;align-items:center;justify-content:center;">
-                <button id="appUpdateLater" type="button" aria-label="稍后更新" title="稍后" style="flex:none;width:50px;height:50px;min-width:50px;min-height:50px;display:flex;flex-direction:column;justify-content:center;align-items:center;border:1px solid #555;background:#000;color:#fff;border-radius:50%;padding:0;font-size:10px;font-weight:600;"><span aria-hidden="true" style="font-size:17px;line-height:19px;">×</span><span>稍后</span></button>
-                <button id="appUpdateNow" type="button" aria-label="立即更新" title="立即更新" style="flex:none;width:50px;height:50px;min-width:50px;min-height:50px;display:flex;flex-direction:column;justify-content:center;align-items:center;border:1px solid #fff;background:#fff;color:#000;border-radius:50%;padding:0;font-size:10px;font-weight:700;"><span aria-hidden="true" style="font-size:17px;line-height:19px;">↻</span><span>更新</span></button>
+            <ul id="appUpdateNotes" style="padding:11px 12px 11px 27px;color:#d0d0d3;font-size:12px;line-height:1.55;margin:0;text-align:left;max-height:148px;min-height:0;overflow-y:auto;overscroll-behavior:contain;background:#19191b;border:1px solid #2b2b2f;border-radius:14px;box-sizing:border-box;"></ul>
+            <p id="appUpdateStatus" role="status" style="color:#a0a0a5;font-size:11px;line-height:1.5;margin:12px 0 17px;flex-shrink:0;">只更新应用文件，不删除聊天记录。</p>
+            <div style="display:flex;gap:32px;align-items:center;justify-content:center;flex-shrink:0;">
+                <button id="appUpdateLater" type="button" aria-label="稍后更新" title="稍后" style="flex:none;width:52px;height:52px;min-width:52px;min-height:52px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:1px;border:1px solid #56565b;background:#18181a;color:#fff;border-radius:50%;padding:0;font-size:10px;font-weight:600;"><span aria-hidden="true" style="font-size:17px;line-height:19px;">×</span><span>稍后</span></button>
+                <button id="appUpdateNow" type="button" aria-label="立即更新" title="立即更新" style="flex:none;width:52px;height:52px;min-width:52px;min-height:52px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:1px;border:1px solid #fff;background:#fff;color:#000;border-radius:50%;padding:0;font-size:10px;font-weight:700;"><span aria-hidden="true" style="font-size:17px;line-height:19px;">↻</span><span>更新</span></button>
             </div>
         </section>
     </div>
