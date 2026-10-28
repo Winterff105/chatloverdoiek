@@ -19,7 +19,8 @@ const store=new Map([
 const frame={output:[],postMessage(message){this.output.push(message);}};
 let onMessage;
 // Match the real playerFrames() lookup used by the production bridge.
-const layer={querySelectorAll(){return [{contentWindow:frame}]}};
+const mountedMusicFrame={contentWindow:frame,isConnected:true};
+const layer={querySelectorAll(){return [mountedMusicFrame]}};
 const document={getElementById(id){return id==='whatever-music-layer'?layer:null;},
   querySelectorAll(){return []},addEventListener(){},head:{appendChild(){}},
   createElement(){return {textContent:'',className:'',style:{},addEventListener(){},setAttribute(){}}},querySelector(){return null}};
@@ -76,6 +77,18 @@ window.WhateverMusicChatBridge.registerHost({
   await onMessage({origin:'null',source:stranger,data:{type:'whatever:music:request',id:'stranger',action:'contacts',payload:{}}});
   assert.equal(frame.output.length,beforeOpaque+1);
 
+  // Main Messages -> native listening view: one render command, no second AI call.
+  const beforeMain=JSON.parse(store.get('whatever_messages_contacts_v1'));
+  beforeMain[0].threads.self.push({id:'main-sent-1',me:true,text:'从主聊天室同步过来',ts:Date.now()});
+  store.set('whatever_messages_contacts_v1',JSON.stringify(beforeMain));
+  window.WhateverMusicChatBridge.onMainThreadChanged('alice',beforeMain[0].threads.self);
+  await onMessage({origin:'https://test.example',source:frame,data:{type:'whatever:music:ui:ready'}});
+  const mainCommands=()=>frame.output.filter(x=>x.command==='main-chat-sync');
+  assert.equal(mainCommands().length,1);
+  assert.equal(mainCommands()[0].value.entries[0].text,'从主聊天室同步过来');
+  window.WhateverMusicChatBridge.onMainThreadChanged('alice',beforeMain[0].threads.self);
+  assert.equal(mainCommands().length,1);
+
   // Automatic/legacy recall without a real click intent is rejected.
   await onMessage({origin:'https://test.example',source:frame,
     data:{type:'whatever:music:request',id:'no-click',action:'recall',
@@ -111,5 +124,11 @@ window.WhateverMusicChatBridge.registerHost({
   assert.ok(contexts.some(x=>x.system.includes('这一句歌词') && x.history.includes('旧消息')));
   const musicEpisode=saved.memories.find(x=>x.kind==='music-listen');
   assert.equal(musicEpisode.chatLog.filter(x=>x.text==='我现在想和你一起听。').length,1);
-  console.log('PASS: trusted recall intent required, simultaneous/bounce dedupe, one saved AI reply, sandbox identity, invite, chat, song pick, memory, leave');
+  // Listening user/Char messages are mirrored to the actual main thread once.
+  const mirrored=saved.threads.self.filter(x=>x.music?.kind==='synced');
+  assert.equal(mirrored.filter(x=>x.text==='我现在想和你一起听。').length,1);
+  assert.equal(mirrored.filter(x=>x.text==='这一句你喜欢吗').length,1);
+  assert.ok(contexts.some(x=>x.history.includes('从主聊天室同步过来')));
+  assert.ok(mirrored.every(x=>x.music.source==='music'));
+  console.log('PASS: main/listening two-way sync, one AI reply, recall dedupe, sandbox identity, invite, song pick, memory, leave');
 })().catch(e=>{console.error(e);process.exitCode=1});
