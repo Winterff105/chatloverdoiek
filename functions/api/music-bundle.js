@@ -7,6 +7,19 @@ const FILES = [
   'js/apps/music-api.js'
 ];
 const enc = new TextEncoder();
+
+const TEST_SALT='7302aae903254dda3fc2e32877a1b19c';
+const TEST_HASH='4b47762d7c0cc9a8de8e379a5acd53cc279b9588976f7cfbfd7906312c13c753';
+function asBytes(s){return Uint8Array.from(s.match(/../g),x=>parseInt(x,16))}
+async function checkMusicPassword(password){
+ if(typeof password!=='string'||password.length<1||password.length>128)return false;
+ const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);
+ const bytes=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',iterations:260000,salt:asBytes(TEST_SALT)},key,256));
+ const expected=asBytes(TEST_HASH);let diff=0;
+ for(let i=0;i<32;i++)diff|=bytes[i]^expected[i];
+ return diff===0;
+}
+
 function json(data, status=200) {
   return new Response(JSON.stringify(data), {status, headers: {'Content-Type': 'application/json; charset=utf-8','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
 }
@@ -28,6 +41,7 @@ export async function onRequestPost({request, env}) {
   if (!env.TOKEN_SECRET||!env.SUPABASE_SERVICE_KEY) return json({success:false,message:'音乐接口未配置'},503);
   let data; try{data=await request.json();}catch(_){return json({success:false,message:'请求格式错误'},400)}
   if (!await verify(data?.token,env.TOKEN_SECRET)) return json({success:false,message:'请重新登录'},401);
+  if (!await checkMusicPassword(data?.password)) return json({success:false,message:'测试密码错误'},403);
   try {
     const results=await Promise.all(FILES.map(async path=>{
       const encoded=path.split('/').map(encodeURIComponent).join('/');

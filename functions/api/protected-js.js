@@ -1,4 +1,28 @@
 const enc = new TextEncoder();
+
+// Private Music test access prompt. Only the authenticated server can unlock assets.
+function gateExistingMusic(file,source) {
+ if(file!=='js/apps/app-manager.js')return source;
+ const start=source.indexOf("} else if (appId === 'music') {");
+ const end=source.indexOf("} else if (appId === 'todo') {",start+1);
+ if(start<0||end<0) {
+   return source.replace('function openApp(appId) {',"function openApp(appId) { if(appId==='music'){alert('还在测试，请勿打开');return;}");
+ }
+ let part=source.slice(start,end);
+ const spinner="contentArea.innerHTML = '<div style=\"height:100%;display:grid;place-items:center;background:#0a0b0e;color:#fff\">音乐加载中…</div>';";
+ const payload="body:JSON.stringify({token:auth.token}),cache:'no-store'";
+ if(!part.includes(spinner)||!part.includes('(async function () {')||!part.includes(payload)){
+   const disabled="} else if (appId === 'music') { win.classList.add('noir-mode'); contentArea.innerHTML='<section class=\"whatever-music-test-lock\" style=\"width:100%;height:100%;display:grid;place-items:center;background:#0a0b0e;color:white;font-size:14px\">还在测试，请勿打开（需要更新测试锁）</section>'; ";
+   return source.slice(0,start)+disabled+source.slice(end);
+ }
+ const lock="<section class=\"whatever-music-test-lock\" style=\"box-sizing:border-box;width:100%;height:100%;min-width:100%;min-height:100%;flex:1 0 100%;display:flex;align-items:center;justify-content:center;padding:25px;background:#0a0b0e;color:white;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;\"><div style=\"width:100%;max-width:320px;text-align:center;\"><div style=\"color:#abb2c1;font-size:11px;letter-spacing:3px;margin-bottom:22px;\">PRIVATE PREVIEW</div><div style=\"font-size:24px;font-weight:650;line-height:1.5;margin-bottom:12px;\">还在测试，请勿打开</div><div style=\"font-size:13px;color:#a0a3ae;line-height:1.8;margin-bottom:24px;\">音乐功能尚未正式开放<br>输入访问密码才能进入</div><form class=\"whatever-music-test-form\" autocomplete=\"off\" style=\"display:flex;flex-direction:column;gap:12px;\"><input type=\"password\" maxlength=\"128\" autocomplete=\"off\" autocapitalize=\"none\" required aria-label=\"音乐测试访问密码\" placeholder=\"输入测试密码\" style=\"box-sizing:border-box;width:100%;height:48px;background:#1c1d27;color:white;border:1px solid #404453;border-radius:12px;text-align:center;font-size:15px;outline:none;\" /><button type=\"submit\" style=\"height:48px;border:0;border-radius:12px;background:#eeeef5;color:#15151d;font-size:14px;font-weight:650;\">验证并打开</button></form><button class=\"whatever-music-test-back\" type=\"button\" style=\"margin-top:18px;border:0;background:transparent;color:#a0a3ae;font-size:13px;padding:10px;\">返回桌面</button></div></section>";
+ const waitForPassword="\n const musicTestPassword=await new Promise(resolve=>{\n   const form=contentArea.querySelector('.whatever-music-test-form');\n   if(!form){resolve(null);return;}\n   form.addEventListener('submit',event=>{\n     event.preventDefault();\n     const input=form.querySelector('input');\n     const pass=input.value;input.value='';resolve(pass);\n   },{once:true});\n   const back=contentArea.querySelector('.whatever-music-test-back');\n   if(back)back.addEventListener('click',()=>{closeApp();resolve(null);},{once:true});\n });\n if(!musicTestPassword||musicLoadSerial!==window.__whateverMusicLoadId||!win.classList.contains('active'))return;\n contentArea.innerHTML='<div class=\"whatever-music-loading\" style=\"box-sizing:border-box;width:100%;height:100%;display:grid;place-items:center;background:#0a0b0e;color:white;font-size:14px;\">正在验证访问权限…</div>';\n ";
+ part=part.replace(spinner,'contentArea.innerHTML = '+JSON.stringify(lock)+';');
+ part=part.replace('(async function () {','(async function () {\n'+waitForPassword);
+ part=part.replace(payload,"body:JSON.stringify({token:auth.token,password:musicTestPassword}),cache:'no-store'");
+ return source.slice(0,start)+part+source.slice(end);
+}
+
 // v16: preserve the private app-window CSS while making the existing music UI visible.
 // The original CSS hides all direct children without class; the music iframe,
 // its loading indicator, and its error indicator are classless elements.
@@ -122,7 +146,7 @@ export async function onRequest(context) {
       return new Response(`File not found (${res.status}): ${detail}`, { status: 404 });
     }
 
-    const content = revealMusicWindow(file, allowExistingMusicTap(file, await res.text()));
+    const content = gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, await res.text())));
 
     const contentType = file.endsWith('.css')
       ? 'text/css; charset=utf-8'
