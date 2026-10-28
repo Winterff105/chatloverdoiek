@@ -503,8 +503,47 @@
       w.parent.postMessage({type:'whatever:music:audio-restored'},parentOrigin);
     }).catch(e=>console.warn('[Music handoff] return play denied',e?.message));
   }
+  function installKeyboardSafety(){
+    if(document.__wmcKeyboardSafety)return;
+    document.__wmcKeyboardSafety=true;
+    const viewport=w.visualViewport;
+    let focused=null,panelStyle=null;
+    function adjust(){
+      if(!focused)return;
+      const usableBottom=(viewport?.offsetTop||0)+(viewport?.height||w.innerHeight);
+      const panel=document.getElementById('chatPanel');
+      if(panel?.classList.contains('open')){
+        const rect=panel.getBoundingClientRect();
+        if(panelStyle===null)panelStyle=panel.style.cssText;
+        const height=Math.max(136,Math.min(rect.height,usableBottom-20));
+        const top=Math.max(4,Math.min(rect.top,usableBottom-height-10));
+        panel.style.setProperty('top',top+'px','important');
+        panel.style.setProperty('height',height+'px','important');
+        panel.style.setProperty('bottom','auto','important');
+      }
+      try{focused.scrollIntoView({block:'nearest',inline:'nearest'});}catch{}
+      try{w.parent.postMessage({type:'whatever:music:ui:keyboard',active:true},parentOrigin);}catch{}
+    }
+    document.addEventListener('focusin',e=>{
+      if(!e.target?.matches?.('#chatInput,#duetChatInput'))return;
+      focused=e.target;
+      requestAnimationFrame(adjust);
+      setTimeout(adjust,160);
+    });
+    document.addEventListener('focusout',e=>{
+      if(e.target!==focused)return;
+      focused=null;
+      const panel=document.getElementById('chatPanel');
+      if(panel&&panelStyle!==null){panel.style.cssText=panelStyle;panelStyle=null;}
+      try{w.parent.postMessage({type:'whatever:music:ui:keyboard',active:false},parentOrigin);}catch{}
+    });
+    viewport?.addEventListener('resize',adjust);
+    viewport?.addEventListener('scroll',adjust);
+    w.addEventListener('resize',adjust);
+  }
   function mountPlayerEvents(){
     protectOnlyAutomaticKeyboard();
+    installKeyboardSafety();
     installAudioHandoff();
     if(!document.__wmcExitHandoff){
       document.__wmcExitHandoff=true;
