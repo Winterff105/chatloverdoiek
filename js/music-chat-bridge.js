@@ -383,7 +383,8 @@
   // Never create a replacement chat form, send button, or quick-recall panel.
   const float={
     node:null,lyric:null,frame:null,origin:null,data:null,lastText:'',
-    preservedPane:null,sparePane:null,shelvedLayer:null,nativePanelVisible:false,guarded:false,
+    preservedPane:null,sparePane:null,shelvedLayer:null,nativePanelVisible:false,homeMode:false,guarded:false,
+    originalWinClip:null,paneStyles:null,panelBounds:null,
     create(){
       if(this.node)return;
       const el=document.createElement('button');
@@ -436,42 +437,73 @@
           this.origin==='null'?'*':this.origin);
       }catch(error){console.warn('[Music Lyrics] command failed:',error?.message);}
     },
+    // Translate ORIGINAL iframe-local chat coordinates into the retaining
+    // host's clipping coordinates. Browser layout offsets vary with base.css.
+    panelInsets(host,panel){
+      const rect=panel?.rect,frame=this.frame;
+      if(!rect||!frame||typeof host?.getBoundingClientRect!=='function')return null;
+      const fr=frame.getBoundingClientRect(),hr=host.getBoundingClientRect();
+      const width=Number(panel.viewport?.width)||fr.width||window.innerWidth;
+      const height=Number(panel.viewport?.height)||fr.height||window.innerHeight;
+      if(!fr.width||!fr.height||!hr.width||!hr.height||width<=0||height<=0)return null;
+      const sx=fr.width/width,sy=fr.height/height;
+      const x=fr.left+rect.left*sx-hr.left;
+      const y=fr.top+rect.top*sy-hr.top;
+      const right=hr.width-x-rect.width*sx;
+      const bottom=hr.height-y-rect.height*sy;
+      const pad=8;
+      return {top:Math.max(0,y-pad),right:Math.max(0,right-pad),
+        bottom:Math.max(0,bottom-pad),left:Math.max(0,x-pad)};
+    },
+    clipOnlyPanel(host,panel){
+      const insets=this.panelInsets(host,panel);
+      if(!insets)return false;
+      host.style.clipPath='inset('+insets.top+'px '+insets.right+'px '+
+        insets.bottom+'px '+insets.left+'px round 24px)';
+      host.style.pointerEvents='auto';
+      return true;
+    },
+    hideRetainedPane(){
+      if(!this.preservedPane)return;
+      // Never use display:none or visibility:hidden for a playing iframe.
+      // Both can suspend mobile WebViews' nested media/audio contexts.
+      this.preservedPane.style.clipPath='inset(0 0 100% 0)';
+      this.preservedPane.style.pointerEvents='none';
+      this.nativePanelVisible=false;
+    },
+    hideWindowOnHome(){
+      if(!this.homeMode)return;
+      const win=document.getElementById('appWindow');
+      if(win){win.style.clipPath='inset(0 0 100% 0)';win.style.pointerEvents='none';}
+    },
     // Reveal only the original music iframe's existing chatPanel over other
     // Whatever apps. Clipping on the FULL-SCREEN host preserves its iframe,
     // audio graph and base.css geometry. No second chat UI is created.
     setNativePanel(panel){
       const musicLayer=document.getElementById('whatever-music-layer');
       if(panel?.open===false){
-        this.nativePanelVisible=false;
+        this.panelBounds=null;this.nativePanelVisible=false;
         if(this.shelvedLayer){
           musicLayer.style.clipPath='inset(0 0 100% 0)';
           musicLayer.style.pointerEvents='none';
         }
+        this.hideRetainedPane();
+        this.hideWindowOnHome();
         return;
       }
       if(!panel?.open)return;
-      const rect=panel.rect;
-      if(!rect||!Number.isFinite(rect.left)||!Number.isFinite(rect.top)||
-          !Number.isFinite(rect.width)||!Number.isFinite(rect.height))return;
+      this.panelBounds=panel;
       if(musicLayer?.contains(this.frame)){
-        // Only clip while another app is visible. On the music page the
-        // user's original full-screen music/chat styling remains untouched.
-        if(!this.shelvedLayer)return;
-        const vw=window.innerWidth,vh=window.innerHeight;
-        const pad=8;
-        const top=Math.max(0,rect.top-pad),left=Math.max(0,rect.left-pad);
-        const right=Math.max(0,vw-rect.left-rect.width-pad);
-        const bottom=Math.max(0,vh-rect.top-rect.height-pad);
-        musicLayer.style.clipPath='inset('+top+'px '+right+'px '+bottom+'px '+left+'px round 24px)';
-        musicLayer.style.pointerEvents='auto';
-        this.nativePanelVisible=true;
+        if(!this.shelvedLayer)return; // original fullscreen remains unchanged
+        this.nativePanelVisible=this.clipOnlyPanel(musicLayer,panel);
         return;
       }
-      // Other app-manager variants may put music in an appWindow iframe. Keep
-      // the original pane mounted and return to it rather than clone the chat.
       if(this.preservedPane){
-        this.restoreMusic();
-        this.nativePanelVisible=true;
+        this.nativePanelVisible=this.clipOnlyPanel(this.preservedPane,panel);
+        if(this.homeMode){
+          const win=document.getElementById('appWindow');
+          if(win)this.clipOnlyPanel(win,panel);
+        }
       }
     },
     guardNavigation(){
