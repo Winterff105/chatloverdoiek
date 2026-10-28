@@ -155,7 +155,7 @@
     }finally{clearTimeout(timeout);}
   }
   async function inspectAll(){
-    verified=false;backupVerified=false;approvedBundle=null;results.clear();setBusy(true);
+    verified=false;backupVerified=false;results.clear();setBusy(true);
     for(const row of rows.values()){
       row.state.textContent='未检查';row.hash.textContent='尚无校验值';row.backup.textContent='';
     }
