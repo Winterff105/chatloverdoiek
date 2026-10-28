@@ -41,7 +41,7 @@
     return new Promise((resolve,reject)=>{
       if(w.parent===w){reject(Error('请从 Whatever 主应用打开音乐'));return;}
       const id='music-'+Date.now()+'-'+(++seq);
-      const timer=setTimeout(()=>{waiting.delete(id);reject(Error('聊天室响应超时'));},55000);
+      const timer=setTimeout(()=>{waiting.delete(id);reject(Error(action==='contacts'?'联系人读取超时，请重试':'聊天室响应超时'));},action==='contacts'?10000:55000);
       waiting.set(id,{resolve,reject,timer});
       w.parent.postMessage({type:'whatever:music:request',id,action,payload},parentOrigin);
     });
@@ -69,19 +69,21 @@
     const close=node('button','wmc-close','×');
     close.type='button';close.setAttribute('aria-label','关闭邀请');
     top.append(eyebrow,close);
-    const heading=node('h2','wmc-title','把这首歌分享给谁？');
+    const heading=node('h2','wmc-title','邀请一起听');
     heading.id='wmcHeading';
-    const subtitle=node('p','wmc-subtitle','把耳机的另一半，留给特别的 Ta。');
+    const subtitle=node('p','wmc-subtitle','选择一位 Char，分享这一刻的音乐。');
     const track=snapshot();
     const album=node('div','wmc-album');
-    const art=node('div','wmc-art','♫');
+    const art=node('div','wmc-art');
+    const vinylLabel=node('div','wmc-vinyl-label','♫');
+    art.append(vinylLabel);
     const cover=track.cover;
     if(cover && /^(https?:|data:image\/)/i.test(cover)){
       const img=node('img','wmc-cover');
       img.alt='歌曲封面';
       img.src=cover;
       img.onerror=()=>img.remove();
-      art.appendChild(img);
+      vinylLabel.replaceChildren(img);
     }
     const songBox=node('div','wmc-song-info');
     const albumLabel=node('span','wmc-song-label','NOW PLAYING');
@@ -117,15 +119,17 @@
       button.append(glyph,words,node('span','wmc-option-arrow','›'));
       return button;
     }
-    const direct=option('wmc-direct','♥','直接同意','现在就开始一起听');
-    const ask=option('wmc-ask','✧','先问 Char','由 Ta 根据性格决定要不要加入');
+    const direct=option('wmc-direct','♪','直接同意','现在就开始一起听');
+    const ask=option('wmc-ask','?','先问 Char','让 Ta 自己决定要不要加入');
     direct.disabled=ask.disabled=true;
     actions.append(direct,ask);
     const note=node('p','wmc-notice','正在读取联系人…');
+    const retry=node('button','wmc-retry','重新读取联系人');
+    retry.type='button';retry.hidden=true;
     note.setAttribute('role','status');
     note.setAttribute('aria-live','polite');
     const footer=node('p','wmc-footer','邀请会作为歌曲卡片，出现在你们的聊天室');
-    sheet.append(top,heading,subtitle,album,pickLabel,picker,actionLabel,actions,note,footer);
+    sheet.append(top,heading,subtitle,album,pickLabel,picker,actionLabel,actions,note,retry,footer);
     mask.append(sheet);
     mask.addEventListener('click',e=>{if(e.target===mask&&!busy)closeDialog();});
     close.addEventListener('click',()=>{if(!busy)closeDialog();});
@@ -167,21 +171,33 @@
     }
     direct.addEventListener('click',()=>begin('direct'));
     ask.addEventListener('click',()=>begin('ask'));
-    rpc('contacts').then(result=>{
-      if(dialog!==mask)return;
-      contacts=Array.isArray(result.contacts)?result.contacts:[];
-      select.replaceChildren();
-      const first=node('option',null,'选择一位 Char');
-      first.value='';select.append(first);
-      for(const c of contacts){
-        const item=node('option',null,c.name);item.value=c.id;select.append(item);
+    async function loadContacts(){
+      retry.hidden=true;note.textContent='正在读取联系人…';
+      select.disabled=direct.disabled=ask.disabled=true;
+      try{
+        const result=await rpc('contacts');
+        if(dialog!==mask)return;
+        contacts=Array.isArray(result.contacts)?result.contacts:[];
+        select.replaceChildren();
+        const first=node('option',null,'选择一位 Char');
+        first.value='';select.append(first);
+        for(const c of contacts){
+          const item=node('option',null,c.name);item.value=String(c.id);select.append(item);
+        }
+        select.disabled=!contacts.length;
+        direct.disabled=ask.disabled=!contacts.length;
+        note.textContent=contacts.length
+          ? '已读取 '+contacts.length+' 位联系人，选一位 Char 开始邀请'
+          : '目前没有可邀请的 Char，请先在聊天室创建联系人';
+        retry.hidden=!!contacts.length;
+      }catch(error){
+        if(dialog!==mask)return;
+        retry.hidden=false;
+        note.textContent='联系人读取失败：'+trim(error?.message||error,100);
       }
-      select.disabled=!contacts.length;
-      direct.disabled=ask.disabled=!contacts.length;
-      note.textContent=contacts.length?'选好 Char，再选择邀请方式':'还没有联系人，先在聊天室创建一位 Char 吧';
-    }).catch(e=>{
-      if(dialog===mask)note.textContent=trim(e.message||e,220);
-    });
+    }
+    retry.addEventListener('click',loadContacts);
+    loadContacts();
   }
   function install(){
     if(!w.ListenTogether?.setTransport){console.warn('[Music Chat] ListenTogether unavailable');return;}
@@ -214,31 +230,33 @@
   }
   const style=document.createElement('style');
   style.textContent=[
-    '.wmc-mask{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:20px 15px;box-sizing:border-box;background:rgba(9,9,15,.78);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);animation:wmcFade .2s ease}',
-    '.wmc-sheet{box-sizing:border-box;width:min(385px,100%);max-height:min(92vh,740px);overflow:auto;overscroll-behavior:contain;border-radius:27px;padding:22px;background:radial-gradient(circle at 88% 0%,rgba(194,167,219,.13),transparent 50%),linear-gradient(155deg,#24212a 0%,#17161c 80%);color:#f8f4f7;border:1px solid rgba(238,222,246,.19);box-shadow:0 25px 80px #000b;font:14px/1.55 system-ui,-apple-system,sans-serif;animation:wmcRise .27s cubic-bezier(.18,.89,.3,1.13)}',
-    '.wmc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}.wmc-eyebrow{color:#cbb8d3;font-size:10px;letter-spacing:.17em;font-weight:700}',
-    '.wmc-close{width:29px;height:29px;flex:none;border:1px solid #ffffff25;border-radius:50%;color:#d2c7d8;background:#ffffff0d;font-size:23px;line-height:22px;display:grid;place-items:center;cursor:pointer}',
-    '.wmc-title{font-size:22px;font-weight:650;letter-spacing:-.04em;line-height:1.35;margin:0 0 6px}.wmc-subtitle{margin:0 0 21px;color:#ada3b1;font-size:12px}',
-    '.wmc-album{display:flex;align-items:center;gap:13px;background:linear-gradient(110deg,rgba(255,255,255,.09),rgba(255,255,255,.025));border:1px solid #ffffff1a;border-radius:17px;padding:10px;margin:0 0 22px;min-width:0}',
-    '.wmc-art{height:68px;width:68px;flex:none;display:grid;place-items:center;position:relative;overflow:hidden;border-radius:12px;background:linear-gradient(135deg,#9f87ac,#584e69 68%,#323041);font-size:30px;color:#fff;box-shadow:0 4px 18px #0005}',
-    '.wmc-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.wmc-song-info{min-width:0;flex:1}.wmc-song-label{font-size:9px;letter-spacing:.14em;color:#ad9cbb}.wmc-song-title{margin-top:4px;font-size:15px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
-    '.wmc-song-artist{color:#b6aab7;font-size:12px;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
-    '.wmc-eq{height:22px;display:flex;gap:3px;align-items:center;opacity:.8;flex:none}.wmc-eq i{display:block;width:2px;background:#d3b0d8;border-radius:3px;height:9px;animation:wmcBeat 1.15s ease-in-out infinite alternate}.wmc-eq i:nth-child(2){height:19px;animation-delay:-.35s}.wmc-eq i:nth-child(3){height:13px;animation-delay:-.75s}',
-    '.wmc-pick-label,.wmc-action-label{display:block;margin:0 0 9px;color:#e5dce7;font-size:12px;font-weight:600}',
-    '.wmc-picker{position:relative;display:flex;align-items:center;gap:10px;height:51px;padding:0 13px;background:#ffffff0a;border:1px solid #ffffff2a;border-radius:14px;margin-bottom:20px}',
-    '.wmc-contact-initial{display:grid;place-items:center;flex:none;width:27px;height:27px;border-radius:50%;color:#ede1f3;background:linear-gradient(140deg,#8b7499,#65566c);font-size:14px}',
-    '.wmc-select{flex:1;min-width:0;appearance:none;-webkit-appearance:none;border:0;outline:0;background:transparent;color:#f8f4f7;font-size:14px;padding:10px 0;cursor:pointer}',
-    '.wmc-select option{background:#27232c;color:#f8f4f7}.wmc-chevron{pointer-events:none;color:#beb1c2;font-size:24px;line-height:1}',
-    '.wmc-actions{display:grid;gap:9px}.wmc-option{display:flex;align-items:center;width:100%;min-height:70px;gap:12px;padding:11px 14px;border-radius:15px;text-align:left;cursor:pointer;transition:transform .15s,border-color .15s,background .15s}',
-    '.wmc-option:hover{transform:translateY(-1px)}.wmc-option-icon{flex:none;width:35px;height:35px;display:grid;place-items:center;border-radius:11px;font-size:21px}',
-    '.wmc-option-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}.wmc-option-copy strong{font-size:14px;font-weight:650}.wmc-option-copy small{font-size:11px;font-weight:400;line-height:1.35;opacity:.78}',
-    '.wmc-option-arrow{font-size:25px;opacity:.65;font-weight:300}.wmc-direct{background:#eedde9;color:#2d2130;border:1px solid #eedde9}.wmc-direct .wmc-option-icon{background:rgba(121,73,118,.14);color:#82577d}',
-    '.wmc-ask{background:rgba(255,255,255,.035);color:#ede5ef;border:1px solid rgba(255,255,255,.2)}.wmc-ask .wmc-option-icon{background:rgba(197,168,216,.12);color:#cfb8dc}',
-    '.wmc-option:disabled,.wmc-close:disabled{opacity:.48;cursor:default;transform:none}.wmc-notice{min-height:18px;text-align:center;color:#cdbfd1;font-size:11px;line-height:1.5;margin:12px 0 0;overflow-wrap:anywhere}',
-    '.wmc-footer{margin:12px 0 0;text-align:center;color:#817887;font-size:10px}.wmc-option:focus-visible,.wmc-close:focus-visible,.wmc-select:focus-visible{outline:2px solid #efdbf3;outline-offset:2px}',
-    '@keyframes wmcBeat{to{height:3px}}@keyframes wmcFade{from{opacity:0}to{opacity:1}}@keyframes wmcRise{from{transform:translateY(10px) scale(.98);opacity:0}to{transform:none;opacity:1}}',
-    '@media(max-width:355px){.wmc-sheet{padding:18px}.wmc-title{font-size:20px}.wmc-album{gap:9px}.wmc-art{width:58px;height:58px}}',
-    '@media(prefers-reduced-motion:reduce){.wmc-mask,.wmc-sheet,.wmc-eq i{animation:none!important}.wmc-option{transition:none}}'
+    '.wmc-mask{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:18px 15px;box-sizing:border-box;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:wmcFade .18s ease}',
+    '.wmc-sheet{box-sizing:border-box;width:min(382px,100%);max-height:min(91vh,720px);overflow:auto;overscroll-behavior:contain;border-radius:22px;padding:24px 22px;background:#000!important;color:#fff;border:1px solid #323232;box-shadow:0 24px 72px #000b;font:14px/1.5 system-ui,-apple-system,sans-serif;animation:wmcRise .2s ease-out}',
+    '.wmc-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}.wmc-eyebrow{color:#bcbcbc;font-size:10px;letter-spacing:.19em;font-weight:700}',
+    '.wmc-close{width:30px;height:30px;flex:none;border:1px solid #454545;border-radius:50%;color:#fff;background:#000;font-size:23px;line-height:22px;display:grid;place-items:center;cursor:pointer}',
+    '.wmc-title{font-size:23px;font-weight:650;letter-spacing:-.035em;line-height:1.3;margin:0 0 7px;color:#fff}.wmc-subtitle{margin:0 0 22px;color:#999;font-size:12px}',
+    '.wmc-album{display:flex;align-items:center;gap:14px;background:#080808;border:1px solid #303030;border-radius:16px;padding:14px 12px;margin:0 0 24px;min-width:0;box-shadow:inset 0 1px #ffffff08}',
+    '.wmc-art{height:88px;width:88px;flex:none;display:grid;place-items:center;position:relative;border-radius:50%;background:repeating-radial-gradient(circle,#121212 0px,#121212 2px,#282828 3px,#080808 4px,#121212 5px);border:1px solid #343434;box-shadow:4px 6px 14px #0008;animation:wmcSpin 18s linear infinite}',
+    '.wmc-art:before{content:"";position:absolute;inset:6px;border-radius:50%;background:conic-gradient(from 70deg,#ffffff12,transparent 15%,#ffffff1c 33%,transparent 49%,#ffffff0c 65%,transparent 78%,#ffffff12);pointer-events:none}',
+    '.wmc-vinyl-label{width:42px;height:42px;border-radius:50%;position:relative;display:grid;place-items:center;overflow:hidden;background:#f1f1f1;color:#111;font-size:19px;box-shadow:0 0 0 2px #080808,0 0 0 3px #ffffff29}',
+    '.wmc-vinyl-label:after{content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);height:5px;width:5px;background:#111;border-radius:50%;border:1px solid #ddd}',
+    '.wmc-cover{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.wmc-song-info{min-width:0;flex:1}.wmc-song-label{font-size:9px;letter-spacing:.14em;color:#777}',
+    '.wmc-song-title{margin-top:5px;font-size:16px;font-weight:650;color:#fff;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.wmc-song-artist{color:#999;font-size:12px;margin-top:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
+    '.wmc-eq{height:22px;display:flex;gap:3px;align-items:center;opacity:.8;flex:none}.wmc-eq i{display:block;width:2px;background:#fff;border-radius:3px;height:9px;animation:wmcBeat 1.15s ease-in-out infinite alternate}.wmc-eq i:nth-child(2){height:19px;animation-delay:-.35s}.wmc-eq i:nth-child(3){height:13px;animation-delay:-.75s}',
+    '.wmc-pick-label,.wmc-action-label{display:block;margin:0 0 9px;color:#fff;font-size:12px;font-weight:600}',
+    '.wmc-picker{position:relative;display:flex;align-items:center;gap:11px;height:53px;padding:0 14px;background:#070707;border:1px solid #414141;border-radius:12px;margin-bottom:22px}',
+    '.wmc-contact-initial{display:grid;place-items:center;flex:none;width:29px;height:29px;border-radius:50%;color:#000;background:#fff;font-size:14px;font-weight:600}',
+    '.wmc-select{flex:1;min-width:0;appearance:none;-webkit-appearance:none;border:0;outline:0;background:transparent;color:#fff;font-size:14px;padding:10px 0;cursor:pointer}.wmc-select option{background:#050505;color:#fff}',
+    '.wmc-chevron{pointer-events:none;color:#fff;font-size:24px;line-height:1}.wmc-actions{display:grid;gap:10px}.wmc-option{display:flex;align-items:center;width:100%;min-height:66px;gap:12px;padding:11px 14px;border-radius:13px;text-align:left;cursor:pointer;transition:transform .14s,opacity .14s}',
+    '.wmc-option:hover{transform:translateY(-1px)}.wmc-option-icon{flex:none;width:34px;height:34px;display:grid;place-items:center;border-radius:50%;font-size:19px;background:#101010;color:#fff;border:1px solid #333}',
+    '.wmc-option-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:2px}.wmc-option-copy strong{font-size:14px;font-weight:700;color:#000}.wmc-option-copy small{font-size:11px;font-weight:400;line-height:1.35;color:#444}',
+    '.wmc-option-arrow{font-size:24px;opacity:.8;font-weight:300;color:#111}.wmc-direct,.wmc-ask{background:#fff;color:#000;border:1px solid #fff}.wmc-direct .wmc-option-icon,.wmc-ask .wmc-option-icon{background:#111;color:#fff;border:1px solid #111}',
+    '.wmc-option:disabled,.wmc-close:disabled{opacity:.45;cursor:default;transform:none}.wmc-notice{min-height:18px;text-align:center;color:#aaa;font-size:11px;line-height:1.5;margin:15px 0 0;overflow-wrap:anywhere}',
+    '.wmc-retry{display:block;margin:9px auto 0;background:#000;color:#fff;border:1px solid #888;border-radius:999px;font-size:12px;padding:7px 13px}.wmc-retry[hidden]{display:none}',
+    '.wmc-footer{margin:12px 0 0;text-align:center;color:#777;font-size:10px}.wmc-option:focus-visible,.wmc-close:focus-visible,.wmc-select:focus-visible,.wmc-retry:focus-visible{outline:2px solid #fff;outline-offset:3px}',
+    '@keyframes wmcBeat{to{height:3px}}@keyframes wmcSpin{to{transform:rotate(360deg)}}@keyframes wmcFade{from{opacity:0}to{opacity:1}}@keyframes wmcRise{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}',
+    '@media(max-width:350px){.wmc-sheet{padding:20px 16px}.wmc-art{width:73px;height:73px}.wmc-vinyl-label{width:36px;height:36px}}',
+    '@media(prefers-reduced-motion:reduce){.wmc-mask,.wmc-sheet,.wmc-art,.wmc-eq i{animation:none!important}.wmc-option{transition:none}}'
   ].join('\n');
   document.head.append(style);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>queueMicrotask(install),{once:true});
