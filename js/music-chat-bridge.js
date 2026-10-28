@@ -49,7 +49,12 @@
   // music iframe's exact WindowProxy, never arbitrary opaque-origin frames.
   const validSender = e => (e.origin===w.location.origin||e.origin==='null')
     && (playerFrames().some(f=>f.contentWindow===e.source)
-        || (!!float?.frame?.isConnected&&float.frame.contentWindow===e.source));
+        || (!!float?.frame?.isConnected&&float.frame.contentWindow===e.source)
+        // An original music frame can be detached in the same event turn as
+        // its exit button. Only its final audio-leaving message may still
+        // initiate handoff, using its exact previously authenticated WindowProxy.
+        || (e.data?.type==='whatever:music:audio-leaving'
+          &&!!float?.frame&&float.frame.contentWindow===e.source));
   const responseOrigin = e => e.origin==='null'?'*':e.origin;
   const safeMusic = raw => {
     const s = raw && typeof raw === 'object' ? raw : {};
@@ -379,6 +384,102 @@
       return {ok:true};
     });
   }
+  // Top-level audio continues even when the private app-manager removes or
+  // pauses its nested iframe. This is a playback handoff, not a second player
+  // window, and it never touches Char messages, prompts or account data.
+  const audioHandoff={
+    node:null,state:null,active:false,returning:false,returnFrame:null,lastError:null,resumePending:false,
+    validSource(src){
+      if(typeof src!=='string'||src.length>2200)return false;
+      try{
+        const url=new URL(src,location.href);
+        return ['https:','http:'].includes(url.protocol)&&!url.username&&!url.password;
+      }catch{return false;}
+    },
+    ensure(){
+      if(this.node)return this.node;
+      const node=document.createElement('audio');
+      node.id='wmc-host-audio';node.preload='auto';
+      node.setAttribute('aria-hidden','true');
+      node.style.cssText='position:absolute;width:0;height:0;opacity:0;pointer-events:none;';
+      document.body.appendChild(node);
+      this.node=node;
+      node.addEventListener('error',()=>{
+        this.lastError='主页面音频源无法播放';
+        console.warn('[Music handoff] source cannot play in parent document');
+      });
+      return node;
+    },
+    receive(data,source){
+      if(!data||!this.validSource(data.src))return;
+      const position=Number(data.position),volume=Number(data.volume),rate=Number(data.playbackRate);
+      if(!Number.isFinite(position)||position<0||position>86400)return;
+      if(this.active&&source!==this.returnFrame)return;
+      this.state={
+        src:data.src,position,paused:!!data.paused,ended:!!data.ended,
+        volume:Number.isFinite(volume)?Math.max(0,Math.min(1,volume)):1,
+        muted:!!data.muted,
+        playbackRate:Number.isFinite(rate)&&rate>=0.5&&rate<=3?rate:1,
+        stamp:Date.now()
+      };
+      if(this.returning&&source===this.returnFrame&&!data.paused){
+        this.finishReturn();
+      }
+    },
+    takeOver(fromGesture=false){
+      const st=this.state;
+      if(this.active||!st||st.paused||st.ended||
+        (Date.now()-st.stamp>12000&&!this.resumePending)
+        ||!this.validSource(st.src))return false;
+      const a=this.ensure();
+      this.returning=false;this.returnFrame=null;
+      if(a.src!==new URL(st.src,location.href).href)a.src=st.src;
+      try{a.currentTime=st.position+Math.min(1.5,(Date.now()-st.stamp)/1000);}
+      catch{a.addEventListener('loadedmetadata',()=>{
+        try{a.currentTime=st.position;}catch{}
+      },{once:true});}
+      a.volume=st.volume;a.muted=st.muted;a.playbackRate=st.playbackRate;
+      this.active=true;
+      Promise.resolve(a.play()).then(()=>{
+        this.resumePending=false;this.lastError=null;
+        // Mute ONLY after parent audio actually starts; no double song.
+        float.command('audio-handoff-mute');
+      }).catch(e=>{
+        this.lastError=String(e?.message||e);
+        this.active=false;this.resumePending=true;
+        console.warn('[Music handoff] parent audio playback was blocked, retry on next gesture:',this.lastError);
+      });
+      return true;
+    },
+    requestReturn(){
+      if(!this.active||!this.node)return false;
+      this.returning=true;this.returnFrame=float.frame?.contentWindow||null;
+      this.sendReturn();
+      return true;
+    },
+    sendReturn(){
+      if(!this.returning||!this.node?.src||!float.frame?.isConnected)return;
+      this.returnFrame=float.frame.contentWindow;
+      const a=this.node;
+      float.command('audio-restore',{
+        src:a.currentSrc||a.src,position:Number(a.currentTime)||0,
+        volume:a.volume,muted:a.muted,playbackRate:a.playbackRate
+      });
+    },
+    finishReturn(){
+      if(!this.active||!this.returning)return;
+      this.node?.pause();
+      this.active=false;this.resumePending=false;
+      this.returning=false;this.returnFrame=null;
+    }
+  };
+  // Browser user activation policies differ: if an iframe exit triggered
+  // a denied play() in the parent, retry on the NEXT explicit touch/gesture.
+  // Do not display an extra dialog and never start a song paused by the user.
+  document.addEventListener('pointerdown',()=>{
+    if(audioHandoff.resumePending&&!audioHandoff.active)
+      audioHandoff.takeOver(true);
+  },true);
   // Lyric-only floating ticker. Clicking it opens the music module's OWN
   // ListenTogether.chatPanel, identical to tapping the original partner avatar.
   // Never create a replacement chat form, send button, or quick-recall panel.
@@ -398,12 +499,8 @@
       const next=document.createElement('span');next.className='wmc-lyric-row wmc-lyric-next';
       previous.textContent=' ';lyric.textContent='♪';next.textContent=' ';
       track.append(previous,lyric,next);el.appendChild(track);document.body.appendChild(el);
-      const resize=document.createElement('button');
-      resize.type='button';resize.id='wmc-chat-resize';resize.hidden=true;
-      resize.setAttribute('aria-label','拖动调整一起听聊天窗大小');
-      resize.textContent='⤡';
-      document.body.appendChild(resize);
-      this.node=el;this.resize=resize;this.track=track;
+      // The only resizing control lives INSIDE the original #chatPanel.
+      this.node=el;this.track=track;
       this.previous=previous;this.lyric=lyric;this.next=next;
       this.lastLyricIndex=null;
       el.addEventListener('click',()=>{
@@ -432,35 +529,6 @@
       };
       el.addEventListener('pointerup',end);
       el.addEventListener('pointercancel',end);
-      let grip=null;
-      resize.addEventListener('pointerdown',e=>{
-        if(e.button!==0||!this.nativePanelVisible)return;
-        grip={id:e.pointerId,x:e.clientX,y:e.clientY,
-          width:this.chatSize.width,height:this.chatSize.height};
-        resize.setPointerCapture?.(e.pointerId);
-        e.preventDefault();
-      });
-      resize.addEventListener('pointermove',e=>{
-        if(!grip||grip.id!==e.pointerId)return;
-        const loc=this.node.getBoundingClientRect();
-        const maxWidth=Math.max(190,window.innerWidth-loc.left-8);
-        const maxHeight=Math.max(170,window.innerHeight-(loc.top+loc.height+8)-8);
-        this.chatSize.width=Math.max(190,Math.min(maxWidth,grip.width+e.clientX-grip.x));
-        this.chatSize.height=Math.max(170,Math.min(maxHeight,grip.height+e.clientY-grip.y));
-        this.layoutDock();
-      });
-      const release=e=>{if(grip?.id===e.pointerId)grip=null;};
-      resize.addEventListener('pointerup',release);
-      resize.addEventListener('pointercancel',release);
-      resize.addEventListener('keydown',e=>{
-        if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;
-        e.preventDefault();
-        this.chatSize.width+=e.key==='ArrowRight'?12:e.key==='ArrowLeft'?-12:0;
-        this.chatSize.height+=e.key==='ArrowDown'?12:e.key==='ArrowUp'?-12:0;
-        this.chatSize.width=Math.max(190,Math.min(window.innerWidth-20,this.chatSize.width));
-        this.chatSize.height=Math.max(170,Math.min(window.innerHeight-140,this.chatSize.height));
-        this.layoutDock();
-      });
       window.addEventListener('resize',()=>this.layoutDock());
     },
     dockRect(){
@@ -498,11 +566,16 @@
       }
       this.panelBounds={open:true,rect:local,viewport:{width:fr.width,height:fr.height}};
       this.clipOnlyPanel(layer,this.panelBounds);
-      if(this.resize){
-        this.resize.hidden=false;
-        this.resize.style.left=Math.round(r.left+local.width-17)+'px';
-        this.resize.style.top=Math.round(r.top+local.height-17)+'px';
-      }
+
+    },
+    resizeOriginalChat(dx,dy){
+      if(!this.nativePanelVisible)return;
+      const rect=this.dockRect();if(!rect)return;
+      this.chatSize.width=Math.max(190,Math.min(window.innerWidth-rect.left-8,
+        this.chatSize.width+Number(dx||0)));
+      this.chatSize.height=Math.max(170,Math.min(window.innerHeight-rect.top-8,
+        this.chatSize.height+Number(dy||0)));
+      this.layoutDock();
     },
     dragFromChat(dx,dy){
       if(!this.node||!this.nativePanelVisible)return;
@@ -583,7 +656,6 @@
       const musicLayer=this.persistentLayer()||document.getElementById('whatever-music-layer');
       if(panel?.open===false){
         this.panelBounds=null;this.nativePanelVisible=false;this.lastDockLayout='';
-        if(this.resize)this.resize.hidden=true;
         if(this.shelvedLayer&&musicLayer){
           musicLayer.style.clipPath='none';
           musicLayer.style.pointerEvents='none';
@@ -616,17 +688,24 @@
       if(typeof w.openApp==='function'){
         const original=w.openApp;
         w.openApp=function(appId){
+          if(appId!=='music')audioHandoff.takeOver();
           if(appId==='music'&&root.persistentLayer()){
-            root.restoreMusic();return root.frame;
+            root.restoreMusic();
+            audioHandoff.requestReturn();
+            return root.frame;
           }
-          if(appId==='music'&&root.preservedPane){root.restoreMusic();return;}
+          if(appId==='music'&&root.preservedPane){
+            root.restoreMusic();audioHandoff.requestReturn();return;
+          }
           if(appId!=='music'&&root.persistentLayer()){
+            audioHandoff.takeOver();
             root.shelveLayer();
             const opened=original.apply(this,arguments);
             root.command('panel-sync');
             return opened;
           }
           if(root.frame?.isConnected&&appId!=='music'){
+            audioHandoff.takeOver();
             root.preservePane();
             if(root.preservedPane){
               root.homeMode=false;
@@ -640,6 +719,10 @@
             }
           }
           const result=original.apply(this,arguments);
+          if(appId==='music'&&audioHandoff.active){
+            audioHandoff.returning=true;
+            audioHandoff.sendReturn();
+          }
           if(root.preservedPane&&root.panelBounds)root.setNativePanel(root.panelBounds);
           return result;
         };
@@ -647,13 +730,18 @@
       if(typeof w.closeApp==='function'){
         const original=w.closeApp;
         w.closeApp=function(){
+          audioHandoff.takeOver();
           if(root.persistentLayer()){
+            audioHandoff.takeOver();
             root.shelveLayer();
             const closed=original.apply(this,arguments);
             root.command('panel-sync');
             return closed;
           }
-          if(root.frame?.isConnected)root.preservePane();
+          if(root.frame?.isConnected){
+            audioHandoff.takeOver();
+            root.preservePane();
+          }
           const result=original.apply(this,arguments);
           if(root.preservedPane){
             const win=document.getElementById('appWindow');
@@ -673,6 +761,7 @@
         app.__wmcKeepAlive=true;
         app.close=function(opts){
           if(root.frame?.isConnected){
+            audioHandoff.takeOver();
             // Keep playing even before choosing a Char; no src reset, pause
             // or iframe destruction, irrespective of participant state.
             root.shelveLayer();
@@ -686,7 +775,9 @@
         const original=app.open.bind(app);
         app.__wmcRestorePatched=true;
         app.open=function(){
-          if(root.shelvedLayer){root.restoreMusic();return root.frame;}
+          if(root.shelvedLayer){
+            root.restoreMusic();audioHandoff.requestReturn();return root.frame;
+          }
           return original();
         };
       }
@@ -767,7 +858,6 @@
     },
     close(){
       this.nativePanelVisible=false;
-      if(this.resize)this.resize.hidden=true;
       if(this.shelvedLayer){
         const layer=this.shelvedLayer.layer;
         layer.style.clipPath='none';
@@ -909,8 +999,6 @@
   miniStyle.textContent=[
     '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 66px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(290px,calc(100vw - 24px));min-height:90px;height:90px;padding:0;border:0!important;outline:0;background:none!important;color:#fff;box-shadow:none!important;border-radius:0;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;text-align:center}',
     '#wmc-floating-player[hidden]{display:none!important}',
-    '#wmc-chat-resize{position:fixed;z-index:2147483560;display:grid;place-items:center;width:31px;height:31px;padding:0;border-radius:10px;background:#202027;border:1px solid #555;color:#fff;font-size:23px;line-height:1;cursor:nwse-resize;touch-action:none;box-shadow:0 2px 8px #0009}',
-    '#wmc-chat-resize[hidden]{display:none!important}',
     '#wmc-floating-player .wmc-lyric-track{display:grid;grid-template-rows:24px 30px 24px;align-content:center;justify-items:center;width:100%;height:100%;overflow:hidden;background:none!important;mask-image:linear-gradient(180deg,transparent 0%,#000 14%,#000 86%,transparent 100%);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 14%,#000 86%,transparent 100%)}',
     '#wmc-floating-player .wmc-lyric-row{display:block;box-sizing:border-box;max-width:100%;height:100%;padding:0 5px;background:none!important;border:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:system-ui,-apple-system,sans-serif;text-shadow:0 1px 6px #000e,0 2px 12px #000a}',
     '#wmc-floating-player .wmc-lyric-prev,#wmc-floating-player .wmc-lyric-next{font-size:11px;font-weight:500;color:rgba(255,255,255,.7);opacity:.60;line-height:24px}',
@@ -928,6 +1016,24 @@
   w.addEventListener('message',async e=>{
     if(!validSender(e))return;
     const d=e.data;
+    if(d?.type==='whatever:music:audio-state'){
+      audioHandoff.receive(d,e.source);
+      return;
+    }
+    if(d?.type==='whatever:music:audio-restored'){
+      if(audioHandoff.returning&&audioHandoff.returnFrame===e.source)
+        audioHandoff.finishReturn();
+      return;
+    }
+    if(d?.type==='whatever:music:audio-leaving'){
+      audioHandoff.takeOver();
+      return;
+    }
+    if(d?.type==='whatever:music:ui:dock-resize'){
+      float.resizeOriginalChat(Math.max(-120,Math.min(120,Number(d.dx)||0)),
+        Math.max(-120,Math.min(120,Number(d.dy)||0)));
+      return;
+    }
     if(d?.type==='whatever:music:ui:dock-drag'){
       float.dragFromChat(Math.max(-120,Math.min(120,Number(d.dx)||0)),
         Math.max(-120,Math.min(120,Number(d.dy)||0)));
@@ -947,7 +1053,10 @@
       // Do NOT show a virtual Char or floating dock. Merely keep the real
       // audio iframe alive from its first mount, before invitations exist.
       const frame=playerFrames().find(x=>x.contentWindow===e.source);
-      if(frame){float.frame=frame;float.origin=e.origin;float.guardNavigation();}
+      if(frame){
+        float.frame=frame;float.origin=e.origin;float.guardNavigation();
+        if(audioHandoff.returning)audioHandoff.sendReturn();
+      }
       return;
     }
     if(!d||d.type!=='whatever:music:request'||typeof d.id!=='string'||typeof d.action!=='string')return;
