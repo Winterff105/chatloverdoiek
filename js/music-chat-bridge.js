@@ -513,22 +513,40 @@
       if(typeof w.openApp==='function'){
         const original=w.openApp;
         w.openApp=function(appId){
+          if(appId==='music'&&root.preservedPane){root.restoreMusic();return;}
           if(root.frame?.isConnected&&appId!=='music'){
             root.preservePane();
             if(root.preservedPane){
-              root.preservedPane.style.display='none';
+              root.homeMode=false;
+              const win=document.getElementById('appWindow');
+              if(win&&root.originalWinClip){
+                win.style.clipPath=root.originalWinClip.clipPath;
+                win.style.pointerEvents=root.originalWinClip.pointerEvents;
+              }
+              root.hideRetainedPane();
               if(root.sparePane)root.sparePane.style.display='';
             }
           }
-          if(appId==='music'&&root.preservedPane){root.restoreMusic();return;}
-          return original.apply(this,arguments);
+          const result=original.apply(this,arguments);
+          if(root.preservedPane&&root.panelBounds)root.setNativePanel(root.panelBounds);
+          return result;
         };
       }
       if(typeof w.closeApp==='function'){
         const original=w.closeApp;
         w.closeApp=function(){
           if(root.frame?.isConnected)root.preservePane();
-          return original.apply(this,arguments);
+          const result=original.apply(this,arguments);
+          if(root.preservedPane){
+            const win=document.getElementById('appWindow');
+            root.homeMode=true;
+            if(win){
+              win.classList.add('active'); // keep original iframe/audio loaded
+              root.hideWindowOnHome();
+              if(root.panelBounds)root.setNativePanel(root.panelBounds);
+            }
+          }
+          return result;
         };
       }
       const app=w.WhateverMusicApp;
@@ -560,10 +578,21 @@
       if(!this.frame||!win?.contains(this.frame))return;
       const pane=this.frame.closest('.app-content');if(!pane)return;
       const spare=document.createElement('div');spare.className='app-content';
-      // No iframe reparenting/reloading and NO changes to base.css.
+      // Never reparent iframe or change base.css. It must stay rendered;
+      // display:none can suspend the nested media on mobile WebViews.
       pane.parentNode.insertBefore(spare,pane);
-      pane.style.display='none';
+      if(!this.originalWinClip)this.originalWinClip={
+        clipPath:win.style.clipPath,pointerEvents:win.style.pointerEvents
+      };
+      this.paneStyles={
+        position:pane.style.position,inset:pane.style.inset,zIndex:pane.style.zIndex,
+        clipPath:pane.style.clipPath,pointerEvents:pane.style.pointerEvents
+      };
+      pane.style.position='absolute';
+      pane.style.inset='0';
+      pane.style.zIndex='24';
       this.preservedPane=pane;this.sparePane=spare;
+      this.hideRetainedPane();
     },
     shelveLayer(){
       const layer=document.getElementById('whatever-music-layer');
@@ -579,10 +608,16 @@
         this.shelvedLayer=null;
       }
       if(this.preservedPane){
-        this.preservedPane.style.display='';
+        this.homeMode=false;
+        this.preservedPane.style.clipPath=this.paneStyles?.clipPath||'';
+        this.preservedPane.style.pointerEvents=this.paneStyles?.pointerEvents||'';
         if(this.sparePane)this.sparePane.style.display='none';
         const win=document.getElementById('appWindow');
-        win?.classList.add('active');
+        if(win){
+          win.style.clipPath=this.originalWinClip?.clipPath||'';
+          win.style.pointerEvents=this.originalWinClip?.pointerEvents||'';
+          win.classList.add('active');
+        }
         document.getElementById('homeScreen')?.classList.add('scaled');
         const title=document.getElementById('appTitle');
         if(title)title.textContent='音乐';
