@@ -426,6 +426,7 @@
       // so only this clock can advance the 3-line floating lyric.
       const updateLyrics=()=>float.renderAt(Number(node.currentTime)||0);
       node.addEventListener('timeupdate',updateLyrics);
+      node.addEventListener('timeupdate',()=>exposeSongState());
       node.addEventListener('seeked',updateLyrics);
       node.addEventListener('playing',updateLyrics);
       return node;
@@ -578,7 +579,8 @@
       if(!this.node)return null;
       const r=this.node.getBoundingClientRect();
       const width=Math.max(190,Math.min(this.chatSize.width,window.innerWidth-r.left-8));
-      const height=Math.max(170,Math.min(this.chatSize.height,window.innerHeight-r.bottom-15));
+      const visibleBottom=w.visualViewport?w.visualViewport.offsetTop+w.visualViewport.height:window.innerHeight;
+      const height=Math.max(170,Math.min(this.chatSize.height,visibleBottom-r.bottom-15));
       return {left:r.left,top:r.bottom+8,width,height};
     },
     moveDock(x,y){
@@ -737,6 +739,7 @@
         if(this.shelvedLayer&&musicLayer){
           musicLayer.style.clipPath='none';
           musicLayer.style.pointerEvents='none';
+          if(this.persistentLayer())musicLayer.style.zIndex='0';
         }
         this.hideRetainedPane();
         this.hideWindowOnHome();
@@ -747,6 +750,7 @@
       if(musicLayer?.contains(this.frame)){
         if(!this.shelvedLayer)return; // original fullscreen remains unchanged
         this.nativePanelVisible=true;
+        musicLayer.style.zIndex='2147483490';
         this.command('chat-isolated',true);
         this.layoutDock();
         return;
@@ -885,11 +889,14 @@
     shelveLayer(){
       const layer=this.persistentLayer()||document.getElementById('whatever-music-layer');
       if(!layer||!layer.contains(this.frame)||this.shelvedLayer)return;
-      this.shelvedLayer={layer,clipPath:layer.style.clipPath,pointerEvents:layer.style.pointerEvents};
+      this.shelvedLayer={layer,clipPath:layer.style.clipPath,pointerEvents:layer.style.pointerEvents,zIndex:layer.style.zIndex};
       // Briefly hide until the iframe confirms its own transparent document;
       // then remove clipping entirely so the browser keeps audio rendering.
       layer.style.clipPath='inset(0 0 100% 0)';
       layer.style.pointerEvents='none';
+      // Other Whatever widgets (including the API floating orb) must stay
+      // ABOVE the hidden audio document until the user opens native chat.
+      if(this.persistentLayer())layer.style.zIndex='0';
       // Opaque iframe element backgrounds otherwise show the player through
       // rounded corners even when its document hides every non-chat node.
       if(this.persistentLayer()){
@@ -900,8 +907,9 @@
     },
     restoreMusic(){
       if(this.shelvedLayer){
-        const {layer,clipPath,pointerEvents}=this.shelvedLayer;
+        const {layer,clipPath,pointerEvents,zIndex}=this.shelvedLayer;
         layer.style.clipPath=clipPath;layer.style.pointerEvents=pointerEvents;
+        layer.style.zIndex=zIndex;
         this.shelvedLayer=null;
       }
       if(this.persistentLayer()){
@@ -997,6 +1005,7 @@
         if(Number.isInteger(data.lyricIndex))this.lastLyricIndex=data.lyricIndex;
       }
       this.guardNavigation();
+      exposeSongState();
       return {ok:true};
     }
   };
@@ -1005,6 +1014,34 @@
     promoteExistingAPIBall();
   },3000);
 
+  // Share sanitized current-song context with the main Whatever API widget.
+  // The actual AI/Char transport and messages remain on their original path.
+  // Do not duplicate the API orb, media player, or any private chat content.
+  function exposeSongState(){
+    const meta=float.data?.music||{};
+    const audio=audioHandoff.active?audioHandoff.node:null;
+    const state={
+      title:truncate(meta.title||'',160),artist:truncate(meta.artist||'',120),
+      lyric:truncate(float.lyric?.textContent||'',170),
+      position:audio?Number(audio.currentTime)||0:Number(audioHandoff.state?.position)||0,
+      playing:audioHandoff.active?!audio?.paused:!!float.data?.playing,
+      source:'whatever-music'
+    };
+    w.WhateverMusicNowPlaying=()=>({...state});
+    try{w.dispatchEvent(new CustomEvent('whatever:music-state',{detail:state}));}catch{}
+  }
+  // The API widget is not a child of the music iframe. Keep its host-page
+  // music snapshot available even when the private player is shelved.
+  const hostViewport=w.visualViewport;
+  function adjustForKeyboard(){
+    if(!float.frame?.isConnected)return;
+    const fr=float.frame.getBoundingClientRect();
+    const bottom=hostViewport?hostViewport.offsetTop+hostViewport.height:w.innerHeight;
+    float.command('keyboard-viewport',{bottom:Math.max(0,bottom-fr.top)});
+    if(float.nativePanelVisible)float.layoutDock();
+  }
+  hostViewport?.addEventListener('resize',adjustForKeyboard,{passive:true});
+  hostViewport?.addEventListener('scroll',adjustForKeyboard,{passive:true});
   // Mount the FIRST original music iframe in a permanent sibling before the
   // private app manager can attach it to a disposable .app-content. Moving
   // an already-mounted iframe would reload and stop the audio, so interception
