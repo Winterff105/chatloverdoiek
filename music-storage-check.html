@@ -59,8 +59,10 @@
     <div class="actions" style="margin-top:16px">
       <button class="primary" id="inspect" type="button">验证管理员并检查</button>
       <button class="secondary" id="export" type="button" disabled>导出四份源码</button>
+      <button class="primary" id="mergeZip" type="button" disabled>直接下载合并版 ZIP</button>
     </div>
-    <p class="note">“导出源码”仅在你的设备生成一个 JSON 文件，不上传到第三方。你可以将文件上传到当前聊天，供我按真实代码修改。文件包含私有源码，请勿公开分享。</p>
+    <p class="note">手机可直接选择「直接下载合并版 ZIP」，无需另开离线 HTML 网页；生成过程只在浏览器中运行，不会写入 Supabase。</p>
+    <p class="note">如果提示未登录：请使用同一个浏览器打开 <a href="/" style="color:#e5e5e8">Whatever 首页</a>并登录，然后返回本页。PWA、ChatGPT 内置浏览器与普通浏览器可能不共享登录状态。</p>
   </section>
 
   <section class="section" aria-labelledby="head-backup">
@@ -96,6 +98,7 @@
   const status=document.getElementById('status');
   const inspectBtn=document.getElementById('inspect');
   const exportBtn=document.getElementById('export');
+  const mergedBtn=document.getElementById('mergeZip');
   const backupBtn=document.getElementById('backup');
   const fixInput=document.getElementById('fixFile');
   const fixInfo=document.getElementById('fixInfo');
@@ -115,7 +118,8 @@
   function tell(message,kind='neutral'){status.dataset.kind=kind;status.textContent=message;}
   function setBusy(value){
     busy=value;inspectBtn.disabled=value;
-    exportBtn.disabled=value||!verified;backupBtn.disabled=value||!verified;
+    exportBtn.disabled=value||!verified;mergedBtn.disabled=value||!verified;
+    backupBtn.disabled=value||!verified;
     applyBtn.disabled=value||!verified||!backupVerified||!approvedBundle;
     inspectBtn.textContent=value?'正在连接 Supabase…':'重新检查';
   }
@@ -294,6 +298,161 @@
       approvedBundle=null;verified=false;backupVerified=false;
     }finally{setBusy(false);}
   }
+
+  // Generate complete Supabase source files in the browser only.
+  function replaceStyleDeclaration(body,name,value){
+    const re=new RegExp('(^|[;\n])\\s*'+name+'\\s*:\\s*[^;\n}]+\\s*;','m');
+    if(!re.test(body))throw Error('当前 music.css 缺少 '+name+' 属性，请重新检查原文件');
+    return body.replace(re,(_match,prefix)=>prefix+'\n            '+name+': '+value+';');
+  }
+  function changeStyleRule(source,selector,change){
+    const at=source.indexOf(selector+' {')>=0?source.indexOf(selector+' {'):source.indexOf(selector+'{');
+    if(at<0)throw Error('找不到音乐样式 '+selector);
+    const open=source.indexOf('{',at),end=source.indexOf('}',open);
+    if(end<0)throw Error('音乐 CSS 规则未闭合 '+selector);
+    return source.slice(0,open+1)+change(source.slice(open+1,end))+source.slice(end);
+  }
+  function customizeMusicCss(source){
+    const from='font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Segoe UI", sans-serif;';
+    const to='font-family: system-ui, -apple-system, sans-serif;';
+    if(source.includes(from))source=source.replace(from,to);
+    else if(!source.includes(to))throw Error('音乐系统字体结构已经变化');
+    source=source.replace(/font-family:\s*monospace\s*;/g,'font-family: inherit;');
+    source=source.replace(/font-family:\s*Georgia,\s*"Times New Roman",\s*serif\s*;/g,'font-family: inherit;');
+    source=changeStyleRule(source,'.collage-tag',body=>{
+      body=replaceStyleDeclaration(body,'font-size','7px');
+      body=replaceStyleDeclaration(body,'font-weight','600');
+      body=replaceStyleDeclaration(body,'letter-spacing','.7px');
+      return replaceStyleDeclaration(body,'color','rgba(20, 21, 27, 0.28)');
+    });
+    source=changeStyleRule(source,'.collage-song-title',body=>{
+      body=replaceStyleDeclaration(body,'font-size','10px');
+      body=replaceStyleDeclaration(body,'font-weight','600');
+      return replaceStyleDeclaration(body,'color','rgba(20, 21, 26, 0.56)');
+    });
+    source=changeStyleRule(source,'.collage-frame::before',body=>{
+      if(!/backdrop-filter|mask|border:\s*1px/.test(body))
+        throw Error('白色照片卡边框样式有变化，停止导出');
+      return [
+        "\n            content: '';",
+        '            position: absolute;',
+        '            inset: -2px;',
+        '            z-index: 3;',
+        '            border: 1px solid rgba(255, 255, 255, 0.9);',
+        '            border-radius: 12px;',
+        '            background: none;',
+        '            box-shadow: none;',
+        '            backdrop-filter: none;',
+        '            -webkit-backdrop-filter: none;',
+        '            -webkit-mask: none;',
+        '            mask: none;',
+        '            pointer-events: none;',
+        '        '
+      ].join('\n');
+    });
+    return source;
+  }
+  function retainRealChar(source){
+    if(source.includes('window.__whateverMusicRealCharGuard'))return source;
+    if(!source.includes('toggleTogether')&&!source.includes('ListenTogether'))
+      throw Error('music.js 的邀请入口和当前版本不匹配');
+    const guard=[
+      ';(function(){',
+      'if(window.__whateverMusicRealCharGuard)return;',
+      'window.__whateverMusicRealCharGuard=true;',
+      'function startRealChar(){',
+      'if(typeof window.__whateverMusicInviteReady==="function")return window.__whateverMusicInviteReady();',
+      'if(typeof window.showToast==="function")window.showToast("真实 Char 邀请尚未连接，请稍后重试。","error");',
+      '}',
+      'window.toggleTogether=startRealChar;',
+      'window.addEventListener("click",function(e){',
+      'var b=e.target&&e.target.closest&&e.target.closest(\'button[aria-label="调取对方说的话"]\');',
+      'if(!b||!b.closest("#chatPanel,#duetInput"))return;',
+      'e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();',
+      'if(e.isTrusted&&typeof window.__wmcExplicitMusicRecall==="function")window.__wmcExplicitMusicRecall(b);',
+      '},true);',
+      'document.addEventListener("click",function(e){',
+      'var t=e.target;if(!t||typeof t.closest!=="function")return;',
+      'if(!t.closest("#togetherBtn, .modal-close[aria-label=\\"结束一起听\\"]"))return;',
+      'e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();startRealChar();',
+      '},true);',
+      '})();'
+    ].join('\n');
+    return source+'\n'+guard;
+  }
+  function retainRuntimeLoader(source){
+    if(source.includes('__whateverMusicRuntimeLoading'))return source;
+    if(!source.includes('ListenTogether'))throw Error('music-api.js 的原聊天接口不匹配');
+    return source+"\n;(function(){if(window.__whateverMusicRuntimeLoading)return;window.__whateverMusicRuntimeLoading=true;var s=document.createElement('script');s.src='/js/music-runtime.js';s.async=false;document.head.appendChild(s);})();";
+  }
+  function createSourceZip(entries){
+    const encoder=new TextEncoder(),table=new Uint32Array(256);
+    for(let i=0;i<256;i++){let c=i;for(let j=0;j<8;j++)c=c&1?0xedb88320^(c>>>1):c>>>1;table[i]=c>>>0;}
+    function crc(bytes){let c=0xffffffff;for(const byte of bytes)c=table[(c^byte)&255]^(c>>>8);return(c^0xffffffff)>>>0;}
+    const chunks=[],central=[];let offset=0;
+    function add(bytes){chunks.push(bytes);offset+=bytes.length;}
+    for(const [name,value] of Object.entries(entries)){
+      const filename=encoder.encode(name),body=encoder.encode(value),hash=crc(body),start=offset;
+      const header=new Uint8Array(30+filename.length),h=new DataView(header.buffer);
+      h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);
+      h.setUint32(14,hash,true);h.setUint32(18,body.length,true);
+      h.setUint32(22,body.length,true);h.setUint16(26,filename.length,true);
+      header.set(filename,30);add(header);add(body);
+      const dir=new Uint8Array(46+filename.length),d=new DataView(dir.buffer);
+      d.setUint32(0,0x02014b50,true);d.setUint16(4,20,true);d.setUint16(6,20,true);
+      d.setUint16(8,0x0800,true);d.setUint32(16,hash,true);
+      d.setUint32(20,body.length,true);d.setUint32(24,body.length,true);
+      d.setUint16(28,filename.length,true);d.setUint32(42,start,true);
+      dir.set(filename,46);central.push(dir);
+    }
+    const directoryStart=offset;
+    for(const item of central)add(item);
+    const tail=new Uint8Array(22),e=new DataView(tail.buffer);
+    e.setUint32(0,0x06054b50,true);e.setUint16(8,central.length,true);
+    e.setUint16(10,central.length,true);e.setUint32(12,offset-directoryStart,true);
+    e.setUint32(16,directoryStart,true);add(tail);
+    return new Blob(chunks,{type:'application/zip'});
+  }
+  async function exportMergedZip(){
+    if(busy||!verified)return;
+    setBusy(true);
+    try{
+      const original={};
+      for(const name of names){
+        tell('正在读取原文件 '+name);
+        const response=await api('read',name);
+        if(response.sha256!==results.get(name)?.sha256||typeof response.content!=='string')
+          throw Error('Supabase 源文件已更新，请重新检查：'+name);
+        original[name]=response.content;
+      }
+      const updated={
+        'css/music.css':customizeMusicCss(original['css/music.css']),
+        'js/apps/music.js':retainRealChar(original['js/apps/music.js']),
+        'js/apps/music-api.js':retainRuntimeLoader(original['js/apps/music-api.js'])
+      };
+      const changed=Object.keys(updated).filter(name=>original[name]!==updated[name]);
+      if(!changed.length)throw Error('这些音乐文件已经是修复版，不需要重复覆盖');
+      const pack=Object.fromEntries(changed.map(name=>[name,updated[name]]));
+      pack['UPLOAD_README.txt']=[
+        'Supabase bucket: protected-scripts',
+        'These are COMPLETE original source files with reviewed changes:',
+        ...changed.map(name=>'protected-scripts/'+name),
+        'Unchanged private files do not need uploading.',
+        'GitHub scripts music-chat-bridge.js, music-runtime.js and chat-keyboard.js remain on GitHub.',
+        'The page has NOT modified Supabase Storage.'
+      ].join('\n');
+      const blob=createSourceZip(pack),url=URL.createObjectURL(blob);
+      const link=document.createElement('a');
+      link.href=url;link.download='whatever-supabase-ready-music.zip';
+      document.body.appendChild(link);link.click();link.remove();
+      setTimeout(()=>URL.revokeObjectURL(url),15000);
+      tell('已生成可上传完整文件 ZIP：\n'+changed.map(name=>'protected-scripts/'+name).join('\n')+
+        '\n解压后按路径替换；本次没有写入 Supabase。','success');
+    }catch(e){tell('生成失败：'+String(e?.message||e),'error');}
+    finally{setBusy(false);}
+  }
+
+  mergedBtn.addEventListener('click',exportMergedZip);
   applyBtn.addEventListener('click',applyApproved);
   inspectBtn.addEventListener('click',inspectAll);
   backupBtn.addEventListener('click',backupAll);
