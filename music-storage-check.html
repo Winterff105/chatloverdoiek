@@ -75,6 +75,17 @@
       源文件覆盖权限默认锁定；此页面没有覆盖或删除按钮。
     </div>
   </section>
+  <section class="section" aria-labelledby="head-apply">
+    <h2 id="head-apply">03 · 定点修复原音乐源码</h2>
+    <p class="secondary">先完成四份私有备份，再选择经校验的修复包。仅允许预审的两份源码及其精确 SHA-256，其他内容全部拒绝。</p>
+    <label for="fixFile" class="name">选择当前聊天提供的修复包（JSON）</label>
+    <input id="fixFile" type="file" accept=".json,application/json" style="display:block;max-width:100%;width:100%;font-size:12px;margin:13px 0;color:#bbb">
+    <p id="fixInfo" class="secondary">尚未载入修复包。music.css、music-markup.js 和 base.css 不会被修改。</p>
+    <div class="actions">
+      <button class="primary" id="applyFix" type="button" disabled>备份并写回已审核修复</button>
+    </div>
+    <p class="note">只有你手动点击才会向 Supabase 写入；服务器会再次创建私有备份、验证原 SHA-256、审核新 SHA-256，并在写回后重新读取校验。其他文件的任意覆盖权限仍锁定。</p>
+  </section>
 </main>
 <script>
 (() => {
@@ -86,7 +97,10 @@
   const inspectBtn=document.getElementById('inspect');
   const exportBtn=document.getElementById('export');
   const backupBtn=document.getElementById('backup');
-  let busy=false,verified=false;
+  const fixInput=document.getElementById('fixFile');
+  const fixInfo=document.getElementById('fixInfo');
+  const applyBtn=document.getElementById('applyFix');
+  let busy=false,verified=false,backupVerified=false,approvedBundle=null;
 
   for(const name of names){
     const item=document.createElement('div');item.className='file';
@@ -102,6 +116,7 @@
   function setBusy(value){
     busy=value;inspectBtn.disabled=value;
     exportBtn.disabled=value||!verified;backupBtn.disabled=value||!verified;
+    applyBtn.disabled=value||!verified||!backupVerified||!approvedBundle;
     inspectBtn.textContent=value?'正在连接 Supabase…':'重新检查';
   }
   function getToken(){
@@ -121,7 +136,7 @@
     write_disabled:'写回功能目前被服务器锁定。',
     source_conflict:'源文件已变化，需要重新检查。'
   };
-  async function api(action,path){
+  async function api(action,path,extra={}){
     const token=getToken();
     const controller=new AbortController();
     const timeout=setTimeout(()=>controller.abort(),35000);
@@ -130,7 +145,7 @@
         method:'POST',mode:'same-origin',credentials:'same-origin',
         headers:{'Content-Type':'application/json'},
         cache:'no-store',signal:controller.signal,
-        body:JSON.stringify({token,action,path})
+        body:JSON.stringify({token,action,path,...extra})
       });
       const data=await response.json().catch(()=>({}));
       if(!response.ok||!data.ok){
@@ -140,7 +155,7 @@
     }finally{clearTimeout(timeout);}
   }
   async function inspectAll(){
-    verified=false;results.clear();setBusy(true);
+    verified=false;backupVerified=false;results.clear();setBusy(true);
     for(const row of rows.values()){
       row.state.textContent='未检查';row.hash.textContent='尚无校验值';row.backup.textContent='';
     }
@@ -176,6 +191,7 @@
           throw new Error('备份校验不一致：'+name);
         row.backup.textContent='已验证备份：'+data.backup;
       }
+      backupVerified=true;
       tell('四份音乐原文件的私有备份均已创建，并已重新读取核对 SHA-256。原文件没有被覆盖。','success');
     }catch(e){
       tell('备份未全部完成：'+String(e?.message||e)+'\n已显示“已验证备份”的文件仍然安全保留，其他文件可以再次点击继续。','error');
@@ -207,6 +223,75 @@
       tell('导出失败：'+String(e?.message||e),'error');
     }finally{setBusy(false);}
   }
+  async function shaText(text){
+    const bytes=new TextEncoder().encode(text);
+    const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+    return [...digest].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }
+  fixInput.addEventListener('change',async()=>{
+    approvedBundle=null;fixInfo.textContent='正在校验修复包…';setBusy(false);
+    const file=fixInput.files?.[0];
+    if(!file){fixInfo.textContent='未选择修复包。';return;}
+    if(file.size>300000){fixInfo.textContent='修复包超过大小限制，已拒绝。';return;}
+    try{
+      const pkg=JSON.parse(await file.text());
+      const approved=['js/apps/music.js','js/apps/music-api.js'];
+      if(pkg.kind!=='whatever-private-music-approved-fix'||pkg.project!=='苦临潭'||
+        pkg.bucket!=='protected-scripts'||!pkg.changes||
+        Object.keys(pkg.changes).length!==2||
+        approved.some(path=>!pkg.changes[path]))
+        throw new Error('不是预期的两文件音乐修复包');
+      for(const path of approved){
+        const entry=pkg.changes[path];
+        if(typeof entry.content!=='string'||entry.content.length>280000||
+           !/^[a-f0-9]{64}$/.test(entry.newSha256)||
+           !/^[a-f0-9]{64}$/.test(entry.expectedSha256)||
+           await shaText(entry.content)!==entry.newSha256)
+           throw new Error('修复包内容校验不通过：'+path);
+      }
+      approvedBundle=pkg.changes;
+      fixInfo.textContent='修复包已校验：仅 music.js、music-api.js。请先检查和备份四份原文件，然后手动点击下方写回。';
+    }catch(e){
+      fixInfo.textContent='无法使用该修复包：'+String(e?.message||e);
+    }finally{setBusy(false);}
+  });
+  async function applyApproved(){
+    if(busy||!verified||!backupVerified||!approvedBundle)return;
+    for(const path of Object.keys(approvedBundle)){
+      if(approvedBundle[path].expectedSha256!==results.get(path)?.sha256){
+        tell('当前原文件校验值与修复包不一致，请重新检查。','error');
+        return;
+      }
+    }
+    if(!window.confirm('即将备份并修改 Supabase 私有 Storage 中的 music.js 和 music-api.js。此操作会影响正式音乐功能，确认执行吗？'))return;
+    setBusy(true);
+    const applied=[];
+    try{
+      for(const path of ['js/apps/music.js','js/apps/music-api.js']){
+        const item=approvedBundle[path];
+        tell('正在备份、写入并核验 '+path+' …');
+        const result=await api('apply-approved',path,{
+          expectedSha256:item.expectedSha256,content:item.content
+        });
+        if(result.applied!==true||result.verified!==true||
+           result.sha256!==item.newSha256||
+           !result.backup?.startsWith('backups/music-source-edits/'))
+          throw new Error(path+' 写入后的核验不一致');
+        applied.push(path);
+        rows.get(path).backup.textContent='写入前备份：'+result.backup;
+        rows.get(path).hash.textContent='新 SHA-256：'+result.sha256;
+        rows.get(path).state.textContent='已成功修复';
+      }
+      approvedBundle=null;verified=false;backupVerified=false;fixInput.value='';
+      tell('两份 Supabase 原文件均已安全写回并复核哈希。请重新打开 Whatever，验证真实 Char 邀请、手动调取与聊天。','success');
+    }catch(e){
+      tell('写入未全部成功。已完成：'+(applied.join('、')||'无')+
+        '。其余请停止操作并将此错误发给我：'+String(e?.message||e),'error');
+      // No second automatic retry; avoids mismatched or partial writes.
+      approvedBundle=null;verified=false;backupVerified=false;
+    }finally{setBusy(false);}
+  }
+  applyBtn.addEventListener('click',applyApproved);
   inspectBtn.addEventListener('click',inspectAll);
   backupBtn.addEventListener('click',backupAll);
   exportBtn.addEventListener('click',exportAll);

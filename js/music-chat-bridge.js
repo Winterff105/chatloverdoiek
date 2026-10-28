@@ -554,9 +554,10 @@
         const original=app.close.bind(app);
         app.__wmcKeepAlive=true;
         app.close=function(opts){
-          if(root.frame?.isConnected&&root.data){
+          if(root.frame?.isConnected){
+            // Keep playing even before choosing a Char; no src reset, pause
+            // or iframe destruction, irrespective of participant state.
             root.shelveLayer();
-            // Original panel may already be open; ask its iframe for geometry.
             root.command('panel-sync');
             return;
           }
@@ -694,6 +695,13 @@
   w.addEventListener('message',async e=>{
     if(!validSender(e))return;
     const d=e.data;
+    if(d?.type==='whatever:music:ui:ready'){
+      // Do NOT show a virtual Char or floating dock. Merely keep the real
+      // audio iframe alive from its first mount, before invitations exist.
+      const frame=playerFrames().find(x=>x.contentWindow===e.source);
+      if(frame){float.frame=frame;float.origin=e.origin;float.guardNavigation();}
+      return;
+    }
     if(!d||d.type!=='whatever:music:request'||typeof d.id!=='string'||typeof d.action!=='string')return;
     try{
       const handler=handlers[d.action];
