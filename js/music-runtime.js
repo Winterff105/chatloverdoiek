@@ -820,32 +820,34 @@
     installDockHeadDrag();
     if(!document.__wmcRealCharRecall){
       document.__wmcRealCharRecall=true;
-      let recalling=false;
-      // Both original “调取” buttons (inside together view and #chatPanel)
-      // were quick quote pickers. The intended action is instead to request
-      // a fresh Char reply from the configured canonical Messages API.
-      document.addEventListener('click',async e=>{
-        const btn=e.target?.closest?.('button[aria-label="调取对方说的话"]');
-        if(!btn||!btn.closest?.('#chatPanel,#duetInput'))return;
-        e.preventDefault();
-        e.stopImmediatePropagation(); // prevent original inline toggleQuick
-        if(recalling)return;
+      let recalling=false,lastRecallAt=0;
+      // Called EXCLUSIVELY by music-bundle's early window-capture handler
+      // after a trusted click on one of the original "调取" buttons.
+      // The legacy quick-quote handler never gets the same click.
+      w.__wmcExplicitMusicRecall=async function(btn){
+        if(!btn?.isConnected||!btn.matches('button[aria-label="调取对方说的话"]')
+          ||!btn.closest('#chatPanel,#duetInput'))return;
+        const now=Date.now();
+        if(recalling||now-lastRecallAt<1150)return;
         if(!participant){notify('请先邀请真实 Char 一起听');return;}
-        recalling=true;
+        recalling=true;lastRecallAt=now;
         btn.disabled=true;
         btn.setAttribute('aria-busy','true');
         try{
-          const result=await rpc('recall',{contactId:participant.id,music:snapshot()});
+          const intentId='wmc-recall-'+now.toString(36)+'-'+(++seq).toString(36);
+          const result=await rpc('recall',{contactId:participant.id,music:snapshot(),intentId});
+          if(result?.deduped)return;
           const messages=Array.isArray(result?.messages)?result.messages:[];
           if(!messages.length)throw Error('API 没有返回可用回复');
+          if(participant?.id!==result?.contactId&&result?.contactId)return;
           for(const text of messages)w.ListenTogether?.receive?.(text);
         }catch(error){notify('调取 API 回复失败：'+trim(error?.message||error,140));}
         finally{
-          recalling=false;
+          recalling=false;lastRecallAt=Date.now();
           btn.disabled=false;
           btn.removeAttribute('aria-busy');
         }
-      },true);
+      };
     }
     // A resize grip INSIDE the music app's original chatPanel, never a second
     // floating popup. Native music markup/colors/buttons are retained.
