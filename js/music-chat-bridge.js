@@ -473,7 +473,9 @@
     moveDock(x,y){
       if(!this.node)return;
       const w=this.node.offsetWidth||270,h=this.node.offsetHeight||90;
-      const available=Math.max(105,window.innerHeight-185);
+      const available=this.nativePanelVisible
+        ?Math.max(8,window.innerHeight-h-8-170-8)
+        :Math.max(8,window.innerHeight-h-8);
       const left=Math.max(8,Math.min(x,window.innerWidth-w-8));
       const top=Math.max(8,Math.min(y,available));
       this.node.style.left=left+'px';this.node.style.top=top+'px';
