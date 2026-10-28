@@ -65,13 +65,13 @@
     sheet.setAttribute('aria-modal','true');
     sheet.setAttribute('aria-labelledby','wmcHeading');
     const top=node('div','wmc-top');
-    const eyebrow=node('span','wmc-eyebrow','♫  LISTEN TOGETHER');
+    const eyebrow=node('span','wmc-eyebrow','A LITTLE MUSIC FOR TWO');
     const close=node('button','wmc-close','×');
     close.type='button';close.setAttribute('aria-label','关闭邀请');
     top.append(eyebrow,close);
-    const heading=node('h2','wmc-title','邀请一起听');
+    const heading=node('h2','wmc-title','Listen Together');
     heading.id='wmcHeading';
-    const subtitle=node('p','wmc-subtitle','选择一位 Char，分享这一刻的音乐。');
+    const subtitle=node('p','wmc-subtitle','A moment, shared in sound.');
     const track=snapshot();
     const album=node('div','wmc-album');
     const art=node('div','wmc-art');
@@ -145,7 +145,7 @@
     retry.type='button';retry.hidden=true;
     note.setAttribute('role','status');
     note.setAttribute('aria-live','polite');
-    const footer=node('p','wmc-footer','邀请会作为歌曲卡片，出现在你们的聊天室');
+    const footer=node('p','wmc-footer','Only the song card appears in your chat.');
     sheet.append(top,heading,subtitle,album,pickLabel,picker,actionLabel,actions,note,retry,footer);
     mask.append(sheet);
     mask.addEventListener('click',e=>{if(e.target===mask&&!busy)closeDialog();});
@@ -407,6 +407,10 @@
     '.wmc-select-toggle:focus-visible,.wmc-contact-option:focus-visible{outline:2px solid #fff;outline-offset:2px}',
     '@media(max-height:560px){.wmc-mask{align-items:flex-start;overflow-y:auto}.wmc-sheet{margin:auto 0}.wmc-contact-menu{max-height:min(134px,26vh)}}',
     '@media(max-width:350px){.wmc-sheet{padding:14px 14px}.wmc-album{padding:6px 9px}.wmc-art{width:56px;height:56px}.wmc-option{min-height:45px}}',
+    '.wmc-sheet{padding:13px 17px;border-radius:18px}.wmc-top{justify-content:center;position:relative;min-height:20px;margin-bottom:3px}.wmc-close{position:absolute;right:0;top:-2px;width:24px;height:24px}',
+    '.wmc-eyebrow{text-align:center;font-size:8px;letter-spacing:.15em;color:#8c8c8c}.wmc-title{text-align:center;font-size:29px;line-height:1.1;font-weight:400;letter-spacing:0;margin:0 0 1px;font-family:"Snell Roundhand","Brush Script MT","Segoe Script",cursive;font-style:italic}',
+    '.wmc-subtitle{text-align:center;margin:0 0 8px;font:italic 10px/1.25 Georgia,serif;letter-spacing:.02em;color:#8f8f8f}.wmc-album{margin-bottom:9px;padding:6px 10px}.wmc-pick-label,.wmc-action-label{margin-bottom:4px}.wmc-picker{margin-bottom:9px}',
+    '.wmc-option{min-height:43px;padding:5px 9px}.wmc-option-icon{width:25px;height:25px}.wmc-actions{gap:6px}.wmc-footer{margin-top:4px;font-size:9px}.wmc-notice{margin-top:5px}',
     '@media(prefers-reduced-motion:reduce){.wmc-mask,.wmc-sheet,.wmc-art,.wmc-eq i{animation:none!important}.wmc-option{transition:none}}'
   ].join('\n');
   document.head.append(style);
