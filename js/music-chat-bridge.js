@@ -998,7 +998,7 @@
       this.frame=sourceFrame;this.origin=origin;
       if(data.panel)this.setNativePanel(data.panel);
       // Preserve contact identity across lightweight panel-only updates.
-      if(data.contactId)this.data={...(this.data||{}),...data};
+      if(data.contactId||data.music)this.data={...(this.data||{}),...data};
       this.node.hidden=false;
       const context=Object.freeze({
         title:truncate(data.music?.title||this.data?.music?.title||'',160),
@@ -1058,7 +1058,7 @@
       playing:audioHandoff.active?!audio?.paused:!!float.data?.playing,
       source:'whatever-music'
     };
-    w.WhateverMusicNowPlaying=()=>({...state});
+    w.WhateverMusicNowPlaying=Object.freeze({...state});
     // Existing API float integrations may call the music snapshot name.
     // Only expose public song metadata, never Char prompts or messages.
     w.WhateverMusicSnapshot=()=>({...state,playlist:[]});
