@@ -380,7 +380,7 @@
   // Never create a replacement chat form, send button, or quick-recall panel.
   const float={
     node:null,lyric:null,frame:null,origin:null,data:null,lastText:'',
-    preservedPane:null,sparePane:null,shelvedLayer:null,guarded:false,
+    preservedPane:null,sparePane:null,shelvedLayer:null,nativePanelVisible:false,guarded:false,
     create(){
       if(this.node)return;
       const el=document.createElement('button');
@@ -394,10 +394,8 @@
       el.addEventListener('click',()=>{
         if(this.ignoreNextClick){this.ignoreNextClick=false;return;}
         if(!this.frame?.isConnected)return;
-        // If another in-app page is displayed, revive the SAME music iframe.
-        // The existing chatPanel is inside that iframe and cannot be detached
-        // and floated independently without duplicating/reloading the player.
-        this.restoreMusic();
+        // Ask original iframe to open its native chatPanel. It reports
+        // its exact viewport bounds so only that panel appears above other apps.
         this.command('chat');
       });
       let drag=null;
@@ -432,6 +430,43 @@
         this.frame.contentWindow.postMessage({type:'whatever:music:ui:command',command:action},
           this.origin==='null'?'*':this.origin);
       }catch(error){console.warn('[Music Lyrics] command failed:',error?.message);}
+    },
+    // Reveal only the original music iframe's existing chatPanel over other
+    // Whatever apps. Clipping on the FULL-SCREEN host preserves its iframe,
+    // audio graph and base.css geometry. No second chat UI is created.
+    setNativePanel(panel){
+      const musicLayer=document.getElementById('whatever-music-layer');
+      if(panel?.open===false){
+        this.nativePanelVisible=false;
+        if(this.shelvedLayer){
+          musicLayer.style.clipPath='inset(0 0 100% 0)';
+          musicLayer.style.pointerEvents='none';
+        }
+        return;
+      }
+      if(!panel?.open)return;
+      const rect=panel.rect;
+      if(!rect||!Number.isFinite(rect.left)||!Number.isFinite(rect.top)||
+          !Number.isFinite(rect.width)||!Number.isFinite(rect.height))return;
+      if(musicLayer?.contains(this.frame)){
+        // Do not show the dark full-screen music background on other apps.
+        if(!this.shelvedLayer)this.shelveLayer();
+        const vw=window.innerWidth,vh=window.innerHeight;
+        const pad=8;
+        const top=Math.max(0,rect.top-pad),left=Math.max(0,rect.left-pad);
+        const right=Math.max(0,vw-rect.left-rect.width-pad);
+        const bottom=Math.max(0,vh-rect.top-rect.height-pad);
+        musicLayer.style.clipPath='inset('+top+'px '+right+'px '+bottom+'px '+left+'px round 24px)';
+        musicLayer.style.pointerEvents='auto';
+        this.nativePanelVisible=true;
+        return;
+      }
+      // Other app-manager variants may put music in an appWindow iframe. Keep
+      // the original pane mounted and return to it rather than clone the chat.
+      if(this.preservedPane){
+        this.restoreMusic();
+        this.nativePanelVisible=true;
+      }
     },
     guardNavigation(){
       if(this.guarded)return;
@@ -511,6 +546,12 @@
       }
     },
     close(){
+      this.nativePanelVisible=false;
+      if(this.shelvedLayer){
+        const layer=this.shelvedLayer.layer;
+        layer.style.clipPath='inset(0 0 100% 0)';
+        layer.style.pointerEvents='none';
+      }
       if(this.node)this.node.hidden=true;
       this.frame=null;this.origin=null;this.data=null;this.lastText='';
       // Leave the original player's base layout and data untouched.
@@ -524,14 +565,17 @@
         || (this.frame?.isConnected&&this.frame.contentWindow===source?this.frame:null);
       if(!sourceFrame)throw Error('音乐窗口未认证');
       this.create();
-      this.frame=sourceFrame;this.origin=origin;this.data=data;
+      this.frame=sourceFrame;this.origin=origin;
+      if(data.panel)this.setNativePanel(data.panel);
+      // Preserve contact identity across lightweight panel-only updates.
+      if(data.contactId)this.data=data;
       this.node.hidden=false;
       const lyric=truncate(data.lyric||data.music?.lyric||'',220)
         || ('♪ '+truncate(data.music?.title||'一起听',80));
       if(this.lastText!==lyric){
         this.lyric.textContent=lyric;
         this.lastText=lyric;
-        // Restart a soft right-to-left lyric scroll only when the text changes.
+        // Rise from below and drift upward, without a bordered overlay.
         this.lyric.style.animation='none';
         void this.lyric.offsetWidth;
         this.lyric.style.animation='';
@@ -543,13 +587,13 @@
   setInterval(()=>{if(float.frame&&!float.frame.isConnected)float.close();},8000);
   const miniStyle=document.createElement('style');
   miniStyle.textContent=[
-    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 84px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(248px,calc(100vw - 22px));height:36px;padding:0;border:0;border-radius:999px;background:rgba(9,9,11,.84);color:#fff;box-shadow:0 4px 13px #0005;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent}',
+    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 85px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(268px,calc(100vw - 24px));height:57px;padding:0;border:0!important;outline:0;background:none!important;color:#fff;box-shadow:none!important;border-radius:0;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;text-align:center}',
     '#wmc-floating-player[hidden]{display:none!important}',
-    '#wmc-floating-player .wmc-lyric-track{display:block;position:relative;width:100%;height:100%;overflow:hidden;mask-image:linear-gradient(90deg,transparent 0%,#000 8%,#000 92%,transparent 100%);-webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 8%,#000 92%,transparent 100%)}',
-    '#wmc-floating-player .wmc-fp-lyric{position:absolute;top:0;left:0;display:inline-flex;align-items:center;height:100%;white-space:nowrap;width:max-content;max-width:none;padding:0 10px;box-sizing:border-box;font:12px/36px system-ui,-apple-system,sans-serif;animation:wmc-lyric-roll 11s linear infinite;will-change:transform}',
-    '@keyframes wmc-lyric-roll{from{transform:translateX(248px)}to{transform:translateX(-100%)}}',
-    '#wmc-floating-player:focus-visible{outline:2px solid #fff;outline-offset:3px}',
-    '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-fp-lyric{animation:none;position:static;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:36px}}'
+    '#wmc-floating-player .wmc-lyric-track{display:grid;place-items:center;width:100%;height:100%;overflow:hidden;background:none!important;mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 84%,transparent 100%);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 84%,transparent 100%)}',
+    '#wmc-floating-player .wmc-fp-lyric{display:block;max-width:100%;padding:0 6px;background:none!important;border:0!important;color:#fff;font:600 13px/1.55 system-ui,-apple-system,sans-serif;letter-spacing:.02em;white-space:normal;overflow-wrap:anywhere;text-shadow:0 1px 5px #000d,0 2px 12px #000a;animation:wmc-lyric-rise 7.2s ease-in-out both}',
+    '@keyframes wmc-lyric-rise{0%{opacity:0;transform:translateY(23px)}17%{opacity:1;transform:translateY(0)}76%{opacity:1;transform:translateY(-4px)}100%{opacity:0;transform:translateY(-25px)}}',
+    '#wmc-floating-player:focus-visible{outline:1px dashed #fff;outline-offset:1px}',
+    '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-fp-lyric{animation:none!important;opacity:1;transform:none}}'
   ].join('\n');
   document.head.appendChild(miniStyle);
   const handlers={
@@ -563,7 +607,7 @@
     try{
       const handler=handlers[d.action];
       if(!handler&&d.action!=='ui')throw Error('未知操作');
-      // Only the sender already validated by validSender may control the dock.
+      // Both lyric and original-chat geometry come from this authenticated iframe.
       const result=d.action==='ui'?float.update(d.payload||{},e.source,e.origin):await handler(d.payload||{});
       e.source.postMessage({type:'whatever:music:response',id:d.id,ok:true,result},responseOrigin(e));
     }catch(error){
