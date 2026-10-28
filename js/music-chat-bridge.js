@@ -1265,11 +1265,11 @@
     // Reuse the private messages.css file attachment shape and dimensions.
     // Its old pink folder icon becomes a real album sleeve + black vinyl.
     '.messages-app #thread .mrow.wmc-card-row{display:flex!important;width:100%;box-sizing:border-box;flex-direction:row-reverse!important;align-items:flex-end;margin:9px 0;gap:0;min-width:0}',
-    '.messages-app #thread .wmc-song-card.ff-card{appearance:none;border:0!important;background:#fff!important;color:#3a3a3e!important;min-width:200px;max-width:250px;display:inline-flex!important;align-items:center;gap:11px;cursor:pointer;box-shadow:0 4px 12px rgba(60,40,50,.08)}',
-    '.messages-app .wmc-song-art.ff-mini{position:relative;flex:0 0 60px!important;width:60px!important;height:49px!important;overflow:visible}',
-    '.messages-app .wmc-card-vinyl{position:absolute;right:0;top:4px;width:42px;height:42px;border-radius:50%;background:repeating-radial-gradient(circle,#101010 0 2px,#262626 3px,#080808 4px,#191919 5px);box-shadow:0 1px 5px #0004}',
-    '.messages-app .wmc-card-vinyl:after{content:"";position:absolute;left:17px;top:17px;width:8px;height:8px;border-radius:50%;background:#dedee1;border:2px solid #555}',
-    '.messages-app .wmc-card-sleeve{position:absolute;left:0;top:3px;width:43px;height:43px;border-radius:5px;background:#e2dce2;overflow:hidden;box-shadow:1px 2px 5px #0004;display:grid;place-items:center}',
+    '.messages-app #thread .wmc-song-card.ff-card{appearance:none;border:1px solid #d9dadd!important;background:#fff!important;color:#3a3a3e!important;min-width:0;max-width:min(216px,calc(100vw - 80px));width:auto;box-sizing:border-box;padding:9px 10px;display:inline-flex!important;align-items:center;gap:8px;cursor:pointer;box-shadow:none!important;filter:none!important}',
+    '.messages-app .wmc-song-art.ff-mini{position:relative;flex:0 0 54px!important;width:54px!important;height:45px!important;overflow:visible}',
+    '.messages-app .wmc-card-vinyl{position:absolute;right:0;top:4px;width:38px;height:38px;border-radius:50%;background:repeating-radial-gradient(circle,#101010 0 2px,#262626 3px,#080808 4px,#191919 5px);box-shadow:none}',
+    '.messages-app .wmc-card-vinyl:after{content:"";position:absolute;left:15px;top:15px;width:8px;height:8px;border-radius:50%;background:#dedee1;border:2px solid #555}',
+    '.messages-app .wmc-card-sleeve{position:absolute;left:0;top:3px;width:39px;height:39px;border-radius:5px;background:#e2dce2;overflow:hidden;box-shadow:none;display:grid;place-items:center}',
     '.messages-app .wmc-card-sleeve:before{content:"♫";font:600 19px system-ui,sans-serif;color:#777;position:absolute;inset:0;display:grid;place-items:center}',
     '.messages-app .wmc-card-cover{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:cover;border:0}',
     '.messages-app .wmc-card-cover[hidden]{display:none!important}',
@@ -1277,7 +1277,7 @@
     '.messages-app .wmc-song-text .ff-n{font-size:14px;color:#3a3a3e!important;font-weight:600;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.messages-app .wmc-song-text .ff-m{font-size:11px;color:#8a8a90!important;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.messages-app .wmc-song-card:focus-visible{outline:2px solid #222;outline-offset:3px}',
-    '@media(max-width:350px){.messages-app #thread .wmc-song-card{min-width:170px!important;max-width:235px!important;gap:8px!important}}',
+    '@media(max-width:350px){.messages-app #thread .wmc-song-card{min-width:0!important;max-width:min(202px,calc(100vw - 66px))!important;gap:7px!important;padding:8px 9px}}',
     '.messages-app #memPage .mem-fold .mem-chatlog{max-height:360px;overflow-y:auto;overscroll-behavior:contain}',
     '.messages-app #memPage .mem-fold .mem-chatlog .mem-cl-bub{white-space:pre-wrap;overflow-wrap:anywhere}'
   ].join('\n');
