@@ -1,7 +1,8 @@
-/* Whatever: music <-> canonical messages. Never stores a second chat history. */
+/* Whatever: music keeps its OWN per-session conversation inside the contact's
+ * existing COMMON MEMORY. Only an invite card appears in main chat. */
 (function (w) {
   'use strict';
-  const pending = new Map();
+  const migrated = new Set();
   const sessions = new Map();
   const inProgress = new Map();
   let host = null;
@@ -11,6 +12,16 @@
   const id = () => 'wm-' + Date.now().toString(36) + '-' + (++lastId);
   const time = () => {const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
   const activeIdentity = () => w.localStorage.getItem('whatever_messages_active_identity_v1') || 'self';
+  const sessionKey = contactId => activeIdentity()+':'+contactId;
+  const avatarSource = value => {
+    const raw=esc(value);
+    const source=raw || 'assets/聊天默认头像/chartouxiang.jpg';
+    if (/^data:image\/(?:png|jpeg|gif|webp|avif|svg\+xml);/i.test(source) || /^blob:/i.test(source)) return source;
+    try {
+      const url=new URL(source,w.location.href);
+      return ['http:','https:'].includes(url.protocol) ? url.href : '';
+    }catch{return '';}
+  };
   // Select the actual music iframe by its exact WindowProxy. The private
   // app-manager has used more than one frame title across versions; relying
   // only on title="音乐" left invitations without a response.
@@ -106,7 +117,7 @@
     const selected = live.length ? live : stored;
     return selected
       .filter(c=>c && typeof c==='object' && c.id!=null && (c.remark||c.name))
-      .map(c=>({id:String(c.id),name:truncate(c.remark||c.name,120),avatar:truncate(c.avatar||'',1000)}));
+      .map(c=>({id:String(c.id),name:truncate(c.remark||c.name,120),avatar:avatarSource(c.avatar)}));
   }
   function findContact(contactId) {
     const c = requireHost().listContacts().find(x=>String(x.id)===String(contactId));
@@ -130,6 +141,105 @@
       m.music.status=status;
       m.text='【一起听歌邀请】《'+m.music.title+'》'+(m.music.artist?' · '+m.music.artist:'')+'（'+(labels[status]||status)+'）';
     });
+  }
+  // One session -> one folded COMMON MEMORY entry (never individual room messages).
+  // Stored in the same canonical contact model as existing memories, with the
+  // original identity annotated to avoid mixing different user personas.
+  function writeEpisode(contactId, session, entry) {
+    requireHost().mutateContact(contactId,(c, messages)=>{
+      c.memories=Array.isArray(c.memories)?c.memories:[];
+      let m=c.memories.find(x=>x.kind==='music-listen'&&x.sessionId===session.id&&x.identityId===session.identityId);
+      if(!m){
+        m={id:id(),sessionId:session.id,identityId:session.identityId,
+          kind:'music-listen',sec:'common',level:'mid',priority:5,
+          label:new Date().toLocaleString('zh-CN',{hour12:false}),
+          title:session.music.title,artist:session.music.artist,
+          text:'与{{char}}一起听《'+session.music.title+'》'+(session.music.artist?'（'+session.music.artist+'）':''),
+          chatLog:[],keys:['一起听歌',session.music.title],
+          startedAt:Date.now(),endedAt:null};
+        c.memories.unshift(m);
+      }
+      if(entry){
+        // The episode is the single source of truth for both replay and AI
+        // context; every message is saved before a model request starts.
+        if(m.chatLog.length>=1200)throw Error('同听记录已达本地存储上限，请结束本次同听并新建会话');
+        m.chatLog.push({me:!!entry.me,text:truncate(entry.text,2000),ts:Date.now(),
+          title:truncate(entry.title||session.music.title,160),type:entry.type||'chat'});
+      }
+      if(session.music.title)m.title=session.music.title;
+      if(session.music.artist)m.artist=session.music.artist;
+      const n=m.chatLog.length;
+      if(!m.endedAt)m.text='与{{char}}一起听《'+m.title+'》'+(m.artist?'（'+m.artist+'）':'')+'，同听交流 '+n+' 条';
+      if(session.status==='ended')m.endedAt=Date.now();
+    });
+  }
+  function episodeContext(contactId,session){
+    if(!session)return '';
+    const c=findContact(contactId);
+    const m=(c.memories||[]).find(x=>x.kind==='music-listen'&&x.sessionId===session.id&&x.identityId===session.identityId);
+    const log=Array.isArray(m?.chatLog)?m.chatLog:[];
+    const recent=log.slice(-45).map(x=>(x.type==='event'?'【切歌／事件】':x.me?'用户：':'Char：')+x.text).join('\n');
+    return '【这一次一起听的独立对话记录，按时间顺序】\n'+
+      (recent||'刚开始一起听，尚无对话')+
+      '\n这些对话属于当前一起听场景，不应重复写进主聊天室。之前的主聊天室和共同记忆仍然有效。';
+  }
+  // Full transcript is persisted first, so summarizer failures never lose data.
+  async function summarizeEpisode(contactId,session){
+    if(!w.MessagesAPI?.isConfigured?.()||typeof w.MessagesAPI.complete!=='function')return;
+    const c=findContact(contactId);
+    const entry=(c.memories||[]).find(x=>x.kind==='music-listen'&&x.sessionId===session.id&&x.identityId===session.identityId);
+    if(!entry||!Array.isArray(entry.chatLog)||entry.chatLog.length<2)return;
+    const log=entry.chatLog.slice(-120).map(x=>(x.me?'{{user}}':'{{char}}')+'：'+x.text).join('\n').slice(-14000);
+    try {
+      const raw=await w.MessagesAPI.complete(
+        '你是共同记忆整理器。只基于下面实际发生的同听对话，写一段60到180字的中文记忆总结，描述听过的歌曲、互动、情绪及关系变化。不要编造事件，不要提系统提示词。人物称呼只用{{user}}和{{char}}，不输出JSON。',
+        '一起听：《'+session.music.title+'》\n'+log
+      );
+      const summary=truncate(raw,700);
+      if(!summary||activeIdentity()!==session.identityId)return;
+      requireHost().mutateContact(contactId,(contact)=>{
+        const m=(contact.memories||[]).find(x=>x.kind==='music-listen'&&x.sessionId===session.id&&x.identityId===session.identityId);
+        if(m)m.text=summary;
+      });
+    }catch(error){console.warn('[Music Memory] Recap unavailable; full transcript retained',error?.message);}
+  }
+  // Migrate only old music-tagged messages, preserving normal room messages.
+  // Called via the canonical host so the snapshot is persisted atomically.
+  function migrateLegacy(contactId) {
+    const key=sessionKey(contactId);
+    if(migrated.has(key))return;
+    const service=requireHost();
+    const c=service.listContacts().find(x=>String(x.id)===String(contactId));
+    if(!c)return;
+    const old=service.getThread(contactId).filter(m=>m.music&&['chat','reply','event'].includes(m.music.kind));
+    if(!old.length){migrated.add(key);return;}
+    service.mutateContact(contactId,(contact,messages)=>{
+      contact.memories=Array.isArray(contact.memories)?contact.memories:[];
+      const grouped=new Map();
+      for(const m of messages){
+        if(!m.music||!['chat','reply','event'].includes(m.music.kind))continue;
+        const sid=String(m.music.sessionId||'legacy-'+m.ts);
+        if(!grouped.has(sid))grouped.set(sid,[]);
+        grouped.get(sid).push(m);
+      }
+      for(const [sid,arr] of grouped){
+        const memory=contact.memories.find(x=>x.kind==='music-listen'&&x.sessionId===sid&&x.identityId===activeIdentity());
+        if(memory){
+          const known=new Set((memory.chatLog||[]).map(x=>x.legacyMessageId));
+          for(const m of arr)if(!known.has(m.id))memory.chatLog.push({me:!!m.me,text:truncate(m.text,2000),ts:m.ts||Date.now(),title:m.music.title||'',legacyMessageId:m.id,type:m.music.kind});
+        }else{
+          contact.memories.unshift({id:id(),kind:'music-listen',sessionId:sid,
+            identityId:activeIdentity(),sec:'common',priority:5,level:'mid',
+            label:new Date(arr[0].ts||Date.now()).toLocaleString('zh-CN',{hour12:false}),
+            title:arr[0].music.title||'一起听歌',
+            text:'与{{char}}一起听《'+(arr[0].music.title||'歌曲')+'》的历史聊天（'+arr.length+'条）',
+            chatLog:arr.map(m=>({me:!!m.me,text:truncate(m.text,2000),ts:m.ts||Date.now(),legacyMessageId:m.id,title:m.music.title||'',type:m.music.kind})),
+            keys:['一起听歌','历史记录'],endedAt:Date.now()});
+        }
+      }
+      for(let i=messages.length-1;i>=0;i--)if(messages[i].music&&['chat','reply','event'].includes(messages[i].music.kind))messages.splice(i,1);
+    });
+    migrated.add(key);
   }
   function serialize(contactId, job){
     const key=activeIdentity()+':'+contactId;
@@ -156,9 +266,13 @@
     const user=(()=>{try{return JSON.parse(w.localStorage.getItem('whatever_messages_me_v1')||'{}')}catch{return {}}})();
     w.MESSAGES_USER_NAME=user.name||'用户';
     w.MESSAGES_USER_PERSONA=user.persona||'';
-    const snapshot={...c,msgs:thread(contactId).slice()};
+    const session=sessions.get(sessionKey(contactId));
+    const snapshot={...c,msgs:thread(contactId).filter(x=>!x.music||x.music.kind==='invite').slice(),
+      memories:(c.memories||[]).filter(x=>x.kind!=='music-listen'||x.identityId===activeIdentity())
+        .map(x=>x.kind==='music-listen'?{...x,chatLog:undefined}:x)};
     const instruction=[
       musicContext(m),
+      episodeContext(contactId,session),
       purpose==='invite'?'用户向你发出了同听邀请。请结合人设决定；答应时首条台词必须以【接受邀请】开头，拒绝时以【婉拒邀请】开头，不要擅自跳过决定。':'请针对一起听中的真实互动回复，不要重复用户的话。',
       extra
     ].filter(Boolean).join('\n\n');
@@ -171,41 +285,50 @@
   }
   const cleanPrefix=s=>s.replace(/^\s*【(?:接受邀请|婉拒邀请)】\s*/,'').trim();
   const responseFor = (contactId, music, parts, sessionId)=>{
-    for(const p of parts){
-      add(contactId,{me:false,text:cleanPrefix(p.text),narr:p.narr,trans:p.trans,music:{kind:'reply',sessionId,title:music.title,songId:music.songId}});
+    const session=sessions.get(sessionKey(contactId));
+    const texts=parts.map(p=>cleanPrefix(p.text)).filter(Boolean);
+    if(session&&session.id===sessionId&&session.status==='accepted'){
+      for(const text of texts)writeEpisode(contactId,session,{me:false,text,title:music.title});
     }
-    return parts.map(p=>cleanPrefix(p.text)).filter(Boolean);
+    return texts;
   };
   async function invite(data){
     const contactId=String(data.contactId), mode=data.mode, music=safeMusic(data.music);
     return serialize(contactId,async ()=>{
       const c=findContact(contactId);
+      migrateLegacy(contactId);
       if(!['direct','ask'].includes(mode))throw Error('邀请方式无效');
       const marker=add(contactId,{me:true,text:'【一起听歌邀请】《'+music.title+'》'+(music.artist?' · '+music.artist:'')+'（'+(mode==='ask'?'等待回应':'已接受')+'）',
         music:{kind:'invite',title:music.title,artist:music.artist,album:music.album,songId:music.songId,cover:music.cover,mode,status:mode==='ask'?'pending':'accepted'}});
       const session={id:id(),contactId,inviteId:marker.id,status:mode==='ask'?'pending':'accepted',identityId:activeIdentity(),music};
-      sessions.set(contactId,session);
-      if(mode==='direct')return {accepted:true,contact:{id:c.id,name:c.remark||c.name,avatar:c.avatar||''},sessionId:session.id,messages:[]};
+      sessions.set(sessionKey(contactId),session);
+      if(mode==='direct'){
+        writeEpisode(contactId,session,null);
+        return {accepted:true,contact:{id:c.id,name:c.remark||c.name,avatar:avatarSource(c.avatar)},sessionId:session.id,messages:[]};
+      }
       let parts;
       try{ parts=await reply(contactId,music,'invite'); }
       catch(error){ editInvite(contactId,marker.id,'error');throw error;}
       const first=parts[0].text;
       const accepted=/^\s*【接受邀请】/.test(first);
       const declined=/^\s*【婉拒邀请】/.test(first);
-      const text=responseFor(contactId,music,parts,session.id);
       session.status=accepted?'accepted':declined?'declined':'pending';
+      if(accepted)writeEpisode(contactId,session,null);
+      const text=accepted?responseFor(contactId,music,parts,session.id)
+        :parts.map(x=>cleanPrefix(x.text)).filter(Boolean);
       editInvite(contactId,marker.id,session.status);
-      return {accepted,declined,contact:{id:c.id,name:c.remark||c.name,avatar:c.avatar||''},sessionId:session.id,messages:text};
+      if(!accepted)sessions.delete(sessionKey(contactId));
+      return {accepted,declined,contact:{id:c.id,name:c.remark||c.name,avatar:avatarSource(c.avatar)},sessionId:session.id,messages:text};
     });
   }
   async function chat(data){
     const contactId=String(data.contactId),music=safeMusic(data.music);
     return serialize(contactId,async()=>{
-      const s=sessions.get(contactId);
+      const s=sessions.get(sessionKey(contactId));
       if(!s||s.status!=='accepted'||s.identityId!==activeIdentity())throw Error('尚未与当前联系人开始一起听');
       const text=truncate(data.text,1800);
       if(!text)throw Error('消息不能为空');
-      add(contactId,{me:true,text:'【一起听 · '+music.title+'】'+text,music:{kind:'chat',sessionId:s.id,title:music.title,songId:music.songId}});
+      writeEpisode(contactId,s,{me:true,text,title:music.title});
       const parts=await reply(contactId,music,'chat');
       return {messages:responseFor(contactId,music,parts,s.id)};
     });
@@ -213,10 +336,10 @@
   async function pick(data){
     const contactId=String(data.contactId),music=safeMusic(data.music);
     return serialize(contactId,async()=>{
-      const s=sessions.get(contactId);
+      const s=sessions.get(sessionKey(contactId));
       if(!s||s.status!=='accepted'||s.identityId!==activeIdentity())throw Error('还没开始一起听');
       if(!music.playlist.length)throw Error('当前没有可选的歌曲列表');
-      add(contactId,{me:true,text:'【一起听歌】你来选下一首吧。',music:{kind:'event',sessionId:s.id,title:music.title}});
+      writeEpisode(contactId,s,{me:true,text:'你来选下一首歌吧。',title:music.title});
       const valid=music.playlist.filter(t=>t.id);
       const parts=await reply(contactId,music,'pick','请从这份实际播放列表选一首，并严格以【选歌ID:歌曲ID】开头第一句话，再自然解释理由。不能编造ID：\n'+JSON.stringify(valid));
       const matched=parts[0].text.match(/^【选歌ID:([^】]+)】/);
@@ -229,24 +352,25 @@
   async function leave(data){
     const contactId=String(data.contactId);
     return serialize(contactId,async()=>{
-      const s=sessions.get(contactId);
+      const s=sessions.get(sessionKey(contactId));
       if(!s)return {ok:true};
       if(s.identityId!==activeIdentity())return {ok:false};
-      sessions.delete(contactId);
+      sessions.delete(sessionKey(contactId));
       editInvite(contactId,s.inviteId,'ended');
-      add(contactId,{me:true,text:'【一起听歌】已结束同听',music:{kind:'event',sessionId:s.id,title:s.music.title}});
+      s.status='ended';
+      writeEpisode(contactId,s,null);
+      void summarizeEpisode(contactId,s);
       return {ok:true};
     });
   }
   async function track(data){
     const contactId=String(data.contactId),music=safeMusic(data.music);
     return serialize(contactId,async()=>{
-      const session=sessions.get(contactId);
+      const session=sessions.get(sessionKey(contactId));
       if(!session||session.status!=='accepted'||session.identityId!==activeIdentity())return {ok:false};
       if(session.music.songId===music.songId && session.music.title===music.title)return {ok:true};
       session.music=music;
-      add(contactId,{me:true,text:'【一起听歌】切换到《'+music.title+'》'+(music.artist?' · '+music.artist:''),
-        music:{kind:'event',sessionId:session.id,title:music.title,songId:music.songId}});
+      writeEpisode(contactId,session,{me:true,text:'切换到《'+music.title+'》'+(music.artist?' · '+music.artist:''),type:'event',title:music.title});
       return {ok:true};
     });
   }
@@ -275,24 +399,32 @@
   });
   const theme=document.createElement('style');
   theme.textContent=[
-    '.wmc-song-card{width:min(255px,78vw);background:linear-gradient(145deg,#22212b,#34323d);color:white;border:1px solid #ffffff24;border-radius:16px;padding:16px;box-shadow:0 6px 24px #0003;cursor:pointer;line-height:1.55}',
-    '.wmc-card-head{font-size:11px;color:#c5c1d4;letter-spacing:.08em;margin-bottom:12px}',
-    '.wmc-card-title{font-weight:700;font-size:16px;overflow-wrap:anywhere}',
-    '.wmc-card-artist{color:#aaa6b9;font-size:12px;margin-top:3px}',
-    '.wmc-card-status{margin-top:13px;border-top:1px solid #ffffff30;padding-top:9px;font-size:12px;color:#ddd9eb}',
-    '.wmc-card-row{margin:10px 0}.wmc-song-card:focus-visible{outline:2px solid #a5a0c6;outline-offset:3px}'
+    // A native chat .mrow.me uses row-reverse; make the button its only child
+    // so the card stays aligned at the right with no extra avatar spacer.
+    '.messages-app #thread .mrow.wmc-card-row{display:flex!important;width:100%;box-sizing:border-box;flex-direction:row-reverse!important;align-items:flex-end;margin:10px 0;gap:0;min-width:0}',
+    '.messages-app #thread .wmc-song-card{all:unset;box-sizing:border-box;display:flex!important;align-items:center;gap:13px;min-width:0;width:min(270px,calc(100% - 12px));max-width:100%;min-height:102px;padding:13px;border-radius:16px;background:#050505!important;color:#fff!important;border:1px solid #333;box-shadow:0 5px 17px #0002;cursor:pointer;overflow:hidden;text-align:left;flex-shrink:1}',
+    '.messages-app .wmc-card-disc{display:grid;place-items:center;width:66px;height:66px;flex:0 0 66px;border:1px solid #444;border-radius:50%;background:repeating-radial-gradient(circle,#121212 0 2px,#282828 3px,#0a0a0a 4px,#151515 5px);box-shadow:3px 4px 10px #0008}',
+    '.messages-app .wmc-card-disc-center{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#eaeaea;color:#171717;font-size:14px}',
+    '.messages-app .wmc-card-main{display:flex;flex-direction:column;justify-content:center;min-width:0;flex:1;gap:4px;overflow:hidden}',
+    '.messages-app .wmc-card-head{display:block;font-size:9px;letter-spacing:.12em;color:#9c9c9c;line-height:1.2;font-weight:700}',
+    '.messages-app .wmc-card-title{display:block;font-size:14px;font-weight:700;line-height:1.35;color:#fff!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.messages-app .wmc-card-artist{display:block;color:#aaa;font-size:11px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.messages-app .wmc-card-status{display:block;margin-top:4px;font-size:10px;line-height:1.2;color:#ddd}',
+    '.messages-app .wmc-song-card:focus-visible{outline:2px solid #222;outline-offset:3px}',
+    '@media(max-width:350px){.messages-app #thread .wmc-song-card{width:min(244px,calc(100% - 8px));padding:10px;gap:9px}.messages-app .wmc-card-disc{width:57px;height:57px;flex-basis:57px}}',
+    // Existing common-memory fold and chat-log styling are retained.
+    '.messages-app #memPage .mem-fold .mem-chatlog{max-height:360px;overflow-y:auto;overscroll-behavior:contain}',
+    '.messages-app #memPage .mem-fold .mem-chatlog .mem-cl-bub{white-space:pre-wrap;overflow-wrap:anywhere}'
   ].join('\n');
   document.head.appendChild(theme);
-  document.addEventListener('keydown',e=>{
-    const card=e.target.closest?.('.wmc-song-card');
-    if(card&&(e.key==='Enter'||e.key===' ')){
-      e.preventDefault();if(typeof w.openApp==='function')w.openApp('music');
-    }
-  });
+  // Cards are native buttons: click, Enter and Space all work without
+  // additional key handlers that could open Music twice.
   w.WhateverMusicChatBridge=Object.freeze({
     registerHost(adapter){
       if(!adapter||!adapter.listContacts||!adapter.getThread||!adapter.mutateContact)throw Error('聊天室适配器不完整');
       host=adapter;
+      // Migrate historic music-only rows after current identity is loaded.
+      for(const c of listContacts()){try{migrateLegacy(c.id);}catch(e){console.warn('[Music] Legacy migration deferred',e?.message);}}
     },
     hasHost:()=>!!host,
     safeMusic

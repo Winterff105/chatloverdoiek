@@ -160,6 +160,25 @@
     let selectedId='';
     let activeOption=0;
     const optionButtons=[];
+    function realAvatar(contact, className) {
+      const fallback=String(contact?.name||'?').trim().charAt(0)||'?';
+      const wrap=node('span',className,fallback);
+      const src=String(contact?.avatar||'');
+      if(!/^(?:https?:|blob:|data:image\/)/i.test(src))return wrap;
+      const img=node('img','wmc-avatar-image');
+      img.alt='';
+      img.loading='lazy';
+      img.referrerPolicy='no-referrer';
+      img.src=src;
+      img.onerror=()=>{img.remove();wrap.textContent=fallback;};
+      wrap.replaceChildren(img);
+      return wrap;
+    }
+    function selectedAvatar(contact) {
+      const el=realAvatar(contact,'wmc-contact-initial');
+      thumb.replaceChildren(...Array.from(el.childNodes));
+      if(!thumb.childNodes.length)thumb.textContent=el.textContent||'?';
+    }
     function closeChoices(returnFocus=false){
       choices.hidden=true;
       picker.classList.remove('wmc-picker-open');
@@ -180,7 +199,7 @@
     function chooseContact(contact,returnFocus=true){
       selectedId=String(contact.id);
       chosenText.textContent=String(contact.name||'未命名');
-      thumb.textContent=String(contact.name||'?').trim().charAt(0)||'?';
+      selectedAvatar(contact);
       optionButtons.forEach(button=>{
         const selected=button.dataset.contactId===selectedId;
         button.setAttribute('aria-selected',String(selected));
@@ -259,7 +278,7 @@
           button.setAttribute('role','option');
           button.setAttribute('aria-selected','false');
           button.setAttribute('tabindex','-1');
-          const avatar=node('span','wmc-contact-avatar',String(contact.name||'?').trim().charAt(0)||'?');
+          const avatar=realAvatar(contact,'wmc-contact-avatar');
           const name=node('span','wmc-contact-name',String(contact.name||'未命名'));
           const check=node('span','wmc-contact-check','✓');
           check.setAttribute('aria-hidden','true');
@@ -381,6 +400,7 @@
     '.wmc-contact-menu[hidden]{display:none!important}.wmc-contact-option{display:flex;align-items:center;gap:10px;width:100%;min-height:43px;background:#050505;color:#fff;border:0;border-radius:9px;padding:6px 8px;text-align:left;cursor:pointer}',
     '.wmc-contact-option:hover,.wmc-contact-option:focus-visible,.wmc-contact-selected{background:#232323}.wmc-contact-avatar{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:#fff;color:#000;font-size:12px;font-weight:700}',
     '.wmc-contact-name{font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wmc-contact-check{opacity:0;font-size:14px;color:#fff}.wmc-contact-selected .wmc-contact-check{opacity:1}',
+    '.wmc-contact-avatar,.wmc-contact-initial{overflow:hidden;position:relative}.wmc-avatar-image{display:block;width:100%;height:100%;object-fit:cover;border-radius:50%;flex:none}',
     '.wmc-actions{gap:7px}.wmc-option{min-height:48px;padding:6px 10px;border-radius:11px;gap:9px}.wmc-option-icon{width:27px;height:27px;font-size:16px}.wmc-option-copy{gap:0}.wmc-option-copy strong{font-size:12px}.wmc-option-copy small{font-size:10px;line-height:1.25}.wmc-option-arrow{font-size:20px}',
     '.wmc-notice{margin-top:8px;min-height:0;font-size:10px}.wmc-notice:empty{display:none}.wmc-footer{margin-top:6px;font-size:9px}',
     '.wmc-retry{margin-top:6px;padding:5px 12px;font-size:10px}',
