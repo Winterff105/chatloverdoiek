@@ -374,86 +374,207 @@
       return {ok:true};
     });
   }
-  // Parent-level floating listening dock. The actual iframe/audio stays mounted
-  // and keeps playing when the dock temporarily hides the music layer.
-  // Never substitute a second player or a mocked contact/audio stream.
-  const float={node:null,frame:null,origin:null,data:null,hidden:null,mini:false,
+  // Persistent lyric badge + in-place chat panel. NEVER changes the opacity,
+  // visibility or render layer of the existing audio/player on every tick.
+  // Parent listens only to authenticated messages from the original music frame.
+  const float={
+    node:null,frame:null,origin:null,data:null,expanded:false,entries:[],lastText:'',
+    preservedPane:null,sparePane:null,shelvedLayer:null,guarded:false,
     create(){
       if(this.node)return;
-      const el=document.createElement('aside');
+      const el=document.createElement('section');
       el.id='wmc-floating-player';el.hidden=true;
-      el.setAttribute('aria-label','一起听悬浮小窗');
-      const img=document.createElement('img');img.className='wmc-fp-avatar';img.alt='Char 头像';
-      const copy=document.createElement('div');copy.className='wmc-fp-copy';
+      el.setAttribute('aria-label','一起听歌词与聊天悬浮窗');
+      const headline=document.createElement('button');
+      headline.type='button';headline.className='wmc-fp-headline';
+      headline.setAttribute('aria-label','点击歌词展开一起听聊天');
+      const lyric=document.createElement('span');lyric.className='wmc-fp-lyric';lyric.textContent='♪ 等待歌词';
+      const dot=document.createElement('span');dot.className='wmc-fp-dot';dot.textContent='♫';
+      headline.append(dot,lyric);
+      const body=document.createElement('div');body.className='wmc-fp-chat';body.hidden=true;
+      const top=document.createElement('div');top.className='wmc-fp-top';
+      const avatar=document.createElement('img');avatar.className='wmc-fp-avatar';avatar.alt='Char 头像';
+      const info=document.createElement('div');info.className='wmc-fp-info';
       const name=document.createElement('strong');name.className='wmc-fp-name';name.textContent='一起听';
-      const song=document.createElement('span');song.className='wmc-fp-song';song.textContent='等待歌曲';
-      copy.append(name,song);
-      const play=document.createElement('button');play.type='button';play.className='wmc-fp-play';play.setAttribute('aria-label','播放或暂停');play.textContent='▶';
-      const toggle=document.createElement('button');toggle.type='button';toggle.className='wmc-fp-toggle';toggle.setAttribute('aria-label','收起音乐界面');toggle.textContent='▁';
-      const open=document.createElement('button');open.type='button';open.className='wmc-fp-open';open.setAttribute('aria-label','打开一起听聊天');open.textContent='聊';
-      el.append(img,copy,play,toggle,open);
+      const song=document.createElement('span');song.className='wmc-fp-song';
+      info.append(name,song);
+      const toMusic=document.createElement('button');toMusic.type='button';
+      toMusic.className='wmc-fp-return';toMusic.textContent='↗';toMusic.setAttribute('aria-label','返回音乐全屏');
+      const collapse=document.createElement('button');collapse.type='button';
+      collapse.className='wmc-fp-close';collapse.textContent='×';collapse.setAttribute('aria-label','收起聊天');
+      top.append(avatar,info,toMusic,collapse);
+      const messages=document.createElement('div');messages.className='wmc-fp-messages';messages.setAttribute('role','log');
+      const compose=document.createElement('form');compose.className='wmc-fp-compose';
+      const input=document.createElement('input');input.className='wmc-fp-input';
+      input.type='text';input.maxLength=200;input.autocomplete='off';input.placeholder='说点什么…';
+      input.setAttribute('aria-label','发送一起听消息');
+      const send=document.createElement('button');send.type='submit';send.textContent='发送';
+      compose.append(input,send);body.append(top,messages,compose);el.append(headline,body);
       document.body.appendChild(el);
-      this.node=el;this.img=img;this.name=name;this.song=song;this.play=play;this.toggle=toggle;
-      play.addEventListener('click',()=>this.command('play'));
-      open.addEventListener('click',()=>{this.restore();this.command('chat');});
-      copy.addEventListener('click',()=>{this.restore();this.command('chat');});
-      img.addEventListener('click',()=>{this.restore();this.command('chat');});
-      toggle.addEventListener('click',()=>{this.mini?this.restore():this.minimize();});
+      Object.assign(this,{node:el,headline,lyric,body,avatar,name,song,messages,input});
+      headline.addEventListener('click',()=>{if(this.ignoreNextClick){this.ignoreNextClick=false;return;}this.expanded?this.collapse():this.expand();});
+      collapse.addEventListener('click',()=>this.collapse());
+      toMusic.addEventListener('click',()=>{this.collapse();this.restoreMusic();});
+      compose.addEventListener('submit',ev=>{
+        ev.preventDefault();
+        const text=input.value.trim().slice(0,200);
+        if(!text)return;
+        if(!this.frame?.isConnected){this.close();return;}
+        this.command('send',text);
+        // The original ListenTogether.send() confirms and echoes through the
+        // music iframe; don't duplicate locally on submission.
+        input.value='';
+      });
       let drag=null;
-      el.addEventListener('pointerdown',e=>{
-        if(e.button!==0||e.target.closest('button'))return;
-        const r=el.getBoundingClientRect();
-        drag={id:e.pointerId,dx:e.clientX-r.left,dy:e.clientY-r.top,startX:e.clientX,startY:e.clientY};
-        el.setPointerCapture?.(e.pointerId);
+      headline.addEventListener('pointerdown',ev=>{
+        if(ev.button!==0)return;
+        const rect=el.getBoundingClientRect();
+        drag={id:ev.pointerId,dx:ev.clientX-rect.left,dy:ev.clientY-rect.top,x:ev.clientX,y:ev.clientY,moved:false};
+        headline.setPointerCapture?.(ev.pointerId);
       });
-      el.addEventListener('pointermove',e=>{
-        if(!drag||drag.id!==e.pointerId)return;
-        const right=Math.max(6,Math.min(window.innerWidth-el.offsetWidth-6,window.innerWidth-(e.clientX-drag.dx)-el.offsetWidth));
-        const top=Math.max(6,Math.min(window.innerHeight-el.offsetHeight-6,e.clientY-drag.dy));
-        el.style.right=right+'px';el.style.top=top+'px';el.style.bottom='auto';
+      headline.addEventListener('pointermove',ev=>{
+        if(!drag||ev.pointerId!==drag.id)return;
+        if(Math.hypot(ev.clientX-drag.x,ev.clientY-drag.y)>6)drag.moved=true;
+        if(!drag.moved)return;
+        const left=Math.max(7,Math.min(window.innerWidth-el.offsetWidth-7,ev.clientX-drag.dx));
+        const top=Math.max(7,Math.min(window.innerHeight-el.offsetHeight-7,ev.clientY-drag.dy));
+        el.style.left=left+'px';el.style.top=top+'px';
+        el.style.right='auto';el.style.bottom='auto';
       });
-      const end=e=>{if(drag?.id===e.pointerId)drag=null;};
-      el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);
+      const end=ev=>{
+        if(drag?.id===ev.pointerId){
+          if(drag.moved)this.ignoreNextClick=true;
+          drag=null;
+        }
+      };
+      headline.addEventListener('pointerup',end);headline.addEventListener('pointercancel',end);
     },
-    command(command){
+    expand(){
+      if(!this.data)return;
+      this.expanded=true;
+      this.body.hidden=false;
+      this.node.classList.add('wmc-fp-expanded');
+      // No automatic focus. Keyboard opens ONLY from a real tap on input.
+      this.messages.scrollTop=this.messages.scrollHeight;
+    },
+    collapse(){
+      this.expanded=false;
+      if(this.body)this.body.hidden=true;
+      this.node?.classList.remove('wmc-fp-expanded');
+      this.input?.blur?.();
+    },
+    appendEntry(entry){
+      if(!entry||typeof entry.text!=='string'||!entry.text.trim())return;
+      const key=String(entry.id||'');
+      if(key&&this.entries.some(x=>x.id===key))return;
+      const item={id:key,me:!!entry.me,text:truncate(entry.text,200),at:Date.now()};
+      this.entries.push(item);
+      if(this.entries.length>100)this.entries.shift();
+      if(!this.messages)return;
+      const line=document.createElement('div');line.className='wmc-fp-message'+(item.me?' me':'');
+      line.textContent=item.text;
+      this.messages.appendChild(line);
+      while(this.messages.children.length>100)this.messages.firstElementChild?.remove();
+      if(this.expanded)this.messages.scrollTop=this.messages.scrollHeight;
+    },
+    command(command,text){
       if(!this.frame?.isConnected||!this.frame.contentWindow){this.close();return;}
       try {
-        this.frame.contentWindow.postMessage({type:'whatever:music:ui:command',command},
+        this.frame.contentWindow.postMessage({type:'whatever:music:ui:command',command,text},
           this.origin==='null'?'*':this.origin);
-      }catch(error){console.warn('[Music Float] command failed',error?.message);}
+      }catch(error){console.warn('[Music Float] control delivery failed',error?.message);}
     },
-    minimize(){
-      if(!this.frame?.isConnected){this.close();return;}
-      const layer=document.getElementById('whatever-music-layer');
-      const win=document.getElementById('appWindow');
-      const target=(layer&&layer.contains(this.frame))?layer
-        :(win&&win.contains(this.frame)?win:null);
-      if(!target)return;
-      this.hidden={target,opacity:target.style.opacity,pointerEvents:target.style.pointerEvents,
-        inert:!!target.inert,active:target.classList.contains('active')};
-      // Opacity keeps the real iframe/audio mounted and avoids visibility-
-      // based media throttling. Inert/pointer-events disable its input.
-      target.style.opacity='0';target.style.pointerEvents='none';target.inert=true;
-      if(target===win)document.getElementById('homeScreen')?.classList.remove('scaled');
-      this.mini=true;this.toggle.textContent='▢';
-      this.toggle.setAttribute('aria-label','返回音乐界面');
-    },
-    restore(){
-      if(this.hidden){
-        const {target,opacity,pointerEvents,inert,active}=this.hidden;
-        target.style.opacity=opacity;target.style.pointerEvents=pointerEvents;target.inert=inert;
-        if(target.id==='appWindow'&&active){
-          target.classList.add('active');
-          document.getElementById('homeScreen')?.classList.add('scaled');
-        }
-        this.hidden=null;
+    // Music inside appWindow: keep its original .app-content and iframe mounted
+    // across app changes, instead of letting app-manager.innerHTML destroy it.
+    guardNavigation(){
+      if(this.guarded)return;
+      this.guarded=true;
+      const root=this;
+      if(typeof w.openApp==='function'){
+        const original=w.openApp;
+        w.openApp=function(appId){
+          if(root.frame?.isConnected&&appId!=='music')root.preservePane();
+          if(appId==='music'&&root.preservedPane){
+            root.restoreMusic();return;
+          }
+          return original.apply(this,arguments);
+        };
       }
-      this.mini=false;
-      if(this.toggle){this.toggle.textContent='▁';this.toggle.setAttribute('aria-label','收起音乐界面');}
+      if(typeof w.closeApp==='function'){
+        const original=w.closeApp;
+        w.closeApp=function(){
+          if(root.frame?.isConnected)root.preservePane();
+          return original.apply(this,arguments);
+        };
+      }
+      const app=w.WhateverMusicApp;
+      if(app&&typeof app.close==='function'&&!app.__wmcKeepAlive){
+        const original=app.close.bind(app);
+        app.__wmcKeepAlive=true;
+        app.close=function(opts){
+          if(root.frame?.isConnected&&root.data){
+            root.shelveLayer();
+            return;
+          }
+          return original(opts);
+        };
+      }
+      if(app&&typeof app.open==='function'&&!app.__wmcRestorePatched){
+        const original=app.open.bind(app);
+        app.__wmcRestorePatched=true;
+        app.open=function(){
+          if(root.shelvedLayer){root.restoreMusic();return root.frame;}
+          return original();
+        };
+      }
+    },
+    preservePane(){
+      if(this.preservedPane)return;
+      const frame=this.frame,win=document.getElementById('appWindow');
+      if(!frame||!win?.contains(frame))return;
+      const pane=frame.closest('.app-content');
+      if(!pane)return;
+      // Do not move/reparent the iframe: moving an iframe reloads audio.
+      // Keep original pane attached, and let app-manager render other apps
+      // into a NEW sibling .app-content after it is inserted.
+      const spare=document.createElement('div');
+      spare.className='app-content';
+      pane.parentNode.insertBefore(spare,pane);
+      pane.classList.remove('app-content');
+      pane.style.display='none';
+      this.preservedPane=pane;this.sparePane=spare;
+    },
+    shelveLayer(){
+      const layer=document.getElementById('whatever-music-layer');
+      if(!layer||!layer.contains(this.frame)||this.shelvedLayer)return;
+      this.shelvedLayer={layer,clipPath:layer.style.clipPath,pointerEvents:layer.style.pointerEvents};
+      // Clip once on navigation; never animate opacity/black over the page.
+      layer.style.clipPath='inset(0 0 100% 0)';
+      layer.style.pointerEvents='none';
+    },
+    restoreMusic(){
+      if(this.shelvedLayer){
+        const {layer,clipPath,pointerEvents}=this.shelvedLayer;
+        layer.style.clipPath=clipPath;layer.style.pointerEvents=pointerEvents;
+        this.shelvedLayer=null;
+      }
+      if(this.preservedPane){
+        this.preservedPane.style.display='';
+        if(this.sparePane)this.sparePane.style.display='none';
+        const win=document.getElementById('appWindow');
+        win?.classList.add('active');
+        document.getElementById('homeScreen')?.classList.add('scaled');
+        const title=document.getElementById('appTitle');
+        if(title)title.textContent='音乐';
+      }
     },
     close(){
-      this.restore();if(this.node)this.node.hidden=true;
-      this.frame=null;this.origin=null;this.data=null;
+      this.collapse();
+      if(this.shelvedLayer)this.restoreMusic();
+      if(this.node)this.node.hidden=true;
+      this.frame=null;this.origin=null;this.data=null;this.entries=[];
+      this.messages?.replaceChildren();
+      // No forced reparent, no music source edits, no localStorage clear.
     },
     update(data,source,origin){
       if(data.active===false){
@@ -463,32 +584,50 @@
       const sourceFrame=playerFrames().find(f=>f.contentWindow===source);
       if(!sourceFrame)throw Error('音乐窗口未认证');
       this.create();
+      const isNew=!this.frame||this.frame!==sourceFrame||
+        String(this.data?.contactId)!==String(data.contactId);
+      if(isNew){
+        this.entries=[];this.messages.replaceChildren();this.collapse();
+      }
       this.frame=sourceFrame;this.origin=origin;this.data=data;
       this.node.hidden=false;
-      this.name.textContent=truncate(data.name||'Char',65);
-      this.song.textContent=truncate(data.music?.title||'等待播放',75);
-      this.play.textContent=data.playing?'Ⅱ':'▶';
-      this.play.setAttribute('aria-label',data.playing?'暂停音乐':'播放音乐');
+      const nextLyric=truncate(data.lyric||data.music?.lyric||'',170) ||
+        ('♪ '+truncate(data.music?.title||'等待歌词',90));
+      if(this.lastText!==nextLyric){this.lyric.textContent=nextLyric;this.lastText=nextLyric;}
+      if(this.name.textContent!==String(data.name||'Char'))this.name.textContent=truncate(data.name||'Char',65);
+      const nextSong=truncate(data.music?.title||'',95);
+      if(this.song.textContent!==nextSong)this.song.textContent=nextSong;
       const avatar=avatarSource(data.avatar);
-      if(avatar&&this.img.src!==avatar)this.img.src=avatar;
-      if(data.minimize===true)this.minimize();
+      if(avatar&&this.avatar.src!==avatar)this.avatar.src=avatar;
+      if(data.entry)this.appendEntry(data.entry);
+      this.guardNavigation();
       return {ok:true};
     }
   };
-  setInterval(()=>{
-    if(float.frame&&!float.frame.isConnected)float.close();
-  },4000);
+  setInterval(()=>{if(float.frame&&!float.frame.isConnected)float.close();},8000);
   const miniStyle=document.createElement('style');
   miniStyle.textContent=[
-    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 64px);right:12px;z-index:2147483550;width:min(268px,calc(100vw - 24px));box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:18px;border:1px solid #444;background:#000;color:#fff;box-shadow:0 8px 26px #0009;user-select:none;touch-action:none;font:12px/1.4 system-ui,sans-serif}',
+    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 72px);right:12px;z-index:2147483550;width:min(250px,calc(100vw - 24px));box-sizing:border-box;background:#0c0c0d;color:#fff;border:1px solid #393939;border-radius:18px;box-shadow:0 8px 24px #0007;font:12px/1.4 system-ui,sans-serif;touch-action:pan-y}',
     '#wmc-floating-player[hidden]{display:none!important}',
-    '#wmc-floating-player .wmc-fp-avatar{height:33px;width:33px;flex:none;border-radius:50%;object-fit:cover;background:#333}',
-    '#wmc-floating-player .wmc-fp-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;cursor:pointer}',
-    '#wmc-floating-player .wmc-fp-name{font-size:12px;font-weight:650;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
-    '#wmc-floating-player .wmc-fp-song{font-size:10px;color:#b7b7b7;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
-    '#wmc-floating-player button{flex:0 0 27px;height:27px;width:27px;padding:0;border:1px solid #666;background:#111;border-radius:50%;color:#fff;display:grid;place-items:center;font-size:12px;cursor:pointer}',
-    '#wmc-floating-player .wmc-fp-play{background:#fff;color:#000;border-color:#fff}',
-    '@media(max-width:365px){#wmc-floating-player{gap:5px;padding:7px;width:min(245px,calc(100vw - 18px))}#wmc-floating-player button{width:24px;height:24px;flex-basis:24px}}'
+    '#wmc-floating-player .wmc-fp-headline{appearance:none;border:0;background:transparent;color:#fff;display:flex;align-items:center;gap:8px;width:100%;min-height:45px;padding:11px 13px;font:13px/1.5 system-ui,sans-serif;text-align:left;cursor:pointer;touch-action:none}',
+    '#wmc-floating-player .wmc-fp-dot{flex:none;width:24px;height:24px;display:grid;place-items:center;border-radius:50%;background:#fff;color:#111;font-size:13px}',
+    '#wmc-floating-player .wmc-fp-lyric{flex:1;min-width:0;max-height:50px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:12px;line-height:1.55;overflow-wrap:anywhere}',
+    '#wmc-floating-player.wmc-fp-expanded{width:min(315px,calc(100vw - 18px))}',
+    '#wmc-floating-player .wmc-fp-chat{border-top:1px solid #363636;padding:9px 10px 11px}',
+    '#wmc-floating-player .wmc-fp-chat[hidden]{display:none!important}',
+    '#wmc-floating-player .wmc-fp-top{display:flex;gap:8px;align-items:center;margin-bottom:9px}',
+    '#wmc-floating-player .wmc-fp-avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;background:#222}',
+    '#wmc-floating-player .wmc-fp-info{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}',
+    '#wmc-floating-player .wmc-fp-name{font-weight:650;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '#wmc-floating-player .wmc-fp-song{font-size:10px;color:#aaa;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
+    '#wmc-floating-player .wmc-fp-top button{width:29px;height:29px;flex:none;border:1px solid #555;background:#111;color:#fff;border-radius:50%;font-size:18px;cursor:pointer}',
+    '#wmc-floating-player .wmc-fp-messages{height:min(220px,34vh);min-height:96px;overflow:auto;display:flex;flex-direction:column;gap:7px;overscroll-behavior:contain;padding:6px 2px 10px}',
+    '#wmc-floating-player .wmc-fp-message{align-self:flex-start;max-width:88%;padding:7px 10px;border:1px solid #333;border-radius:12px 12px 12px 3px;background:#232323;color:#fff;font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}',
+    '#wmc-floating-player .wmc-fp-message.me{align-self:flex-end;background:#fff;color:#151515;border-color:#fff;border-radius:12px 12px 3px 12px}',
+    '#wmc-floating-player .wmc-fp-compose{display:flex;gap:6px;align-items:center;border-top:1px solid #333;padding-top:8px}',
+    '#wmc-floating-player .wmc-fp-input{flex:1;min-width:0;height:35px;border:1px solid #555;border-radius:10px;background:#181818;color:#fff;padding:0 10px;font:12px system-ui,sans-serif;outline:none}',
+    '#wmc-floating-player .wmc-fp-compose button{height:35px;border:0;background:#fff;color:#000;border-radius:10px;padding:0 11px;font-weight:650;font-size:12px}',
+    '@media(prefers-reduced-motion:reduce){#wmc-floating-player{transition:none!important}}'
   ].join('\n');
   document.head.appendChild(miniStyle);
   const handlers={
