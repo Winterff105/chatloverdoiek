@@ -6,7 +6,7 @@
   'use strict';
   if (window.__whateverUpdatesStarted) return;
   window.__whateverUpdatesStarted = true;
-  const PAGE_VERSION = '41';
+  const PAGE_VERSION = '42';
   const VERSION_KEY = 'whatever_app_version';
   const CHECK_INTERVAL_MS = 5 * 60 * 1000;
   const MAX_CHECK_MS = 10000;
@@ -21,7 +21,6 @@
   let latest = '';
   let lastCheckAt = 0;
   let displayedVersion = '';
-  let autoPrompted = false;
 
   function text(id, value) {
     const el = document.getElementById(id);
@@ -69,12 +68,8 @@
       toast.style.pointerEvents = 'auto';
       toast.style.transform = 'translateX(-50%) translateY(0)';
     }
-    if (!autoPrompted && modal) {
-      autoPrompted = true;
-      modal.style.display = 'flex';
-      modal.setAttribute('aria-hidden', 'false');
-      nowButton?.focus();
-    }
+    // Keep the bottom capsule as the only automatic prompt. The full
+    // details sheet is opened only when the user taps "查看".
   }
   function dismiss() {
     if (!modal) return;
@@ -121,40 +116,69 @@
       console.info('[Whatever Updates] Network check skipped:', error?.message || error);
     }
   }
+  async function verifyReleaseReady(version) {
+    // A manifest can arrive before the corresponding JS is deployed. Never
+    // force reload into a mixed release, which can leave installed PWAs stale.
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), MAX_CHECK_MS);
+    try {
+      const url = '/js/update-manager.js?verify=' + Date.now();
+      const response = await fetch(url, {
+        cache:'no-store',credentials:'same-origin',signal:ac.signal
+      });
+      if (!response.ok) throw new Error('update script HTTP ' + response.status);
+      const source = await response.text();
+      const found = source.match(/const PAGE_VERSION\s*=\s*['"]([\w.-]+)['"]/);
+      return found?.[1] === version;
+    } finally {clearTimeout(timer);}
+  }
   async function applyUpdate() {
     if (updating) return;
     updating = true;
     if (nowButton) {
       nowButton.disabled = true;
-      nowButton.textContent = '正在更新…';
+      nowButton.textContent = '正在检查…';
     }
-    text('appUpdateStatus', '正在获取最新版本，不会删除聊天记录或登录信息。');
-    // Clear *only* our own cache namespace. Never delete other apps' caches.
+    text('appUpdateStatus', '正在确认版本文件已发布，不会删除聊天记录或登录信息。');
     try {
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.filter(k => k.startsWith('Whatever-v'))
-          .map(k => caches.delete(k)));
+      const release = await fetchLatest();
+      if (release.version !== latest || !(await verifyReleaseReady(release.version))) {
+        throw new Error('新版本仍在发布中，请稍后重试。');
       }
+      text('appUpdateStatus', '版本文件已就绪，正在更新应用。');
+      if (nowButton) nowButton.textContent = '正在更新…';
+      // Retain existing offline caches until the new worker successfully
+      // activates. Clearing an active cache first can break offline launch.
       if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration();
-        if (reg) {
-          await Promise.race([
-            reg.update().catch(() => {}),
-            new Promise(resolve => setTimeout(resolve, 3500))
-          ]);
-          reg.waiting?.postMessage({type:'SKIP_WAITING'});
+        try {
+          const reg = await navigator.serviceWorker.getRegistration();
+          if (reg) {
+            await Promise.race([
+              reg.update().catch(error => {
+                console.warn('[Whatever Updates] SW refresh unavailable:', error);
+              }),
+              new Promise(resolve => setTimeout(resolve, 4000))
+            ]);
+            reg.waiting?.postMessage({type:'SKIP_WAITING'});
+          }
+        } catch (error) {
+          console.warn('[Whatever Updates] SW refresh unavailable:', error);
         }
       }
+      try {sessionStorage.setItem('whatever_update_requested', release.version);} catch (_) {}
+      // A unique navigation URL bypasses stale installed-PWA shell documents.
+      const target = new URL(location.href);
+      target.searchParams.set('whatever_update', release.version + '-' + Date.now());
+      location.replace(target.href);
     } catch (error) {
-      console.warn('[Whatever Updates] Partial cache reset:', error);
+      updating = false;
+      if (nowButton) {
+        nowButton.disabled = false;
+        nowButton.textContent = '立即更新';
+      }
+      text('appUpdateStatus', error?.message || '更新失败，请稍后再试。');
+      console.warn('[Whatever Updates] Update not ready:', error);
     }
-    try {sessionStorage.setItem('whatever_update_requested', latest || 'new');} catch (_) {}
-    // A fresh navigation with a unique URL is important for installed PWA
-    // and Android WebView: it forces a new HTML document rather than reload().
-    const target = new URL(location.href);
-    target.searchParams.set('whatever_update', Date.now().toString());
-    location.replace(target.href);
   }
   window.__applyUpdate = applyUpdate;
   window.checkWhateverUpdate = () => checkUpdates(true);
@@ -203,14 +227,15 @@
     if (document.visibilityState === 'visible') checkUpdates(false);
   }, CHECK_INTERVAL_MS);
 
-  // A previous update requested a fresh page but the CDN might still serve the
-  // old release. Keep retrying via the same prompt rather than claiming success.
+  // Only confirm an update when the newly loaded shell reached the
+  // requested version. Preserve a pending request if an old shell reloaded.
   try {
-    if (sessionStorage.getItem('whatever_update_requested')) {
+    const requested = sessionStorage.getItem('whatever_update_requested');
+    if (requested && Number(PAGE_VERSION) >= Number(requested)) {
       sessionStorage.removeItem('whatever_update_requested');
-      if (previous && previous !== PAGE_VERSION) {
-        console.info('[Whatever Updates] Fresh version installed:', PAGE_VERSION);
-      }
+      console.info('[Whatever Updates] Requested release loaded:', PAGE_VERSION);
+    } else if (requested) {
+      console.info('[Whatever Updates] Still on older shell:', PAGE_VERSION, requested);
     }
   } catch (_) {}
   registerSW();
