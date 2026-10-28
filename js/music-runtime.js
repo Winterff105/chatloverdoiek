@@ -415,6 +415,9 @@
     }
     if(!lyric)lyric=document.querySelector('.lyric-line.active .lyric-main')?.textContent||'';
     const audio=document.getElementById('realAudio');
+    // A solo session should show scrolling lyrics ONLY after a real audio
+    // source has been selected; never present a fake “unknown song” ticker.
+    if(!participant&&!audio?.src&&!audio?.currentSrc)return;
     const playing=!!audio&&!audio.paused&&!audio.ended;
     const fingerprint=[songId,title,lyricIndex,lyricPrev,lyric,lyricNext,playing].join('\u001f');
     if(!force&&!entry&&fingerprint===lastFloatKey)return;
