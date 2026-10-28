@@ -1414,6 +1414,8 @@
     '.messages-app .wmc-song-text .ff-m{font-size:11px;color:#8a8a90!important;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.messages-app .wmc-song-card:focus-visible{outline:2px solid #222;outline-offset:3px}',
     '@media(max-width:350px){.messages-app #thread .wmc-song-card{min-width:0!important;max-width:min(202px,calc(100vw - 66px))!important;gap:7px!important;padding:8px 9px}}',
+    // Keep Quick Cruise status switching intact; suppress only its left flare.
+    '#quickCruiseBall.qc-glow-left::after{display:none!important}',
     '#wmc-recall-orb{position:fixed;top:calc(env(safe-area-inset-top,0px) + 13px);right:14px;z-index:2147483568;width:44px;height:44px;padding:0;border:1px solid #d5d5d8;border-radius:50%;background:#fff;color:#27272b;font:600 11px system-ui,sans-serif;box-shadow:0 3px 12px #0002;cursor:pointer}',
     '#wmc-recall-orb[hidden],#wmc-recall-notice[hidden],#wmc-recall-panel[hidden]{display:none!important}',
     '#wmc-recall-notice{position:fixed;top:calc(env(safe-area-inset-top,0px) + 18px);right:69px;z-index:2147483568;max-width:min(245px,calc(100vw - 90px));padding:10px 12px;border-radius:14px;background:#222328;color:#fff;font:12px/1.45 system-ui,sans-serif;overflow-wrap:anywhere;box-shadow:0 4px 18px #0002;pointer-events:none}',
