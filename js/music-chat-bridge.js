@@ -499,7 +499,7 @@
     if(!d||d.type!=='whatever:music:request'||typeof d.id!=='string'||typeof d.action!=='string')return;
     try{
       const handler=handlers[d.action];
-      if(!handler)throw Error('未知操作');
+      if(!handler&&d.action!=='ui')throw Error('未知操作');
       // Only the sender already validated by validSender may control the dock.
       const result=d.action==='ui'?float.update(d.payload||{},e.source,e.origin):await handler(d.payload||{});
       e.source.postMessage({type:'whatever:music:response',id:d.id,ok:true,result},responseOrigin(e));
