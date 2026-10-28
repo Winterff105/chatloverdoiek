@@ -22,3 +22,9 @@
 
 /js/sanctuary-gate.js
   Cache-Control: no-cache, must-revalidate
+
+/music-storage-check.html
+  Cache-Control: private, no-store, no-cache, must-revalidate
+  Referrer-Policy: no-referrer
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
