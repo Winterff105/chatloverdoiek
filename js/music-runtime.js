@@ -41,7 +41,7 @@
     return new Promise((resolve,reject)=>{
       if(w.parent===w){reject(Error('请从 Whatever 主应用打开音乐'));return;}
       const id='music-'+Date.now()+'-'+(++seq);
-      const timer=setTimeout(()=>{waiting.delete(id);reject(Error(action==='contacts'?'联系人读取超时，请重试':'聊天室响应超时'));},action==='contacts'?10000:55000);
+      const timer=setTimeout(()=>{waiting.delete(id);reject(Error(action==='contacts'?'联系人读取超时，请重试':'聊天室响应超时'));},action==='contacts'?10000:action==='ui'?5000:55000);
       waiting.set(id,{resolve,reject,timer});
       w.parent.postMessage({type:'whatever:music:request',id,action,payload},parentOrigin);
     });
@@ -349,15 +349,32 @@
     const now=Date.now();
     if(!force&&!entry&&now-lastFloatSample<900)return;
     lastFloatSample=now;
-    const music=snapshot();
+    // Lightweight lyric probe: no 50-song playlist map, album cover, or
+    // AI-context preparation on audio timeupdate (often 4-10 times/sec).
+    let songId='',title='',artist='',lyric='';
+    try {
+      if(typeof currentTrackList!=='undefined'&&typeof currentIndex!=='undefined'&&currentIndex>=0){
+        const track=currentTrackList[currentIndex];
+        songId=String(track?.id||'');
+        title=String(track?.title||'');
+        artist=String(track?.artist||'');
+      }
+      if(typeof lyricState!=='undefined'){
+        const index=lyricState.active;
+        lyric=String(lyricState.lines?.[index]?.text||'');
+      }
+    }catch(_){}
+    if(!title)title=document.getElementById('playingTrackName')?.textContent||'未知歌曲';
+    if(!artist)artist=document.getElementById('playingTrackArtist')?.textContent||'';
+    if(!lyric)lyric=document.querySelector('.lyric-line.active .lyric-main')?.textContent||'';
     const audio=document.getElementById('realAudio');
     const playing=!!audio&&!audio.paused&&!audio.ended;
-    const fingerprint=[music.songId,music.title,music.lyric,playing].join('\u001f');
+    const fingerprint=[songId,title,lyric,playing].join('\u001f');
     if(!force&&!entry&&fingerprint===lastFloatKey)return;
     lastFloatKey=fingerprint;
     const payload={active:true,contactId:participant.id,name:participant.name,avatar:participant.avatar||'',
-      music:{title:music.title,artist:music.artist,songId:music.songId},
-      lyric:music.lyric,playing};
+      music:{title:trim(title,160),artist:trim(artist,120),songId:trim(songId,90)},
+      lyric:trim(lyric,170),playing};
     if(entry)payload.entry={id:'music-entry-'+(++entrySeq),me:!!entry.me,text:trim(entry.text,200)};
     rpc('ui',payload).catch(e=>console.warn('[Music Float] update unavailable',e.message));
   }
