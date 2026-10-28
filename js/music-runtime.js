@@ -325,22 +325,38 @@
     setTimeout(()=>line.classList.add('wmc-speech-fading'),6500);
     setTimeout(()=>line.remove(),7600);
   }
-  function disableAutoKeyboardAndRecall(){
-    // The old private music module calls .focus() on open/send, which raises
-    // Android's keyboard without the user touching a text field. Native taps
-    // still focus normally; only programmatic calls on these inputs are muted.
+  function protectOnlyAutomaticKeyboard(){
+    // Keep all ORIGINAL '调取' and '发送' buttons and the quick-recall panel.
+    // Suppress the old music openChat()/openInline() auto .focus() calls ONLY.
+    // An actual click on send or a manual recall chip can still restore focus.
     for(const id of ['chatInput','duetChatInput']){
       const el=document.getElementById(id);
-      if(el&&!el.__wmcNoAutoFocus){
-        el.__wmcNoAutoFocus=true;
-        el.focus=function(){ /* explicit user tap still uses native focus */ };
-      }
+      if(!el||el.__wmcAutoKeyboardGuard)return;
+      const nativeFocus=el.focus.bind(el);
+      el.__wmcAutoKeyboardGuard=true;
+      el.__wmcAllowExplicitFocus=false;
+      el.focus=function(...args){
+        if(!el.__wmcAllowExplicitFocus)return;
+        el.__wmcAllowExplicitFocus=false;
+        return nativeFocus(...args);
+      };
     }
-    document.querySelectorAll('[aria-label="调取对方说的话"],.chat-split button[onclick*="toggleQuick"],#duetInput button[onclick*="toggleQuick"]').forEach(b=>{
-      b.hidden=true;
-      b.setAttribute('aria-hidden','true');
-      b.tabIndex=-1;
-    });
+    if(!document.__wmcFocusIntentInstalled){
+      document.__wmcFocusIntentInstalled=true;
+      document.addEventListener('click',e=>{
+        // Triggered by REAL user interaction with existing controls, not
+        // when the avatar or floating lyric opens the old chatPanel.
+        if(e.isTrusted===false)return;
+        const t=e.target?.closest?.('.quick-chip,button[aria-label="发送"]');
+        if(!t)return;
+        const id=t.closest?.('#duetInput')?'duetChatInput':'chatInput';
+        const input=document.getElementById(id);
+        if(input){
+          input.__wmcAllowExplicitFocus=true;
+          setTimeout(()=>{input.__wmcAllowExplicitFocus=false;},0);
+        }
+      },true);
+    }
   }
   // Sync only CHANGED lyrics, never the whole playlist on every time tick.
   let lastFloatSample=0,lastFloatKey='',entrySeq=0;
@@ -379,7 +395,7 @@
     rpc('ui',payload).catch(e=>console.warn('[Music Float] update unavailable',e.message));
   }
   function mountPlayerEvents(){
-    disableAutoKeyboardAndRecall();
+    protectOnlyAutomaticKeyboard();
     document.getElementById('wmcMinimize')?.remove();
     const audio=document.getElementById('realAudio');
     if(audio&&!audio.__wmcWatch){
@@ -393,7 +409,10 @@
     if(ev.source!==w.parent||(parentOrigin!=='*'&&ev.origin!==parentOrigin))return;
     const d=ev.data||{};
     if(d.type!=='whatever:music:ui:command'||!participant)return;
-    if(d.command==='send'){
+    if(d.command==='chat'){
+      // Open the ORIGINAL music chatPanel, exactly as its partner avatar does.
+      w.ListenTogether?.openChat?.();
+    }else if(d.command==='send'){
       const message=trim(d.text,200);
       if(message)w.ListenTogether?.send?.(message);
     }else if(d.command==='play'){
@@ -536,9 +555,6 @@
     '.wmc-speech-row:after{content:"";position:absolute;bottom:-6px;width:10px;height:10px;background:inherit;transform:rotate(45deg);border-right:inherit;border-bottom:inherit}',
     '.wmc-speech-me:after{right:18px}.wmc-speech-them:after{left:18px}',
     '.wmc-speech-row.wmc-speech-visible{opacity:1;transform:translateY(0)}.wmc-speech-row.wmc-speech-fading{opacity:0;transform:translateY(-14px)}',
-    'body:has(#chatPanel.open) .wmc-speech-stack{opacity:0;visibility:hidden}',
-    'body #duetThemBubble,body #duetMeBubble{display:none!important}',
-    'body .quick-panel,body button[aria-label="调取对方说的话"]{display:none!important}',
     '@media(prefers-reduced-motion:reduce){.wmc-speech-row{transition:none!important}}',
     '@media(prefers-reduced-motion:reduce){.wmc-mask,.wmc-sheet,.wmc-art,.wmc-eq i{animation:none!important}.wmc-option{transition:none}}'
   ].join('\n');
