@@ -378,20 +378,26 @@
   });
   const theme=document.createElement('style');
   theme.textContent=[
-    '.wmc-song-card{width:min(255px,78vw);background:linear-gradient(145deg,#22212b,#34323d);color:white;border:1px solid #ffffff24;border-radius:16px;padding:16px;box-shadow:0 6px 24px #0003;cursor:pointer;line-height:1.55}',
-    '.wmc-card-head{font-size:11px;color:#c5c1d4;letter-spacing:.08em;margin-bottom:12px}',
-    '.wmc-card-title{font-weight:700;font-size:16px;overflow-wrap:anywhere}',
-    '.wmc-card-artist{color:#aaa6b9;font-size:12px;margin-top:3px}',
-    '.wmc-card-status{margin-top:13px;border-top:1px solid #ffffff30;padding-top:9px;font-size:12px;color:#ddd9eb}',
-    '.wmc-card-row{margin:10px 0}.wmc-song-card:focus-visible{outline:2px solid #a5a0c6;outline-offset:3px}'
+    // A native chat .mrow.me uses row-reverse; make the button its only child
+    // so the card stays aligned at the right with no extra avatar spacer.
+    '.messages-app #thread .mrow.wmc-card-row{display:flex!important;width:100%;box-sizing:border-box;flex-direction:row-reverse!important;align-items:flex-end;margin:10px 0;gap:0;min-width:0}',
+    '.messages-app #thread .wmc-song-card{all:unset;box-sizing:border-box;display:flex!important;align-items:center;gap:13px;min-width:0;width:min(270px,calc(100% - 12px));max-width:100%;min-height:102px;padding:13px;border-radius:16px;background:#050505!important;color:#fff!important;border:1px solid #333;box-shadow:0 5px 17px #0002;cursor:pointer;overflow:hidden;text-align:left;flex-shrink:1}',
+    '.messages-app .wmc-card-disc{display:grid;place-items:center;width:66px;height:66px;flex:0 0 66px;border:1px solid #444;border-radius:50%;background:repeating-radial-gradient(circle,#121212 0 2px,#282828 3px,#0a0a0a 4px,#151515 5px);box-shadow:3px 4px 10px #0008}',
+    '.messages-app .wmc-card-disc-center{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#eaeaea;color:#171717;font-size:14px}',
+    '.messages-app .wmc-card-main{display:flex;flex-direction:column;justify-content:center;min-width:0;flex:1;gap:4px;overflow:hidden}',
+    '.messages-app .wmc-card-head{display:block;font-size:9px;letter-spacing:.12em;color:#9c9c9c;line-height:1.2;font-weight:700}',
+    '.messages-app .wmc-card-title{display:block;font-size:14px;font-weight:700;line-height:1.35;color:#fff!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.messages-app .wmc-card-artist{display:block;color:#aaa;font-size:11px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.messages-app .wmc-card-status{display:block;margin-top:4px;font-size:10px;line-height:1.2;color:#ddd}',
+    '.messages-app .wmc-song-card:focus-visible{outline:2px solid #222;outline-offset:3px}',
+    '@media(max-width:350px){.messages-app #thread .wmc-song-card{width:min(244px,calc(100% - 8px));padding:10px;gap:9px}.messages-app .wmc-card-disc{width:57px;height:57px;flex-basis:57px}}',
+    // Existing common-memory fold and chat-log styling are retained.
+    '.messages-app #memPage .mem-fold .mem-chatlog{max-height:360px;overflow-y:auto;overscroll-behavior:contain}',
+    '.messages-app #memPage .mem-fold .mem-chatlog .mem-cl-bub{white-space:pre-wrap;overflow-wrap:anywhere}'
   ].join('\n');
   document.head.appendChild(theme);
-  document.addEventListener('keydown',e=>{
-    const card=e.target.closest?.('.wmc-song-card');
-    if(card&&(e.key==='Enter'||e.key===' ')){
-      e.preventDefault();if(typeof w.openApp==='function')w.openApp('music');
-    }
-  });
+  // Cards are native buttons: click, Enter and Space all work without
+  // additional key handlers that could open Music twice.
   w.WhateverMusicChatBridge=Object.freeze({
     registerHost(adapter){
       if(!adapter||!adapter.listContacts||!adapter.getThread||!adapter.mutateContact)throw Error('聊天室适配器不完整');
