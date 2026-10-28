@@ -162,9 +162,9 @@
       if(entry){
         // The episode is the single source of truth for both replay and AI
         // context; every message is saved before a model request starts.
+        if(m.chatLog.length>=1200)throw Error('同听记录已达本地存储上限，请结束本次同听并新建会话');
         m.chatLog.push({me:!!entry.me,text:truncate(entry.text,2000),ts:Date.now(),
           title:truncate(entry.title||session.music.title,160),type:entry.type||'chat'});
-        if(m.chatLog.length>1200)throw Error('同听记录已达本地存储上限，请结束本次同听并新建会话');
       }
       if(session.music.title)m.title=session.music.title;
       if(session.music.artist)m.artist=session.music.artist;
@@ -316,7 +316,7 @@
   async function pick(data){
     const contactId=String(data.contactId),music=safeMusic(data.music);
     return serialize(contactId,async()=>{
-      const s=sessions.get(contactId);
+      const s=sessions.get(sessionKey(contactId));
       if(!s||s.status!=='accepted'||s.identityId!==activeIdentity())throw Error('还没开始一起听');
       if(!music.playlist.length)throw Error('当前没有可选的歌曲列表');
       writeEpisode(contactId,s,{me:true,text:'你来选下一首歌吧。',title:music.title});
@@ -332,7 +332,7 @@
   async function leave(data){
     const contactId=String(data.contactId);
     return serialize(contactId,async()=>{
-      const s=sessions.get(contactId);
+      const s=sessions.get(sessionKey(contactId));
       if(!s)return {ok:true};
       if(s.identityId!==activeIdentity())return {ok:false};
       sessions.delete(sessionKey(contactId));
