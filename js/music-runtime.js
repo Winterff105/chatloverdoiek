@@ -331,7 +331,7 @@
     // An actual click on send or a manual recall chip can still restore focus.
     for(const id of ['chatInput','duetChatInput']){
       const el=document.getElementById(id);
-      if(!el||el.__wmcAutoKeyboardGuard)return;
+      if(!el||el.__wmcAutoKeyboardGuard)continue;
       const nativeFocus=el.focus.bind(el);
       el.__wmcAutoKeyboardGuard=true;
       el.__wmcAllowExplicitFocus=false;
@@ -349,7 +349,7 @@
         if(e.isTrusted===false)return;
         const t=e.target?.closest?.('.quick-chip,button[aria-label="发送"]');
         if(!t)return;
-        const id=t.closest?.('#duetInput')?'duetChatInput':'chatInput';
+        const id=t.closest?.('#duetInput') || t.closest?.('#duetQuick') ? 'duetChatInput' : 'chatInput';
         const input=document.getElementById(id);
         if(input){
           input.__wmcAllowExplicitFocus=true;
