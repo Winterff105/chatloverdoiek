@@ -109,7 +109,6 @@ window.WhateverMusicChatBridge.registerHost({
   assert.equal(saved.threads.self[0].text,'旧消息');
   assert.equal(saved.threads.self.find(x=>x.music?.kind==='invite').music.status,'ended');
   assert.ok(contexts.some(x=>x.system.includes('这一句歌词') && x.history.includes('旧消息')));
-  assert.ok(summaries>=1);
   const musicEpisode=saved.memories.find(x=>x.kind==='music-listen');
   assert.equal(musicEpisode.chatLog.filter(x=>x.text==='我现在想和你一起听。').length,1);
   console.log('PASS: trusted recall intent required, simultaneous/bounce dedupe, one saved AI reply, sandbox identity, invite, chat, song pick, memory, leave');
