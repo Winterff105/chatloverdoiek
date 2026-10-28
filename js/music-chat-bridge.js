@@ -715,6 +715,8 @@
       const layer=this.persistentLayer()||document.getElementById('whatever-music-layer');
       if(!layer||!layer.contains(this.frame)||this.shelvedLayer)return;
       this.shelvedLayer={layer,clipPath:layer.style.clipPath,pointerEvents:layer.style.pointerEvents};
+      // Briefly hide until the iframe confirms its own transparent document;
+      // then remove clipping entirely so the browser keeps audio rendering.
       layer.style.clipPath='inset(0 0 100% 0)';
       layer.style.pointerEvents='none';
       // Opaque iframe element backgrounds otherwise show the player through
@@ -766,7 +768,7 @@
       if(this.resize)this.resize.hidden=true;
       if(this.shelvedLayer){
         const layer=this.shelvedLayer.layer;
-        layer.style.clipPath='inset(0 0 100% 0)';
+        layer.style.clipPath='none';
         layer.style.pointerEvents='none';
       }
       if(this.node)this.node.hidden=true;
@@ -842,7 +844,6 @@
     function capture(parent,node){
       if(!isMusicFrame(parent,node))return false;
       const previous=document.getElementById('wmc-persistent-music');
-      // Prevent a second audio player if app-manager retries loading.
       if(previous?.querySelector('iframe'))return false;
       capturing=true;
       try{
@@ -855,7 +856,6 @@
         node.style.display='block';
         node.style.width='100%';node.style.height='100%';
         node.style.border='0';
-        // iframe background turns transparent only when showing native chat.
         originalAppend.call(layer,node);
         float.frame=node;float.origin='null';
         float.positionPersistent();
@@ -863,21 +863,44 @@
         return true;
       }finally{capturing=false;}
     }
+    // Private app-manager sometimes builds an iframe inside a DETACHED
+    // wrapper, then appends that wrapper to .app-content. Intercept the
+    // wrapper's first insertion and capture the still-unmounted descendant.
+    // No mounted iframe is ever reparented or reloaded.
+    function detachMusicDescendants(parent,node){
+      if(capturing||!node||node.nodeType!==1&&node.tagName==null)return false;
+      const win=document.getElementById('appWindow');
+      if(!win||!win.contains(parent))return false;
+      const area=parent.closest?.('.app-content');
+      if(!area||!win.contains(area))return false;
+      const frames=Array.from(node.querySelectorAll?.('iframe')||[]);
+      let changed=false;
+      for(const frame of frames){
+        if(frame.isConnected)continue; // NEVER reload a connected player
+        if(capture(parent,frame))changed=true;
+      }
+      return changed;
+    }
+    function handleInsert(parent,node){
+      if(capture(parent,node))return true;
+      detachMusicDescendants(parent,node);
+      return false;
+    }
     Element.prototype.appendChild=function(node){
-      if(capture(this,node))return node;
+      if(handleInsert(this,node))return node;
       return originalAppend.call(this,node);
     };
     Element.prototype.insertBefore=function(node,ref){
-      if(capture(this,node))return node;
+      if(handleInsert(this,node))return node;
       return originalInsert.call(this,node,ref);
     };
     Element.prototype.replaceChildren=function(...nodes){
-      const retained=nodes.filter(n=>!capture(this,n));
-      return originalReplace.apply(this,retained);
+      const remaining=nodes.filter(n=>!handleInsert(this,n));
+      return originalReplace.apply(this,remaining);
     };
     Element.prototype.append=function(...nodes){
-      const rest=nodes.filter(n=>!capture(this,n));
-      return originalAppendMany.apply(this,rest);
+      const remaining=nodes.filter(n=>!handleInsert(this,n));
+      return originalAppendMany.apply(this,remaining);
     };
   })();
   const miniStyle=document.createElement('style');
@@ -903,6 +926,21 @@
   w.addEventListener('message',async e=>{
     if(!validSender(e))return;
     const d=e.data;
+    if(d?.type==='whatever:music:ui:dock-drag'){
+      float.dragFromChat(Math.max(-120,Math.min(120,Number(d.dx)||0)),
+        Math.max(-120,Math.min(120,Number(d.dy)||0)));
+      return;
+    }
+    if(d?.type==='whatever:music:ui:isolation-ready'){
+      const layer=float.shelvedLayer?.layer;
+      if(layer&&!float.nativePanelVisible){
+        // Keep the original audio iframe visibly composited rather than
+        // fully clipped: its DOCUMENT is now transparent and non-interactive.
+        layer.style.clipPath='none';
+        layer.style.pointerEvents='none';
+      }
+      return;
+    }
     if(d?.type==='whatever:music:ui:ready'){
       // Do NOT show a virtual Char or floating dock. Merely keep the real
       // audio iframe alive from its first mount, before invitations exist.
