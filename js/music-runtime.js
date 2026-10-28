@@ -756,6 +756,13 @@
       return;
     }
     if(d.command==='audio-restore'){restoreFromMain(d.value);return;}
+    if(d.command==='main-chat-sync'){
+      if(participant&&String(participant.id)===String(d.value?.contactId)){
+        const entries=Array.isArray(d.value?.entries)?d.value.entries.slice(-100):[];
+        for(const item of entries)w.ListenTogether?.mirrorMainMessage?.(item);
+      }
+      return;
+    }
     if(d.command==='chat-isolated'){setChatIsolated(d.value===true);return;}
     if(d.command==='chat-layout'){applyChatLayout(d.value);return;}
     if(d.command==='keyboard-viewport'){
