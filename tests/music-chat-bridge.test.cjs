@@ -53,6 +53,15 @@ window.WhateverMusicChatBridge.registerHost({
   const song={songId:'1',title:'试音曲',artist:'某歌手',lyric:'这一句歌词',position:75,playlist:[{id:'2',title:'另一首歌'}]};
   const invite=await request('invite',{contactId:'alice',mode:'ask',music:song});
   assert.equal(invite.accepted,true);
+  // Sandboxed srcdoc music uses an opaque origin; only the exact registered frame may request data.
+  const beforeOpaque=frame.output.length;
+  await onMessage({origin:'null',source:frame,data:{type:'whatever:music:request',id:'opaque-test',action:'contacts',payload:{}}});
+  assert.equal(frame.output.length,beforeOpaque+1);
+  assert.equal(frame.output.at(-1).id,'opaque-test');
+  const stranger={postMessage(){throw Error('An unrelated frame must never receive a reply')}};
+  await onMessage({origin:'null',source:stranger,data:{type:'whatever:music:request',id:'stranger',action:'contacts',payload:{}}});
+  assert.equal(frame.output.length,beforeOpaque+1);
+
   const reply=await request('chat',{contactId:'alice',text:'这一句你喜欢吗',music:song});
   assert.equal(reply.messages.length,1);
   const pick=await request('pick',{contactId:'alice',music:song});
@@ -66,5 +75,5 @@ window.WhateverMusicChatBridge.registerHost({
   assert.equal(saved.threads.self.find(x=>x.music?.kind==='invite').music.status,'ended');
   assert.ok(contexts.some(x=>x.system.includes('这一句歌词') && x.history.includes('旧消息')));
   assert.ok(summaries>=5);
-  console.log('PASS: invite, AI persona+memory+history, chat, song pick, track, shared persistence, leave');
+  console.log('PASS: sandbox null origin + frame identity, invite, AI persona+memory+history, chat, song pick, track, shared persistence, leave');
 })().catch(e=>{console.error(e);process.exitCode=1});
