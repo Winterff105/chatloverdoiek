@@ -320,7 +320,7 @@
     }
     const line=node('div','wmc-speech-row '+(side==='me'?'wmc-speech-me':'wmc-speech-them'),text);
     liveFeed.appendChild(line);
-    while(liveFeed.children.length>4)liveFeed.firstElementChild?.remove();
+    while(liveFeed.children.length>4){const oldest=liveFeed.firstElementChild;if(!oldest)break;oldest.remove();}
     requestAnimationFrame(()=>line.classList.add('wmc-speech-visible'));
     setTimeout(()=>line.classList.add('wmc-speech-fading'),6500);
     setTimeout(()=>line.remove(),7600);
