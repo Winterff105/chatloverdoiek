@@ -343,6 +343,20 @@
       return {messages:responseFor(contactId,music,parts,s.id)};
     });
   }
+  // A genuine API-generated partner reply, triggered by either native
+  // “调取” button. Do not fabricate a user chat message or reopen a history
+  // quote picker. The Char's response is stored in the SAME music episode.
+  async function recall(data){
+    const contactId=String(data.contactId),music=safeMusic(data.music);
+    return serialize(contactId,async()=>{
+      const session=sessions.get(sessionKey(contactId));
+      if(!session||session.status!=='accepted'||session.identityId!==activeIdentity())
+        throw Error('请先与当前 Char 开始一起听');
+      const parts=await reply(contactId,music,'recall',
+        '用户点了「调取」，请根据你的人设、当前歌曲和这次一起听的已有聊天自然主动回复。不要伪造用户刚发出的消息，也不要自行选歌。');
+      return {messages:responseFor(contactId,music,parts,session.id)};
+    });
+  }
   async function pick(data){
     const contactId=String(data.contactId),music=safeMusic(data.music);
     return serialize(contactId,async()=>{
@@ -505,7 +519,7 @@
       this.lastLyricIndex=null;
       el.addEventListener('click',()=>{
         if(this.ignoreNextClick){this.ignoreNextClick=false;return;}
-        if(this.frame?.isConnected)this.command('chat');
+        if(this.frame?.isConnected)this.command('chat-toggle');
       });
       let drag=null;
       el.addEventListener('pointerdown',e=>{
@@ -890,15 +904,20 @@
         const following=truncate(data.lyricNext||'',220);
         const key=[previous,current,following].join('\u001f');
         if(this.lastText!==key){
-          const moved=Number.isInteger(data.lyricIndex)&&this.lastLyricIndex!==null
-            &&data.lyricIndex!==this.lastLyricIndex;
+          // Real lyric timing is sometimes exposed only as DOM text (no
+          // numeric lyricState.active). Animate whenever the actual three
+          // lines move; never require an available lyric index.
+          const changed=this.lastText!==''&&this.lastText!==key;
           this.previous.textContent=previous||' ';
           this.lyric.textContent=current;
           this.next.textContent=following||' ';
           this.lastText=key;
-          if(moved){
+          if(changed){
             this.track.classList.remove('wmc-lyric-moving');
-            requestAnimationFrame(()=>this.track?.classList.add('wmc-lyric-moving'));
+            // Restart CSS animation on every new line, even during fast
+            // consecutive transitions. A rAF alone won't always restart it.
+            void this.track.offsetWidth;
+            this.track.classList.add('wmc-lyric-moving');
           }
         }
         if(Number.isInteger(data.lyricIndex))this.lastLyricIndex=data.lyricIndex;
@@ -1003,15 +1022,15 @@
     '#wmc-floating-player .wmc-lyric-row{display:block;box-sizing:border-box;max-width:100%;height:100%;padding:0 5px;background:none!important;border:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:system-ui,-apple-system,sans-serif;text-shadow:0 1px 6px #000e,0 2px 12px #000a}',
     '#wmc-floating-player .wmc-lyric-prev,#wmc-floating-player .wmc-lyric-next{font-size:11px;font-weight:500;color:rgba(255,255,255,.7);opacity:.60;line-height:24px}',
     '#wmc-floating-player .wmc-fp-lyric{font-size:14px;line-height:30px;font-weight:750;color:#fff;opacity:1}',
-    '#wmc-floating-player .wmc-lyric-track.wmc-lyric-moving{animation:wmc-three-lyrics-rise .5s ease-out both}',
-    '@keyframes wmc-three-lyrics-rise{from{transform:translateY(13px);opacity:.65}to{transform:translateY(0);opacity:1}}',
+    '#wmc-floating-player .wmc-lyric-track.wmc-lyric-moving{animation:wmc-three-lyrics-rise .48s cubic-bezier(.2,.7,.2,1) both}',
+    '@keyframes wmc-three-lyrics-rise{from{transform:translateY(24px);opacity:.58}to{transform:translateY(0);opacity:1}}',
     '#wmc-floating-player:focus-visible{outline:1px dashed #fff;outline-offset:1px}',
     '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-lyric-track{animation:none!important}}'
   ].join('\n');
   document.head.appendChild(miniStyle);
   const handlers={
     contacts:async()=>({contacts:listContacts()}),
-    invite,chat,pick,track,leave
+    invite,chat,recall,pick,track,leave
   };
   w.addEventListener('message',async e=>{
     if(!validSender(e))return;
