@@ -555,6 +555,12 @@
     w.__whateverMusicInviteReady=openInvite;
     w.toggleTogether=openInvite;
     w.WhateverMusicSnapshot=snapshot;
+    // The parent should retain this ORIGINAL player even if no together
+    // session is active yet. No UI or fake contact is created by this signal.
+    try{
+      if(w.parent&&w.parent!==w)
+        w.parent.postMessage({type:'whatever:music:ui:ready'},parentOrigin);
+    }catch(err){console.warn('[Music Chat] player keepalive handshake failed',err?.message);}
     console.info('[Music Chat] Canonical Char transport mounted; virtual mode disabled');
   }
   const style=document.createElement('style');
