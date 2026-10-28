@@ -897,6 +897,13 @@
     '.wmc-speech-me:after{right:18px}.wmc-speech-them:after{left:18px}',
     '.wmc-speech-row.wmc-speech-visible{opacity:1;transform:translateY(0)}.wmc-speech-row.wmc-speech-fading{opacity:0;transform:translateY(-14px)}',
     '@media(prefers-reduced-motion:reduce){.wmc-speech-row{transition:none!important}}',
+    // Scoped invitation styles: all visible corners are fully rounded,
+    // while the original Char picker, invitations and click handlers stay.
+    '.wmc-sheet{border-radius:34px!important;overflow:visible!important}',
+    '.wmc-album,.wmc-picker,.wmc-select-toggle,.wmc-contact-menu{border-radius:25px!important}',
+    '.wmc-option,.wmc-contact-option,.wmc-retry{border-radius:999px!important}',
+    '.wmc-close,.wmc-contact-initial,.wmc-contact-avatar,.wmc-option-icon{border-radius:50%!important}',
+    '@media(max-height:580px){.wmc-sheet{max-height:calc(100dvh - 18px);overflow-y:auto!important}.wmc-mask{overflow-y:auto}}',
     '@media(prefers-reduced-motion:reduce){.wmc-mask,.wmc-sheet,.wmc-art,.wmc-eq i{animation:none!important}.wmc-option{transition:none}}'
   ].join('\n');
   document.head.append(style);
