@@ -623,25 +623,17 @@
       const parentBottom=vv?vv.offsetTop+vv.height:window.innerHeight;
       const viewBottom=this.keyboardFocused?Math.min(parentBottom,this.keyboardBottom||parentBottom):parentBottom;
       let r=this.node.getBoundingClientRect();
-      if(this.keyboardFocused){
-        // Keep space for message history above the keyboard, not just the
-        // composer. The prior 125px reserve collapsed the feed on Android.
-        const dockHeight=r.height||90;
-        const roomAboveKeyboard=Math.max(0,viewBottom-dockHeight-16);
-        const targetHeight=Math.min(this.chatSize.height,Math.max(110,Math.min(240,roomAboveKeyboard)));
-        const desiredDockBottom=viewBottom-targetHeight-12;
-        if(r.bottom>desiredDockBottom){
-          if(this.keyboardOldTop===null)
-            this.keyboardOldTop={top:this.node.style.top,right:this.node.style.right,
-              bottom:this.node.style.bottom,left:this.node.style.left};
-          this.node.style.top=Math.max(4,desiredDockBottom-dockHeight)+'px';
-          this.node.style.bottom='auto';
-          r=this.node.getBoundingClientRect();
-        }
+      if(this.keyboardFocused&&r.bottom+125>viewBottom){
+        if(this.keyboardOldTop===null)
+          this.keyboardOldTop={top:this.node.style.top,right:this.node.style.right,
+            bottom:this.node.style.bottom,left:this.node.style.left};
+        this.node.style.top=Math.max(4,viewBottom-(r.height||90)-125)+'px';
+        this.node.style.bottom='auto';
+        r=this.node.getBoundingClientRect();
       }
       const width=Math.max(190,Math.min(this.chatSize.width,window.innerWidth-r.left-8));
-      const room=Math.max(0,viewBottom-r.bottom-12);
-      const height=this.keyboardFocused?Math.min(this.chatSize.height,Math.max(110,room))
+      const room=viewBottom-r.bottom-12;
+      const height=this.keyboardFocused?Math.max(105,Math.min(this.chatSize.height,room))
         :Math.max(170,Math.min(this.chatSize.height,room));
       return {left:r.left,top:r.bottom+8,width,height};
     },
