@@ -5,6 +5,9 @@
   const migrated = new Set();
   const sessions = new Map();
   const inProgress = new Map();
+  // One accepted user click can start only one Char request, even if a
+  // legacy listener or a duplicate iframe postMessage retries the action.
+  const recallGuards = new Map();
   let host = null;
   let lastId = 0;
   const esc = v => String(v ?? '').trim();
@@ -347,15 +350,34 @@
   // “调取” button. Do not fabricate a user chat message or reopen a history
   // quote picker. The Char's response is stored in the SAME music episode.
   async function recall(data){
+    // The early music-bundle click guard is the only producer of intentId.
+    // Old/automatic music callbacks must not silently generate an AI reply.
+    const intentId=typeof data.intentId==='string'?data.intentId:'';
+    if(!/^wmc-recall-[a-z0-9]+-[a-z0-9]+$/.test(intentId))
+      throw Error('请点击一起听窗口里的「调取」按钮');
     const contactId=String(data.contactId),music=safeMusic(data.music);
-    return serialize(contactId,async()=>{
-      const session=sessions.get(sessionKey(contactId));
-      if(!session||session.status!=='accepted'||session.identityId!==activeIdentity())
-        throw Error('请先与当前 Char 开始一起听');
-      const parts=await reply(contactId,music,'recall',
-        '用户点了「调取」，请根据你的人设、当前歌曲和这次一起听的已有聊天自然主动回复。不要伪造用户刚发出的消息，也不要自行选歌。');
-      return {messages:responseFor(contactId,music,parts,session.id)};
-    });
+    const session=sessions.get(sessionKey(contactId));
+    if(!session||session.status!=='accepted'||session.identityId!==activeIdentity())
+      throw Error('请先与当前 Char 开始一起听');
+    const key=sessionKey(contactId)+':'+session.id;
+    const previous=recallGuards.get(key);
+    if(previous&&(previous.pending||Date.now()-previous.finishedAt<1150))
+      return {messages:[],deduped:true};
+    const guard={pending:true,finishedAt:0,intentId};
+    recallGuards.set(key,guard);
+    try{
+      return await serialize(contactId,async()=>{
+        const current=sessions.get(sessionKey(contactId));
+        if(!current||current.id!==session.id||current.status!=='accepted')
+          throw Error('当前一起听已经结束，请重新邀请');
+        const parts=await reply(contactId,music,'recall',
+          '用户点了「调取」，请根据你的人设、当前歌曲和这次一起听的已有聊天自然主动回复。不要伪造用户刚发出的消息，也不要自行选歌。');
+        return {messages:responseFor(contactId,music,parts,session.id)};
+      });
+    }finally{
+      guard.pending=false;
+      guard.finishedAt=Date.now();
+    }
   }
   async function pick(data){
     const contactId=String(data.contactId),music=safeMusic(data.music);
@@ -1264,7 +1286,7 @@
   theme.textContent=[
     // Reuse the private messages.css file attachment shape and dimensions.
     // Its old pink folder icon becomes a real album sleeve + black vinyl.
-    '.messages-app #thread .mrow.wmc-card-row{display:flex!important;width:100%;box-sizing:border-box;flex-direction:row-reverse!important;align-items:flex-end;margin:9px 0;gap:0;min-width:0}',
+    '.messages-app #thread .mrow.wmc-card-row{display:flex!important;width:100%;box-sizing:border-box;flex-direction:row-reverse!important;align-items:flex-end;margin:9px 0;gap:0;min-width:0;padding-right:10px!important}',
     '.messages-app #thread .wmc-song-card.ff-card{appearance:none;border:1px solid #d9dadd!important;background:#fff!important;color:#3a3a3e!important;min-width:0;max-width:min(216px,calc(100vw - 80px));width:auto;box-sizing:border-box;padding:9px 10px;display:inline-flex!important;align-items:center;gap:8px;cursor:pointer;box-shadow:none!important;filter:none!important}',
     '.messages-app .wmc-song-art.ff-mini{position:relative;flex:0 0 54px!important;width:54px!important;height:45px!important;overflow:visible}',
     '.messages-app .wmc-card-vinyl{position:absolute;right:0;top:4px;width:38px;height:38px;border-radius:50%;background:repeating-radial-gradient(circle,#101010 0 2px,#262626 3px,#080808 4px,#191919 5px);box-shadow:none}',
