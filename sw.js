@@ -1,6 +1,6 @@
 // Whatever · Service Worker：让应用可以被"添加到主屏幕"，并在离线时用缓存打开
 // 每次改了 index.html 或公开资源，把这里的数字 +1，用户端就会收到更新提示
-const APP_VERSION = '41';
+const APP_VERSION = '42';
 const CACHE_NAME = 'Whatever-v' + APP_VERSION;
 // 首页缓存用 './' 而不是 './index.html'：Cloudflare 会把 /index.html 308 跳转到 /，
 // 缓存进去的就是"跳转过的响应"，Safari 会拒绝显示
@@ -12,11 +12,18 @@ const CRITICAL_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => cache.addAll(CRITICAL_ASSETS))
-            .then(() => self.skipWaiting())
-    );
+    event.waitUntil((async () => {
+        const cache = await caches.open(CACHE_NAME);
+        // The shell must be cached; a missing optional image must not
+        // abort the entire SW upgrade and strand an installed old version.
+        await cache.add('./');
+        await Promise.all(CRITICAL_ASSETS.slice(1).map(asset =>
+            cache.add(asset).catch(error => {
+                console.warn('[Whatever SW] Optional asset unavailable:', asset, error);
+            })
+        ));
+        await self.skipWaiting();
+    })());
 });
 
 self.addEventListener('activate', (event) => {
