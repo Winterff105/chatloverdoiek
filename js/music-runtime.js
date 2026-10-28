@@ -285,9 +285,29 @@
     retry.addEventListener('click',loadContacts);
     loadContacts();
   }
+  let installAttempts=0;
+  let canonicalTransport=null;
   function install(){
-    if(!w.ListenTogether?.setTransport){console.warn('[Music Chat] ListenTogether unavailable');return;}
-    w.ListenTogether.setTransport({send(msg){
+    if(!w.ListenTogether?.setTransport){
+      if(++installAttempts<=30)setTimeout(install,180);
+      else console.warn('[Music Chat] ListenTogether unavailable; demo disabled by server guard');
+      return;
+    }
+    if (canonicalTransport) {
+      w.ListenTogether.setTransport(canonicalTransport);
+      return;
+    }
+    const originalSetTransport=w.ListenTogether.setTransport.bind(w.ListenTogether);
+    // Older music-api.js may register another standalone AI transport during
+    // DOMContentLoaded. Do not let that override the canonical Char bridge.
+    w.ListenTogether.setTransport=function(candidate){
+      if(canonicalTransport&&candidate!==canonicalTransport){
+        console.warn('[Music Chat] Ignored obsolete music-only AI transport');
+        return;
+      }
+      return originalSetTransport(candidate);
+    };
+    canonicalTransport={send(msg){
       if(!participant)return;
       const contactId=participant.id;
       if(msg.type==='chat'){
@@ -306,13 +326,17 @@
         rpc('leave',{contactId}).catch(e=>console.warn('[Music Chat] leave',e.message));
         participant=null;
       }
-    }});
-    w.toggleTogether=function(){
+    }};
+    w.ListenTogether.setTransport(canonicalTransport);
+    const openInvite=function(){
       if(w.ListenTogether.isActive())w.ListenTogether.stop();
       else inviteModal();
     };
+    // Guard in protected music.js delegates here; never starts a virtual lover.
+    w.__whateverMusicInviteReady=openInvite;
+    w.toggleTogether=openInvite;
     w.WhateverMusicSnapshot=snapshot;
-    console.info('[Music Chat] Chat transport mounted on original chatPanel');
+    console.info('[Music Chat] Canonical Char transport mounted; virtual mode disabled');
   }
   const style=document.createElement('style');
   style.textContent=[
@@ -368,4 +392,10 @@
   document.head.append(style);
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>queueMicrotask(install),{once:true});
   else queueMicrotask(install);
+  // Music.js and music-api.js are injected dynamically into an iframe.
+  // Re-check after their own ready/load callbacks and any delayed scripts.
+  document.addEventListener('DOMContentLoaded',install,{once:true});
+  w.addEventListener('load',install,{once:true});
+  setTimeout(install,400);
+  setTimeout(install,1600);
 })(window);
