@@ -422,6 +422,13 @@
         this.lastError='主页面音频源无法播放';
         console.warn('[Music handoff] source cannot play in parent document');
       });
+      // During top-level playback the nested original audio is paused,
+      // so only this clock can advance the 3-line floating lyric.
+      const updateLyrics=()=>float.renderAt(Number(node.currentTime)||0);
+      node.addEventListener('timeupdate',updateLyrics);
+      node.addEventListener('timeupdate',()=>exposeSongState());
+      node.addEventListener('seeked',updateLyrics);
+      node.addEventListener('playing',updateLyrics);
       return node;
     },
     receive(data,source){
@@ -494,6 +501,31 @@
     if(audioHandoff.resumePending&&!audioHandoff.active)
       audioHandoff.takeOver(true);
   },true);
+  // Existing Whatever API ball sometimes sits under the full-screen Music
+  // iframe. Promote that SAME DOM node (not a copy) into the top-level layer
+  // and expose the live music context for its normal API requests.
+  function promoteExistingAPIBall(){
+    if(!float.frame?.isConnected)return;
+    const names=[
+      '#apiFloatingBall','#apiFloatBall','#api-floating-ball',
+      '#apiFloat','#apiFab','#apiBall','#apiStatusBall',
+      '#apiStatusFloat','.api-floating-ball','.api-float-ball',
+      '.api-fab','.api-status-ball','.api-status-float',
+      '.api-bubble','[data-api-ball]'
+    ];
+    for(const selector of names){
+      const ball=document.querySelector(selector);
+      if(!ball||ball.id==='wmc-floating-player'||ball.closest?.('#wmc-persistent-music'))continue;
+      if(!ball.dataset.wmcOriginalParent){
+        // No host UI is cloned; existing event handlers remain attached.
+        if(ball.parentElement&&ball.parentElement!==document.body)
+          document.body.appendChild(ball);
+        ball.dataset.wmcOriginalParent='promoted';
+      }
+      ball.style.zIndex='2147483562';
+      if(ball.style.position!=='fixed')ball.style.position='fixed';
+    }
+  }
   // Lyric-only floating ticker. Clicking it opens the music module's OWN
   // ListenTogether.chatPanel, identical to tapping the original partner avatar.
   // Never create a replacement chat form, send button, or quick-recall panel.
@@ -502,6 +534,8 @@
     preservedPane:null,sparePane:null,shelvedLayer:null,nativePanelVisible:false,homeMode:false,guarded:false,
     originalWinClip:null,paneStyles:null,panelBounds:null,persistentViewport:null,
     chatSize:{width:285,height:340},lastDockLayout:'',
+    lyricTimeline:[],lyricSongId:'',lastHostLyricIndex:-1,
+    keyboardFocused:false,keyboardBottom:0,keyboardOldTop:null,
     create(){
       if(this.node)return;
       const el=document.createElement('button');
@@ -544,13 +578,41 @@
       el.addEventListener('pointerup',end);
       el.addEventListener('pointercancel',end);
       window.addEventListener('resize',()=>this.layoutDock());
+      window.visualViewport?.addEventListener('resize',()=>this.layoutDock());
+      window.visualViewport?.addEventListener('scroll',()=>this.layoutDock());
     },
     dockRect(){
       if(!this.node)return null;
-      const r=this.node.getBoundingClientRect();
+      const vv=w.visualViewport;
+      const parentBottom=vv?vv.offsetTop+vv.height:window.innerHeight;
+      const viewBottom=this.keyboardFocused?Math.min(parentBottom,this.keyboardBottom||parentBottom):parentBottom;
+      let r=this.node.getBoundingClientRect();
+      if(this.keyboardFocused&&r.bottom+125>viewBottom){
+        if(this.keyboardOldTop===null)
+          this.keyboardOldTop={top:this.node.style.top,right:this.node.style.right,
+            bottom:this.node.style.bottom,left:this.node.style.left};
+        this.node.style.top=Math.max(4,viewBottom-(r.height||90)-125)+'px';
+        this.node.style.bottom='auto';
+        r=this.node.getBoundingClientRect();
+      }
       const width=Math.max(190,Math.min(this.chatSize.width,window.innerWidth-r.left-8));
-      const height=Math.max(170,Math.min(this.chatSize.height,window.innerHeight-r.bottom-15));
+      const room=viewBottom-r.bottom-12;
+      const height=this.keyboardFocused?Math.max(105,Math.min(this.chatSize.height,room))
+        :Math.max(170,Math.min(this.chatSize.height,room));
       return {left:r.left,top:r.bottom+8,width,height};
+    },
+    onKeyboard(info){
+      const was=this.keyboardFocused;
+      this.keyboardFocused=!!info?.focused;
+      const v=Number(info?.availableBottom);
+      this.keyboardBottom=Number.isFinite(v)&&v>0?v:0;
+      if(was&&!this.keyboardFocused&&this.keyboardOldTop&&this.node){
+        const o=this.keyboardOldTop;
+        this.node.style.top=o.top;this.node.style.right=o.right;
+        this.node.style.bottom=o.bottom;this.node.style.left=o.left;
+        this.keyboardOldTop=null;
+      }
+      this.layoutDock();
     },
     moveDock(x,y){
       if(!this.node)return;
@@ -572,7 +634,7 @@
       if(!fr||!fr.width||!fr.height)return;
       const local={left:Math.max(0,r.left-fr.left),top:Math.max(0,r.top-fr.top),
         width:Math.min(r.width,fr.right-r.left),height:Math.min(r.height,fr.bottom-r.top)};
-      if(local.width<150||local.height<130)return;
+      if(local.width<150||local.height<100)return;
       const fingerprint=JSON.stringify(local);
       if(this.lastDockLayout!==fingerprint){
         this.lastDockLayout=fingerprint;
@@ -595,6 +657,41 @@
       if(!this.node||!this.nativePanelVisible)return;
       const r=this.node.getBoundingClientRect();
       this.moveDock(r.left+Number(dx||0),r.top+Number(dy||0));
+    },
+    receiveTimeline(payload){
+      if(!payload||!Array.isArray(payload.lines))return;
+      const timeline=payload.lines.slice(0,450).map(item=>({
+        t:Number(item.t),text:truncate(item.text||'',170)
+      })).filter(item=>Number.isFinite(item.t)&&item.t>=0&&item.t<=86400&&item.text)
+        .sort((a,b)=>a.t-b.t);
+      if(!timeline.length)return;
+      this.lyricTimeline=timeline;
+      this.lyricSongId=String(payload.songId||'');
+      this.lastHostLyricIndex=-1;
+      if(audioHandoff.active&&audioHandoff.node)this.renderAt(audioHandoff.node.currentTime);
+    },
+    renderAt(seconds){
+      if(!audioHandoff.active||!this.lyricTimeline.length||!this.node||this.node.hidden)return;
+      const t=Number(seconds);
+      if(!Number.isFinite(t)||t<0)return;
+      const lines=this.lyricTimeline;
+      let lo=0,hi=lines.length;
+      while(lo<hi){const middle=(lo+hi)>>>1;if(lines[middle].t<=t+.08)lo=middle+1;else hi=middle;}
+      const index=Math.max(0,lo-1);
+      if(index===this.lastHostLyricIndex)return;
+      this.lastHostLyricIndex=index;
+      const prev=lines[index-1]?.text||' ',current=lines[index]?.text||'♪';
+      const next=lines[index+1]?.text||' ';
+      const key=[prev,current,next].join('\\u001f');
+      if(key===this.lastText)return;
+      const oldKey=this.lastText;
+      this.previous.textContent=prev;this.lyric.textContent=current;this.next.textContent=next;
+      this.lastText=key;
+      if(oldKey){
+        this.track.classList.remove('wmc-lyric-moving');
+        void this.track.offsetWidth;
+        this.track.classList.add('wmc-lyric-moving');
+      }
     },
     command(action,value){
       if(!this.frame?.isConnected||!this.frame.contentWindow){this.close();return;}
@@ -673,6 +770,7 @@
         if(this.shelvedLayer&&musicLayer){
           musicLayer.style.clipPath='none';
           musicLayer.style.pointerEvents='none';
+          if(this.persistentLayer())musicLayer.style.zIndex='0';
         }
         this.hideRetainedPane();
         this.hideWindowOnHome();
@@ -683,6 +781,7 @@
       if(musicLayer?.contains(this.frame)){
         if(!this.shelvedLayer)return; // original fullscreen remains unchanged
         this.nativePanelVisible=true;
+        musicLayer.style.zIndex='2147483490';
         this.command('chat-isolated',true);
         this.layoutDock();
         return;
@@ -821,11 +920,14 @@
     shelveLayer(){
       const layer=this.persistentLayer()||document.getElementById('whatever-music-layer');
       if(!layer||!layer.contains(this.frame)||this.shelvedLayer)return;
-      this.shelvedLayer={layer,clipPath:layer.style.clipPath,pointerEvents:layer.style.pointerEvents};
+      this.shelvedLayer={layer,clipPath:layer.style.clipPath,pointerEvents:layer.style.pointerEvents,zIndex:layer.style.zIndex};
       // Briefly hide until the iframe confirms its own transparent document;
       // then remove clipping entirely so the browser keeps audio rendering.
       layer.style.clipPath='inset(0 0 100% 0)';
       layer.style.pointerEvents='none';
+      // Other Whatever widgets (including the API floating orb) must stay
+      // ABOVE the hidden audio document until the user opens native chat.
+      if(this.persistentLayer())layer.style.zIndex='0';
       // Opaque iframe element backgrounds otherwise show the player through
       // rounded corners even when its document hides every non-chat node.
       if(this.persistentLayer()){
@@ -836,8 +938,9 @@
     },
     restoreMusic(){
       if(this.shelvedLayer){
-        const {layer,clipPath,pointerEvents}=this.shelvedLayer;
+        const {layer,clipPath,pointerEvents,zIndex}=this.shelvedLayer;
         layer.style.clipPath=clipPath;layer.style.pointerEvents=pointerEvents;
+        layer.style.zIndex=zIndex;
         this.shelvedLayer=null;
       }
       if(this.persistentLayer()){
@@ -895,8 +998,18 @@
       this.frame=sourceFrame;this.origin=origin;
       if(data.panel)this.setNativePanel(data.panel);
       // Preserve contact identity across lightweight panel-only updates.
-      if(data.contactId)this.data={...(this.data||{}),...data};
+      if(data.contactId||data.music)this.data={...(this.data||{}),...data};
       this.node.hidden=false;
+      const context=Object.freeze({
+        title:truncate(data.music?.title||this.data?.music?.title||'',160),
+        artist:truncate(data.music?.artist||this.data?.music?.artist||'',120),
+        songId:truncate(data.music?.songId||this.data?.music?.songId||'',90),
+        lyric:truncate(data.lyric||this.lyric?.textContent||'',170),
+        playing:!!data.playing
+      });
+      w.WhateverMusicNowPlaying=context;
+      try{w.dispatchEvent(new CustomEvent('whatever:music:api-context',{detail:context}));}catch{}
+      promoteExistingAPIBall();
       if(Object.prototype.hasOwnProperty.call(data,'lyric')||data.music){
         const current=truncate(data.lyric||data.music?.lyric||'',220)
           || ('♪ '+truncate(data.music?.title||'一起听',80));
@@ -923,11 +1036,46 @@
         if(Number.isInteger(data.lyricIndex))this.lastLyricIndex=data.lyricIndex;
       }
       this.guardNavigation();
+      exposeSongState();
       return {ok:true};
     }
   };
-  setInterval(()=>{if(float.frame&&!float.frame.isConnected)float.close();},8000);
+  setInterval(()=>{
+    if(float.frame&&!float.frame.isConnected)float.close();
+    promoteExistingAPIBall();
+  },3000);
 
+  // Share sanitized current-song context with the main Whatever API widget.
+  // The actual AI/Char transport and messages remain on their original path.
+  // Do not duplicate the API orb, media player, or any private chat content.
+  function exposeSongState(){
+    const meta=float.data?.music||{};
+    const audio=audioHandoff.active?audioHandoff.node:null;
+    const state={
+      title:truncate(meta.title||'',160),artist:truncate(meta.artist||'',120),
+      lyric:truncate(float.lyric?.textContent||'',170),
+      position:audio?Number(audio.currentTime)||0:Number(audioHandoff.state?.position)||0,
+      playing:audioHandoff.active?!audio?.paused:!!float.data?.playing,
+      source:'whatever-music'
+    };
+    w.WhateverMusicNowPlaying=Object.freeze({...state});
+    // Existing API float integrations may call the music snapshot name.
+    // Only expose public song metadata, never Char prompts or messages.
+    w.WhateverMusicSnapshot=()=>({...state,playlist:[]});
+    try{w.dispatchEvent(new CustomEvent('whatever:music-state',{detail:state}));}catch{}
+  }
+  // The API widget is not a child of the music iframe. Keep its host-page
+  // music snapshot available even when the private player is shelved.
+  const hostViewport=w.visualViewport;
+  function adjustForKeyboard(){
+    if(!float.frame?.isConnected)return;
+    const fr=float.frame.getBoundingClientRect();
+    const bottom=hostViewport?hostViewport.offsetTop+hostViewport.height:w.innerHeight;
+    float.command('keyboard-viewport',{bottom:Math.max(0,bottom-fr.top)});
+    if(float.nativePanelVisible)float.layoutDock();
+  }
+  hostViewport?.addEventListener('resize',adjustForKeyboard,{passive:true});
+  hostViewport?.addEventListener('scroll',adjustForKeyboard,{passive:true});
   // Mount the FIRST original music iframe in a permanent sibling before the
   // private app manager can attach it to a disposable .app-content. Moving
   // an already-mounted iframe would reload and stop the audio, so interception
@@ -1035,6 +1183,10 @@
   w.addEventListener('message',async e=>{
     if(!validSender(e))return;
     const d=e.data;
+    if(d?.type==='whatever:music:lyric-timeline'){
+      float.receiveTimeline(d);
+      return;
+    }
     if(d?.type==='whatever:music:audio-state'){
       audioHandoff.receive(d,e.source);
       return;
@@ -1046,6 +1198,10 @@
     }
     if(d?.type==='whatever:music:audio-leaving'){
       audioHandoff.takeOver();
+      return;
+    }
+    if(d?.type==='whatever:music:ui:keyboard'){
+      float.onKeyboard(d);
       return;
     }
     if(d?.type==='whatever:music:ui:dock-resize'){
