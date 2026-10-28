@@ -445,10 +445,11 @@
     const r=panel.getBoundingClientRect();
     if(r.width<=0||r.height<=0)return;
     const rect={left:r.left,top:r.top,width:r.width,height:r.height};
+    const viewport={width:w.innerWidth,height:w.innerHeight};
     const fingerprint=[Math.round(r.left),Math.round(r.top),Math.round(r.width),Math.round(r.height)].join('/');
     if(lastBounds===fingerprint)return;
     lastBounds=fingerprint;
-    rpc('ui',{active:true,contactId:participant.id,panel:{open:true,rect}}).catch(()=>{});
+    rpc('ui',{active:true,contactId:participant.id,panel:{open:true,rect,viewport}}).catch(()=>{});
   }
   function requestNativeBounds(){
     if(boundsPending)return;
