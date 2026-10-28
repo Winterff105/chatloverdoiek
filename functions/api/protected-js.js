@@ -4,9 +4,9 @@ const enc = new TextEncoder();
 // its loading indicator, and its error indicator are classless elements.
 function revealMusicWindow(file, contents) {
   if (file !== 'css/app-window.css') return contents;
-  return contents + '\n/* Music visibility fix v16: scoped to existing music elements */\n'
-    + '.app-window .app-content > iframe[title="音乐"] { display:block !important; }\n'
-    + '.app-window .app-content > div[style*="background:#0a0b0e"] { display:grid !important; color:#fff !important; font-size:14px !important; }\n';
+  return contents + '\n/* Music full-screen loading fix v17: no narrow center strip */\n'
+    + '.app-window .app-content > iframe[title="音乐"] { display:block !important; width:100% !important; min-width:0 !important; height:100% !important; flex:1 1 auto; align-self:stretch; background:#0a0b0e; }\n'
+    + '.app-window .app-content > div[style*="background:#0a0b0e"] { display:grid !important; box-sizing:border-box; width:100% !important; min-width:100%; height:100% !important; flex:1 0 auto; align-self:stretch; place-items:center; text-align:center; color:#fff !important; font-size:14px !important; }\n';
 }
 
 // Allow the existing music dock icon to use openApp('music').
