@@ -449,8 +449,9 @@
       if(!rect||!Number.isFinite(rect.left)||!Number.isFinite(rect.top)||
           !Number.isFinite(rect.width)||!Number.isFinite(rect.height))return;
       if(musicLayer?.contains(this.frame)){
-        // Do not show the dark full-screen music background on other apps.
-        if(!this.shelvedLayer)this.shelveLayer();
+        // Only clip while another app is visible. On the music page the
+        // user's original full-screen music/chat styling remains untouched.
+        if(!this.shelvedLayer)return;
         const vw=window.innerWidth,vh=window.innerHeight;
         const pad=8;
         const top=Math.max(0,rect.top-pad),left=Math.max(0,rect.left-pad);
@@ -498,7 +499,12 @@
         const original=app.close.bind(app);
         app.__wmcKeepAlive=true;
         app.close=function(opts){
-          if(root.frame?.isConnected&&root.data){root.shelveLayer();return;}
+          if(root.frame?.isConnected&&root.data){
+            root.shelveLayer();
+            // Original panel may already be open; ask its iframe for geometry.
+            root.command('panel-sync');
+            return;
+          }
           return original(opts);
         };
       }
