@@ -830,20 +830,33 @@
         const now=Date.now();
         if(recalling||now-lastRecallAt<1150)return;
         if(!participant){notify('请先邀请真实 Char 一起听');return;}
-        const contactId=participant.id;
+        const contactId=participant.id,contactName=participant.name;
+        const intentId='wmc-recall-'+now.toString(36)+'-'+(++seq).toString(36);
+        const source=document.documentElement.classList.contains('wmc-chat-isolated')
+          ?'floating-chat':'music-app';
+        const report=(stage,summary='')=>{
+          if(w.parent!==w)w.parent.postMessage({
+            type:'whatever:music:ui:recall-feedback',
+            intentId,contactId,name:contactName,source,stage,summary:trim(summary,220)
+          },parentOrigin);
+        };
         recalling=true;lastRecallAt=now;
         btn.disabled=true;
         btn.setAttribute('aria-busy','true');
+        report('loading');
         try{
-          const intentId='wmc-recall-'+now.toString(36)+'-'+(++seq).toString(36);
           const result=await rpc('recall',{contactId,music:snapshot(),intentId});
-          if(result?.deduped)return;
+          if(result?.deduped){report('success','已合并重复调取');return;}
           const messages=Array.isArray(result?.messages)?result.messages:[];
           if(!messages.length)throw Error('API 没有返回可用回复');
-          if(participant?.id!==contactId)return;
+          if(participant?.id!==contactId){report('error','联系人已切换');return;}
           for(const text of messages)w.ListenTogether?.receive?.(text);
-        }catch(error){notify('调取 API 回复失败：'+trim(error?.message||error,140));}
-        finally{
+          report('success',messages[0]);
+        }catch(error){
+          const message=trim(error?.message||error,140);
+          report('error',message);
+          notify('调取 API 回复失败：'+message);
+        }finally{
           recalling=false;lastRecallAt=Date.now();
           btn.disabled=false;
           btn.removeAttribute('aria-busy');
