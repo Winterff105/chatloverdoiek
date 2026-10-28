@@ -1,4 +1,14 @@
 const enc = new TextEncoder();
+// v16: preserve the private app-window CSS while making the existing music UI visible.
+// The original CSS hides all direct children without class; the music iframe,
+// its loading indicator, and its error indicator are classless elements.
+function revealMusicWindow(file, contents) {
+  if (file !== 'css/app-window.css') return contents;
+  return contents + '\n/* Music visibility fix v16: scoped to existing music elements */\n'
+    + '.app-window .app-content > iframe[title="音乐"] { display:block !important; }\n'
+    + '.app-window .app-content > div[style*="background:#0a0b0e"] { display:grid !important; color:#fff !important; font-size:14px !important; }\n';
+}
+
 // Allow the existing music dock icon to use openApp('music').
 // The desktop module is stored in the private Supabase bucket; keep it private.
 function allowExistingMusicTap(file, source) {
@@ -112,7 +122,7 @@ export async function onRequest(context) {
       return new Response(`File not found (${res.status}): ${detail}`, { status: 404 });
     }
 
-    const content = allowExistingMusicTap(file, await res.text());
+    const content = revealMusicWindow(file, allowExistingMusicTap(file, await res.text()));
 
     const contentType = file.endsWith('.css')
       ? 'text/css; charset=utf-8'
