@@ -58,7 +58,9 @@
   function closeDialog(){dialog?.remove();dialog=null;}
   function notify(t){if(typeof w.showToast==='function')w.showToast(t);else console.info('[Music Chat]',t);}
   function inviteModal(){
-    if(busy)return;
+    // A single real invitation sheet. Duplicate taps must not remove and
+    // recreate the dialog (which appears as a flash on mobile WebViews).
+    if(busy||dialog?.isConnected)return;
     closeDialog();
     const mask=node('div','wmc-mask'),sheet=node('section','wmc-sheet');
     sheet.setAttribute('role','dialog');
@@ -154,7 +156,7 @@
       if(e.key==='Escape'&&!busy){e.preventDefault();closeDialog();}
     });
     document.body.append(mask);
-    dialog=mask;close.focus();
+    dialog=mask;close.focus({preventScroll:true});
 
     let contacts=[];
     let selectedId='';
@@ -542,11 +544,10 @@
     '#wmc-native-chat-resize{position:absolute;right:0;bottom:0;z-index:8;width:28px;height:28px;padding:0;border:0!important;outline:0;background:transparent!important;color:transparent!important;font-size:0;touch-action:none;cursor:nwse-resize;-webkit-tap-highlight-color:transparent}',
     '#wmc-native-chat-resize::after{content:"";position:absolute;right:3px;bottom:3px;width:7px;height:7px;border-right:1.5px solid rgba(255,255,255,.5);border-bottom:1.5px solid rgba(255,255,255,.5);border-radius:1px;pointer-events:none}',
     'html.wmc-chat-isolated .chat-panel:not(.open){visibility:hidden!important;opacity:0!important}',
-    'html.wmc-keyboard-active #duetInput.show{bottom:var(--wmc-keyboard-inset,0px)!important;z-index:2500!important}',
     'html.wmc-keyboard-active #chatPanel.open .chat-input-row{position:relative;z-index:3;background:inherit}',
     'html.wmc-keyboard-active #chatPanel.open .chat-list{min-height:0;overflow-y:auto}',
     // Keep both ORIGINAL music inputs above Android's visual keyboard.
-    'html.wmc-chat-keyboard:not(.wmc-chat-isolated) #chatPanel{bottom:calc(var(--wmc-keyboard-inset,0px) + 8px)!important;max-height:calc(100dvh - var(--wmc-keyboard-inset,0px) - 22px)!important;min-height:0!important}',
+    'html.wmc-chat-keyboard:not(.wmc-chat-isolated) #chatPanel{bottom:calc(var(--wmc-keyboard-inset,0px) + 8px)!important;max-height:calc(var(--wmc-visible-bottom,100dvh) - 22px)!important;min-height:0!important}',
     'html.wmc-chat-keyboard:not(.wmc-chat-isolated) #duetInput{position:fixed!important;bottom:calc(var(--wmc-keyboard-inset,0px) + 8px)!important;left:8px!important;right:8px!important;z-index:2147483001!important}',
     'html.wmc-chat-keyboard #chatPanel .chat-list{min-height:0!important;overflow-y:auto!important}',
     'html.wmc-chat-keyboard #chatPanel .chat-input-row{flex-shrink:0!important}'
@@ -564,9 +565,9 @@
     if(!on)backgroundShouldPlay=false;
     document.documentElement.classList.toggle('wmc-chat-isolated',!!on);
     if(on){
-      // Close only on the FIRST transition away from music. Repeated
-      // chat-isolated commands during native openChat must not close it.
-      if(!wasIsolated)w.ListenTogether?.closeChat?.();
+      // Preserve the already-open original chatPanel while the host switches
+      // to its clipped floating view. Closing it here races with openChat()
+      // and makes the panel flash open then vanish.
       try{w.parent.postMessage({type:'whatever:music:ui:isolation-ready'},parentOrigin);}
       catch(error){console.warn('[Music keepalive] isolation notice failed',error?.message);}
     }else{
@@ -582,8 +583,9 @@
     const active=document.activeElement;
     const stillFocused=!!(active&&['chatInput','duetChatInput'].includes(active.id));
     keyboardFocused=stillFocused;
-    document.documentElement.classList.toggle('wmc-chat-keyboard',stillFocused);
-    document.documentElement.style.setProperty('--wmc-keyboard-inset',inset+'px');
+    // fitKeyboard owns keyboard CSS variables and layout. A second writer here
+    // used to fight the parent iframe geometry during viewport animations.
+    scheduleFitKeyboard();
     if(stillFocused){
       const panel=document.getElementById('chatPanel');
       if(panel?.classList.contains('open')){
@@ -612,59 +614,43 @@
     w.visualViewport?.addEventListener('scroll',reportKeyboard);
     w.addEventListener('resize',reportKeyboard);
   }
-  // Android virtual keyboard can reduce the VISUAL viewport without changing
-  // iframe layout height. Keep original ListenTogether input above that edge.
-  // Only adjust original chatPanel/duetInput while a real input has focus.
-  let keyboardSaved=null,keyboardParentBottom=null,keyboardScheduled=false;
+  // Android may resize only the visual viewport, leaving the iframe layout
+  // unchanged. The host reports its usable bottom in iframe coordinates.
+  // ONE controller owns the CSS inset; the floating chat's coordinates remain
+  // owned by the parent dock, avoiding a write-back/reflow loop.
+  let keyboardParentBottom=null,keyboardScheduled=false;
   function restoreKeyboardGeometry(){
-    const panel=document.getElementById('chatPanel');
-    if(panel&&keyboardSaved){
-      for(const key of ['top','bottom','height','maxHeight','overflow']){
-        if(keyboardSaved[key])panel.style.setProperty(key,keyboardSaved[key]);
-        else panel.style.removeProperty(key);
-      }
-    }
-    keyboardSaved=null;
-    document.documentElement.classList.remove('wmc-keyboard-active');
-    requestNativeBounds();
+    const root=document.documentElement;
+    root.classList.remove('wmc-keyboard-active','wmc-chat-keyboard');
+    root.style.removeProperty('--wmc-keyboard-inset');
+    root.style.removeProperty('--wmc-visible-bottom');
   }
   function fitKeyboard(){
     keyboardScheduled=false;
     const active=document.activeElement;
+    const root=document.documentElement;
     if(!active||!['chatInput','duetChatInput'].includes(active.id)){
-      if(keyboardSaved)restoreKeyboardGeometry();
+      restoreKeyboardGeometry();
       return;
     }
     const vv=w.visualViewport;
-    const localBottom=vv?vv.offsetTop+vv.height:(w.innerHeight||document.documentElement.clientHeight);
-    const bottom=Math.min(localBottom,keyboardParentBottom??Infinity);
-    const height=w.innerHeight||document.documentElement.clientHeight||bottom;
-    const keyboardOpen=bottom<height-70;
-    if(!keyboardOpen){
-      if(keyboardSaved)restoreKeyboardGeometry();
+    const height=w.innerHeight||document.documentElement.clientHeight||0;
+    const localBottom=vv?vv.offsetTop+vv.height:height;
+    const bottom=Math.max(0,Math.min(height,localBottom,keyboardParentBottom??Infinity));
+    const inset=Math.max(0,Math.round(height-bottom));
+    // Avoid jumping when Android's browser toolbar changes by a few pixels.
+    const open=inset>70;
+    root.classList.toggle('wmc-chat-keyboard',open);
+    root.classList.toggle('wmc-keyboard-active',open);
+    if(!open){
+      root.style.removeProperty('--wmc-keyboard-inset');
+      root.style.removeProperty('--wmc-visible-bottom');
       return;
     }
-    document.documentElement.classList.add('wmc-keyboard-active');
-    const panel=document.getElementById('chatPanel');
-    if(active.id==='chatInput'&&panel?.classList.contains('open')){
-      if(!keyboardSaved){
-        const props=['top','bottom','height','maxHeight','overflow'];
-        keyboardSaved=Object.fromEntries(props.map(key=>[key,panel.style.getPropertyValue(key)]));
-      }
-      const box=panel.getBoundingClientRect();
-      const top=Math.max(6,Math.min(box.top,bottom-200));
-      const h=Math.max(150,Math.min(box.height,bottom-top-8));
-      panel.style.setProperty('top',top+'px','important');
-      panel.style.setProperty('bottom','auto','important');
-      panel.style.setProperty('height',h+'px','important');
-      panel.style.setProperty('max-height',h+'px','important');
-      panel.style.setProperty('overflow','hidden','important');
-      requestNativeBounds();
-    }
-    // The in-player inline composer uses fixed positioning from private CSS.
-    // Lift just that composer, not the entire original music layout.
-    document.documentElement.style.setProperty('--wmc-keyboard-inset',
-      Math.max(0,height-bottom)+'px');
+    root.style.setProperty('--wmc-keyboard-inset',inset+'px');
+    root.style.setProperty('--wmc-visible-bottom',Math.round(bottom)+'px');
+    // In isolated mode the host positions the existing original chat panel.
+    // Never mutate its inline top/height here: applyChatLayout owns those.
   }
   function scheduleFitKeyboard(){
     if(keyboardScheduled)return;
@@ -679,7 +665,6 @@
       setTimeout(()=>{
         if(!['chatInput','duetChatInput'].includes(document.activeElement?.id)){
           keyboardParentBottom=null;
-          document.documentElement.style.removeProperty('--wmc-keyboard-inset');
           restoreKeyboardGeometry();
         }
       },170);
@@ -688,6 +673,7 @@
     w.visualViewport.addEventListener('resize',scheduleFitKeyboard);
     w.visualViewport.addEventListener('scroll',scheduleFitKeyboard);
   }
+  w.addEventListener('resize',scheduleFitKeyboard);
   // Some private app-manager exit paths pause the audio even when its
   // iframe stays connected. Resume only if it WAS PLAYING on navigation.
   // Never auto-start music the user had paused, and don't retry endlessly.
