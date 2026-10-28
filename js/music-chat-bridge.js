@@ -604,8 +604,14 @@
     onKeyboard(info){
       const was=this.keyboardFocused;
       this.keyboardFocused=!!info?.focused;
-      const v=Number(info?.availableBottom);
-      this.keyboardBottom=Number.isFinite(v)&&v>0?v:0;
+      // The iframe reports local coordinates; the lyric dock lives in the
+      // host document. Use one host-coordinate bottom to avoid jitter.
+      const vv=w.visualViewport;
+      const hostBottom=vv?vv.offsetTop+vv.height:w.innerHeight;
+      const reported=Number(info?.availableBottom);
+      const frameTop=this.frame?.getBoundingClientRect().top||0;
+      this.keyboardBottom=Number.isFinite(reported)&&reported>0
+        ?Math.min(hostBottom,frameTop+reported):hostBottom;
       if(was&&!this.keyboardFocused&&this.keyboardOldTop&&this.node){
         const o=this.keyboardOldTop;
         this.node.style.top=o.top;this.node.style.right=o.right;
@@ -768,9 +774,12 @@
       if(panel?.open===false){
         this.panelBounds=null;this.nativePanelVisible=false;this.lastDockLayout='';
         if(this.shelvedLayer&&musicLayer){
-          musicLayer.style.clipPath='none';
+          // Do not reveal the full opaque player before its iframe reports
+          // chat-isolation readiness; that produced a one-frame flash.
+          musicLayer.style.clipPath='inset(0 0 100% 0)';
           musicLayer.style.pointerEvents='none';
           if(this.persistentLayer())musicLayer.style.zIndex='0';
+          this.command('chat-isolated',true);
         }
         this.hideRetainedPane();
         this.hideWindowOnHome();
