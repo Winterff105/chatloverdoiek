@@ -134,7 +134,8 @@
     storage_failed:'Supabase 私有 Storage 读取或备份失败；原音乐文件未由此页面覆盖。',
     not_configured:'服务器缺少必要的服务端配置。',
     write_disabled:'写回功能目前被服务器锁定。',
-    source_conflict:'源文件已变化，需要重新检查。'
+    source_conflict:'源文件已变化，请重新检查。若第一份已成功，会自动跳过，不会重复覆盖。',
+    verify_failed:'写入可能已成功，但 CDN 缓存导致校验暂未确认。请重新检查文件，不要立即重复写回。'
   };
   async function api(action,path,extra={}){
     const token=getToken();
@@ -167,7 +168,7 @@
         if(!/^[a-f0-9]{64}$/.test(data.sha256)||!Number.isInteger(data.bytes)||data.bytes<=0)
           throw new Error('文件校验响应异常：'+name);
         results.set(name,{sha256:data.sha256,bytes:data.bytes});
-        row.state.textContent=(data.bytes/1024).toFixed(1)+' KB';
+        row.state.textContent=approvedBundle?.[name]?.newSha256===data.sha256?'已是修复版':(data.bytes/1024).toFixed(1)+' KB';
         row.hash.textContent='SHA-256：'+data.sha256;
       }
       verified=true;
@@ -258,8 +259,9 @@
   async function applyApproved(){
     if(busy||!verified||!backupVerified||!approvedBundle)return;
     for(const path of Object.keys(approvedBundle)){
-      if(approvedBundle[path].expectedSha256!==results.get(path)?.sha256){
-        tell('当前原文件校验值与修复包不一致，请重新检查。','error');
+      const item=approvedBundle[path],current=results.get(path)?.sha256;
+      if(current!==item.expectedSha256 && current!==item.newSha256){
+        tell('当前原文件与审核包的旧版、新版均不一致，请停止操作并联系我。','error');
         return;
       }
     }
@@ -275,18 +277,19 @@
         });
         if(result.applied!==true||result.verified!==true||
            result.sha256!==item.newSha256||
-           !result.backup?.startsWith('backups/music-source-edits/'))
+           (!result.alreadyApplied&&!result.backup?.startsWith('backups/music-source-edits/')))
           throw new Error(path+' 写入后的核验不一致');
-        applied.push(path);
-        rows.get(path).backup.textContent='写入前备份：'+result.backup;
+        applied.push(result.alreadyApplied?path+'（原先已完成）':path+'（本次完成）');
+        rows.get(path).backup.textContent=result.alreadyApplied?
+          '检测为已审核修复版：未再次覆盖':('写入前备份：'+result.backup);
         rows.get(path).hash.textContent='新 SHA-256：'+result.sha256;
-        rows.get(path).state.textContent='已成功修复';
+        rows.get(path).state.textContent=result.alreadyApplied?'已修复，无需重写':'本次已修复';
       }
       approvedBundle=null;verified=false;backupVerified=false;fixInput.value='';
-      tell('两份 Supabase 原文件均已安全写回并复核哈希。请重新打开 Whatever，验证真实 Char 邀请、手动调取与聊天。','success');
+      tell('两份 Supabase 原文件均已确认是审核后的修复版，已写入的文件不会重复覆盖。请重新打开 Whatever 检查音乐和聊天。','success');
     }catch(e){
-      tell('写入未全部成功。已完成：'+(applied.join('、')||'无')+
-        '。其余请停止操作并将此错误发给我：'+String(e?.message||e),'error');
+      tell('修复未全部确认。已完成：'+(applied.join('、')||'无')+
+        '。请不要连续点击写回；先重新检查四个文件状态，再将错误发给我：'+String(e?.message||e),'error');
       // No second automatic retry; avoids mismatched or partial writes.
       approvedBundle=null;verified=false;backupVerified=false;
     }finally{setBusy(false);}
