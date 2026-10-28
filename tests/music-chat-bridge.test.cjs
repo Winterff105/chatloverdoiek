@@ -21,7 +21,8 @@ let onMessage;
 // Match the real playerFrames() lookup used by the production bridge.
 const mountedMusicFrame={contentWindow:frame,isConnected:true,style:{}};
 const layer={querySelectorAll(){return [mountedMusicFrame]}};
-const preservedMusicLayer={contains:frame=>frame===mountedMusicFrame,style:{}};
+const preservedMusicLayer={contains:frame=>frame===mountedMusicFrame,
+  querySelectorAll(){return [mountedMusicFrame]},style:{}};
 const document={getElementById(id){
     if(id==='whatever-music-layer')return layer;
     if(id==='wmc-persistent-music')return preservedMusicLayer;
