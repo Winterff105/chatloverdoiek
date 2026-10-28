@@ -388,7 +388,7 @@
   // pauses its nested iframe. This is a playback handoff, not a second player
   // window, and it never touches Char messages, prompts or account data.
   const audioHandoff={
-    node:null,state:null,active:false,returning:false,returnFrame:null,lastError:null,
+    node:null,state:null,active:false,returning:false,returnFrame:null,lastError:null,resumePending:false,
     validSource(src){
       if(typeof src!=='string'||src.length>2200)return false;
       try{
@@ -426,9 +426,10 @@
         this.finishReturn();
       }
     },
-    takeOver(){
+    takeOver(fromGesture=false){
       const st=this.state;
-      if(this.active||!st||st.paused||st.ended||Date.now()-st.stamp>12000
+      if(this.active||!st||st.paused||st.ended||
+        (Date.now()-st.stamp>12000&&!this.resumePending)
         ||!this.validSource(st.src))return false;
       const a=this.ensure();
       this.returning=false;this.returnFrame=null;
@@ -440,12 +441,13 @@
       a.volume=st.volume;a.muted=st.muted;a.playbackRate=st.playbackRate;
       this.active=true;
       Promise.resolve(a.play()).then(()=>{
+        this.resumePending=false;this.lastError=null;
         // Mute ONLY after parent audio actually starts; no double song.
         float.command('audio-handoff-mute');
       }).catch(e=>{
         this.lastError=String(e?.message||e);
-        this.active=false;
-        console.warn('[Music handoff] parent audio playback was blocked:',this.lastError);
+        this.active=false;this.resumePending=true;
+        console.warn('[Music handoff] parent audio playback was blocked, retry on next gesture:',this.lastError);
       });
       return true;
     },
@@ -467,9 +469,17 @@
     finishReturn(){
       if(!this.active||!this.returning)return;
       this.node?.pause();
-      this.active=false;this.returning=false;this.returnFrame=null;
+      this.active=false;this.resumePending=false;
+      this.returning=false;this.returnFrame=null;
     }
   };
+  // Browser user activation policies differ: if an iframe exit triggered
+  // a denied play() in the parent, retry on the NEXT explicit touch/gesture.
+  // Do not display an extra dialog and never start a song paused by the user.
+  document.addEventListener('pointerdown',()=>{
+    if(audioHandoff.resumePending&&!audioHandoff.active)
+      audioHandoff.takeOver(true);
+  },true);
   // Lyric-only floating ticker. Clicking it opens the music module's OWN
   // ListenTogether.chatPanel, identical to tapping the original partner avatar.
   // Never create a replacement chat form, send button, or quick-recall panel.
