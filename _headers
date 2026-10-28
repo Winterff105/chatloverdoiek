@@ -1,0 +1,24 @@
+/
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/index.html
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/sw.js
+  Cache-Control: no-store, no-cache, must-revalidate
+
+/app-version.json
+  Cache-Control: no-store, no-cache, must-revalidate
+  Content-Type: application/json; charset=utf-8
+
+/js/update-manager.js
+  Cache-Control: no-cache, must-revalidate
+
+/js/music-runtime.js
+  Cache-Control: no-cache, must-revalidate
+
+/js/music-chat-bridge.js
+  Cache-Control: no-cache, must-revalidate
+
+/js/sanctuary-gate.js
+  Cache-Control: no-cache, must-revalidate

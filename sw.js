@@ -1,6 +1,6 @@
 // Whatever · Service Worker：让应用可以被"添加到主屏幕"，并在离线时用缓存打开
 // 每次改了 index.html 或公开资源，把这里的数字 +1，用户端就会收到更新提示
-const APP_VERSION = '20';
+const APP_VERSION = '21';
 const CACHE_NAME = 'Whatever-v' + APP_VERSION;
 // 首页缓存用 './' 而不是 './index.html'：Cloudflare 会把 /index.html 308 跳转到 /，
 // 缓存进去的就是"跳转过的响应"，Safari 会拒绝显示
@@ -22,7 +22,8 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
     event.waitUntil((async () => {
         const keys = await caches.keys();
-        const oldKeys = keys.filter(key => key !== CACHE_NAME);
+        // Only remove Whatever caches. Other apps may share the same origin.
+        const oldKeys = keys.filter(key => key.startsWith('Whatever-v') && key !== CACHE_NAME);
         await Promise.all(oldKeys.map(key => caches.delete(key)));
         await self.clients.claim();
         // 把当前版本号告诉所有打开的页面，由页面对比本地记录决定要不要提示
@@ -33,6 +34,10 @@ self.addEventListener('activate', (event) => {
 
 // 页面每次打开都会主动询问当前版本号
 self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+        return;
+    }
     if (event.data && event.data.type === 'GET_VERSION' && event.source) {
         event.source.postMessage({ type: 'VERSION', version: APP_VERSION });
     }
@@ -58,15 +63,16 @@ self.addEventListener('fetch', (event) => {
     // 后端接口（登录、心跳、带 token 的受保护代码）一律不经过 SW、不进缓存
     if (url.pathname.startsWith('/api/')) return;
 
-    // sw.js 自身不缓存，保证浏览器每次都能拿到最新版本
-    if (url.pathname.endsWith('/sw.js')) return;
+    // Version manifest and SW must always reach the network; no cached responses.
+    if (url.pathname === '/app-version.json' || url.pathname === '/sw.js') return;
 
     // 打开页面：网络优先，断网用缓存
     // Safari 不接受带跳转记录的页面响应，所以无论来自网络还是缓存，返回前都先清洗一遍
     if (req.mode === 'navigate') {
         event.respondWith((async () => {
             try {
-                const res = await fetch(req);
+                // Force network for navigations even when a service worker is active.
+                const res = await fetch(req, {cache:'no-store'});
                 const clean = await cleanRedirect(res);
                 if (clean.ok) {
                     const copy = clean.clone();
