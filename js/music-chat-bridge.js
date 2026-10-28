@@ -44,7 +44,8 @@
   // browser origin is literally "null".  Trust only the currently mounted
   // music iframe's exact WindowProxy, never arbitrary opaque-origin frames.
   const validSender = e => (e.origin===w.location.origin||e.origin==='null')
-    && playerFrames().some(f=>f.contentWindow===e.source);
+    && (playerFrames().some(f=>f.contentWindow===e.source)
+        || (!!float?.frame?.isConnected&&float.frame.contentWindow===e.source));
   const responseOrigin = e => e.origin==='null'?'*':e.origin;
   const safeMusic = raw => {
     const s = raw && typeof raw === 'object' ? raw : {};
@@ -493,7 +494,10 @@
       if(typeof w.openApp==='function'){
         const original=w.openApp;
         w.openApp=function(appId){
-          if(root.frame?.isConnected&&appId!=='music')root.preservePane();
+          if(root.frame?.isConnected&&appId!=='music'){
+            root.preservePane();
+            if(root.preservedPane){root.preservedPane.style.display='none';if(root.sparePane)root.sparePane.style.display='';}
+          }
           if(appId==='music'&&root.preservedPane){
             root.restoreMusic();return;
           }
@@ -570,9 +574,9 @@
     },
     close(){
       this.collapse();
-      if(this.shelvedLayer)this.restoreMusic();
+      // Never unexpectedly flash the full-screen music layer while switching apps.
       if(this.node)this.node.hidden=true;
-      this.frame=null;this.origin=null;this.data=null;this.entries=[];
+      this.frame=null;this.origin=null;this.data=null;this.entries=[];this.lastText='';
       this.messages?.replaceChildren();
       // No forced reparent, no music source edits, no localStorage clear.
     },
