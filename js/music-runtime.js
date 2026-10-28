@@ -420,7 +420,7 @@
       if(!audio)return;
       if(audio.paused)Promise.resolve(audio.play()).catch(()=>{});
       else audio.pause();
-    }else if(d.command==='panel-sync')requestNativeBounds();
+    }else if(d.command==='panel-sync'){lastBounds='';requestNativeBounds();}
     else if(d.command==='sync')sendFloatState(true);
   });
   // Send the ORIGINAL chatPanel's geometry to the parent. A clipped, mounted
