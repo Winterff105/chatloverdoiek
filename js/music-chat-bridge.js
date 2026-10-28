@@ -319,7 +319,10 @@
       if(!['direct','ask'].includes(mode))throw Error('邀请方式无效');
       const marker=add(contactId,{me:true,text:'【一起听歌邀请】《'+music.title+'》'+(music.artist?' · '+music.artist:'')+'（'+(mode==='ask'?'等待回应':'已接受')+'）',
         music:{kind:'invite',title:music.title,artist:music.artist,album:music.album,songId:music.songId,cover:music.cover,mode,status:mode==='ask'?'pending':'accepted'}});
-      const session={id:id(),contactId,inviteId:marker.id,status:mode==='ask'?'pending':'accepted',identityId:activeIdentity(),music};
+      const session={id:id(),contactId,inviteId:marker.id,status:mode==='ask'?'pending':'accepted',
+        identityId:activeIdentity(),music,
+        mainSeen:new Set(thread(contactId).filter(m=>m&&!m.music&&m.id!=null).map(m=>String(m.id))),
+        pendingMain:[]};
       sessions.set(sessionKey(contactId),session);
       if(mode==='direct'){
         writeEpisode(contactId,session,null);
@@ -1043,6 +1046,7 @@
       if(data.panel)this.setNativePanel(data.panel);
       // Preserve contact identity across lightweight panel-only updates.
       if(data.contactId||data.music)this.data={...(this.data||{}),...data};
+      for(const session of sessions.values())flushMainSync(session);
       this.node.hidden=false;
       const context=Object.freeze({
         title:truncate(data.music?.title||this.data?.music?.title||'',160),
@@ -1350,6 +1354,7 @@
       if(frame){
         float.frame=frame;float.origin=e.origin;float.guardNavigation();
         if(audioHandoff.returning)audioHandoff.sendReturn();
+        for(const session of sessions.values())flushMainSync(session);
       }
       return;
     }
@@ -1364,6 +1369,27 @@
       e.source.postMessage({type:'whatever:music:response',id:d.id,ok:false,error:truncate(error?.message||'操作失败',240)},responseOrigin(e));
     }
   });
+  // Deliver new real Messages messages to the same original listening panel.
+  // The private music adapter only renders these; it never re-sends them to AI.
+  function flushMainSync(session){
+    if(!session?.pendingMain?.length||!float.frame?.isConnected)return;
+    const entries=session.pendingMain.splice(0,session.pendingMain.length);
+    float.command('main-chat-sync',{contactId:session.contactId,entries});
+  }
+  function onMainThreadChanged(contactId,messages){
+    const session=sessions.get(sessionKey(String(contactId)));
+    if(!session||session.status!=='accepted'||session.identityId!==activeIdentity()
+      ||!Array.isArray(messages))return;
+    for(const m of messages){
+      if(!m||m.music||m.id==null||typeof m.text!=='string'||!m.text.trim())continue;
+      const id=String(m.id);
+      if(session.mainSeen.has(id))continue;
+      session.mainSeen.add(id);
+      session.pendingMain.push({id,me:!!m.me,text:truncate(m.text,200)});
+    }
+    if(session.pendingMain.length>100)session.pendingMain.splice(0,session.pendingMain.length-100);
+    flushMainSync(session);
+  }
   // The existing chat room renders a *card* for typed invite messages, while the
   // original music chatPanel remains the sole music conversation window.
   document.addEventListener('click',event=>{
@@ -1409,6 +1435,7 @@
       for(const c of listContacts()){try{migrateLegacy(c.id);}catch(e){console.warn('[Music] Legacy migration deferred',e?.message);}}
     },
     hasHost:()=>!!host,
+    onMainThreadChanged,
     safeMusic
   });
 })(window);
