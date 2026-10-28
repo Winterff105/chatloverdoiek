@@ -142,52 +142,7 @@
     <!-- 极高优先级：小手机前置认证门禁 -->
     <link rel="stylesheet" href="css/sanctuary-gate.css">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script>
-        // 注册 Service Worker（添加到桌面需要它；需要通过 https 或 localhost 访问）
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                // 核心脚本加载后会再派发一次 load 事件，这里防止重复注册
-                if (window.__swRegistered) return;
-                window.__swRegistered = true;
-
-                // updateViaCache: 'none'：检查更新时不读 HTTP 缓存，iOS 才能及时拿到新的 sw.js
-                navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
-                    .then(reg => {
-                        // iOS 主屏幕模式经常不冷启动，切回前台时主动检查一次更新
-                        document.addEventListener('visibilitychange', () => {
-                            if (document.visibilityState === 'visible') {
-                                reg.update().catch(() => {});
-                            }
-                        });
-                    })
-                    .catch(err => console.warn('Service Worker 注册失败:', err));
-            });
-        }
-
-        // 一键更新：记下已更新到的版本，清空所有 SW 缓存，检查新版 SW，然后刷新页面
-        window.__applyUpdate = async function() {
-            var v = window.__pendingAppVersion;
-            try {
-                if (v) {
-                    localStorage.setItem('whatever_app_version', v);
-                    sessionStorage.setItem('whatever_just_updated', v);
-                }
-            } catch (e) {}
-            try {
-                if ('caches' in window) {
-                    const keys = await caches.keys();
-                    await Promise.all(keys.map(k => caches.delete(k)));
-                }
-                if ('serviceWorker' in navigator) {
-                    const reg = await navigator.serviceWorker.getRegistration();
-                    if (reg) await reg.update();
-                }
-            } catch (e) {
-                console.warn('[Update] 清理缓存失败，直接刷新', e);
-            }
-            location.reload();
-        };
-    </script>
+    <!-- 更新器由 js/update-manager.js 统一管理 -->
 </head>
 <body>
 
@@ -216,55 +171,27 @@
         <div class="app-version-badge" id="appVersionBadge">Whatever</div>
     </div>
 
-    <!-- 英文更新提示：单行细条，位于分页圆点上方 -->
-    <div id="appUpdateToast" style="position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 160px);transform:translateX(-50%) translateY(16px);opacity:0;visibility:hidden;pointer-events:none;width:max-content;max-width:calc(100vw - 32px);box-sizing:border-box;white-space:nowrap;z-index:2147483646;background:rgba(0,0,0,0.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#fff;padding:5px 5px 5px 12px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,0.18);display:flex;align-items:center;gap:8px;transition:transform 0.4s cubic-bezier(0.16,1,0.3,1),opacity 0.3s ease,visibility 0.3s ease;font-family:-apple-system,sans-serif;">
-        <svg style="width:12px;height:12px;flex-shrink:0;" viewBox="0 0 24 24" fill="none">
-            <path d="M12 0L14.59 9.41L24 12L14.59 14.59L12 24L9.41 14.59L0 12L9.41 9.41L12 0Z" fill="url(#sparkleGrad)"/>
-            <defs><linearGradient id="sparkleGrad" x1="0" y1="0" x2="24" y2="24"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#e5e5ea"/></linearGradient></defs>
-        </svg>
-        <span style="font-size:11px;font-weight:600;letter-spacing:0.3px;color:#fff;">New version ready</span>
-        <span id="appUpdateVersion" style="font-size:10px;font-weight:500;letter-spacing:0.3px;color:rgba(255,255,255,0.55);"></span>
-        <button type="button" onclick="window.__applyUpdate()" style="border:0;background:#fff;color:#000;padding:4px 11px;border-radius:999px;font-size:10px;font-weight:700;letter-spacing:0.4px;cursor:pointer;font-family:inherit;flex-shrink:0;">Update Now</button>
+    <!-- Whatever 新版本提示：不清理任何联系人/聊天数据 -->
+    <div id="appUpdateToast" style="position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 100px);transform:translateX(-50%) translateY(15px);z-index:2147483646;background:#000;border:1px solid #555;color:#fff;padding:7px 8px 7px 15px;border-radius:100px;display:flex;gap:10px;align-items:center;box-shadow:0 10px 35px #0008;visibility:hidden;opacity:0;pointer-events:none;max-width:calc(100vw - 24px);font:12px/1.4 system-ui,sans-serif;">
+        <span>发现新版本 <b id="appUpdateVersion"></b></span>
+        <button type="button" id="appUpdateOpen" style="border:0;background:#fff;color:#000;border-radius:100px;padding:7px 12px;font-size:12px;font-weight:700;white-space:nowrap;">查看更新</button>
     </div>
-
-    <!-- 中文更新公告弹窗（点击英文底栏的"查看详情"按钮时显示） -->
-    <div id="appUpdateModal" style="position:fixed;inset:0;z-index:2147483648;background:rgba(0,0,0,0.5);backdrop-filter:blur(10px);display:none;align-items:center;justify-content:center;padding:20px;font-family:-apple-system,sans-serif;">
-        <div style="width:100%;max-width:340px;background:linear-gradient(165deg,#fff 0%,#fafafa 100%);border-radius:28px;box-shadow:0 30px 90px rgba(0,0,0,0.12),0 8px 24px rgba(0,0,0,0.08),inset 0 1px 0 rgba(255,255,255,0.95);overflow:hidden;">
-            <div style="height:4px;background:linear-gradient(90deg,rgba(0,0,0,0.08) 0%,rgba(0,0,0,0.12) 50%,rgba(0,0,0,0.08) 100%);"></div>
-            <div style="padding:20px 20px 18px;">
-                <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(0,0,0,0.04);padding:3px 8px;border-radius:999px;margin-bottom:12px;">
-                    <div style="width:5px;height:5px;border-radius:50%;background:linear-gradient(135deg,rgba(0,0,0,0.3) 0%,rgba(0,0,0,0.15) 100%);"></div>
-                    <span style="font-size:8px;font-weight:700;letter-spacing:0.8px;color:#86868b;text-transform:uppercase;">System Update</span>
-                </div>
-                <div style="font-size:18px;font-weight:700;letter-spacing:-0.3px;color:#1d1d1f;margin-bottom:4px;">发现新版本</div>
-                <div style="font-size:11px;font-weight:500;letter-spacing:0.3px;color:#86868b;margin-bottom:14px;">New Version Available</div>
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-                    <span id="appUpdateFrom" style="font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#000;"></span>
-                    <div style="width:16px;height:2px;background:linear-gradient(90deg,rgba(0,0,0,0.2) 0%,rgba(0,0,0,0.1) 100%);position:relative;">
-                        <div style="position:absolute;right:-3px;top:50%;transform:translateY(-50%) rotate(45deg);width:5px;height:5px;border-right:2px solid rgba(0,0,0,0.2);border-top:2px solid rgba(0,0,0,0.2);"></div>
-                    </div>
-                    <span id="appUpdateTo" style="font-size:22px;font-weight:800;letter-spacing:-0.5px;background:linear-gradient(135deg,#1d1d1f 0%,#3a3a3c 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;"></span>
-                </div>
-                <div style="background:rgba(0,0,0,0.02);border-radius:14px;padding:12px 14px;margin-bottom:16px;">
-                    <div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.04);">
-                        <svg style="width:14px;height:14px;flex-shrink:0;margin-top:1px;color:#3a3a3c;" viewBox="0 0 24 24" fill="none"><path d="M9 11L12 14L22 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12V19C21 20.1046 20.1046 21 19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                        <span style="flex:1;font-size:11px;line-height:1.5;color:#3a3a3c;font-weight:500;">修复核心模块加载缓慢问题</span>
-                    </div>
-                    <div style="display:flex;gap:8px;padding:5px 0;border-bottom:1px solid rgba(0,0,0,0.04);">
-                        <svg style="width:14px;height:14px;flex-shrink:0;margin-top:1px;color:#3a3a3c;" viewBox="0 0 24 24" fill="none"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        <span style="flex:1;font-size:11px;line-height:1.5;color:#3a3a3c;font-weight:500;">优化界面动画流畅度</span>
-                    </div>
-                    <div style="display:flex;gap:8px;padding:5px 0;">
-                        <svg style="width:14px;height:14px;flex-shrink:0;margin-top:1px;color:#3a3a3c;" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/><path d="M12 6V12L16 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                        <span style="flex:1;font-size:11px;line-height:1.5;color:#3a3a3c;font-weight:500;">改进时长监控实时同步</span>
-                    </div>
-                </div>
-                <div style="display:flex;gap:8px;">
-                    <button type="button" onclick="document.getElementById('appUpdateModal').style.display='none'" style="flex:1;border:0;padding:10px;border-radius:12px;font-size:12px;font-weight:600;letter-spacing:0.3px;background:rgba(0,0,0,0.04);color:#3a3a3c;cursor:pointer;font-family:inherit;">稍后</button>
-                    <button type="button" onclick="window.__applyUpdate()" style="flex:1;border:0;padding:10px;border-radius:12px;font-size:12px;font-weight:600;letter-spacing:0.3px;background:#000;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,0.15);cursor:pointer;font-family:inherit;">立即更新</button>
-                </div>
+    <div id="appUpdateModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="appUpdateHeading" style="position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:none;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;">
+        <section style="width:min(355px,100%);box-sizing:border-box;background:#000;border:1px solid #3c3c3c;border-radius:24px;color:#fff;padding:27px 24px;box-shadow:0 22px 80px #000b;">
+            <div style="font-size:10px;letter-spacing:2px;color:#aaa;font-weight:700;margin-bottom:19px;">WHATEVER · UPDATE</div>
+            <div style="width:52px;height:52px;border-radius:16px;border:1px solid #fff;display:grid;place-items:center;margin-bottom:18px;font-size:25px;">↻</div>
+            <h2 id="appUpdateHeading" style="font-size:23px;margin:0 0 8px;letter-spacing:-.4px;font-weight:700;">发现新版本</h2>
+            <p style="font-size:13px;line-height:1.7;color:#a6a6a6;margin:0 0 19px;">新版本已发布，点击更新即可清除旧资源缓存并重新载入。</p>
+            <div style="border:1px solid #333;background:#090909;border-radius:14px;padding:12px 15px;margin-bottom:18px;display:flex;align-items:center;gap:12px;">
+                <span id="appUpdateFrom" style="font-size:18px;font-weight:650;color:#999;"></span><span style="color:#777;font-size:18px;">→</span><span id="appUpdateTo" style="font-size:18px;font-weight:750;color:#fff;"></span>
             </div>
-        </div>
+            <ul id="appUpdateNotes" style="padding-left:20px;color:#bbb;font-size:12px;line-height:1.8;margin:0 0 17px;"></ul>
+            <p id="appUpdateStatus" role="status" style="color:#999;font-size:11px;line-height:1.6;margin:0 0 14px;">只更新应用文件，不删除登录、联系人、聊天记录或记忆。</p>
+            <div style="display:flex;gap:9px;">
+                <button id="appUpdateLater" type="button" style="flex:1;border:1px solid #555;background:#000;color:#fff;border-radius:12px;padding:13px 5px;font-size:13px;font-weight:600;">稍后</button>
+                <button id="appUpdateNow" type="button" style="flex:1;border:1px solid #fff;background:#fff;color:#000;border-radius:12px;padding:13px 5px;font-size:13px;font-weight:750;">立即更新</button>
+            </div>
+        </section>
     </div>
 
     <!-- 开场资源配置（先挂起，待门禁鉴权通过后由 sanctuary-gate.js 唤醒启动） -->
@@ -476,92 +403,12 @@
     })();
 </script>
 
+<script src="js/update-manager.js" defer></script>
 <script>
 (function() {
     const loadScreen = document.getElementById('appLoadingScreen');
     const loadText = document.getElementById('appLoadText');
-    const updateToast = document.getElementById('appUpdateToast');
-    const updateModal = document.getElementById('appUpdateModal');
-
-    // 本地记录"用户已经在用的版本"，和 SW 的版本对比，不同才提示
-    const VERSION_KEY = 'whatever_app_version';
-    function readStoredVersion() {
-        try { return localStorage.getItem(VERSION_KEY) || ''; } catch (e) { return ''; }
-    }
-    function setText(id, text) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = text;
-    }
-
-    // 加载页显示当前已安装的版本
-    const storedVersion = readStoredVersion();
-    if (storedVersion) setText('appVersionBadge', 'Whatever v' + storedVersion);
-
-    function showUpdateToast(version) {
-        window.__pendingAppVersion = version;
-        const from = readStoredVersion();
-        setText('appUpdateVersion', 'v' + version);
-        setText('appUpdateFrom', from ? 'v' + from : '—');
-        setText('appUpdateTo', 'v' + version);
-        if (updateToast) {
-            updateToast.style.visibility = 'visible';
-            updateToast.style.opacity = '1';
-            updateToast.style.pointerEvents = 'auto';
-            updateToast.style.transform = 'translateX(-50%) translateY(0)';
-        }
-    }
-
-    function handleVersion(version) {
-        if (!version) return;
-        const stored = readStoredVersion();
-        if (!stored) {
-            // 首次安装：直接记下，不提示
-            try { localStorage.setItem(VERSION_KEY, version); } catch (e) {}
-            setText('appVersionBadge', 'Whatever v' + version);
-            return;
-        }
-        // 已经是这个版本，不提示
-        if (stored === version) return;
-        showUpdateToast(version);
-    }
-
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.addEventListener('message', e => {
-            const d = e.data || {};
-            if (d.type === 'NEW_VERSION' || d.type === 'VERSION') handleVersion(d.version);
-        });
-        // 每次打开都主动问一次版本：SW 可能在页面开始监听之前就激活了，消息会漏掉
-        navigator.serviceWorker.ready.then(reg => {
-            if (reg.active) reg.active.postMessage({ type: 'GET_VERSION' });
-        }).catch(() => {});
-    }
-
-    // 刚点过更新：显示"已更新到 vX"，3.5 秒后消失
-    let justUpdated = '';
-    try {
-        justUpdated = sessionStorage.getItem('whatever_just_updated') || '';
-        sessionStorage.removeItem('whatever_just_updated');
-    } catch (e) {}
-    if (justUpdated) {
-        const pill = document.createElement('div');
-        pill.textContent = '已更新到 v' + justUpdated;
-        pill.style.cssText = 'position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 160px);transform:translateX(-50%);z-index:2147483647;background:rgba(0,0,0,0.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#fff;padding:7px 14px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:0.3px;white-space:nowrap;font-family:-apple-system,sans-serif;opacity:0;transition:opacity 0.3s ease;pointer-events:none;';
-        document.body.appendChild(pill);
-        requestAnimationFrame(() => { pill.style.opacity = '1'; });
-        setTimeout(() => {
-            pill.style.opacity = '0';
-            setTimeout(() => pill.remove(), 400);
-        }, 3500);
-    }
-
-    // 点击底栏更新提示时打开详情弹窗（可选）
-    if (updateToast) {
-        updateToast.addEventListener('click', e => {
-            if (e.target.tagName !== 'BUTTON' && updateModal) {
-                updateModal.style.display = 'flex';
-            }
-        });
-    }
+    // 更新组件独立由 update-manager.js 处理。
 
     // 本地有登录凭证：说明之前登录过，加载期间不露出登录页
     let hasSavedAuth = false;
