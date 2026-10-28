@@ -183,6 +183,26 @@
       (recent||'刚开始一起听，尚无对话')+
       '\n这些对话属于当前一起听场景，不应重复写进主聊天室。之前的主聊天室和共同记忆仍然有效。';
   }
+  // Full transcript is persisted first, so summarizer failures never lose data.
+  async function summarizeEpisode(contactId,session){
+    if(!w.MessagesAPI?.isConfigured?.()||typeof w.MessagesAPI.complete!=='function')return;
+    const c=findContact(contactId);
+    const entry=(c.memories||[]).find(x=>x.kind==='music-listen'&&x.sessionId===session.id&&x.identityId===session.identityId);
+    if(!entry||!Array.isArray(entry.chatLog)||entry.chatLog.length<2)return;
+    const log=entry.chatLog.slice(-120).map(x=>(x.me?'{{user}}':'{{char}}')+'：'+x.text).join('\n').slice(-14000);
+    try {
+      const raw=await w.MessagesAPI.complete(
+        '你是共同记忆整理器。只基于下面实际发生的同听对话，写一段60到180字的中文记忆总结，描述听过的歌曲、互动、情绪及关系变化。不要编造事件，不要提系统提示词。人物称呼只用{{user}}和{{char}}，不输出JSON。',
+        '一起听：《'+session.music.title+'》\n'+log
+      );
+      const summary=truncate(raw,700);
+      if(!summary||activeIdentity()!==session.identityId)return;
+      requireHost().mutateContact(contactId,(contact)=>{
+        const m=(contact.memories||[]).find(x=>x.kind==='music-listen'&&x.sessionId===session.id&&x.identityId===session.identityId);
+        if(m)m.text=summary;
+      });
+    }catch(error){console.warn('[Music Memory] Recap unavailable; full transcript retained',error?.message);}
+  }
   // Migrate only old music-tagged messages, preserving normal room messages.
   // Called via the canonical host so the snapshot is persisted atomically.
   function migrateLegacy(contactId) {
@@ -339,6 +359,7 @@
       editInvite(contactId,s.inviteId,'ended');
       s.status='ended';
       writeEpisode(contactId,s,null);
+      void summarizeEpisode(contactId,s);
       return {ok:true};
     });
   }
