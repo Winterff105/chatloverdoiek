@@ -386,24 +386,29 @@
     node:null,lyric:null,frame:null,origin:null,data:null,lastText:'',
     preservedPane:null,sparePane:null,shelvedLayer:null,nativePanelVisible:false,homeMode:false,guarded:false,
     originalWinClip:null,paneStyles:null,panelBounds:null,persistentViewport:null,
+    chatSize:{width:285,height:340},lastDockLayout:'',
     create(){
       if(this.node)return;
       const el=document.createElement('button');
       el.id='wmc-floating-player';el.type='button';el.hidden=true;
-      el.setAttribute('aria-label','点击滚动歌词打开原一起听聊天窗口');
+      el.setAttribute('aria-label','拖动三行歌词可带着聊天窗移动，点击可打开一起听聊天');
       const track=document.createElement('span');track.className='wmc-lyric-track';
       const previous=document.createElement('span');previous.className='wmc-lyric-row wmc-lyric-prev';
       const lyric=document.createElement('span');lyric.className='wmc-lyric-row wmc-fp-lyric';
       const next=document.createElement('span');next.className='wmc-lyric-row wmc-lyric-next';
-      lyric.textContent='♪';previous.textContent=' ';next.textContent=' ';
+      previous.textContent=' ';lyric.textContent='♪';next.textContent=' ';
       track.append(previous,lyric,next);el.appendChild(track);document.body.appendChild(el);
-      this.node=el;this.track=track;this.previous=previous;this.lyric=lyric;this.next=next;this.lastLyricIndex=null;
+      const resize=document.createElement('button');
+      resize.type='button';resize.id='wmc-chat-resize';resize.hidden=true;
+      resize.setAttribute('aria-label','拖动调整一起听聊天窗大小');
+      resize.textContent='⤡';
+      document.body.appendChild(resize);
+      this.node=el;this.resize=resize;this.track=track;
+      this.previous=previous;this.lyric=lyric;this.next=next;
+      this.lastLyricIndex=null;
       el.addEventListener('click',()=>{
         if(this.ignoreNextClick){this.ignoreNextClick=false;return;}
-        if(!this.frame?.isConnected)return;
-        // Ask original iframe to open its native chatPanel. It reports
-        // its exact viewport bounds so only that panel appears above other apps.
-        this.command('chat');
+        if(this.frame?.isConnected)this.command('chat');
       });
       let drag=null;
       el.addEventListener('pointerdown',e=>{
@@ -417,10 +422,7 @@
         if(!drag||drag.id!==e.pointerId)return;
         if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>6)drag.moved=true;
         if(!drag.moved)return;
-        const x=Math.max(8,Math.min(window.innerWidth-el.offsetWidth-8,e.clientX-drag.dx));
-        const y=Math.max(8,Math.min(window.innerHeight-el.offsetHeight-8,e.clientY-drag.dy));
-        el.style.left=x+'px';el.style.top=y+'px';
-        el.style.right='auto';el.style.bottom='auto';
+        this.moveDock(e.clientX-drag.dx,e.clientY-drag.dy);
       });
       const end=e=>{
         if(drag?.id===e.pointerId){
@@ -430,6 +432,80 @@
       };
       el.addEventListener('pointerup',end);
       el.addEventListener('pointercancel',end);
+      let grip=null;
+      resize.addEventListener('pointerdown',e=>{
+        if(e.button!==0||!this.nativePanelVisible)return;
+        grip={id:e.pointerId,x:e.clientX,y:e.clientY,
+          width:this.chatSize.width,height:this.chatSize.height};
+        resize.setPointerCapture?.(e.pointerId);
+        e.preventDefault();
+      });
+      resize.addEventListener('pointermove',e=>{
+        if(!grip||grip.id!==e.pointerId)return;
+        const loc=this.node.getBoundingClientRect();
+        const maxWidth=Math.max(190,window.innerWidth-loc.left-8);
+        const maxHeight=Math.max(170,window.innerHeight-(loc.top+loc.height+8)-8);
+        this.chatSize.width=Math.max(190,Math.min(maxWidth,grip.width+e.clientX-grip.x));
+        this.chatSize.height=Math.max(170,Math.min(maxHeight,grip.height+e.clientY-grip.y));
+        this.layoutDock();
+      });
+      const release=e=>{if(grip?.id===e.pointerId)grip=null;};
+      resize.addEventListener('pointerup',release);
+      resize.addEventListener('pointercancel',release);
+      resize.addEventListener('keydown',e=>{
+        if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;
+        e.preventDefault();
+        this.chatSize.width+=e.key==='ArrowRight'?12:e.key==='ArrowLeft'?-12:0;
+        this.chatSize.height+=e.key==='ArrowDown'?12:e.key==='ArrowUp'?-12:0;
+        this.chatSize.width=Math.max(190,Math.min(window.innerWidth-20,this.chatSize.width));
+        this.chatSize.height=Math.max(170,Math.min(window.innerHeight-140,this.chatSize.height));
+        this.layoutDock();
+      });
+      window.addEventListener('resize',()=>this.layoutDock());
+    },
+    dockRect(){
+      if(!this.node)return null;
+      const r=this.node.getBoundingClientRect();
+      const width=Math.max(190,Math.min(this.chatSize.width,window.innerWidth-r.left-8));
+      const height=Math.max(170,Math.min(this.chatSize.height,window.innerHeight-r.bottom-15));
+      return {left:r.left,top:r.bottom+8,width,height};
+    },
+    moveDock(x,y){
+      if(!this.node)return;
+      const w=this.node.offsetWidth||270,h=this.node.offsetHeight||90;
+      const available=Math.max(105,window.innerHeight-185);
+      const left=Math.max(8,Math.min(x,window.innerWidth-w-8));
+      const top=Math.max(8,Math.min(y,available));
+      this.node.style.left=left+'px';this.node.style.top=top+'px';
+      this.node.style.right='auto';this.node.style.bottom='auto';
+      this.layoutDock();
+    },
+    layoutDock(){
+      if(!this.node||!this.nativePanelVisible||!this.shelvedLayer)return;
+      const r=this.dockRect();if(!r)return;
+      const layer=this.shelvedLayer.layer;
+      const fr=this.frame?.getBoundingClientRect();
+      if(!fr||!fr.width||!fr.height)return;
+      const local={left:Math.max(0,r.left-fr.left),top:Math.max(0,r.top-fr.top),
+        width:Math.min(r.width,fr.right-r.left),height:Math.min(r.height,fr.bottom-r.top)};
+      if(local.width<150||local.height<130)return;
+      const fingerprint=JSON.stringify(local);
+      if(this.lastDockLayout!==fingerprint){
+        this.lastDockLayout=fingerprint;
+        this.command('chat-layout',local);
+      }
+      this.panelBounds={open:true,rect:local,viewport:{width:fr.width,height:fr.height}};
+      this.clipOnlyPanel(layer,this.panelBounds);
+      if(this.resize){
+        this.resize.hidden=false;
+        this.resize.style.left=Math.round(r.left+local.width-17)+'px';
+        this.resize.style.top=Math.round(r.top+local.height-17)+'px';
+      }
+    },
+    dragFromChat(dx,dy){
+      if(!this.node||!this.nativePanelVisible)return;
+      const r=this.node.getBoundingClientRect();
+      this.moveDock(r.left+Number(dx||0),r.top+Number(dy||0));
     },
     command(action,value){
       if(!this.frame?.isConnected||!this.frame.contentWindow){this.close();return;}
@@ -504,9 +580,10 @@
     setNativePanel(panel){
       const musicLayer=this.persistentLayer()||document.getElementById('whatever-music-layer');
       if(panel?.open===false){
-        this.panelBounds=null;this.nativePanelVisible=false;
+        this.panelBounds=null;this.nativePanelVisible=false;this.lastDockLayout='';
+        if(this.resize)this.resize.hidden=true;
         if(this.shelvedLayer&&musicLayer){
-          musicLayer.style.clipPath='inset(0 0 100% 0)';
+          musicLayer.style.clipPath='none';
           musicLayer.style.pointerEvents='none';
         }
         this.hideRetainedPane();
@@ -517,8 +594,9 @@
       this.panelBounds=panel;
       if(musicLayer?.contains(this.frame)){
         if(!this.shelvedLayer)return; // original fullscreen remains unchanged
-        this.nativePanelVisible=this.clipOnlyPanel(musicLayer,panel);
-        if(this.nativePanelVisible)this.command('chat-isolated',true);
+        this.nativePanelVisible=true;
+        this.command('chat-isolated',true);
+        this.layoutDock();
         return;
       }
       if(this.preservedPane){
@@ -685,12 +763,14 @@
     },
     close(){
       this.nativePanelVisible=false;
+      if(this.resize)this.resize.hidden=true;
       if(this.shelvedLayer){
         const layer=this.shelvedLayer.layer;
         layer.style.clipPath='inset(0 0 100% 0)';
         layer.style.pointerEvents='none';
       }
       if(this.node)this.node.hidden=true;
+      this.lastDockLayout='';
       if(!this.persistentLayer()){this.frame=null;this.origin=null;}
       this.data=null;this.lastText='';
       // Leave the original player's base layout and data untouched.
@@ -804,6 +884,8 @@
   miniStyle.textContent=[
     '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 66px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(290px,calc(100vw - 24px));min-height:90px;height:90px;padding:0;border:0!important;outline:0;background:none!important;color:#fff;box-shadow:none!important;border-radius:0;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;text-align:center}',
     '#wmc-floating-player[hidden]{display:none!important}',
+    '#wmc-chat-resize{position:fixed;z-index:2147483560;display:grid;place-items:center;width:31px;height:31px;padding:0;border-radius:10px;background:#202027;border:1px solid #555;color:#fff;font-size:23px;line-height:1;cursor:nwse-resize;touch-action:none;box-shadow:0 2px 8px #0009}',
+    '#wmc-chat-resize[hidden]{display:none!important}',
     '#wmc-floating-player .wmc-lyric-track{display:grid;grid-template-rows:24px 30px 24px;align-content:center;justify-items:center;width:100%;height:100%;overflow:hidden;background:none!important;mask-image:linear-gradient(180deg,transparent 0%,#000 14%,#000 86%,transparent 100%);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 14%,#000 86%,transparent 100%)}',
     '#wmc-floating-player .wmc-lyric-row{display:block;box-sizing:border-box;max-width:100%;height:100%;padding:0 5px;background:none!important;border:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:system-ui,-apple-system,sans-serif;text-shadow:0 1px 6px #000e,0 2px 12px #000a}',
     '#wmc-floating-player .wmc-lyric-prev,#wmc-floating-player .wmc-lyric-next{font-size:11px;font-weight:500;color:rgba(255,255,255,.7);opacity:.60;line-height:24px}',
