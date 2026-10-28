@@ -455,6 +455,18 @@
   function mountPlayerEvents(){
     protectOnlyAutomaticKeyboard();
     installAudioHandoff();
+    if(!document.__wmcExitHandoff){
+      document.__wmcExitHandoff=true;
+      // Actual music markup uses a return-to-Whatever button with
+      // onclick="exitMusicApp()"; capture before its handler destroys iframe.
+      document.addEventListener('click',e=>{
+        const back=e.target?.closest?.('[onclick*="exitMusicApp"]');
+        if(!back)return;
+        sendAudioState(true);
+        try{w.parent.postMessage({type:'whatever:music:audio-leaving'},parentOrigin);}
+        catch(error){console.warn('[Music handoff] exit signal unavailable',error?.message);}
+      },true);
+    }
     document.getElementById('wmcMinimize')?.remove();
     const audio=document.getElementById('realAudio');
     if(audio&&!audio.__wmcWatch){
@@ -482,6 +494,7 @@
   let lastChatStyle=null,backgroundShouldPlay=false,resumeAttempts=0;
   let resumeWindowStart=0,dragChatHead=null;
   function setChatIsolated(on){
+    const wasIsolated=document.documentElement.classList.contains('wmc-chat-isolated');
     const audio=document.getElementById('realAudio');
     if(on && !document.documentElement.classList.contains('wmc-chat-isolated')){
       backgroundShouldPlay=!!(audio?.src&&!audio.paused&&!audio.ended);
@@ -490,7 +503,9 @@
     if(!on)backgroundShouldPlay=false;
     document.documentElement.classList.toggle('wmc-chat-isolated',!!on);
     if(on){
-      w.ListenTogether?.closeChat?.();
+      // Close only on the FIRST transition away from music. Repeated
+      // chat-isolated commands during native openChat must not close it.
+      if(!wasIsolated)w.ListenTogether?.closeChat?.();
       try{w.parent.postMessage({type:'whatever:music:ui:isolation-ready'},parentOrigin);}
       catch(error){console.warn('[Music keepalive] isolation notice failed',error?.message);}
     }else{
