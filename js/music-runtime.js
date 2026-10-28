@@ -400,8 +400,61 @@
     if(entry)payload.entry={id:'music-entry-'+(++entrySeq),me:!!entry.me,text:trim(entry.text,200)};
     rpc('ui',payload).catch(e=>console.warn('[Music Float] update unavailable',e.message));
   }
+  // Parent-owned audio takes over when a private App exit unmounts the iframe.
+  // Only transport public media playback fields. Never transmit login tokens,
+  // contacts, private messages or arbitrary audio source HTML.
+  let audioHandoffActive=false,audioStateLast=0;
+  function sendAudioState(force=false){
+    const a=document.getElementById('realAudio');if(!a||w.parent===w)return;
+    const now=Date.now();
+    if(!force&&now-audioStateLast<650)return;
+    audioStateLast=now;
+    const src=String(a.currentSrc||a.src||'');
+    try{
+      w.parent.postMessage({type:'whatever:music:audio-state',
+        src:src.slice(0,2200),position:Number(a.currentTime)||0,
+        duration:Number.isFinite(a.duration)?a.duration:0,
+        paused:!!a.paused,ended:!!a.ended,
+        muted:!!a.muted,volume:Number(a.volume)||0,
+        playbackRate:Number(a.playbackRate)||1},parentOrigin);
+    }catch(e){console.warn('[Music handoff] state unavailable',e?.message);}
+  }
+  function installAudioHandoff(){
+    const a=document.getElementById('realAudio');
+    if(!a||a.__wmcHandoffEvents)return;
+    a.__wmcHandoffEvents=true;
+    for(const ev of ['play','pause','ended','loadedmetadata','emptied','seeking','seeked','durationchange'])
+      a.addEventListener(ev,()=>sendAudioState(true));
+    a.addEventListener('timeupdate',()=>sendAudioState(false));
+    sendAudioState(true);
+  }
+  function restoreFromMain(state){
+    const a=document.getElementById('realAudio');
+    if(!a||!state||typeof state.src!=='string')return;
+    audioHandoffActive=false;
+    const url=state.src;
+    // Reject script/file URLs; blob: in a destroyed opaque iframe cannot
+    // be reused by the parent, so it is never a handoff source.
+    if(!/^(https?:\/\/|\/(?!\/))/i.test(url))return;
+    if(a.currentSrc!==url&&a.src!==url)a.src=url;
+    const position=Number(state.position);
+    if(Number.isFinite(position)&&position>=0){
+      const seek=()=>{try{a.currentTime=Math.min(position+0.1,Number.isFinite(a.duration)?Math.max(0,a.duration-0.15):position+0.1)}catch{}};
+      if(a.readyState>=1)seek();
+      else a.addEventListener('loadedmetadata',seek,{once:true});
+    }
+    a.volume=Math.max(0,Math.min(1,Number(state.volume??1)||0));
+    a.muted=!!state.muted;
+    const rate=Number(state.playbackRate);
+    if(rate>=0.5&&rate<=3)a.playbackRate=rate;
+    Promise.resolve(a.play()).then(()=>{
+      sendAudioState(true);
+      w.parent.postMessage({type:'whatever:music:audio-restored'},parentOrigin);
+    }).catch(e=>console.warn('[Music handoff] return play denied',e?.message));
+  }
   function mountPlayerEvents(){
     protectOnlyAutomaticKeyboard();
+    installAudioHandoff();
     document.getElementById('wmcMinimize')?.remove();
     const audio=document.getElementById('realAudio');
     if(audio&&!audio.__wmcWatch){
@@ -420,7 +473,9 @@
     'html.wmc-chat-isolated body *{visibility:hidden!important}',
     'html.wmc-chat-isolated #chatPanel,html.wmc-chat-isolated #chatPanel *{visibility:visible!important}',
     'html.wmc-chat-isolated body::before,html.wmc-chat-isolated body::after,html.wmc-chat-isolated::before,html.wmc-chat-isolated::after{display:none!important}',
-    'html.wmc-chat-isolated #chatPanel{background:#121216!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:0 18px 38px #0009!important;opacity:1!important}',
+    'html.wmc-chat-isolated #chatPanel{background:#08080a!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}',
+    'html:not(.wmc-chat-isolated) #wmc-native-chat-resize{display:none!important}',
+    '#wmc-native-chat-resize{position:absolute;right:8px;bottom:8px;z-index:8;width:29px;height:29px;display:grid;place-items:center;border:1px solid #ffffff25;border-radius:9px;background:#17171b;color:#ddd;font-size:19px;touch-action:none;cursor:nwse-resize}',
     'html.wmc-chat-isolated .chat-panel:not(.open){visibility:hidden!important;opacity:0!important}'
   ].join('\n');
   document.head.appendChild(isolationStyle);
@@ -435,7 +490,7 @@
     if(!on)backgroundShouldPlay=false;
     document.documentElement.classList.toggle('wmc-chat-isolated',!!on);
     if(on){
-      requestNativeBounds();
+      w.ListenTogether?.closeChat?.();
       try{w.parent.postMessage({type:'whatever:music:ui:isolation-ready'},parentOrigin);}
       catch(error){console.warn('[Music keepalive] isolation notice failed',error?.message);}
     }else{
@@ -448,7 +503,7 @@
   // Never auto-start music the user had paused, and don't retry endlessly.
   function resumeUnintendedPause(){
     const audio=document.getElementById('realAudio');
-    if(!backgroundShouldPlay||!document.documentElement.classList.contains('wmc-chat-isolated')
+    if(audioHandoffActive||!backgroundShouldPlay||!document.documentElement.classList.contains('wmc-chat-isolated')
       ||!audio||!audio.paused||audio.ended||!audio.src)return;
     const now=Date.now();
     if(now-resumeWindowStart>12000){resumeWindowStart=now;resumeAttempts=0;}
@@ -463,6 +518,7 @@
   const underlyingAudio=document.getElementById('realAudio');
   underlyingAudio?.addEventListener('pause',resumeUnintendedPause);
   underlyingAudio?.addEventListener('play',()=>{
+    audioHandoffActive=false;
     if(document.documentElement.classList.contains('wmc-chat-isolated'))
       backgroundShouldPlay=true;
   });
@@ -517,6 +573,13 @@
     if(ev.source!==w.parent||(parentOrigin!=='*'&&ev.origin!==parentOrigin))return;
     const d=ev.data||{};
     if(d.type!=='whatever:music:ui:command')return;
+    if(d.command==='audio-handoff-mute'){
+      audioHandoffActive=true;
+      backgroundShouldPlay=false;
+      document.getElementById('realAudio')?.pause();
+      return;
+    }
+    if(d.command==='audio-restore'){restoreFromMain(d.value);return;}
     if(d.command==='chat-isolated'){setChatIsolated(d.value===true);return;}
     if(d.command==='chat-layout'){applyChatLayout(d.value);return;}
     if(!participant)return;
@@ -570,6 +633,32 @@
     if(typeof lt.openChat!=='function'||typeof lt.closeChat!=='function')return;
     lt.__wmcPanelSync=true;
     installDockHeadDrag();
+    // A resize grip INSIDE the music app's original chatPanel, never a second
+    // floating popup. Native music markup/colors/buttons are retained.
+    const panel=document.getElementById('chatPanel');
+    if(panel&&!panel.querySelector('#wmc-native-chat-resize')){
+      const grip=document.createElement('button');
+      grip.id='wmc-native-chat-resize';grip.type='button';grip.textContent='⤡';
+      grip.setAttribute('aria-label','调整原聊天窗的大小');
+      panel.appendChild(grip);
+      let resizing=null;
+      grip.addEventListener('pointerdown',e=>{
+        if(e.button!==0||!document.documentElement.classList.contains('wmc-chat-isolated'))return;
+        resizing={id:e.pointerId,x:e.clientX,y:e.clientY};
+        grip.setPointerCapture?.(e.pointerId);
+        e.preventDefault();e.stopPropagation();
+      });
+      grip.addEventListener('pointermove',e=>{
+        if(!resizing||e.pointerId!==resizing.id)return;
+        const dx=e.clientX-resizing.x,dy=e.clientY-resizing.y;
+        resizing.x=e.clientX;resizing.y=e.clientY;
+        if(dx||dy)w.parent.postMessage({type:'whatever:music:ui:dock-resize',dx,dy},parentOrigin);
+        e.preventDefault();e.stopPropagation();
+      });
+      for(const k of ['pointerup','pointercancel'])
+        grip.addEventListener(k,e=>{if(resizing?.id===e.pointerId)resizing=null;});
+    }
+
     const originalOpen=lt.openChat.bind(lt);
     const originalClose=lt.closeChat.bind(lt);
     lt.openChat=function(...args){
