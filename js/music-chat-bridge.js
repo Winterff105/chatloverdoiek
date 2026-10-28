@@ -1056,6 +1056,9 @@
       source:'whatever-music'
     };
     w.WhateverMusicNowPlaying=()=>({...state});
+    // Existing API float integrations may call the music snapshot name.
+    // Only expose public song metadata, never Char prompts or messages.
+    w.WhateverMusicSnapshot=()=>({...state,playlist:[]});
     try{w.dispatchEvent(new CustomEvent('whatever:music-state',{detail:state}));}catch{}
   }
   // The API widget is not a child of the music iframe. Keep its host-page
