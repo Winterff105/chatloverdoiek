@@ -26,19 +26,22 @@
   // app-manager has used more than one frame title across versions; relying
   // only on title="音乐" left invitations without a response.
   const playerFrames = () => {
-    const appWindow = document.getElementById('appWindow') || document.querySelector('.app-window');
-    const content = appWindow?.querySelector('.app-content');
-    const windowTitle = document.getElementById('appTitle')?.textContent || '';
-    const byTitle = frame => /音乐|music|ch[ée]rie/i.test([
-      frame.getAttribute('title')||'', frame.getAttribute('data-app')||'',
-      frame.getAttribute('src')||'', frame.id||''
-    ].join(' '));
-    if (content) {
-      const frames = Array.from(content.querySelectorAll('iframe'));
-      if (frames.length === 1 && /音乐|music|ch[ée]rie/i.test(windowTitle)) return frames;
-      return frames.filter(byTitle);
+    const appWindow=document.getElementById('appWindow') || document.querySelector('.app-window');
+    const layer=document.getElementById('whatever-music-layer');
+    const content=appWindow?.querySelector('.app-content');
+    const windowTitle=document.getElementById('appTitle')?.textContent || '';
+    // Dedicated Chérie Music is a FULL-SCREEN sibling of appWindow, not
+    // inside appWindow. Always include that actual launcher frame first.
+    const fullScreen=Array.from(layer?.querySelectorAll('iframe')||[]);
+    const desktop=Array.from(appWindow?.querySelectorAll('iframe')||[])
+      .filter(f=>/音乐|music|ch[ée]rie/i.test([
+        f.getAttribute('title')||'',f.getAttribute('data-app')||'',
+        f.getAttribute('src')||'',f.id||''
+      ].join(' ')));
+    if(!desktop.length&&content&&/音乐|music|ch[ée]rie/i.test(windowTitle)){
+      desktop.push(...Array.from(content.querySelectorAll('iframe')));
     }
-    return Array.from(document.querySelectorAll('iframe')).filter(byTitle);
+    return [...new Set([...fullScreen,...desktop])];
   };
   // The private music app may run inside a sandboxed srcdoc iframe whose
   // browser origin is literally "null".  Trust only the currently mounted
