@@ -24,6 +24,22 @@ const MUSIC_REAL_CHAR_GUARD = String.raw`
     else console.warn('[Music]', msg);
   }
   window.toggleTogether = startRealChar;
+  // Capture ahead of the private music-api's document/button handlers.
+  // Only a real user click on the ORIGINAL recall buttons may invoke Char.
+  // Never allow the old quick-quote handler to run as a second request.
+  window.addEventListener('click', function(e){
+    var button=e.target && e.target.closest &&
+      e.target.closest('button[aria-label="调取对方说的话"]');
+    if(!button || !button.closest('#chatPanel,#duetInput')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    if(!e.isTrusted) return; // programmatic/open-chat events cannot recall
+    if(typeof window.__wmcExplicitMusicRecall === 'function')
+      window.__wmcExplicitMusicRecall(button);
+    else if(typeof window.showToast === 'function')
+      window.showToast('一起听正在连接，请稍后重试。');
+  }, true);
   document.addEventListener('click', function(e){
     var target=e.target;
     if(!target || typeof target.closest !== 'function') return;
