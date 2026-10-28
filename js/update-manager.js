@@ -20,7 +20,13 @@
   let updating = false;
   let latest = '';
   let lastCheckAt = 0;
-  let displayedVersion = '';
+  const QUIET_HINT_KEY = 'whatever_update_hint_v1';
+  const QUIET_HINT_DELAY_MS = 8000;
+  const QUIET_HINT_VISIBLE_MS = 10000;
+  const QUIET_HINT_SNOOZE_MS = 48 * 60 * 60 * 1000;
+  let quietHintTimer = null;
+  let quietHideTimer = null;
+  let pendingHintVersion = '';
 
   function text(id, value) {
     const el = document.getElementById(id);
@@ -53,8 +59,49 @@
       notesContainer.appendChild(row);
     }
   }
+  function hideCapsule() {
+    if (!toast) return;
+    toast.style.visibility = 'hidden';
+    toast.style.opacity = '0';
+    toast.style.pointerEvents = 'none';
+    toast.style.transform = 'translateX(-50%) translateY(12px)';
+  }
+  function isSafeToHint() {
+    if (document.visibilityState !== 'visible') return false;
+    // Never prompt during login, chat, typing or music playback.
+    if (document.getElementById('sanctuaryGatePortal')?.isConnected) return false;
+    if (document.getElementById('appWindow')?.classList.contains('active')) return false;
+    if (window.WhateverMusicNowPlaying?.playing) return false;
+    if (document.getElementById('wmc-floating-player')?.hidden === false) return false;
+    if (document.activeElement?.matches?.('input,textarea,[contenteditable="true"]')) return false;
+    return true;
+  }
+  function scheduleQuietHint(version, notes) {
+    if (pendingHintVersion === version) return;
+    try {
+      const lastHint = JSON.parse(localStorage.getItem(QUIET_HINT_KEY) || 'null');
+      if (lastHint?.version === version &&
+          Date.now() - lastHint.at < QUIET_HINT_SNOOZE_MS) return;
+    } catch (_) {}
+    clearTimeout(quietHintTimer);
+    pendingHintVersion = version;
+    quietHintTimer = setTimeout(() => {
+      pendingHintVersion = '';
+      // If any App is open, leave the notification for a future launch.
+      if (!isSafeToHint()) return;
+      show(version, notes);
+      try {
+        localStorage.setItem(QUIET_HINT_KEY, JSON.stringify({version,at:Date.now()}));
+      } catch (_) {}
+      clearTimeout(quietHideTimer);
+      quietHideTimer = setTimeout(() => {
+        if (!updating) hideCapsule();
+      }, QUIET_HINT_VISIBLE_MS);
+    }, QUIET_HINT_DELAY_MS);
+  }
   function show(version, notes) {
     if (!version || version === PAGE_VERSION || updating) return;
+    clearTimeout(quietHideTimer);
     latest = version;
     window.__pendingAppVersion = version;
     text('appUpdateFrom', 'v' + PAGE_VERSION);
@@ -100,7 +147,7 @@
       return {version, notes:data.notes};
     } finally { clearTimeout(timeout); }
   }
-  async function checkUpdates(force) {
+  async function checkUpdates(force, mode = 'passive') {
     if (updating) return;
     const now = Date.now();
     if (!force && now - lastCheckAt < 20000) return;
@@ -111,7 +158,14 @@
       // the user to downgrade to a smaller numeric version.
       const n = Number(release.version), current = Number(PAGE_VERSION);
       if (Number.isFinite(n) && Number.isFinite(current) && n <= current) return;
-      show(release.version, release.notes);
+      // Foreground, timer and SW checks stay silent while someone is playing.
+      if (mode === 'manual') {
+        clearTimeout(quietHintTimer);
+        pendingHintVersion = '';
+        show(release.version, release.notes);
+      } else if (mode === 'startup') {
+        scheduleQuietHint(release.version, release.notes);
+      }
     } catch (error) {
       console.info('[Whatever Updates] Network check skipped:', error?.message || error);
     }
@@ -181,7 +235,7 @@
     }
   }
   window.__applyUpdate = applyUpdate;
-  window.checkWhateverUpdate = () => checkUpdates(true);
+  window.checkWhateverUpdate = () => checkUpdates(true, 'manual');
   openButton?.addEventListener('click', showDetails);
   laterButton?.addEventListener('click', dismiss);
   nowButton?.addEventListener('click', applyUpdate);
@@ -239,5 +293,5 @@
     }
   } catch (_) {}
   registerSW();
-  checkUpdates(true);
+  checkUpdates(true, 'startup');
 })();
