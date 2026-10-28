@@ -95,18 +95,35 @@
     bars.append(node('i'),node('i'),node('i'));
     album.append(art,songBox,bars);
 
-    const pickLabel=node('label','wmc-pick-label','邀请联系人');
-    pickLabel.htmlFor='wmcContact';
+    const pickLabel=node('div','wmc-pick-label','邀请联系人');
     const picker=node('div','wmc-picker');
+    const chooser=node('button','wmc-select-toggle');
+    chooser.id='wmcContact';chooser.type='button';chooser.disabled=true;
+    chooser.setAttribute('aria-haspopup','listbox');
+    chooser.setAttribute('aria-expanded','false');
+    chooser.setAttribute('aria-controls','wmcContactOptions');
+    chooser.setAttribute('aria-label','选择邀请联系人');
     const thumb=node('span','wmc-contact-initial','♡');
-    const select=node('select','wmc-select');
-    select.id='wmcContact';select.setAttribute('aria-label','选择联系人');
-    select.disabled=true;
-    const placeholder=node('option',null,'正在加载联系人…');
-    placeholder.value='';select.append(placeholder);
-    const chevron=node('span','wmc-chevron','⌄');
-    chevron.setAttribute('aria-hidden','true');
-    picker.append(thumb,select,chevron);
+    const chosenText=node('span','wmc-selected-text','正在加载联系人…');
+    const arrow=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    arrow.setAttribute('viewBox','0 0 24 24');
+    arrow.setAttribute('width','18');arrow.setAttribute('height','18');
+    arrow.setAttribute('fill','none');arrow.setAttribute('stroke','currentColor');
+    arrow.setAttribute('stroke-width','1.8');
+    arrow.setAttribute('stroke-linecap','round');
+    arrow.setAttribute('stroke-linejoin','round');
+    arrow.setAttribute('aria-hidden','true');
+    arrow.classList.add('wmc-chevron');
+    const arrowPath=document.createElementNS('http://www.w3.org/2000/svg','path');
+    arrowPath.setAttribute('d','m6 9 6 6 6-6');
+    arrow.appendChild(arrowPath);
+    chooser.append(thumb,chosenText,arrow);
+    const choices=node('div','wmc-contact-menu');
+    choices.id='wmcContactOptions';
+    choices.setAttribute('role','listbox');
+    choices.setAttribute('aria-label','选择联系人');
+    choices.hidden=true;
+    picker.append(chooser,choices);
 
     const actionLabel=node('p','wmc-action-label','邀请方式');
     const actions=node('div','wmc-actions');
@@ -140,16 +157,68 @@
     dialog=mask;close.focus();
 
     let contacts=[];
-    function syncContact(){
-      const found=contacts.find(c=>String(c.id)===select.value);
-      thumb.textContent=found?(found.name||'?').trim().charAt(0):'♡';
+    let selectedId='';
+    let activeOption=0;
+    const optionButtons=[];
+    function closeChoices(returnFocus=false){
+      choices.hidden=true;
+      picker.classList.remove('wmc-picker-open');
+      chooser.setAttribute('aria-expanded','false');
+      if(returnFocus) chooser.focus();
     }
-    select.addEventListener('change',syncContact);
+    function focusOption(index){
+      if(!optionButtons.length)return;
+      activeOption=(index+optionButtons.length)%optionButtons.length;
+      optionButtons[activeOption].focus();
+    }
+    function openChoices(){
+      if(chooser.disabled||busy||!optionButtons.length)return;
+      choices.hidden=false;
+      picker.classList.add('wmc-picker-open');
+      chooser.setAttribute('aria-expanded','true');
+    }
+    function chooseContact(contact,returnFocus=true){
+      selectedId=String(contact.id);
+      chosenText.textContent=String(contact.name||'未命名');
+      thumb.textContent=String(contact.name||'?').trim().charAt(0)||'?';
+      optionButtons.forEach(button=>{
+        const selected=button.dataset.contactId===selectedId;
+        button.setAttribute('aria-selected',String(selected));
+        button.classList.toggle('wmc-contact-selected',selected);
+      });
+      closeChoices(returnFocus);
+    }
+    chooser.addEventListener('click',()=>{
+      if(choices.hidden)openChoices();
+      else closeChoices();
+    });
+    chooser.addEventListener('keydown',e=>{
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'||e.key==='Enter'||e.key===' '){
+        e.preventDefault();
+        openChoices();
+        focusOption(e.key==='ArrowUp'?optionButtons.length-1:0);
+      }else if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeChoices(true);}
+    });
+    choices.addEventListener('keydown',e=>{
+      if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+        e.preventDefault();
+        focusOption(activeOption+(e.key==='ArrowDown'?1:-1));
+      }else if(e.key==='Escape'||e.key==='Tab'){
+        if(e.key==='Escape'){e.preventDefault();e.stopPropagation();}
+        closeChoices(e.key==='Escape');
+      }else if(e.key==='Home'||e.key==='End'){
+        e.preventDefault();focusOption(e.key==='Home'?0:optionButtons.length-1);
+      }
+    });
+    sheet.addEventListener('click',e=>{
+      if(!picker.contains(e.target))closeChoices();
+    });
     async function begin(mode){
       if(busy)return;
-      const contactId=select.value;
+      const contactId=selectedId;
       if(!contactId){note.textContent='先选择一位联系人 ♡';return;}
-      busy=true;direct.disabled=ask.disabled=close.disabled=select.disabled=true;
+      closeChoices();
+      busy=true;direct.disabled=ask.disabled=close.disabled=chooser.disabled=true;
       note.textContent=mode==='ask'?'已发送邀请，正在等待 Char 回应…':'正在发送一起听邀请…';
       try{
         const result=await rpc('invite',{contactId,mode,music:snapshot()});
@@ -166,33 +235,50 @@
       }catch(e){note.textContent=trim(e.message||e,220);}
       finally{
         busy=false;direct.disabled=ask.disabled=false;
-        close.disabled=false;select.disabled=false;
+        close.disabled=false;chooser.disabled=false;
       }
     }
     direct.addEventListener('click',()=>begin('direct'));
     ask.addEventListener('click',()=>begin('ask'));
     async function loadContacts(){
-      retry.hidden=true;note.textContent='正在读取联系人…';
-      select.disabled=direct.disabled=ask.disabled=true;
+      retry.hidden=true;
+      note.textContent='正在读取联系人…';
+      chooser.disabled=direct.disabled=ask.disabled=true;
+      chosenText.textContent='正在加载联系人…';
+      selectedId='';
+      closeChoices();
+      choices.replaceChildren();
+      optionButtons.length=0;
       try{
         const result=await rpc('contacts');
         if(dialog!==mask)return;
         contacts=Array.isArray(result.contacts)?result.contacts:[];
-        select.replaceChildren();
-        const first=node('option',null,'选择一位 Char');
-        first.value='';select.append(first);
-        for(const c of contacts){
-          const item=node('option',null,c.name);item.value=String(c.id);select.append(item);
-        }
-        select.disabled=!contacts.length;
+        contacts.forEach((contact,index)=>{
+          const button=node('button','wmc-contact-option');
+          button.type='button';button.dataset.contactId=String(contact.id);
+          button.setAttribute('role','option');
+          button.setAttribute('aria-selected','false');
+          button.setAttribute('tabindex','-1');
+          const avatar=node('span','wmc-contact-avatar',String(contact.name||'?').trim().charAt(0)||'?');
+          const name=node('span','wmc-contact-name',String(contact.name||'未命名'));
+          const check=node('span','wmc-contact-check','✓');
+          check.setAttribute('aria-hidden','true');
+          button.append(avatar,name,check);
+          button.addEventListener('click',()=>chooseContact(contact));
+          button.addEventListener('focus',()=>{activeOption=index;});
+          choices.appendChild(button);
+          optionButtons.push(button);
+        });
+        chooser.disabled=!contacts.length;
+        chosenText.textContent=contacts.length?'选择一位 Char':'暂无可邀请的 Char';
+        thumb.textContent='♡';
         direct.disabled=ask.disabled=!contacts.length;
-        note.textContent=contacts.length
-          ? '已读取 '+contacts.length+' 位联系人，选一位 Char 开始邀请'
-          : '目前没有可邀请的 Char，请先在聊天室创建联系人';
+        note.textContent=contacts.length?'':'还没有联系人，请先在聊天室创建一位 Char';
         retry.hidden=!!contacts.length;
       }catch(error){
         if(dialog!==mask)return;
         retry.hidden=false;
+        chosenText.textContent='联系人读取失败';
         note.textContent='联系人读取失败：'+trim(error?.message||error,100);
       }
     }
@@ -256,6 +342,27 @@
     '.wmc-footer{margin:12px 0 0;text-align:center;color:#777;font-size:10px}.wmc-option:focus-visible,.wmc-close:focus-visible,.wmc-select:focus-visible,.wmc-retry:focus-visible{outline:2px solid #fff;outline-offset:3px}',
     '@keyframes wmcBeat{to{height:3px}}@keyframes wmcSpin{to{transform:rotate(360deg)}}@keyframes wmcFade{from{opacity:0}to{opacity:1}}@keyframes wmcRise{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}',
     '@media(max-width:350px){.wmc-sheet{padding:20px 16px}.wmc-art{width:73px;height:73px}.wmc-vinyl-label{width:36px;height:36px}}',
+    /* Compact layout: approx 25% shorter than the original invitation sheet. */
+    '.wmc-mask{padding:10px 12px}.wmc-sheet{padding:16px 18px;border-radius:19px;overflow:visible;max-height:none}',
+    '.wmc-top{margin-bottom:5px}.wmc-close{width:26px;height:26px;font-size:20px}',
+    '.wmc-title{font-size:21px;margin-bottom:3px}.wmc-subtitle{font-size:11px;margin-bottom:10px}',
+    '.wmc-album{padding:7px 10px;margin-bottom:11px;gap:11px;border-radius:12px}.wmc-art{width:63px;height:63px}',
+    '.wmc-vinyl-label{width:32px;height:32px;font-size:15px}.wmc-song-title{font-size:14px;margin-top:3px}.wmc-song-artist{font-size:11px;margin-top:2px}.wmc-eq{height:17px}',
+    '.wmc-pick-label,.wmc-action-label{font-size:11px;margin-bottom:6px}.wmc-picker{height:44px;position:relative;display:block;padding:0;margin-bottom:11px;border-radius:11px}',
+    '.wmc-select-toggle{display:flex;align-items:center;gap:9px;width:100%;height:100%;padding:0 12px;background:transparent;border:0;color:#fff;text-align:left;font:13px system-ui,-apple-system,sans-serif;cursor:pointer;border-radius:11px}',
+    '.wmc-select-toggle:disabled{opacity:.56;cursor:default}.wmc-selected-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.wmc-select-toggle .wmc-contact-initial{flex:none;width:25px;height:25px;font-size:12px}.wmc-chevron{display:block;flex:none;width:18px;height:18px;margin-left:auto;color:#fff;transition:transform .18s ease}',
+    '.wmc-picker-open .wmc-chevron{transform:rotate(180deg)}',
+    '.wmc-contact-menu{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;max-height:min(186px,32vh);overflow-y:auto;overscroll-behavior:contain;background:#050505;border:1px solid #444;border-radius:12px;padding:4px;box-shadow:0 15px 40px #000d}',
+    '.wmc-contact-menu[hidden]{display:none!important}.wmc-contact-option{display:flex;align-items:center;gap:10px;width:100%;min-height:43px;background:#050505;color:#fff;border:0;border-radius:9px;padding:6px 8px;text-align:left;cursor:pointer}',
+    '.wmc-contact-option:hover,.wmc-contact-option:focus-visible,.wmc-contact-selected{background:#232323}.wmc-contact-avatar{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:#fff;color:#000;font-size:12px;font-weight:700}',
+    '.wmc-contact-name{font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wmc-contact-check{opacity:0;font-size:14px;color:#fff}.wmc-contact-selected .wmc-contact-check{opacity:1}',
+    '.wmc-actions{gap:7px}.wmc-option{min-height:48px;padding:6px 10px;border-radius:11px;gap:9px}.wmc-option-icon{width:27px;height:27px;font-size:16px}.wmc-option-copy{gap:0}.wmc-option-copy strong{font-size:12px}.wmc-option-copy small{font-size:10px;line-height:1.25}.wmc-option-arrow{font-size:20px}',
+    '.wmc-notice{margin-top:8px;min-height:0;font-size:10px}.wmc-notice:empty{display:none}.wmc-footer{margin-top:6px;font-size:9px}',
+    '.wmc-retry{margin-top:6px;padding:5px 12px;font-size:10px}',
+    '.wmc-select-toggle:focus-visible,.wmc-contact-option:focus-visible{outline:2px solid #fff;outline-offset:2px}',
+    '@media(max-height:560px){.wmc-mask{align-items:flex-start;overflow-y:auto}.wmc-sheet{margin:auto 0}.wmc-contact-menu{max-height:min(134px,26vh)}}',
+    '@media(max-width:350px){.wmc-sheet{padding:14px 14px}.wmc-album{padding:6px 9px}.wmc-art{width:56px;height:56px}.wmc-option{min-height:45px}}',
     '@media(prefers-reduced-motion:reduce){.wmc-mask,.wmc-sheet,.wmc-art,.wmc-eq i{animation:none!important}.wmc-option{transition:none}}'
   ].join('\n');
   document.head.append(style);
