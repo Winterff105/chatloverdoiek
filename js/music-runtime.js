@@ -359,7 +359,25 @@
     }
   }
   // Sync only CHANGED lyrics, never the whole playlist on every time tick.
-  let lastFloatSample=0,lastFloatKey='',entrySeq=0;
+  let lastFloatSample=0,lastFloatKey='',entrySeq=0,lastLyricMapKey='';
+  function sendTimedLyricMap(songId){
+    if(w.parent===w)return;
+    try{
+      const source=typeof lyricState!=='undefined'&&Array.isArray(lyricState.lines)
+        ?lyricState.lines:[];
+      if(!source.length)return;
+      const lines=source.slice(0,450).map(x=>({
+        t:Number(x.t),text:trim(x.text,170)
+      })).filter(x=>Number.isFinite(x.t)&&x.t>=0&&x.t<=86400&&x.text);
+      if(!lines.length)return;
+      const key=[songId,lines.length,lines[0].t,lines.at(-1).t,
+        lines.at(-1).text].join(':');
+      if(key===lastLyricMapKey)return;
+      lastLyricMapKey=key;
+      w.parent.postMessage({type:'whatever:music:lyric-timeline',
+        songId:String(songId||''),lines},parentOrigin);
+    }catch(error){console.warn('[Music Lyrics] timeline unavailable',error?.message);}
+  }
   function sendFloatState(force=false,entry=null){
     // Lyrics are a solo music feature too: do not require an active Char
     // session just to keep three-line synchronized lyrics visible.
@@ -386,6 +404,7 @@
         lyricNext=readLine(lyricIndex+1);
       }
     }catch(_){}
+    sendTimedLyricMap(songId);
     if(!title)title=document.getElementById('playingTrackName')?.textContent||'未知歌曲';
     if(!artist)artist=document.getElementById('playingTrackArtist')?.textContent||'';
     // Original music.js owns lyricState; fall back to the rendered, timed
@@ -454,7 +473,10 @@
     a.__wmcHandoffEvents=true;
     for(const ev of ['play','pause','ended','loadedmetadata','emptied','seeking','seeked','durationchange'])
       a.addEventListener(ev,()=>sendAudioState(true));
-    a.addEventListener('timeupdate',()=>sendAudioState(false));
+    a.addEventListener('timeupdate',()=>{
+      sendAudioState(false);
+      sendFloatState(false);
+    });
     sendAudioState(true);
   }
   function restoreFromMain(state){
