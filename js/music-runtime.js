@@ -419,17 +419,98 @@
     'html.wmc-chat-isolated,html.wmc-chat-isolated body{background:transparent!important;background-image:none!important}',
     'html.wmc-chat-isolated body *{visibility:hidden!important}',
     'html.wmc-chat-isolated #chatPanel,html.wmc-chat-isolated #chatPanel *{visibility:visible!important}',
-    'html.wmc-chat-isolated body::before,html.wmc-chat-isolated body::after{display:none!important}',
+    'html.wmc-chat-isolated body::before,html.wmc-chat-isolated body::after,html.wmc-chat-isolated::before,html.wmc-chat-isolated::after{display:none!important}',
     'html.wmc-chat-isolated #chatPanel{background:#121216!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:0 18px 38px #0009!important;opacity:1!important}',
     'html.wmc-chat-isolated .chat-panel:not(.open){visibility:hidden!important;opacity:0!important}'
   ].join('\n');
   document.head.appendChild(isolationStyle);
+  let lastChatStyle=null,backgroundShouldPlay=false,resumeAttempts=0;
+  let resumeWindowStart=0,dragChatHead=null;
   function setChatIsolated(on){
+    const audio=document.getElementById('realAudio');
+    if(on && !document.documentElement.classList.contains('wmc-chat-isolated')){
+      backgroundShouldPlay=!!(audio?.src&&!audio.paused&&!audio.ended);
+      resumeAttempts=0;resumeWindowStart=Date.now();
+    }
+    if(!on)backgroundShouldPlay=false;
     document.documentElement.classList.toggle('wmc-chat-isolated',!!on);
     if(on){
-      // Remove any potentially opaque iframe document background, while
-      // keeping the original audio element and all chat state mounted.
       requestNativeBounds();
+      try{w.parent.postMessage({type:'whatever:music:ui:isolation-ready'},parentOrigin);}
+      catch(error){console.warn('[Music keepalive] isolation notice failed',error?.message);}
+    }else{
+      const panel=document.getElementById('chatPanel');
+      if(panel&&lastChatStyle!==null){panel.style.cssText=lastChatStyle;lastChatStyle=null;}
+    }
+  }
+  // Some private app-manager exit paths pause the audio even when its
+  // iframe stays connected. Resume only if it WAS PLAYING on navigation.
+  // Never auto-start music the user had paused, and don't retry endlessly.
+  function resumeUnintendedPause(){
+    const audio=document.getElementById('realAudio');
+    if(!backgroundShouldPlay||!document.documentElement.classList.contains('wmc-chat-isolated')
+      ||!audio||!audio.paused||audio.ended||!audio.src)return;
+    const now=Date.now();
+    if(now-resumeWindowStart>12000){resumeWindowStart=now;resumeAttempts=0;}
+    if(resumeAttempts++>=3)return;
+    setTimeout(()=>{
+      if(backgroundShouldPlay&&audio.paused&&!audio.ended){
+        Promise.resolve(audio.play()).catch(e=>
+          console.warn('[Music keepalive] Media playback prevented:',e?.message));
+      }
+    },150);
+  }
+  const underlyingAudio=document.getElementById('realAudio');
+  underlyingAudio?.addEventListener('pause',resumeUnintendedPause);
+  underlyingAudio?.addEventListener('play',()=>{
+    if(document.documentElement.classList.contains('wmc-chat-isolated'))
+      backgroundShouldPlay=true;
+  });
+  function applyChatLayout(box){
+    if(!document.documentElement.classList.contains('wmc-chat-isolated'))return;
+    const panel=document.getElementById('chatPanel');
+    if(!panel||!box)return;
+    const n=x=>Number.isFinite(Number(x))?Number(x):0;
+    const left=Math.max(0,n(box.left)),top=Math.max(0,n(box.top));
+    const width=Math.max(190,Math.min(n(box.width),window.innerWidth-left));
+    const height=Math.max(170,Math.min(n(box.height),window.innerHeight-top));
+    if(lastChatStyle===null)lastChatStyle=panel.style.cssText;
+    panel.style.setProperty('left',left+'px','important');
+    panel.style.setProperty('top',top+'px','important');
+    panel.style.setProperty('width',width+'px','important');
+    panel.style.setProperty('height',height+'px','important');
+    panel.style.setProperty('min-height','0','important');
+    panel.style.setProperty('max-height','none','important');
+    panel.style.setProperty('right','auto','important');
+    panel.style.setProperty('bottom','auto','important');
+    lastBounds='';requestNativeBounds();
+  }
+  function installDockHeadDrag(){
+    const head=document.getElementById('chatHead');
+    if(!head||head.__wmcDockDrag)return;
+    head.__wmcDockDrag=true;
+    // Capture before the source app's own panel drag listeners, to ensure
+    // dragging the original title bar moves its attached lyric dock as one.
+    head.addEventListener('pointerdown',e=>{
+      if(!document.documentElement.classList.contains('wmc-chat-isolated')
+        ||e.button!==0||e.target?.closest?.('button'))return;
+      dragChatHead={id:e.pointerId,x:e.clientX,y:e.clientY};
+      head.setPointerCapture?.(e.pointerId);
+      e.preventDefault();e.stopImmediatePropagation();
+    },true);
+    head.addEventListener('pointermove',e=>{
+      if(!dragChatHead||dragChatHead.id!==e.pointerId)return;
+      const dx=e.clientX-dragChatHead.x,dy=e.clientY-dragChatHead.y;
+      dragChatHead.x=e.clientX;dragChatHead.y=e.clientY;
+      if(dx||dy)w.parent.postMessage({type:'whatever:music:ui:dock-drag',dx,dy},parentOrigin);
+      e.preventDefault();e.stopImmediatePropagation();
+    },true);
+    for(const type of ['pointerup','pointercancel']){
+      head.addEventListener(type,e=>{
+        if(dragChatHead?.id!==e.pointerId)return;
+        dragChatHead=null;
+        e.preventDefault();e.stopImmediatePropagation();
+      },true);
     }
   }
   w.addEventListener('message',ev=>{
@@ -437,6 +518,7 @@
     const d=ev.data||{};
     if(d.type!=='whatever:music:ui:command')return;
     if(d.command==='chat-isolated'){setChatIsolated(d.value===true);return;}
+    if(d.command==='chat-layout'){applyChatLayout(d.value);return;}
     if(!participant)return;
     if(d.command==='chat'){
       // Open the ORIGINAL music chatPanel, exactly as its partner avatar does.
@@ -487,6 +569,7 @@
     if(!lt||lt.__wmcPanelSync)return;
     if(typeof lt.openChat!=='function'||typeof lt.closeChat!=='function')return;
     lt.__wmcPanelSync=true;
+    installDockHeadDrag();
     const originalOpen=lt.openChat.bind(lt);
     const originalClose=lt.closeChat.bind(lt);
     lt.openChat=function(...args){
