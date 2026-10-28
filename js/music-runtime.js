@@ -554,9 +554,7 @@
     // Keep both ORIGINAL music inputs above Android's visual keyboard.
     'html.wmc-chat-keyboard:not(.wmc-chat-isolated) #chatPanel{bottom:calc(var(--wmc-keyboard-inset,0px) + 8px)!important;max-height:calc(var(--wmc-visible-bottom,100dvh) - 22px)!important;min-height:0!important}',
     'html.wmc-chat-keyboard:not(.wmc-chat-isolated) #duetInput{position:fixed!important;bottom:calc(var(--wmc-keyboard-inset,0px) + 8px)!important;left:8px!important;right:8px!important;z-index:2147483001!important}',
-    // Keep the composer and chat history in the same shrinking flex column.
-    'html.wmc-chat-isolated #chatPanel.open,html.wmc-chat-keyboard #chatPanel.open{display:flex!important;flex-direction:column!important;min-height:0!important}',
-    'html.wmc-chat-isolated #chatPanel.open .chat-list,html.wmc-chat-keyboard #chatPanel.open .chat-list{flex:1 1 0%!important;height:0!important;min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain}',
+    'html.wmc-chat-keyboard #chatPanel .chat-list{min-height:0!important;overflow-y:auto!important}',
     'html.wmc-chat-keyboard #chatPanel .chat-input-row{flex-shrink:0!important}'
   ].join('\n');
   document.head.appendChild(isolationStyle);
@@ -722,14 +720,6 @@
     panel.style.setProperty('max-height','none','important');
     panel.style.setProperty('right','auto','important');
     panel.style.setProperty('bottom','auto','important');
-    // Scroll after the panel has resized, so the latest messages stay
-    // above the keyboard instead of under the focused composer.
-    if(document.activeElement?.id==='chatInput'){
-      requestAnimationFrame(()=>{
-        const feed=document.getElementById('chatList');
-        if(feed)feed.scrollTop=feed.scrollHeight;
-      });
-    }
     lastBounds='';requestNativeBounds();
   }
   function installDockHeadDrag(){
