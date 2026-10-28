@@ -359,7 +359,25 @@
     }
   }
   // Sync only CHANGED lyrics, never the whole playlist on every time tick.
-  let lastFloatSample=0,lastFloatKey='',entrySeq=0;
+  let lastFloatSample=0,lastFloatKey='',entrySeq=0,lastLyricMapKey='';
+  function sendTimedLyricMap(songId){
+    if(w.parent===w)return;
+    try{
+      const source=typeof lyricState!=='undefined'&&Array.isArray(lyricState.lines)
+        ?lyricState.lines:[];
+      if(!source.length)return;
+      const lines=source.slice(0,450).map(x=>({
+        t:Number(x.t),text:trim(x.text,170)
+      })).filter(x=>Number.isFinite(x.t)&&x.t>=0&&x.t<=86400&&x.text);
+      if(!lines.length)return;
+      const key=[songId,lines.length,lines[0].t,lines.at(-1).t,
+        lines.at(-1).text].join(':');
+      if(key===lastLyricMapKey)return;
+      lastLyricMapKey=key;
+      w.parent.postMessage({type:'whatever:music:lyric-timeline',
+        songId:String(songId||''),lines},parentOrigin);
+    }catch(error){console.warn('[Music Lyrics] timeline unavailable',error?.message);}
+  }
   function sendFloatState(force=false,entry=null){
     // Lyrics are a solo music feature too: do not require an active Char
     // session just to keep three-line synchronized lyrics visible.
@@ -386,6 +404,7 @@
         lyricNext=readLine(lyricIndex+1);
       }
     }catch(_){}
+    sendTimedLyricMap(songId);
     if(!title)title=document.getElementById('playingTrackName')?.textContent||'未知歌曲';
     if(!artist)artist=document.getElementById('playingTrackArtist')?.textContent||'';
     // Original music.js owns lyricState; fall back to the rendered, timed
@@ -454,7 +473,10 @@
     a.__wmcHandoffEvents=true;
     for(const ev of ['play','pause','ended','loadedmetadata','emptied','seeking','seeked','durationchange'])
       a.addEventListener(ev,()=>sendAudioState(true));
-    a.addEventListener('timeupdate',()=>sendAudioState(false));
+    a.addEventListener('timeupdate',()=>{
+      sendAudioState(false);
+      sendFloatState(false);
+    });
     sendAudioState(true);
   }
   function restoreFromMain(state){
@@ -519,7 +541,15 @@
     // A barely visible corner mark; keep a 28px touch target for resizing.
     '#wmc-native-chat-resize{position:absolute;right:0;bottom:0;z-index:8;width:28px;height:28px;padding:0;border:0!important;outline:0;background:transparent!important;color:transparent!important;font-size:0;touch-action:none;cursor:nwse-resize;-webkit-tap-highlight-color:transparent}',
     '#wmc-native-chat-resize::after{content:"";position:absolute;right:3px;bottom:3px;width:7px;height:7px;border-right:1.5px solid rgba(255,255,255,.5);border-bottom:1.5px solid rgba(255,255,255,.5);border-radius:1px;pointer-events:none}',
-    'html.wmc-chat-isolated .chat-panel:not(.open){visibility:hidden!important;opacity:0!important}'
+    'html.wmc-chat-isolated .chat-panel:not(.open){visibility:hidden!important;opacity:0!important}',
+    'html.wmc-keyboard-active #duetInput.show{bottom:var(--wmc-keyboard-inset,0px)!important;z-index:2500!important}',
+    'html.wmc-keyboard-active #chatPanel.open .chat-input-row{position:relative;z-index:3;background:inherit}',
+    'html.wmc-keyboard-active #chatPanel.open .chat-list{min-height:0;overflow-y:auto}',
+    // Keep both ORIGINAL music inputs above Android's visual keyboard.
+    'html.wmc-chat-keyboard:not(.wmc-chat-isolated) #chatPanel{bottom:calc(var(--wmc-keyboard-inset,0px) + 8px)!important;max-height:calc(100dvh - var(--wmc-keyboard-inset,0px) - 22px)!important;min-height:0!important}',
+    'html.wmc-chat-keyboard:not(.wmc-chat-isolated) #duetInput{position:fixed!important;bottom:calc(var(--wmc-keyboard-inset,0px) + 8px)!important;left:8px!important;right:8px!important;z-index:2147483001!important}',
+    'html.wmc-chat-keyboard #chatPanel .chat-list{min-height:0!important;overflow-y:auto!important}',
+    'html.wmc-chat-keyboard #chatPanel .chat-input-row{flex-shrink:0!important}'
   ].join('\n');
   document.head.appendChild(isolationStyle);
   let lastChatStyle=null,backgroundShouldPlay=false,resumeAttempts=0;
@@ -543,6 +573,120 @@
       const panel=document.getElementById('chatPanel');
       if(panel&&lastChatStyle!==null){panel.style.cssText=lastChatStyle;lastChatStyle=null;}
     }
+  }
+  let keyboardFocused=false,keyboardRestoreTimer=0;
+  function reportKeyboard(){
+    const vv=w.visualViewport;
+    const bottom=vv?vv.offsetTop+vv.height:w.innerHeight;
+    const inset=Math.max(0,Math.round(w.innerHeight-bottom));
+    const active=document.activeElement;
+    const stillFocused=!!(active&&['chatInput','duetChatInput'].includes(active.id));
+    keyboardFocused=stillFocused;
+    document.documentElement.classList.toggle('wmc-chat-keyboard',stillFocused);
+    document.documentElement.style.setProperty('--wmc-keyboard-inset',inset+'px');
+    if(stillFocused){
+      const panel=document.getElementById('chatPanel');
+      if(panel?.classList.contains('open')){
+        const feed=document.getElementById('chatList');
+        if(feed)feed.scrollTop=feed.scrollHeight;
+      }
+    }
+    try{w.parent.postMessage({type:'whatever:music:ui:keyboard',
+      focused:stillFocused,availableBottom:Math.max(0,bottom)},parentOrigin);}
+    catch{}
+  }
+  if(!document.__wmcKeyboardGuard){
+    document.__wmcKeyboardGuard=true;
+    document.addEventListener('focusin',event=>{
+      if(!['chatInput','duetChatInput'].includes(event.target?.id))return;
+      reportKeyboard();
+      setTimeout(reportKeyboard,90);
+      setTimeout(reportKeyboard,320);
+    },true);
+    document.addEventListener('focusout',event=>{
+      if(!['chatInput','duetChatInput'].includes(event.target?.id))return;
+      clearTimeout(keyboardRestoreTimer);
+      keyboardRestoreTimer=setTimeout(reportKeyboard,150);
+    },true);
+    w.visualViewport?.addEventListener('resize',reportKeyboard);
+    w.visualViewport?.addEventListener('scroll',reportKeyboard);
+    w.addEventListener('resize',reportKeyboard);
+  }
+  // Android virtual keyboard can reduce the VISUAL viewport without changing
+  // iframe layout height. Keep original ListenTogether input above that edge.
+  // Only adjust original chatPanel/duetInput while a real input has focus.
+  let keyboardSaved=null,keyboardParentBottom=null,keyboardScheduled=false;
+  function restoreKeyboardGeometry(){
+    const panel=document.getElementById('chatPanel');
+    if(panel&&keyboardSaved){
+      for(const key of ['top','bottom','height','maxHeight','overflow']){
+        if(keyboardSaved[key])panel.style.setProperty(key,keyboardSaved[key]);
+        else panel.style.removeProperty(key);
+      }
+    }
+    keyboardSaved=null;
+    document.documentElement.classList.remove('wmc-keyboard-active');
+    requestNativeBounds();
+  }
+  function fitKeyboard(){
+    keyboardScheduled=false;
+    const active=document.activeElement;
+    if(!active||!['chatInput','duetChatInput'].includes(active.id)){
+      if(keyboardSaved)restoreKeyboardGeometry();
+      return;
+    }
+    const vv=w.visualViewport;
+    const localBottom=vv?vv.offsetTop+vv.height:(w.innerHeight||document.documentElement.clientHeight);
+    const bottom=Math.min(localBottom,keyboardParentBottom??Infinity);
+    const height=w.innerHeight||document.documentElement.clientHeight||bottom;
+    const keyboardOpen=bottom<height-70;
+    if(!keyboardOpen){
+      if(keyboardSaved)restoreKeyboardGeometry();
+      return;
+    }
+    document.documentElement.classList.add('wmc-keyboard-active');
+    const panel=document.getElementById('chatPanel');
+    if(active.id==='chatInput'&&panel?.classList.contains('open')){
+      if(!keyboardSaved){
+        const props=['top','bottom','height','maxHeight','overflow'];
+        keyboardSaved=Object.fromEntries(props.map(key=>[key,panel.style.getPropertyValue(key)]));
+      }
+      const box=panel.getBoundingClientRect();
+      const top=Math.max(6,Math.min(box.top,bottom-200));
+      const h=Math.max(150,Math.min(box.height,bottom-top-8));
+      panel.style.setProperty('top',top+'px','important');
+      panel.style.setProperty('bottom','auto','important');
+      panel.style.setProperty('height',h+'px','important');
+      panel.style.setProperty('max-height',h+'px','important');
+      panel.style.setProperty('overflow','hidden','important');
+      requestNativeBounds();
+    }
+    // The in-player inline composer uses fixed positioning from private CSS.
+    // Lift just that composer, not the entire original music layout.
+    document.documentElement.style.setProperty('--wmc-keyboard-inset',
+      Math.max(0,height-bottom)+'px');
+  }
+  function scheduleFitKeyboard(){
+    if(keyboardScheduled)return;
+    keyboardScheduled=true;
+    requestAnimationFrame(fitKeyboard);
+  }
+  document.addEventListener('focusin',e=>{
+    if(['chatInput','duetChatInput'].includes(e.target?.id))scheduleFitKeyboard();
+  });
+  document.addEventListener('focusout',e=>{
+    if(['chatInput','duetChatInput'].includes(e.target?.id))
+      setTimeout(()=>{
+        if(!['chatInput','duetChatInput'].includes(document.activeElement?.id)){
+          keyboardParentBottom=null;
+          document.documentElement.style.removeProperty('--wmc-keyboard-inset');
+          restoreKeyboardGeometry();
+        }
+      },170);
+  });
+  if(w.visualViewport){
+    w.visualViewport.addEventListener('resize',scheduleFitKeyboard);
+    w.visualViewport.addEventListener('scroll',scheduleFitKeyboard);
   }
   // Some private app-manager exit paths pause the audio even when its
   // iframe stays connected. Resume only if it WAS PLAYING on navigation.
@@ -575,7 +719,7 @@
     const n=x=>Number.isFinite(Number(x))?Number(x):0;
     const left=Math.max(0,n(box.left)),top=Math.max(0,n(box.top));
     const width=Math.max(190,Math.min(n(box.width),window.innerWidth-left));
-    const height=Math.max(170,Math.min(n(box.height),window.innerHeight-top));
+    const height=Math.max(110,Math.min(n(box.height),window.innerHeight-top));
     if(lastChatStyle===null)lastChatStyle=panel.style.cssText;
     panel.style.setProperty('left',left+'px','important');
     panel.style.setProperty('top',top+'px','important');
@@ -628,6 +772,12 @@
     if(d.command==='audio-restore'){restoreFromMain(d.value);return;}
     if(d.command==='chat-isolated'){setChatIsolated(d.value===true);return;}
     if(d.command==='chat-layout'){applyChatLayout(d.value);return;}
+    if(d.command==='keyboard-viewport'){
+      const bottom=Number(d.value?.bottom);
+      keyboardParentBottom=Number.isFinite(bottom)&&bottom>100?bottom:null;
+      scheduleFitKeyboard();
+      return;
+    }
     if(!participant)return;
     if(d.command==='chat'||d.command==='chat-toggle'){
       // One tap opens; the NEXT tap closes the same original chatPanel.
@@ -897,6 +1047,13 @@
     '.wmc-speech-me:after{right:18px}.wmc-speech-them:after{left:18px}',
     '.wmc-speech-row.wmc-speech-visible{opacity:1;transform:translateY(0)}.wmc-speech-row.wmc-speech-fading{opacity:0;transform:translateY(-14px)}',
     '@media(prefers-reduced-motion:reduce){.wmc-speech-row{transition:none!important}}',
+    // Scoped invitation styles: all visible corners are fully rounded,
+    // while the original Char picker, invitations and click handlers stay.
+    '.wmc-sheet{border-radius:34px!important;overflow:visible!important}',
+    '.wmc-album,.wmc-picker,.wmc-select-toggle,.wmc-contact-menu{border-radius:25px!important}',
+    '.wmc-option,.wmc-contact-option,.wmc-retry{border-radius:999px!important}',
+    '.wmc-close,.wmc-contact-initial,.wmc-contact-avatar,.wmc-option-icon{border-radius:50%!important}',
+    '@media(max-height:580px){.wmc-sheet{max-height:calc(100dvh - 18px);overflow-y:auto!important}.wmc-mask{overflow-y:auto}}',
     '@media(prefers-reduced-motion:reduce){.wmc-mask,.wmc-sheet,.wmc-art,.wmc-eq i{animation:none!important}.wmc-option{transition:none}}'
   ].join('\n');
   document.head.append(style);
