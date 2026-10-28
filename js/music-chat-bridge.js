@@ -28,6 +28,7 @@
   const playerFrames = () => {
     const appWindow=document.getElementById('appWindow') || document.querySelector('.app-window');
     const layer=document.getElementById('whatever-music-layer');
+    const evergreen=document.getElementById('wmc-persistent-music');
     const content=appWindow?.querySelector('.app-content');
     const windowTitle=document.getElementById('appTitle')?.textContent || '';
     // Dedicated Chérie Music is a FULL-SCREEN sibling of appWindow, not
@@ -41,7 +42,7 @@
     if(!desktop.length&&content&&/音乐|music|ch[ée]rie/i.test(windowTitle)){
       desktop.push(...Array.from(content.querySelectorAll('iframe')));
     }
-    return [...new Set([...fullScreen,...desktop])];
+    return [...new Set([...Array.from(evergreen?.querySelectorAll('iframe')||[]),...fullScreen,...desktop])];
   };
   // The private music app may run inside a sandboxed srcdoc iframe whose
   // browser origin is literally "null".  Trust only the currently mounted
@@ -384,7 +385,7 @@
   const float={
     node:null,lyric:null,frame:null,origin:null,data:null,lastText:'',
     preservedPane:null,sparePane:null,shelvedLayer:null,nativePanelVisible:false,homeMode:false,guarded:false,
-    originalWinClip:null,paneStyles:null,panelBounds:null,
+    originalWinClip:null,paneStyles:null,panelBounds:null,persistentViewport:null,
     create(){
       if(this.node)return;
       const el=document.createElement('button');
@@ -430,12 +431,33 @@
       el.addEventListener('pointerup',end);
       el.addEventListener('pointercancel',end);
     },
-    command(action){
+    command(action,value){
       if(!this.frame?.isConnected||!this.frame.contentWindow){this.close();return;}
       try{
-        this.frame.contentWindow.postMessage({type:'whatever:music:ui:command',command:action},
+        this.frame.contentWindow.postMessage({type:'whatever:music:ui:command',command:action,value},
           this.origin==='null'?'*':this.origin);
       }catch(error){console.warn('[Music Lyrics] command failed:',error?.message);}
+    },
+    persistentLayer(){
+      const node=document.getElementById('wmc-persistent-music');
+      return node?.contains(this.frame)?node:null;
+    },
+    positionPersistent(){
+      const layer=this.persistentLayer();
+      if(!layer)return;
+      const content=document.querySelector('#appWindow .app-content');
+      const rect=content?.getBoundingClientRect();
+      if(rect&&rect.width>30&&rect.height>30){
+        layer.style.left=rect.left+'px';
+        layer.style.top=rect.top+'px';
+        layer.style.width=rect.width+'px';
+        layer.style.height=rect.height+'px';
+        this.persistentViewport={left:rect.left,top:rect.top,width:rect.width,height:rect.height};
+      }else if(this.persistentViewport){
+        const p=this.persistentViewport;
+        layer.style.left=p.left+'px';layer.style.top=p.top+'px';
+        layer.style.width=p.width+'px';layer.style.height=p.height+'px';
+      }
     },
     // Translate ORIGINAL iframe-local chat coordinates into the retaining
     // host's clipping coordinates. Browser layout offsets vary with base.css.
@@ -480,10 +502,10 @@
     // Whatever apps. Clipping on the FULL-SCREEN host preserves its iframe,
     // audio graph and base.css geometry. No second chat UI is created.
     setNativePanel(panel){
-      const musicLayer=document.getElementById('whatever-music-layer');
+      const musicLayer=this.persistentLayer()||document.getElementById('whatever-music-layer');
       if(panel?.open===false){
         this.panelBounds=null;this.nativePanelVisible=false;
-        if(this.shelvedLayer){
+        if(this.shelvedLayer&&musicLayer){
           musicLayer.style.clipPath='inset(0 0 100% 0)';
           musicLayer.style.pointerEvents='none';
         }
@@ -496,6 +518,7 @@
       if(musicLayer?.contains(this.frame)){
         if(!this.shelvedLayer)return; // original fullscreen remains unchanged
         this.nativePanelVisible=this.clipOnlyPanel(musicLayer,panel);
+        if(this.nativePanelVisible)this.command('chat-isolated',true);
         return;
       }
       if(this.preservedPane){
@@ -513,7 +536,16 @@
       if(typeof w.openApp==='function'){
         const original=w.openApp;
         w.openApp=function(appId){
+          if(appId==='music'&&root.persistentLayer()){
+            root.restoreMusic();return root.frame;
+          }
           if(appId==='music'&&root.preservedPane){root.restoreMusic();return;}
+          if(appId!=='music'&&root.persistentLayer()){
+            root.shelveLayer();
+            const opened=original.apply(this,arguments);
+            root.command('panel-sync');
+            return opened;
+          }
           if(root.frame?.isConnected&&appId!=='music'){
             root.preservePane();
             if(root.preservedPane){
@@ -535,6 +567,12 @@
       if(typeof w.closeApp==='function'){
         const original=w.closeApp;
         w.closeApp=function(){
+          if(root.persistentLayer()){
+            root.shelveLayer();
+            const closed=original.apply(this,arguments);
+            root.command('panel-sync');
+            return closed;
+          }
           if(root.frame?.isConnected)root.preservePane();
           const result=original.apply(this,arguments);
           if(root.preservedPane){
@@ -596,17 +634,38 @@
       this.hideRetainedPane();
     },
     shelveLayer(){
-      const layer=document.getElementById('whatever-music-layer');
+      const layer=this.persistentLayer()||document.getElementById('whatever-music-layer');
       if(!layer||!layer.contains(this.frame)||this.shelvedLayer)return;
       this.shelvedLayer={layer,clipPath:layer.style.clipPath,pointerEvents:layer.style.pointerEvents};
       layer.style.clipPath='inset(0 0 100% 0)';
       layer.style.pointerEvents='none';
+      // Opaque iframe element backgrounds otherwise show the player through
+      // rounded corners even when its document hides every non-chat node.
+      if(this.persistentLayer()){
+        this.savedFrameBackground=this.frame.style.background;
+        this.frame.style.background='transparent';
+      }
+      this.command('chat-isolated',true);
     },
     restoreMusic(){
       if(this.shelvedLayer){
         const {layer,clipPath,pointerEvents}=this.shelvedLayer;
         layer.style.clipPath=clipPath;layer.style.pointerEvents=pointerEvents;
         this.shelvedLayer=null;
+      }
+      if(this.persistentLayer()){
+        if(this.savedFrameBackground!==undefined){
+          this.frame.style.background=this.savedFrameBackground;
+          this.savedFrameBackground=undefined;
+        }
+        this.command('chat-isolated',false);
+        const win=document.getElementById('appWindow');
+        win?.classList.add('active');
+        document.getElementById('homeScreen')?.classList.add('scaled');
+        const title=document.getElementById('appTitle');
+        if(title)title.textContent='音乐';
+        this.positionPersistent();
+        return;
       }
       if(this.preservedPane){
         this.homeMode=false;
@@ -632,7 +691,8 @@
         layer.style.pointerEvents='none';
       }
       if(this.node)this.node.hidden=true;
-      this.frame=null;this.origin=null;this.data=null;this.lastText='';
+      if(!this.persistentLayer()){this.frame=null;this.origin=null;}
+      this.data=null;this.lastText='';
       // Leave the original player's base layout and data untouched.
     },
     update(data,source,origin){
@@ -674,6 +734,72 @@
     }
   };
   setInterval(()=>{if(float.frame&&!float.frame.isConnected)float.close();},8000);
+
+  // Mount the FIRST original music iframe in a permanent sibling before the
+  // private app manager can attach it to a disposable .app-content. Moving
+  // an already-mounted iframe would reload and stop the audio, so interception
+  // must happen synchronously BEFORE its first DOM insertion.
+  (function installPermanentMusicMount(){
+    const originalAppend=Element.prototype.appendChild;
+    const originalReplace=Element.prototype.replaceChildren;
+    const originalInsert=Element.prototype.insertBefore;
+    const originalAppendMany=Element.prototype.append;
+    let capturing=false;
+    function isMusicFrame(parent,node){
+      if(capturing||!node||node.tagName!=='IFRAME')return false;
+      const win=document.getElementById('appWindow');
+      if(!win||!win.contains(parent))return false;
+      const area=parent.closest?.('.app-content');
+      if(!area||!win.contains(area))return false;
+      const ownTitle=[node.title||'',node.getAttribute?.('title')||''].join(' ');
+      if(/音乐|ch[ée]rie|music/i.test(ownTitle))return true;
+      const currentTitle=document.getElementById('appTitle')?.textContent||'';
+      // A title-less iframe is accepted only when it contains the actual
+      // music document. Never capture an unrelated app's iframe.
+      return /音乐|ch[ée]rie|music/i.test(currentTitle)&&
+        /(?:id=["']realAudio["']|id=["']chatPanel["'])/.test(node.srcdoc||'');
+    }
+    function capture(parent,node){
+      if(!isMusicFrame(parent,node))return false;
+      const previous=document.getElementById('wmc-persistent-music');
+      // Prevent a second audio player if app-manager retries loading.
+      if(previous?.querySelector('iframe'))return false;
+      capturing=true;
+      try{
+        const layer=previous||document.createElement('div');
+        layer.id='wmc-persistent-music';
+        layer.style.cssText='position:fixed;inset:auto;z-index:2147483490;'+
+          'overflow:hidden;pointer-events:auto;background:transparent;'+
+          'clip-path:none;isolation:isolate';
+        if(!layer.isConnected)originalAppend.call(document.body,layer);
+        node.style.display='block';
+        node.style.width='100%';node.style.height='100%';
+        node.style.border='0';
+        // iframe background turns transparent only when showing native chat.
+        originalAppend.call(layer,node);
+        float.frame=node;float.origin='null';
+        float.positionPersistent();
+        float.guardNavigation();
+        return true;
+      }finally{capturing=false;}
+    }
+    Element.prototype.appendChild=function(node){
+      if(capture(this,node))return node;
+      return originalAppend.call(this,node);
+    };
+    Element.prototype.insertBefore=function(node,ref){
+      if(capture(this,node))return node;
+      return originalInsert.call(this,node,ref);
+    };
+    Element.prototype.replaceChildren=function(...nodes){
+      const retained=nodes.filter(n=>!capture(this,n));
+      return originalReplace.apply(this,retained);
+    };
+    Element.prototype.append=function(...nodes){
+      const rest=nodes.filter(n=>!capture(this,n));
+      return originalAppendMany.apply(this,rest);
+    };
+  })();
   const miniStyle=document.createElement('style');
   miniStyle.textContent=[
     '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 66px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(290px,calc(100vw - 24px));min-height:90px;height:90px;padding:0;border:0!important;outline:0;background:none!important;color:#fff;box-shadow:none!important;border-radius:0;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;text-align:center}',
