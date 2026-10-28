@@ -5,7 +5,13 @@
   w.__wmcInstalled=true;
   let participant=null, busy=false, dialog=null, seq=0;
   const waiting=new Map();
-  const origin=w.location.origin;
+  // srcdoc/sandboxed music iframes have the opaque origin "null".  The
+  // parent is the only target window; use its real origin when the browser
+  // exposes a referrer, otherwise the narrowly scoped parent-window fallback.
+  const parentOrigin=(()=>{
+    try{const x=new URL(document.referrer);return x.origin!=='null'?x.origin:'*';}
+    catch{return '*';}
+  })();
   const trim=(v,n=200)=>String(v??'').trim().slice(0,n);
   function snapshot(){
     const audio=document.getElementById('realAudio');
@@ -37,11 +43,11 @@
       const id='music-'+Date.now()+'-'+(++seq);
       const timer=setTimeout(()=>{waiting.delete(id);reject(Error('聊天室响应超时'));},55000);
       waiting.set(id,{resolve,reject,timer});
-      w.parent.postMessage({type:'whatever:music:request',id,action,payload},origin);
+      w.parent.postMessage({type:'whatever:music:request',id,action,payload},parentOrigin);
     });
   }
   w.addEventListener('message',ev=>{
-    if(ev.source!==w.parent||ev.origin!==origin)return;
+    if(ev.source!==w.parent||(parentOrigin!=='*'&&ev.origin!==parentOrigin))return;
     const d=ev.data;
     if(!d||d.type!=='whatever:music:response')return;
     const p=waiting.get(d.id);if(!p)return;
