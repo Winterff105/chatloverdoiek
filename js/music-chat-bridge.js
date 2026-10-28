@@ -635,6 +635,12 @@
       this.shelvedLayer={layer,clipPath:layer.style.clipPath,pointerEvents:layer.style.pointerEvents};
       layer.style.clipPath='inset(0 0 100% 0)';
       layer.style.pointerEvents='none';
+      // Opaque iframe element backgrounds otherwise show the player through
+      // rounded corners even when its document hides every non-chat node.
+      if(this.persistentLayer()){
+        this.savedFrameBackground=this.frame.style.background;
+        this.frame.style.background='transparent';
+      }
       this.command('chat-isolated',true);
     },
     restoreMusic(){
@@ -644,6 +650,10 @@
         this.shelvedLayer=null;
       }
       if(this.persistentLayer()){
+        if(this.savedFrameBackground!==undefined){
+          this.frame.style.background=this.savedFrameBackground;
+          this.savedFrameBackground=undefined;
+        }
         this.command('chat-isolated',false);
         const win=document.getElementById('appWindow');
         win?.classList.add('active');
