@@ -25,7 +25,7 @@ async function login(token,secret){
   const key=await crypto.subtle.importKey('raw',TE.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['verify']);
   if(!await crypto.subtle.verify('HMAC',key,b64(parts[1]),TE.encode(parts[0])))return null;
   const [qq,expires,device]=new TextDecoder().decode(b64(parts[0])).split(':');
-  if(!/^\d{5,12}$/.test(qq||'')||Number(expires)<=Date.now()||!/^[\w-]{4,64}$/.test(device||''))return null;
+  if(!/^\d{5,12}$/.test(qq||'')||!Number.isFinite(Number(expires))||Number(expires)<=Date.now()||!/^[\w-]{4,64}$/.test(device||''))return null;
   return {qq,device};
  }catch{return null;}
 }
