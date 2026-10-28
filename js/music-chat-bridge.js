@@ -24,9 +24,42 @@
       playlist: Array.isArray(s.playlist) ? s.playlist.slice(0,50).map(t=>({id:truncate(t.id,90),title:truncate(t.title,160),artist:truncate(t.artist,120)})) : []
     };
   };
+  // If the contacts UI has not been opened yet, use its canonical persisted
+  // identity thread directly. Never write a parallel "music" conversation.
+  const CHAT_KEY = 'whatever_messages_contacts_v1';
+  const CHATMAP_KEY = 'whatever_messages_chat_map_v2';
+  const storageHost = {
+    listContacts(){
+      try {const a=JSON.parse(w.localStorage.getItem(CHAT_KEY)||'[]');return Array.isArray(a)?a:[];}
+      catch{return [];}
+    },
+    getThread(contactId){
+      const c=this.listContacts().find(x=>String(x.id)===String(contactId));
+      return c?.threads?.[activeIdentity()] || (activeIdentity()==='self' ? c?.msgs : null) || [];
+    },
+    mutateContact(contactId,action){
+      // If the messages app is visibly mounted but hook installation failed,
+      // refuse rather than risk overwriting a newer in-memory conversation.
+      if (document.querySelector('.messages-app')) throw Error('主聊天室适配器没有就绪，不能安全同步消息');
+      const all=this.listContacts(),c=all.find(x=>String(x.id)===String(contactId));
+      if(!c)throw Error('联系人不存在');
+      c.threads=(c.threads&&typeof c.threads==='object')?c.threads:{};
+      const who=activeIdentity();
+      const list=Array.isArray(c.threads[who])?c.threads[who]:(who==='self'&&Array.isArray(c.msgs)?c.msgs:[]);
+      c.threads[who]=list;
+      action(c,list);
+      c.time=time();
+      w.localStorage.setItem(CHAT_KEY,JSON.stringify(all,(k,v)=>k==='msgs'?undefined:v));
+      let map;
+      try{map=JSON.parse(w.localStorage.getItem(CHATMAP_KEY)||'{}')||{};}catch{map={};}
+      const ids=Array.isArray(map[who])?map[who].map(String):[];
+      if(!ids.includes(String(contactId)))map[who]=[String(contactId),...ids];
+      w.localStorage.setItem(CHATMAP_KEY,JSON.stringify(map));
+      return c;
+    }
+  };
   function requireHost() {
-    if (!host || !host.listContacts || !host.mutateContact || !host.getThread) throw Error('聊天室尚未准备好，请先打开一次联系人页面');
-    return host;
+    return host || storageHost;
   }
   function findContact(contactId) {
     const c = requireHost().listContacts().find(x=>String(x.id)===String(contactId));
@@ -192,6 +225,22 @@
   document.addEventListener('click',event=>{
     if(!event.target.closest?.('.wmc-song-card'))return;
     if(typeof w.openApp==='function')w.openApp('music');
+  });
+  const theme=document.createElement('style');
+  theme.textContent=[
+    '.wmc-song-card{width:min(255px,78vw);background:linear-gradient(145deg,#22212b,#34323d);color:white;border:1px solid #ffffff24;border-radius:16px;padding:16px;box-shadow:0 6px 24px #0003;cursor:pointer;line-height:1.55}',
+    '.wmc-card-head{font-size:11px;color:#c5c1d4;letter-spacing:.08em;margin-bottom:12px}',
+    '.wmc-card-title{font-weight:700;font-size:16px;overflow-wrap:anywhere}',
+    '.wmc-card-artist{color:#aaa6b9;font-size:12px;margin-top:3px}',
+    '.wmc-card-status{margin-top:13px;border-top:1px solid #ffffff30;padding-top:9px;font-size:12px;color:#ddd9eb}',
+    '.wmc-card-row{margin:10px 0}.wmc-song-card:focus-visible{outline:2px solid #a5a0c6;outline-offset:3px}'
+  ].join('\n');
+  document.head.appendChild(theme);
+  document.addEventListener('keydown',e=>{
+    const card=e.target.closest?.('.wmc-song-card');
+    if(card&&(e.key==='Enter'||e.key===' ')){
+      e.preventDefault();if(typeof w.openApp==='function')w.openApp('music');
+    }
   });
   w.WhateverMusicChatBridge=Object.freeze({
     registerHost(adapter){
