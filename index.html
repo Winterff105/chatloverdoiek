@@ -13,6 +13,51 @@
         body {
             background-color: #09090b;
         }
+        /* Update capsule follows the old gate's dark translucent toast palette. */
+        #appUpdateToast {
+            position: fixed;
+            left: 50%;
+            bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+            transform: translateX(-50%) translateY(12px);
+            z-index: 2147483646;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            max-width: calc(100vw - 24px);
+            box-sizing: border-box;
+            padding: 6px 6px 6px 13px;
+            border: 1px solid rgba(255, 255, 255, .12);
+            border-radius: 9999px;
+            background: rgba(18, 18, 22, .94);
+            color: #f4f4f6;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+            font: 11px/1.45 "Plus Jakarta Sans", -apple-system, sans-serif;
+            white-space: nowrap;
+            transition: transform .22s ease, opacity .22s ease;
+        }
+        #appUpdateToast b { font-size: 11px; font-weight: 700; }
+        #appUpdateOpen {
+            flex-shrink: 0;
+            height: 29px;
+            min-width: 44px;
+            padding: 0 11px;
+            border: 0;
+            border-radius: 9999px;
+            background: #fff;
+            color: #111116;
+            font: 600 10px "Plus Jakarta Sans", -apple-system, sans-serif;
+            cursor: pointer;
+        }
+        #appUpdateOpen:active { transform: scale(.97); }
+        #appUpdateOpen:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+        @media (prefers-reduced-motion: reduce) {
+            #appUpdateToast { transition: none; }
+        }
         #appUpdateNotes li { margin: 0 0 7px; padding-left: 2px; }
         #appUpdateNotes li:last-child { margin-bottom: 0; }
         @media (max-height: 560px) {
@@ -182,9 +227,9 @@
     </div>
 
     <!-- Whatever 新版本提示：不清理任何联系人/聊天数据 -->
-    <div id="appUpdateToast" style="position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 100px);transform:translateX(-50%) translateY(15px);z-index:2147483646;background:#000;border:1px solid #555;color:#fff;padding:7px 8px 7px 15px;border-radius:100px;display:flex;gap:10px;align-items:center;box-shadow:0 10px 35px #0008;visibility:hidden;opacity:0;pointer-events:none;max-width:calc(100vw - 24px);font:12px/1.4 system-ui,sans-serif;">
+    <div id="appUpdateToast" role="status" aria-live="polite">
         <span>发现新版本 <b id="appUpdateVersion"></b></span>
-        <button type="button" id="appUpdateOpen" style="border:0;background:#fff;color:#000;border-radius:50%;width:42px;height:42px;padding:0;display:grid;place-items:center;font-size:11px;font-weight:700;white-space:nowrap;">查看</button>
+        <button type="button" id="appUpdateOpen">查看</button>
     </div>
     <div id="appUpdateModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="appUpdateHeading" style="position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.82);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:none;align-items:center;justify-content:center;padding:22px 18px;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;">
         <section style="width:min(345px,100%);max-height:calc(100dvh - 44px);overflow:hidden;box-sizing:border-box;background:#101012;border:1px solid #38383b;border-radius:26px;color:#fff;padding:20px 20px 18px;box-shadow:0 20px 65px #0009;text-align:center;display:flex;flex-direction:column;">
