@@ -830,16 +830,17 @@
         const now=Date.now();
         if(recalling||now-lastRecallAt<1150)return;
         if(!participant){notify('请先邀请真实 Char 一起听');return;}
+        const contactId=participant.id;
         recalling=true;lastRecallAt=now;
         btn.disabled=true;
         btn.setAttribute('aria-busy','true');
         try{
           const intentId='wmc-recall-'+now.toString(36)+'-'+(++seq).toString(36);
-          const result=await rpc('recall',{contactId:participant.id,music:snapshot(),intentId});
+          const result=await rpc('recall',{contactId,music:snapshot(),intentId});
           if(result?.deduped)return;
           const messages=Array.isArray(result?.messages)?result.messages:[];
           if(!messages.length)throw Error('API 没有返回可用回复');
-          if(participant?.id!==result?.contactId&&result?.contactId)return;
+          if(participant?.id!==contactId)return;
           for(const text of messages)w.ListenTogether?.receive?.(text);
         }catch(error){notify('调取 API 回复失败：'+trim(error?.message||error,140));}
         finally{
