@@ -61,7 +61,17 @@
                     window.matchMedia('(display-mode: standalone)').matches;
             }
 
-            // 主屏幕模式下 innerHeight 会少算状态栏高度，改取物理屏幕高度
+            // Keep the phone shell height stable while Messages' keyboard
+            // animates. Resizing the whole shell AND lifting its composer at
+            // the same time exposes a black frame behind the conversation.
+            var stableAppHeight = 0;
+            var stableAppWidth = 0;
+            var lastChatBlur = 0;
+            document.addEventListener('focusout', function () {
+                if (root.classList.contains('wmc-messages-input-focused')) {
+                    lastChatBlur = Date.now();
+                }
+            }, true);
             function setAppHeight() {
                 var h = window.innerHeight;
                 if (isStandalone()) {
@@ -71,7 +81,20 @@
                         : Math.max(screen.width, screen.height);
                     h = Math.max(h, screenH);
                 }
-                root.style.setProperty('--app-height', h + 'px');
+                var vv = window.visualViewport;
+                var visualBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+                var typing = root.classList.contains('wmc-messages-input-focused');
+                var sameWidth = stableAppWidth === window.innerWidth;
+                var keyboardResizing = sameWidth && stableAppHeight - visualBottom > 90;
+                if (keyboardResizing && (typing || Date.now() - lastChatBlur < 900)) {
+                    h = Math.max(h, stableAppHeight);
+                } else {
+                    stableAppWidth = window.innerWidth;
+                    stableAppHeight = h;
+                }
+                if (root.style.getPropertyValue('--app-height') !== h + 'px') {
+                    root.style.setProperty('--app-height', h + 'px');
+                }
             }
 
             // 把 phone-container 上的壁纸变量复制到 html，让 html/body 背景层也显示壁纸
