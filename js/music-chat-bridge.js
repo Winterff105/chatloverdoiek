@@ -11,7 +11,24 @@
   const id = () => 'wm-' + Date.now().toString(36) + '-' + (++lastId);
   const time = () => {const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
   const activeIdentity = () => w.localStorage.getItem('whatever_messages_active_identity_v1') || 'self';
-  const playerFrames = () => [...document.querySelectorAll('iframe[title="音乐"],iframe[title="Chérie Music"]')];
+  // Select the actual music iframe by its exact WindowProxy. The private
+  // app-manager has used more than one frame title across versions; relying
+  // only on title="音乐" left invitations without a response.
+  const playerFrames = () => {
+    const appWindow = document.getElementById('appWindow') || document.querySelector('.app-window');
+    const content = appWindow?.querySelector('.app-content');
+    const windowTitle = document.getElementById('appTitle')?.textContent || '';
+    const byTitle = frame => /音乐|music|ch[ée]rie/i.test([
+      frame.getAttribute('title')||'', frame.getAttribute('data-app')||'',
+      frame.getAttribute('src')||'', frame.id||''
+    ].join(' '));
+    if (content) {
+      const frames = Array.from(content.querySelectorAll('iframe'));
+      if (frames.length === 1 && /音乐|music|ch[ée]rie/i.test(windowTitle)) return frames;
+      return frames.filter(byTitle);
+    }
+    return Array.from(document.querySelectorAll('iframe')).filter(byTitle);
+  };
   // The private music app may run inside a sandboxed srcdoc iframe whose
   // browser origin is literally "null".  Trust only the currently mounted
   // music iframe's exact WindowProxy, never arbitrary opaque-origin frames.
@@ -35,8 +52,14 @@
   const CHATMAP_KEY = 'whatever_messages_chat_map_v2';
   const storageHost = {
     listContacts(){
-      try {const a=JSON.parse(w.localStorage.getItem(CHAT_KEY)||'[]');return Array.isArray(a)?a:[];}
-      catch{return [];}
+      try {
+        const raw=w.localStorage.getItem(CHAT_KEY);
+        const a=JSON.parse(raw||'[]');
+        if (!Array.isArray(a)) throw Error('联系人存储格式不是列表');
+        return a;
+      } catch(error) {
+        throw Error('联系人存储读取失败：'+String(error?.message||error));
+      }
     },
     getThread(contactId){
       const c=this.listContacts().find(x=>String(x.id)===String(contactId));
@@ -64,7 +87,26 @@
     }
   };
   function requireHost() {
-    return host || storageHost;
+    // initMessagesModule is recreated whenever Chat opens. Its CONTACTS
+    // closure becomes stale when switching back to Music. The current
+    // persisted contacts/threads are canonical while Chat is unmounted.
+    const liveChat = !!document.querySelector('.messages-app');
+    return liveChat && host ? host : storageHost;
+  }
+  function listContacts(){
+    let live = [];
+    let stored = [];
+    try { if (host && document.querySelector('.messages-app')) {
+      const x = host.listContacts(); if (Array.isArray(x)) live = x;
+    }} catch(error){ console.warn('[Music Chat] live contacts unavailable', error?.message); }
+    let storageError = null;
+    try {stored=storageHost.listContacts();}
+    catch(error){storageError=error;console.warn('[Music Chat] stored contacts unavailable',error?.message);}
+    if(!live.length && storageError)throw storageError;
+    const selected = live.length ? live : stored;
+    return selected
+      .filter(c=>c && typeof c==='object' && c.id!=null && (c.remark||c.name))
+      .map(c=>({id:String(c.id),name:truncate(c.remark||c.name,120),avatar:truncate(c.avatar||'',1000)}));
   }
   function findContact(contactId) {
     const c = requireHost().listContacts().find(x=>String(x.id)===String(contactId));
@@ -209,7 +251,7 @@
     });
   }
   const handlers={
-    contacts:async()=>({contacts:requireHost().listContacts().map(c=>({id:c.id,name:c.remark||c.name,avatar:c.avatar||''})).filter(c=>c.id&&c.name)}),
+    contacts:async()=>({contacts:listContacts()}),
     invite,chat,pick,track,leave
   };
   w.addEventListener('message',async e=>{
