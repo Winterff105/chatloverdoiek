@@ -544,7 +544,8 @@
       const spare=document.createElement('div');
       spare.className='app-content';
       pane.parentNode.insertBefore(spare,pane);
-      pane.classList.remove('app-content');
+      // Preserve the original class (and all user's base.css layout fixes).
+      // The new sibling is first, so app-manager targets it, not music.
       pane.style.display='none';
       this.preservedPane=pane;this.sparePane=spare;
     },
