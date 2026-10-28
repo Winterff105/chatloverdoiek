@@ -158,9 +158,21 @@
       return {ok:true};
     });
   }
+  async function track(data){
+    const contactId=String(data.contactId),music=safeMusic(data.music);
+    return serialize(contactId,async()=>{
+      const session=sessions.get(contactId);
+      if(!session||session.status!=='accepted'||session.identityId!==activeIdentity())return {ok:false};
+      if(session.music.songId===music.songId && session.music.title===music.title)return {ok:true};
+      session.music=music;
+      add(contactId,{me:true,text:'【一起听歌】切换到《'+music.title+'》'+(music.artist?' · '+music.artist:''),
+        music:{kind:'event',sessionId:session.id,title:music.title,songId:music.songId}});
+      return {ok:true};
+    });
+  }
   const handlers={
     contacts:async()=>({contacts:requireHost().listContacts().map(c=>({id:c.id,name:c.remark||c.name,avatar:c.avatar||''})).filter(c=>c.id&&c.name)}),
-    invite,chat,pick,leave
+    invite,chat,pick,track,leave
   };
   w.addEventListener('message',async e=>{
     if(!validSender(e))return;
