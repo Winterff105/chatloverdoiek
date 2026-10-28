@@ -390,10 +390,12 @@
       el.id='wmc-floating-player';el.type='button';el.hidden=true;
       el.setAttribute('aria-label','点击滚动歌词打开原一起听聊天窗口');
       const track=document.createElement('span');track.className='wmc-lyric-track';
-      const lyric=document.createElement('span');lyric.className='wmc-fp-lyric';
-      lyric.textContent='♪';
-      track.appendChild(lyric);el.appendChild(track);document.body.appendChild(el);
-      this.node=el;this.lyric=lyric;
+      const previous=document.createElement('span');previous.className='wmc-lyric-row wmc-lyric-prev';
+      const lyric=document.createElement('span');lyric.className='wmc-lyric-row wmc-fp-lyric';
+      const next=document.createElement('span');next.className='wmc-lyric-row wmc-lyric-next';
+      lyric.textContent='♪';previous.textContent=' ';next.textContent=' ';
+      track.append(previous,lyric,next);el.appendChild(track);document.body.appendChild(el);
+      this.node=el;this.track=track;this.previous=previous;this.lyric=lyric;this.next=next;this.lastLyricIndex=null;
       el.addEventListener('click',()=>{
         if(this.ignoreNextClick){this.ignoreNextClick=false;return;}
         if(!this.frame?.isConnected)return;
@@ -580,16 +582,24 @@
       if(data.contactId)this.data={...(this.data||{}),...data};
       this.node.hidden=false;
       if(Object.prototype.hasOwnProperty.call(data,'lyric')||data.music){
-        const lyric=truncate(data.lyric||data.music?.lyric||'',220)
+        const current=truncate(data.lyric||data.music?.lyric||'',220)
           || ('♪ '+truncate(data.music?.title||'一起听',80));
-        if(this.lastText!==lyric){
-          this.lyric.textContent=lyric;
-          this.lastText=lyric;
-          // Rise from below and drift upward, without a bordered overlay.
-          this.lyric.style.animation='none';
-          void this.lyric.offsetWidth;
-          this.lyric.style.animation='';
+        const previous=truncate(data.lyricPrev||'',220);
+        const following=truncate(data.lyricNext||'',220);
+        const key=[previous,current,following].join('\u001f');
+        if(this.lastText!==key){
+          const moved=Number.isInteger(data.lyricIndex)&&this.lastLyricIndex!==null
+            &&data.lyricIndex!==this.lastLyricIndex;
+          this.previous.textContent=previous||' ';
+          this.lyric.textContent=current;
+          this.next.textContent=following||' ';
+          this.lastText=key;
+          if(moved){
+            this.track.classList.remove('wmc-lyric-moving');
+            requestAnimationFrame(()=>this.track?.classList.add('wmc-lyric-moving'));
+          }
         }
+        if(Number.isInteger(data.lyricIndex))this.lastLyricIndex=data.lyricIndex;
       }
       this.guardNavigation();
       return {ok:true};
@@ -598,13 +608,16 @@
   setInterval(()=>{if(float.frame&&!float.frame.isConnected)float.close();},8000);
   const miniStyle=document.createElement('style');
   miniStyle.textContent=[
-    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 85px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(268px,calc(100vw - 24px));height:57px;padding:0;border:0!important;outline:0;background:none!important;color:#fff;box-shadow:none!important;border-radius:0;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;text-align:center}',
+    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 66px);right:12px;z-index:2147483550;box-sizing:border-box;width:min(290px,calc(100vw - 24px));min-height:90px;height:90px;padding:0;border:0!important;outline:0;background:none!important;color:#fff;box-shadow:none!important;border-radius:0;overflow:hidden;cursor:pointer;touch-action:none;-webkit-tap-highlight-color:transparent;text-align:center}',
     '#wmc-floating-player[hidden]{display:none!important}',
-    '#wmc-floating-player .wmc-lyric-track{display:grid;place-items:center;width:100%;height:100%;overflow:hidden;background:none!important;mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 84%,transparent 100%);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 84%,transparent 100%)}',
-    '#wmc-floating-player .wmc-fp-lyric{display:block;max-width:100%;padding:0 6px;background:none!important;border:0!important;color:#fff;font:600 13px/1.55 system-ui,-apple-system,sans-serif;letter-spacing:.02em;white-space:normal;overflow-wrap:anywhere;text-shadow:0 1px 5px #000d,0 2px 12px #000a;animation:wmc-lyric-rise 7.2s ease-in-out both}',
-    '@keyframes wmc-lyric-rise{0%{opacity:0;transform:translateY(23px)}23%{opacity:1;transform:translateY(0)}100%{opacity:1;transform:translateY(-8px)}}',
+    '#wmc-floating-player .wmc-lyric-track{display:grid;grid-template-rows:24px 30px 24px;align-content:center;justify-items:center;width:100%;height:100%;overflow:hidden;background:none!important;mask-image:linear-gradient(180deg,transparent 0%,#000 14%,#000 86%,transparent 100%);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 14%,#000 86%,transparent 100%)}',
+    '#wmc-floating-player .wmc-lyric-row{display:block;box-sizing:border-box;max-width:100%;height:100%;padding:0 5px;background:none!important;border:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:system-ui,-apple-system,sans-serif;text-shadow:0 1px 6px #000e,0 2px 12px #000a}',
+    '#wmc-floating-player .wmc-lyric-prev,#wmc-floating-player .wmc-lyric-next{font-size:11px;font-weight:500;color:rgba(255,255,255,.7);opacity:.60;line-height:24px}',
+    '#wmc-floating-player .wmc-fp-lyric{font-size:14px;line-height:30px;font-weight:750;color:#fff;opacity:1}',
+    '#wmc-floating-player .wmc-lyric-track.wmc-lyric-moving{animation:wmc-three-lyrics-rise .5s ease-out both}',
+    '@keyframes wmc-three-lyrics-rise{from{transform:translateY(13px);opacity:.65}to{transform:translateY(0);opacity:1}}',
     '#wmc-floating-player:focus-visible{outline:1px dashed #fff;outline-offset:1px}',
-    '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-fp-lyric{animation:none!important;opacity:1;transform:none}}'
+    '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-lyric-track{animation:none!important}}'
   ].join('\n');
   document.head.appendChild(miniStyle);
   const handlers={
