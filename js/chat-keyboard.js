@@ -44,8 +44,10 @@
       else composer.style.removeProperty('z-index');
     }
     if(thread&&saved){
-      if(saved.scrollPaddingBottom)thread.style.setProperty('scroll-padding-bottom',saved.scrollPaddingBottom);
-      else thread.style.removeProperty('scroll-padding-bottom');
+      for(const [name,value,priority] of saved.threadStyles){
+        if(value)thread.style.setProperty(name,value,priority);
+        else thread.style.removeProperty(name);
+      }
     }
     root.classList.remove('wmc-messages-keyboard');
     root.style.removeProperty('--wmc-main-input-rise');
@@ -60,7 +62,9 @@
     saved={
       translate:composer.style.getPropertyValue('translate'),
       zIndex:composer.style.getPropertyValue('z-index'),
-      scrollPaddingBottom:thread?.style.getPropertyValue('scroll-padding-bottom')||''
+      threadStyles:['scroll-padding-bottom','max-height','min-height','overflow-y']
+        .map(name=>[name,thread?.style.getPropertyValue(name)||'',
+          thread?.style.getPropertyPriority(name)||''])
     };
   }
   function update(){
@@ -103,11 +107,33 @@
       else composer.style.removeProperty('z-index');
     }
     if(thread){
-      if(keyboardOpen)thread.style.setProperty('scroll-padding-bottom','8px');
-      else if(saved.scrollPaddingBottom)thread.style.setProperty('scroll-padding-bottom',saved.scrollPaddingBottom);
-      else thread.style.removeProperty('scroll-padding-bottom');
-      // Do not force-scroll the entire thread on focus: that causes a full
-      // black repaint during the native keyboard opening animation.
+      if(keyboardOpen){
+        // The original adapter moved only the composer, leaving the message
+        // history behind it. Cap the actual scroll area at the lifted composer.
+        const threadBox=thread.getBoundingClientRect();
+        const composerTop=composer.getBoundingClientRect().top;
+        const messageBottom=Math.min(visibleBottom-8,composerTop-8);
+        const available=Math.round(messageBottom-threadBox.top);
+        const nearLatest=thread.scrollHeight-thread.scrollTop-thread.clientHeight<96;
+        thread.style.setProperty('max-height',Math.max(56,available)+'px','important');
+        thread.style.setProperty('min-height','0','important');
+        thread.style.setProperty('overflow-y','auto','important');
+        thread.style.setProperty('scroll-padding-bottom','8px');
+        // Keep the latest message visible only if the user was already
+        // reading the end of the conversation; don't interrupt older reading.
+        if(nearLatest){
+          const current=thread;
+          w.requestAnimationFrame(()=>{
+            if(current.isConnected&&active===d.activeElement)
+              current.scrollTop=current.scrollHeight;
+          });
+        }
+      }else{
+        for(const [name,value,priority] of saved.threadStyles){
+          if(value)thread.style.setProperty(name,value,priority);
+          else thread.style.removeProperty(name);
+        }
+      }
     }
     root.classList.toggle('wmc-messages-keyboard',keyboardOpen);
     root.style.setProperty('--wmc-main-input-rise',lift+'px');
