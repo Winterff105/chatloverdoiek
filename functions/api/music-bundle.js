@@ -8,6 +8,35 @@ const FILES = [
 ];
 const enc = new TextEncoder();
 
+// Prevent the legacy virtual-partner fallback from pretending to be a Char.
+// This is appended to authenticated music.js in-memory; the original private
+// music source, playlist, chatPanel and lyrics remain untouched.
+const MUSIC_REAL_CHAR_GUARD = String.raw`
+;(function(){
+  if(window.__whateverMusicRealCharGuard) return;
+  window.__whateverMusicRealCharGuard = true;
+  function startRealChar(){
+    if(typeof window.__whateverMusicInviteReady === 'function')
+      return window.__whateverMusicInviteReady();
+    var msg='真实 Char 邀请尚未连接，请稍后重试。未启动模拟恋人。';
+    if(typeof window.showToast === 'function') window.showToast(msg, 'error');
+    else if(typeof window.alert === 'function') window.alert(msg);
+    else console.warn('[Music]', msg);
+  }
+  window.toggleTogether = startRealChar;
+  document.addEventListener('click', function(e){
+    var target=e.target;
+    if(!target || typeof target.closest !== 'function') return;
+    if(!target.closest('#togetherBtn, .modal-close[aria-label="结束一起听"]')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    startRealChar();
+  }, true);
+})();
+`;
+
+
 // Password hash lives in the private Supabase database, not in public GitHub
 // and PBKDF2 is deliberately NOT run in Cloudflare's CPU-limited request handler.
 async function checkMusicPassword(password, serviceKey) {
@@ -69,6 +98,11 @@ export async function onRequestPost({request, env}) {
       });
       if(!r.ok) throw new Error('Storage '+path+' HTTP '+r.status);
       let contents = await r.text();
+      if (path === 'js/apps/music.js') {
+        // Safe fallback: never enter the old random-reply virtual mode if the
+        // real Char adapter cannot load, regardless of document readiness.
+        contents += MUSIC_REAL_CHAR_GUARD;
+      }
       // Add a small integration adapter AFTER the original music-api module.
       // It reuses window.ListenTogether.chatPanel; no replacement of music.js,
       // song library, lyrics implementation, miniplayer or existing CSS.
