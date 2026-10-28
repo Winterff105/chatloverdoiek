@@ -541,7 +541,12 @@
     // A barely visible corner mark; keep a 28px touch target for resizing.
     '#wmc-native-chat-resize{position:absolute;right:0;bottom:0;z-index:8;width:28px;height:28px;padding:0;border:0!important;outline:0;background:transparent!important;color:transparent!important;font-size:0;touch-action:none;cursor:nwse-resize;-webkit-tap-highlight-color:transparent}',
     '#wmc-native-chat-resize::after{content:"";position:absolute;right:3px;bottom:3px;width:7px;height:7px;border-right:1.5px solid rgba(255,255,255,.5);border-bottom:1.5px solid rgba(255,255,255,.5);border-radius:1px;pointer-events:none}',
-    'html.wmc-chat-isolated .chat-panel:not(.open){visibility:hidden!important;opacity:0!important}'
+    'html.wmc-chat-isolated .chat-panel:not(.open){visibility:hidden!important;opacity:0!important}',
+    // Keep both ORIGINAL music inputs above Android's visual keyboard.
+    'html.wmc-chat-keyboard:not(.wmc-chat-isolated) #chatPanel{bottom:calc(var(--wmc-keyboard-inset,0px) + 8px)!important;max-height:calc(100dvh - var(--wmc-keyboard-inset,0px) - 22px)!important;min-height:0!important}',
+    'html.wmc-chat-keyboard:not(.wmc-chat-isolated) #duetInput{position:fixed!important;bottom:calc(var(--wmc-keyboard-inset,0px) + 8px)!important;left:8px!important;right:8px!important;z-index:2147483001!important}',
+    'html.wmc-chat-keyboard #chatPanel .chat-list{min-height:0!important;overflow-y:auto!important}',
+    'html.wmc-chat-keyboard #chatPanel .chat-input-row{flex-shrink:0!important}'
   ].join('\n');
   document.head.appendChild(isolationStyle);
   let lastChatStyle=null,backgroundShouldPlay=false,resumeAttempts=0;
@@ -565,6 +570,44 @@
       const panel=document.getElementById('chatPanel');
       if(panel&&lastChatStyle!==null){panel.style.cssText=lastChatStyle;lastChatStyle=null;}
     }
+  }
+  let keyboardFocused=false,keyboardRestoreTimer=0;
+  function reportKeyboard(){
+    const vv=w.visualViewport;
+    const bottom=vv?vv.offsetTop+vv.height:w.innerHeight;
+    const inset=Math.max(0,Math.round(w.innerHeight-bottom));
+    const active=document.activeElement;
+    const stillFocused=!!(active&&['chatInput','duetChatInput'].includes(active.id));
+    keyboardFocused=stillFocused;
+    document.documentElement.classList.toggle('wmc-chat-keyboard',stillFocused);
+    document.documentElement.style.setProperty('--wmc-keyboard-inset',inset+'px');
+    if(stillFocused){
+      const panel=document.getElementById('chatPanel');
+      if(panel?.classList.contains('open')){
+        const feed=document.getElementById('chatList');
+        if(feed)feed.scrollTop=feed.scrollHeight;
+      }
+    }
+    try{w.parent.postMessage({type:'whatever:music:ui:keyboard',
+      focused:stillFocused,availableBottom:Math.max(0,bottom)},parentOrigin);}
+    catch{}
+  }
+  if(!document.__wmcKeyboardGuard){
+    document.__wmcKeyboardGuard=true;
+    document.addEventListener('focusin',event=>{
+      if(!['chatInput','duetChatInput'].includes(event.target?.id))return;
+      reportKeyboard();
+      setTimeout(reportKeyboard,90);
+      setTimeout(reportKeyboard,320);
+    },true);
+    document.addEventListener('focusout',event=>{
+      if(!['chatInput','duetChatInput'].includes(event.target?.id))return;
+      clearTimeout(keyboardRestoreTimer);
+      keyboardRestoreTimer=setTimeout(reportKeyboard,150);
+    },true);
+    w.visualViewport?.addEventListener('resize',reportKeyboard);
+    w.visualViewport?.addEventListener('scroll',reportKeyboard);
+    w.addEventListener('resize',reportKeyboard);
   }
   // Some private app-manager exit paths pause the audio even when its
   // iframe stays connected. Resume only if it WAS PLAYING on navigation.
@@ -597,7 +640,7 @@
     const n=x=>Number.isFinite(Number(x))?Number(x):0;
     const left=Math.max(0,n(box.left)),top=Math.max(0,n(box.top));
     const width=Math.max(190,Math.min(n(box.width),window.innerWidth-left));
-    const height=Math.max(170,Math.min(n(box.height),window.innerHeight-top));
+    const height=Math.max(110,Math.min(n(box.height),window.innerHeight-top));
     if(lastChatStyle===null)lastChatStyle=panel.style.cssText;
     panel.style.setProperty('left',left+'px','important');
     panel.style.setProperty('top',top+'px','important');
