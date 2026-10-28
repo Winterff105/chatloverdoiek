@@ -49,7 +49,12 @@
   // music iframe's exact WindowProxy, never arbitrary opaque-origin frames.
   const validSender = e => (e.origin===w.location.origin||e.origin==='null')
     && (playerFrames().some(f=>f.contentWindow===e.source)
-        || (!!float?.frame?.isConnected&&float.frame.contentWindow===e.source));
+        || (!!float?.frame?.isConnected&&float.frame.contentWindow===e.source)
+        // An original music frame can be detached in the same event turn as
+        // its exit button. Only its final audio-leaving message may still
+        // initiate handoff, using its exact previously authenticated WindowProxy.
+        || (e.data?.type==='whatever:music:audio-leaving'
+          &&!!float?.frame&&float.frame.contentWindow===e.source));
   const responseOrigin = e => e.origin==='null'?'*':e.origin;
   const safeMusic = raw => {
     const s = raw && typeof raw === 'object' ? raw : {};
