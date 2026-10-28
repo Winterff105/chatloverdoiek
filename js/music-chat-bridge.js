@@ -173,11 +173,17 @@
         c.memories.unshift(m);
       }
       if(entry){
-        // The episode is the single source of truth for both replay and AI
-        // context; every message is saved before a model request starts.
+        // One atomic contact mutation synchronizes the music episode and
+        // the original Messages thread; never create a second contact store.
         if(m.chatLog.length>=1200)throw Error('同听记录已达本地存储上限，请结束本次同听并新建会话');
-        m.chatLog.push({me:!!entry.me,text:truncate(entry.text,2000),ts:Date.now(),
-          title:truncate(entry.title||session.music.title,160),type:entry.type||'chat'});
+        const stamp=Date.now(), text=truncate(entry.text,2000), kind=entry.type||'chat';
+        m.chatLog.push({me:!!entry.me,text,ts:stamp,
+          title:truncate(entry.title||session.music.title,160),type:kind});
+        if(kind==='chat'||kind==='recall'){
+          messages.push({id:id(),me:!!entry.me,text,ts:stamp,t:time(),
+            music:{kind:'synced',sessionId:session.id,source:'music',
+              title:truncate(entry.title||session.music.title,160)}});
+        }
       }
       if(session.music.title)m.title=session.music.title;
       if(session.music.artist)m.artist=session.music.artist;
@@ -297,11 +303,11 @@
     return msgs;
   }
   const cleanPrefix=s=>s.replace(/^\s*【(?:接受邀请|婉拒邀请)】\s*/,'').trim();
-  const responseFor = (contactId, music, parts, sessionId)=>{
+  const responseFor = (contactId, music, parts, sessionId, kind='chat')=>{
     const session=sessions.get(sessionKey(contactId));
     const texts=parts.map(p=>cleanPrefix(p.text)).filter(Boolean);
     if(session&&session.id===sessionId&&session.status==='accepted'){
-      for(const text of texts)writeEpisode(contactId,session,{me:false,text,title:music.title});
+      for(const text of texts)writeEpisode(contactId,session,{me:false,text,title:music.title,type:kind});
     }
     return texts;
   };
@@ -372,7 +378,7 @@
           throw Error('当前一起听已经结束，请重新邀请');
         const parts=await reply(contactId,music,'recall',
           '用户点了「调取」，请根据你的人设、当前歌曲和这次一起听的已有聊天自然主动回复。不要伪造用户刚发出的消息，也不要自行选歌。');
-        return {messages:responseFor(contactId,music,parts,session.id)};
+        return {messages:responseFor(contactId,music,parts,session.id,'recall')};
       });
     }finally{
       guard.pending=false;
@@ -832,7 +838,9 @@
       if(typeof w.openApp==='function'){
         const original=w.openApp;
         w.openApp=function(appId){
-          if(appId!=='music')audioHandoff.takeOver();
+          // The first music iframe lives in a permanent sibling. Keep its
+          // existing audio element playing; do not start a second player.
+          if(appId!=='music'&&!root.persistentLayer())audioHandoff.takeOver();
           if(appId==='music'&&root.persistentLayer()){
             root.restoreMusic();
             audioHandoff.requestReturn();
@@ -842,7 +850,6 @@
             root.restoreMusic();audioHandoff.requestReturn();return;
           }
           if(appId!=='music'&&root.persistentLayer()){
-            audioHandoff.takeOver();
             root.shelveLayer();
             const opened=original.apply(this,arguments);
             root.command('panel-sync');
@@ -874,14 +881,20 @@
       if(typeof w.closeApp==='function'){
         const original=w.closeApp;
         w.closeApp=function(){
-          audioHandoff.takeOver();
           if(root.persistentLayer()){
-            audioHandoff.takeOver();
             root.shelveLayer();
-            const closed=original.apply(this,arguments);
+            // Private app-manager.closeApp() pauses __whateverMusicFrame.
+            // Temporarily hide ONLY its reference while closing the window,
+            // then restore it so reopening reuses the same audio and song.
+            const retained=w.__whateverMusicFrame===root.frame?root.frame:null;
+            if(retained)w.__whateverMusicFrame=null;
+            let closed;
+            try{closed=original.apply(this,arguments);}
+            finally{if(retained)w.__whateverMusicFrame=retained;}
             root.command('panel-sync');
             return closed;
           }
+          audioHandoff.takeOver();
           if(root.frame?.isConnected){
             audioHandoff.takeOver();
             root.preservePane();
@@ -905,7 +918,7 @@
         app.__wmcKeepAlive=true;
         app.close=function(opts){
           if(root.frame?.isConnected){
-            audioHandoff.takeOver();
+            if(!root.persistentLayer())audioHandoff.takeOver();
             // Keep playing even before choosing a Char; no src reset, pause
             // or iframe destruction, irrespective of participant state.
             root.shelveLayer();
@@ -1228,7 +1241,9 @@
       return;
     }
     if(d?.type==='whatever:music:audio-leaving'){
-      audioHandoff.takeOver();
+      // Native persistent iframe remains mounted on exit. Handoff only
+      // when the player actually needs to be replaced or removed.
+      if(!float.persistentLayer())audioHandoff.takeOver();
       return;
     }
     if(d?.type==='whatever:music:ui:keyboard'){
