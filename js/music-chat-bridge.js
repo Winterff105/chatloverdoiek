@@ -429,17 +429,19 @@
       const target=(layer&&layer.contains(this.frame))?layer
         :(win&&win.contains(this.frame)?win:null);
       if(!target)return;
-      this.hidden={target,visibility:target.style.visibility,pointerEvents:target.style.pointerEvents,
-        active:target.classList.contains('active')};
-      target.style.visibility='hidden';target.style.pointerEvents='none';
+      this.hidden={target,opacity:target.style.opacity,pointerEvents:target.style.pointerEvents,
+        inert:!!target.inert,active:target.classList.contains('active')};
+      // Opacity keeps the real iframe/audio mounted and avoids visibility-
+      // based media throttling. Inert/pointer-events disable its input.
+      target.style.opacity='0';target.style.pointerEvents='none';target.inert=true;
       if(target===win)document.getElementById('homeScreen')?.classList.remove('scaled');
       this.mini=true;this.toggle.textContent='▢';
       this.toggle.setAttribute('aria-label','返回音乐界面');
     },
     restore(){
       if(this.hidden){
-        const {target,visibility,pointerEvents,active}=this.hidden;
-        target.style.visibility=visibility;target.style.pointerEvents=pointerEvents;
+        const {target,opacity,pointerEvents,inert,active}=this.hidden;
+        target.style.opacity=opacity;target.style.pointerEvents=pointerEvents;target.inert=inert;
         if(target.id==='appWindow'&&active){
           target.classList.add('active');
           document.getElementById('homeScreen')?.classList.add('scaled');
