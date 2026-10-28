@@ -542,7 +542,9 @@
           if(appId==='music'&&root.preservedPane){root.restoreMusic();return;}
           if(appId!=='music'&&root.persistentLayer()){
             root.shelveLayer();
-            return original.apply(this,arguments);
+            const opened=original.apply(this,arguments);
+            root.command('panel-sync');
+            return opened;
           }
           if(root.frame?.isConnected&&appId!=='music'){
             root.preservePane();
@@ -567,7 +569,9 @@
         w.closeApp=function(){
           if(root.persistentLayer()){
             root.shelveLayer();
-            return original.apply(this,arguments);
+            const closed=original.apply(this,arguments);
+            root.command('panel-sync');
+            return closed;
           }
           if(root.frame?.isConnected)root.preservePane();
           const result=original.apply(this,arguments);
