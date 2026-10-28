@@ -342,6 +342,27 @@
     '.wmc-footer{margin:12px 0 0;text-align:center;color:#777;font-size:10px}.wmc-option:focus-visible,.wmc-close:focus-visible,.wmc-select:focus-visible,.wmc-retry:focus-visible{outline:2px solid #fff;outline-offset:3px}',
     '@keyframes wmcBeat{to{height:3px}}@keyframes wmcSpin{to{transform:rotate(360deg)}}@keyframes wmcFade{from{opacity:0}to{opacity:1}}@keyframes wmcRise{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}',
     '@media(max-width:350px){.wmc-sheet{padding:20px 16px}.wmc-art{width:73px;height:73px}.wmc-vinyl-label{width:36px;height:36px}}',
+    /* Compact layout: approx 25% shorter than the original invitation sheet. */
+    '.wmc-mask{padding:10px 12px}.wmc-sheet{padding:16px 18px;border-radius:19px;overflow:visible;max-height:none}',
+    '.wmc-top{margin-bottom:5px}.wmc-close{width:26px;height:26px;font-size:20px}',
+    '.wmc-title{font-size:21px;margin-bottom:3px}.wmc-subtitle{font-size:11px;margin-bottom:10px}',
+    '.wmc-album{padding:7px 10px;margin-bottom:11px;gap:11px;border-radius:12px}.wmc-art{width:63px;height:63px}',
+    '.wmc-vinyl-label{width:32px;height:32px;font-size:15px}.wmc-song-title{font-size:14px;margin-top:3px}.wmc-song-artist{font-size:11px;margin-top:2px}.wmc-eq{height:17px}',
+    '.wmc-pick-label,.wmc-action-label{font-size:11px;margin-bottom:6px}.wmc-picker{height:44px;position:relative;display:block;padding:0;margin-bottom:11px;border-radius:11px}',
+    '.wmc-select-toggle{display:flex;align-items:center;gap:9px;width:100%;height:100%;padding:0 12px;background:transparent;border:0;color:#fff;text-align:left;font:13px system-ui,-apple-system,sans-serif;cursor:pointer;border-radius:11px}',
+    '.wmc-select-toggle:disabled{opacity:.56;cursor:default}.wmc-selected-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.wmc-select-toggle .wmc-contact-initial{flex:none;width:25px;height:25px;font-size:12px}.wmc-chevron{display:block;flex:none;width:18px;height:18px;margin-left:auto;color:#fff;transition:transform .18s ease}',
+    '.wmc-picker-open .wmc-chevron{transform:rotate(180deg)}',
+    '.wmc-contact-menu{position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:30;max-height:min(186px,32vh);overflow-y:auto;overscroll-behavior:contain;background:#050505;border:1px solid #444;border-radius:12px;padding:4px;box-shadow:0 15px 40px #000d}',
+    '.wmc-contact-menu[hidden]{display:none!important}.wmc-contact-option{display:flex;align-items:center;gap:10px;width:100%;min-height:43px;background:#050505;color:#fff;border:0;border-radius:9px;padding:6px 8px;text-align:left;cursor:pointer}',
+    '.wmc-contact-option:hover,.wmc-contact-option:focus-visible,.wmc-contact-selected{background:#232323}.wmc-contact-avatar{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:50%;background:#fff;color:#000;font-size:12px;font-weight:700}',
+    '.wmc-contact-name{font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.wmc-contact-check{opacity:0;font-size:14px;color:#fff}.wmc-contact-selected .wmc-contact-check{opacity:1}',
+    '.wmc-actions{gap:7px}.wmc-option{min-height:48px;padding:6px 10px;border-radius:11px;gap:9px}.wmc-option-icon{width:27px;height:27px;font-size:16px}.wmc-option-copy{gap:0}.wmc-option-copy strong{font-size:12px}.wmc-option-copy small{font-size:10px;line-height:1.25}.wmc-option-arrow{font-size:20px}',
+    '.wmc-notice{margin-top:8px;min-height:0;font-size:10px}.wmc-notice:empty{display:none}.wmc-footer{margin-top:6px;font-size:9px}',
+    '.wmc-retry{margin-top:6px;padding:5px 12px;font-size:10px}',
+    '.wmc-select-toggle:focus-visible,.wmc-contact-option:focus-visible{outline:2px solid #fff;outline-offset:2px}',
+    '@media(max-height:560px){.wmc-mask{align-items:flex-start;overflow-y:auto}.wmc-sheet{margin:auto 0}.wmc-contact-menu{max-height:min(134px,26vh)}}',
+    '@media(max-width:350px){.wmc-sheet{padding:14px 14px}.wmc-album{padding:6px 9px}.wmc-art{width:56px;height:56px}.wmc-option{min-height:45px}}',
     '@media(prefers-reduced-motion:reduce){.wmc-mask,.wmc-sheet,.wmc-art,.wmc-eq i{animation:none!important}.wmc-option{transition:none}}'
   ].join('\n');
   document.head.append(style);
