@@ -747,9 +747,13 @@
       if(!win||!win.contains(parent))return false;
       const area=parent.closest?.('.app-content');
       if(!area||!win.contains(area))return false;
-      const title=[node.title||'',node.getAttribute?.('title')||'',
-        document.getElementById('appTitle')?.textContent||''].join(' ');
-      return /音乐|ch[ée]rie|music/i.test(title);
+      const ownTitle=[node.title||'',node.getAttribute?.('title')||''].join(' ');
+      if(/音乐|ch[ée]rie|music/i.test(ownTitle))return true;
+      const currentTitle=document.getElementById('appTitle')?.textContent||'';
+      // A title-less iframe is accepted only when it contains the actual
+      // music document. Never capture an unrelated app's iframe.
+      return /音乐|ch[ée]rie|music/i.test(currentTitle)&&
+        /(?:id=["']realAudio["']|id=["']chatPanel["'])/.test(node.srcdoc||'');
     }
     function capture(parent,node){
       if(!isMusicFrame(parent,node))return false;
