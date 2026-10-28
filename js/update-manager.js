@@ -6,7 +6,7 @@
   'use strict';
   if (window.__whateverUpdatesStarted) return;
   window.__whateverUpdatesStarted = true;
-  const PAGE_VERSION = '40';
+  const PAGE_VERSION = '41';
   const VERSION_KEY = 'whatever_app_version';
   const CHECK_INTERVAL_MS = 5 * 60 * 1000;
   const MAX_CHECK_MS = 10000;
