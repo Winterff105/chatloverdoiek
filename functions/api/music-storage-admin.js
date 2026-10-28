@@ -60,7 +60,13 @@ async function adminAllowed(user,key){
 }
 const storageUrl=path=>ROOT+'/storage/v1/object/'+BUCKET+'/'+path.split('/').map(encodeURIComponent).join('/');
 async function download(path,key){
- const res=await fetch(storageUrl(path),{headers:sbHeaders(key),cache:'no-store',signal:AbortSignal.timeout(20000)});
+ // Supabase's object CDN may return a cached OLD revision immediately after
+ // x-upsert (we observed HIT + the old byte length after a successful POST).
+ // fetch(cache:'no-store') alone does not bypass the upstream CDN cache key.
+ const freshUrl=storageUrl(path)+'?__wmc_revision_check='+encodeURIComponent(crypto.randomUUID());
+ const res=await fetch(freshUrl,{headers:{
+  ...sbHeaders(key),'Cache-Control':'no-cache, no-store','Pragma':'no-cache'
+ },cache:'no-store',signal:AbortSignal.timeout(20000)});
  if(!res.ok)throw new Error('Storage GET status '+res.status);
  const bytes=new Uint8Array(await res.arrayBuffer());
  if(!bytes.length||bytes.length>MAX)throw new Error('Unexpected object length');
@@ -83,6 +89,19 @@ async function backup(path,bytes,checksum,key){
  const copy=await download(dest,key);
  if(await hash(copy)!==checksum)throw new Error('Backup verification failed');
  return dest;
+}
+async function verifyWrittenSource(path,expected,key){
+ // Verification must be FRESH and may race storage version propagation.
+ for(let attempt=0;attempt<3;attempt++){
+  if(attempt)await new Promise(resolve=>setTimeout(resolve,attempt*250));
+  try{
+   const actual=await hash(await download(path,key));
+   if(actual===expected)return true;
+  }catch(e){
+   if(attempt===2)console.warn('[music-storage-admin] verification read unavailable:',String(e?.message||e).slice(0,90));
+  }
+ }
+ return false;
 }
 export function onRequestGet(){return respond({ok:false,error:'post_only'},405);}
 export async function onRequestPost({request,env}){
@@ -113,21 +132,28 @@ export async function onRequestPost({request,env}){
   if(data.action==='apply-approved'){
    const approved=APPROVED_SOURCE_FIX[path];
    if(!approved)return respond({ok:false,error:'source_not_approved'},403);
-   if(checksum!==approved.before || data.expectedSha256!==checksum)
+   if(data.expectedSha256!==approved.before && data.expectedSha256!==approved.after)
     return respond({ok:false,error:'source_conflict',sha256:checksum},409);
    if(typeof data.content!=='string')return respond({ok:false,error:'missing_content'},400);
    const patched=TE.encode(data.content);
    if(!patched.length||patched.length>MAX)return respond({ok:false,error:'invalid_size'},413);
    if(await hash(patched)!==approved.after)
     return respond({ok:false,error:'unapproved_content'},403);
+   // Idempotent recovery: the first write might have succeeded even if an
+   // immediately cached GET returned the old revision (HTTP 502 to client).
+   // Never overwrite an already-approved file; continue the next file safely.
+   if(checksum===approved.after)
+    return respond({ok:true,path,sha256:checksum,verified:true,
+     applied:true,alreadyApplied:true});
+   if(checksum!==approved.before || data.expectedSha256!==approved.before)
+    return respond({ok:false,error:'source_conflict',sha256:checksum},409);
    // Store an immutable private backup, verify it byte-for-byte, then update.
    const saved=await backup(path,original,checksum,env.SUPABASE_SERVICE_KEY);
    await upload(path,patched,TYPES[path],env.SUPABASE_SERVICE_KEY,true);
-   const actual=await hash(await download(path,env.SUPABASE_SERVICE_KEY));
-   if(actual!==approved.after)
-    return respond({ok:false,error:'verify_failed',backup:saved,sha256:actual},502);
-   return respond({ok:true,path,previousSha256:checksum,sha256:actual,
-    backup:saved,verified:true,applied:true});
+   if(!await verifyWrittenSource(path,approved.after,env.SUPABASE_SERVICE_KEY))
+    return respond({ok:false,error:'verify_failed',backup:saved},502);
+   return respond({ok:true,path,previousSha256:checksum,sha256:approved.after,
+    backup:saved,verified:true,applied:true,alreadyApplied:false});
   }
   // Deliberately OFF by default, even for administrators.
   if(env.MUSIC_STORAGE_WRITE_ENABLED!=='true')return respond({ok:false,error:'write_disabled'},403);
