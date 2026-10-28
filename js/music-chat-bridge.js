@@ -431,10 +431,10 @@
       el.addEventListener('pointerup',end);
       el.addEventListener('pointercancel',end);
     },
-    command(action){
+    command(action,value){
       if(!this.frame?.isConnected||!this.frame.contentWindow){this.close();return;}
       try{
-        this.frame.contentWindow.postMessage({type:'whatever:music:ui:command',command:action},
+        this.frame.contentWindow.postMessage({type:'whatever:music:ui:command',command:action,value},
           this.origin==='null'?'*':this.origin);
       }catch(error){console.warn('[Music Lyrics] command failed:',error?.message);}
     },
