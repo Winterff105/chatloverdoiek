@@ -419,7 +419,7 @@
     'html.wmc-chat-isolated,html.wmc-chat-isolated body{background:transparent!important;background-image:none!important}',
     'html.wmc-chat-isolated body *{visibility:hidden!important}',
     'html.wmc-chat-isolated #chatPanel,html.wmc-chat-isolated #chatPanel *{visibility:visible!important}',
-    'html.wmc-chat-isolated body::before,html.wmc-chat-isolated body::after{display:none!important}',
+    'html.wmc-chat-isolated body::before,html.wmc-chat-isolated body::after,html.wmc-chat-isolated::before,html.wmc-chat-isolated::after{display:none!important}',
     'html.wmc-chat-isolated #chatPanel{background:#121216!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:0 18px 38px #0009!important;opacity:1!important}',
     'html.wmc-chat-isolated .chat-panel:not(.open){visibility:hidden!important;opacity:0!important}'
   ].join('\n');
@@ -434,8 +434,11 @@
     }
     if(!on)backgroundShouldPlay=false;
     document.documentElement.classList.toggle('wmc-chat-isolated',!!on);
-    if(on)requestNativeBounds();
-    else{
+    if(on){
+      requestNativeBounds();
+      try{w.parent.postMessage({type:'whatever:music:ui:isolation-ready'},parentOrigin);}
+      catch(error){console.warn('[Music keepalive] isolation notice failed',error?.message);}
+    }else{
       const panel=document.getElementById('chatPanel');
       if(panel&&lastChatStyle!==null){panel.style.cssText=lastChatStyle;lastChatStyle=null;}
     }
@@ -459,6 +462,10 @@
   }
   const underlyingAudio=document.getElementById('realAudio');
   underlyingAudio?.addEventListener('pause',resumeUnintendedPause);
+  underlyingAudio?.addEventListener('play',()=>{
+    if(document.documentElement.classList.contains('wmc-chat-isolated'))
+      backgroundShouldPlay=true;
+  });
   function applyChatLayout(box){
     if(!document.documentElement.classList.contains('wmc-chat-isolated'))return;
     const panel=document.getElementById('chatPanel');
