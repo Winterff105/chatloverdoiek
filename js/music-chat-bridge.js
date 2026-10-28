@@ -12,7 +12,12 @@
   const time = () => {const d=new Date();return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');};
   const activeIdentity = () => w.localStorage.getItem('whatever_messages_active_identity_v1') || 'self';
   const playerFrames = () => [...document.querySelectorAll('iframe[title="音乐"],iframe[title="Chérie Music"]')];
-  const validSender = e => e.origin === w.location.origin && playerFrames().some(f=>f.contentWindow===e.source);
+  // The private music app may run inside a sandboxed srcdoc iframe whose
+  // browser origin is literally "null".  Trust only the currently mounted
+  // music iframe's exact WindowProxy, never arbitrary opaque-origin frames.
+  const validSender = e => (e.origin===w.location.origin||e.origin==='null')
+    && playerFrames().some(f=>f.contentWindow===e.source);
+  const responseOrigin = e => e.origin==='null'?'*':e.origin;
   const safeMusic = raw => {
     const s = raw && typeof raw === 'object' ? raw : {};
     return {
@@ -215,9 +220,9 @@
       const handler=handlers[d.action];
       if(!handler)throw Error('未知操作');
       const result=await handler(d.payload||{});
-      e.source.postMessage({type:'whatever:music:response',id:d.id,ok:true,result},e.origin);
+      e.source.postMessage({type:'whatever:music:response',id:d.id,ok:true,result},responseOrigin(e));
     }catch(error){
-      e.source.postMessage({type:'whatever:music:response',id:d.id,ok:false,error:truncate(error?.message||'操作失败',240)},e.origin);
+      e.source.postMessage({type:'whatever:music:response',id:d.id,ok:false,error:truncate(error?.message||'操作失败',240)},responseOrigin(e));
     }
   });
   // The existing chat room renders a *card* for typed invite messages, while the
