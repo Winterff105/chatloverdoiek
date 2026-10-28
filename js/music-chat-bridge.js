@@ -599,7 +599,7 @@
     '#wmc-floating-player[hidden]{display:none!important}',
     '#wmc-floating-player .wmc-lyric-track{display:grid;place-items:center;width:100%;height:100%;overflow:hidden;background:none!important;mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 84%,transparent 100%);-webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 18%,#000 84%,transparent 100%)}',
     '#wmc-floating-player .wmc-fp-lyric{display:block;max-width:100%;padding:0 6px;background:none!important;border:0!important;color:#fff;font:600 13px/1.55 system-ui,-apple-system,sans-serif;letter-spacing:.02em;white-space:normal;overflow-wrap:anywhere;text-shadow:0 1px 5px #000d,0 2px 12px #000a;animation:wmc-lyric-rise 7.2s ease-in-out both}',
-    '@keyframes wmc-lyric-rise{0%{opacity:0;transform:translateY(23px)}17%{opacity:1;transform:translateY(0)}76%{opacity:1;transform:translateY(-4px)}100%{opacity:0;transform:translateY(-25px)}}',
+    '@keyframes wmc-lyric-rise{0%{opacity:0;transform:translateY(23px)}23%{opacity:1;transform:translateY(0)}100%{opacity:1;transform:translateY(-8px)}}',
     '#wmc-floating-player:focus-visible{outline:1px dashed #fff;outline-offset:1px}',
     '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-fp-lyric{animation:none!important;opacity:1;transform:none}}'
   ].join('\n');
