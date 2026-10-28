@@ -1220,6 +1220,75 @@
     '@media(prefers-reduced-motion:reduce){#wmc-floating-player .wmc-lyric-track{animation:none!important}}'
   ].join('\n');
   document.head.appendChild(miniStyle);
+  // A small, host-owned recall indicator: always visible over the original
+  // music iframe, including its clipped floating chat. No second chat window.
+  // Entries are in-memory only and scoped to the current page session.
+  const recallJournal={
+    entries:[],orb:null,panel:null,notice:null,list:null,noticeTimer:null,
+    mount(){
+      if(this.orb)return;
+      const orb=document.createElement('button');
+      orb.id='wmc-recall-orb';orb.type='button';orb.hidden=true;
+      orb.textContent='调取';
+      orb.setAttribute('aria-label','查看一起听调取记录');
+      orb.setAttribute('aria-expanded','false');
+      const notice=document.createElement('div');
+      notice.id='wmc-recall-notice';notice.hidden=true;
+      notice.setAttribute('role','status');
+      const panel=document.createElement('section');
+      panel.id='wmc-recall-panel';panel.hidden=true;
+      panel.setAttribute('aria-label','一起听调取记录');
+      const head=document.createElement('div');
+      head.className='wmc-recall-head';head.textContent='调取记录';
+      const list=document.createElement('div');
+      list.className='wmc-recall-list';panel.append(head,list);
+      orb.addEventListener('click',()=>{
+        panel.hidden=!panel.hidden;
+        orb.setAttribute('aria-expanded',String(!panel.hidden));
+      });
+      document.addEventListener('click',e=>{
+        if(!panel.hidden&&!panel.contains(e.target)&&!orb.contains(e.target)){
+          panel.hidden=true;orb.setAttribute('aria-expanded','false');
+        }
+      });
+      document.body.append(orb,notice,panel);
+      this.orb=orb;this.notice=notice;this.panel=panel;this.list=list;
+    },
+    update(data){
+      const id=truncate(data.intentId,90);
+      if(!/^wmc-recall-[a-z0-9]+-[a-z0-9]+$/.test(id))return;
+      if(!['loading','success','error'].includes(data.stage))return;
+      this.mount();
+      let entry=this.entries.find(item=>item.id===id);
+      if(!entry){
+        entry={id,name:truncate(data.name,80)||'Char',
+          source:data.source==='floating-chat'?'悬浮小窗':'音乐 App',
+          status:'loading',detail:'',stamp:Date.now()};
+        this.entries.push(entry);
+        if(this.entries.length>12)this.entries.shift();
+      }
+      entry.status=data.stage;
+      entry.detail=truncate(data.summary,220);
+      this.orb.hidden=false;
+      const label=entry.status==='loading'?'正在调取':
+        entry.status==='success'?'已收到回复':'调取失败';
+      this.notice.textContent=entry.name+' · '+entry.source+' · '+label;
+      this.notice.hidden=false;
+      clearTimeout(this.noticeTimer);
+      this.noticeTimer=setTimeout(()=>{this.notice.hidden=true},entry.status==='loading'?15000:4500);
+      this.list.replaceChildren();
+      for(const item of [...this.entries].reverse()){
+        const row=document.createElement('div');row.className='wmc-recall-entry';
+        const meta=document.createElement('div');meta.className='wmc-recall-meta';
+        meta.textContent=item.name+' · '+item.source;
+        const body=document.createElement('div');body.className='wmc-recall-detail';
+        body.textContent=(item.status==='loading'?'正在调取':
+          item.status==='error'?'调取失败':'已回复')+
+          (item.detail?' · '+item.detail:'');
+        row.append(meta,body);this.list.appendChild(row);
+      }
+    }
+  };
   const handlers={
     contacts:async()=>({contacts:listContacts()}),
     invite,chat,recall,pick,track,leave
@@ -1248,6 +1317,10 @@
     }
     if(d?.type==='whatever:music:ui:keyboard'){
       float.onKeyboard(d);
+      return;
+    }
+    if(d?.type==='whatever:music:ui:recall-feedback'){
+      recallJournal.update(d);
       return;
     }
     if(d?.type==='whatever:music:ui:dock-resize'){
@@ -1315,6 +1388,15 @@
     '.messages-app .wmc-song-text .ff-m{font-size:11px;color:#8a8a90!important;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '.messages-app .wmc-song-card:focus-visible{outline:2px solid #222;outline-offset:3px}',
     '@media(max-width:350px){.messages-app #thread .wmc-song-card{min-width:0!important;max-width:min(202px,calc(100vw - 66px))!important;gap:7px!important;padding:8px 9px}}',
+    '#wmc-recall-orb{position:fixed;top:calc(env(safe-area-inset-top,0px) + 13px);right:14px;z-index:2147483568;width:44px;height:44px;padding:0;border:1px solid #d5d5d8;border-radius:50%;background:#fff;color:#27272b;font:600 11px system-ui,sans-serif;box-shadow:0 3px 12px #0002;cursor:pointer}',
+    '#wmc-recall-orb[hidden],#wmc-recall-notice[hidden],#wmc-recall-panel[hidden]{display:none!important}',
+    '#wmc-recall-notice{position:fixed;top:calc(env(safe-area-inset-top,0px) + 18px);right:69px;z-index:2147483568;max-width:min(245px,calc(100vw - 90px));padding:10px 12px;border-radius:14px;background:#222328;color:#fff;font:12px/1.45 system-ui,sans-serif;overflow-wrap:anywhere;box-shadow:0 4px 18px #0002;pointer-events:none}',
+    '#wmc-recall-panel{position:fixed;top:calc(env(safe-area-inset-top,0px) + 66px);right:14px;z-index:2147483568;box-sizing:border-box;width:min(306px,calc(100vw - 28px));max-height:min(370px,55dvh);overflow-y:auto;overscroll-behavior:contain;border:1px solid #dedee1;border-radius:20px;background:#fff;color:#29292d;box-shadow:0 8px 28px #0002;padding:14px 15px;font-family:system-ui,sans-serif}',
+    '#wmc-recall-panel .wmc-recall-head{font-size:14px;font-weight:650;padding-bottom:9px}',
+    '#wmc-recall-panel .wmc-recall-entry{padding:9px 0;border-top:1px solid #efeff1}',
+    '#wmc-recall-panel .wmc-recall-meta{font-size:11px;font-weight:600;color:#505057}',
+    '#wmc-recall-panel .wmc-recall-detail{font-size:12px;line-height:1.55;color:#777780;margin-top:4px;overflow-wrap:anywhere}',
+    '#wmc-recall-orb:focus-visible{outline:2px solid #444;outline-offset:3px}',
     '.messages-app #memPage .mem-fold .mem-chatlog{max-height:360px;overflow-y:auto;overscroll-behavior:contain}',
     '.messages-app #memPage .mem-fold .mem-chatlog .mem-cl-bub{white-space:pre-wrap;overflow-wrap:anywhere}'
   ].join('\n');
