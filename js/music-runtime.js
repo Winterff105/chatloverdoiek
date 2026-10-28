@@ -65,13 +65,13 @@
     sheet.setAttribute('aria-modal','true');
     sheet.setAttribute('aria-labelledby','wmcHeading');
     const top=node('div','wmc-top');
-    const eyebrow=node('span','wmc-eyebrow','♫  LISTEN TOGETHER');
+    const eyebrow=node('span','wmc-eyebrow','A LITTLE MUSIC FOR TWO');
     const close=node('button','wmc-close','×');
     close.type='button';close.setAttribute('aria-label','关闭邀请');
     top.append(eyebrow,close);
-    const heading=node('h2','wmc-title','邀请一起听');
+    const heading=node('h2','wmc-title','Listen Together');
     heading.id='wmcHeading';
-    const subtitle=node('p','wmc-subtitle','选择一位 Char，分享这一刻的音乐。');
+    const subtitle=node('p','wmc-subtitle','A moment, shared in sound.');
     const track=snapshot();
     const album=node('div','wmc-album');
     const art=node('div','wmc-art');
@@ -145,7 +145,7 @@
     retry.type='button';retry.hidden=true;
     note.setAttribute('role','status');
     note.setAttribute('aria-live','polite');
-    const footer=node('p','wmc-footer','邀请会作为歌曲卡片，出现在你们的聊天室');
+    const footer=node('p','wmc-footer','Only the song card appears in your chat.');
     sheet.append(top,heading,subtitle,album,pickLabel,picker,actionLabel,actions,note,retry,footer);
     mask.append(sheet);
     mask.addEventListener('click',e=>{if(e.target===mask&&!busy)closeDialog();});
@@ -246,6 +246,8 @@
           w.ListenTogether.start({id:contactId,name:result.contact.name,avatar:result.contact.avatar});
           closeDialog();
           if(Array.isArray(result.messages))for(const t of result.messages)w.ListenTogether.receive(t);
+          mountMinimizeAndPlayerEvents();
+          sendFloatState(true,false);
           notify('已和 '+result.contact.name+' 开始一起听');
         }else{
           note.textContent=result.declined?'Ta 婉拒了这次邀请':'Ta 还没有明确答复';
@@ -304,6 +306,88 @@
     retry.addEventListener('click',loadContacts);
     loadContacts();
   }
+  // Transient speaking bubbles: multiple tails stack upward; old ones fade.
+  // The original ListenTogether chat list remains the full conversation, and
+  // all messages are saved separately in common memory by the parent bridge.
+  let liveFeed=null;
+  function stackBubble(side,value){
+    const text=trim(value,200);
+    if(!text)return;
+    if(!liveFeed){
+      liveFeed=node('div','wmc-speech-stack');
+      liveFeed.setAttribute('aria-live','off');
+      document.body.appendChild(liveFeed);
+    }
+    const line=node('div','wmc-speech-row '+(side==='me'?'wmc-speech-me':'wmc-speech-them'),text);
+    liveFeed.appendChild(line);
+    while(liveFeed.children.length>4){const oldest=liveFeed.firstElementChild;if(!oldest)break;oldest.remove();}
+    requestAnimationFrame(()=>line.classList.add('wmc-speech-visible'));
+    setTimeout(()=>line.classList.add('wmc-speech-fading'),6500);
+    setTimeout(()=>line.remove(),7600);
+  }
+  function disableAutoKeyboardAndRecall(){
+    // The old private music module calls .focus() on open/send, which raises
+    // Android's keyboard without the user touching a text field. Native taps
+    // still focus normally; only programmatic calls on these inputs are muted.
+    for(const id of ['chatInput','duetChatInput']){
+      const el=document.getElementById(id);
+      if(el&&!el.__wmcNoAutoFocus){
+        el.__wmcNoAutoFocus=true;
+        el.focus=function(){ /* explicit user tap still uses native focus */ };
+      }
+    }
+    document.querySelectorAll('[aria-label="调取对方说的话"],.chat-split button[onclick*="toggleQuick"],#duetInput button[onclick*="toggleQuick"]').forEach(b=>{
+      b.hidden=true;
+      b.setAttribute('aria-hidden','true');
+      b.tabIndex=-1;
+    });
+  }
+  let lastState=0;
+  function sendFloatState(force=false,minimize=false){
+    if(!participant)return;
+    if(!force&&Date.now()-lastState<2000)return;
+    lastState=Date.now();
+    const music=snapshot();
+    const audio=document.getElementById('realAudio');
+    rpc('ui',{active:true,minimize,contactId:participant.id,name:participant.name,
+      avatar:participant.avatar||'',music,playing:audio?!audio.paused:false})
+      .catch(e=>console.warn('[Music Float] state not delivered',e.message));
+  }
+  function mountMinimizeAndPlayerEvents(){
+    disableAutoKeyboardAndRecall();
+    const header=document.getElementById('chatHead');
+    if(header&&!document.getElementById('wmcMinimize')){
+      const btn=node('button','wmc-minimize','—');
+      btn.id='wmcMinimize';btn.type='button';
+      btn.setAttribute('aria-label','把音乐收起成悬浮小窗');
+      btn.title='收起到悬浮小窗';
+      const end=header.querySelector('button[aria-label="结束一起听"]');
+      header.insertBefore(btn,end||null);
+      btn.addEventListener('click',e=>{
+        e.stopPropagation();
+        w.ListenTogether?.closeChat?.();
+        sendFloatState(true,true);
+      });
+    }
+    const audio=document.getElementById('realAudio');
+    if(audio&&!audio.__wmcWatch){
+      audio.__wmcWatch=true;
+      for(const event of ['play','pause','loadedmetadata','ended','durationchange'])
+        audio.addEventListener(event,()=>sendFloatState(true,false));
+      audio.addEventListener('timeupdate',()=>sendFloatState(false,false));
+    }
+  }
+  w.addEventListener('message',ev=>{
+    if(ev.source!==w.parent||(parentOrigin!=='*'&&ev.origin!==parentOrigin))return;
+    const d=ev.data||{};
+    if(d.type!=='whatever:music:ui:command')return;
+    if(!participant)return;
+    if(d.command==='chat')w.ListenTogether?.openChat?.();
+    if(d.command==='play')document.getElementById('realAudio')?.paused
+      ? document.getElementById('realAudio')?.play?.().catch(()=>{})
+      : document.getElementById('realAudio')?.pause?.();
+    if(d.command==='sync')sendFloatState(true,false);
+  });
   let installAttempts=0;
   let canonicalTransport=null;
   function install(){
@@ -343,10 +427,29 @@
         rpc('track',{contactId,music:snapshot()}).catch(e=>console.warn('[Music Chat] track',e.message));
       }else if(msg.type==='leave'){
         rpc('leave',{contactId}).catch(e=>console.warn('[Music Chat] leave',e.message));
+        rpc('ui',{active:false,contactId}).catch(()=>{});
         participant=null;
       }
     }};
     w.ListenTogether.setTransport(canonicalTransport);
+    mountMinimizeAndPlayerEvents();
+    if(!w.__wmcDecoratedReceive){
+      const originalReceive=w.ListenTogether.receive.bind(w.ListenTogether);
+      w.ListenTogether.receive=function(text){
+        originalReceive(text);
+        stackBubble('them',text);
+      };
+      w.__wmcDecoratedReceive=true;
+    }
+    if(!w.__wmcDecoratedSend){
+      const originalSend=w.ListenTogether.send.bind(w.ListenTogether);
+      w.ListenTogether.send=function(text){
+        const ok=originalSend(text);
+        if(ok)stackBubble('me',text);
+        return ok;
+      };
+      w.__wmcDecoratedSend=true;
+    }
     const openInvite=function(){
       if(w.ListenTogether.isActive())w.ListenTogether.stop();
       else inviteModal();
@@ -407,6 +510,21 @@
     '.wmc-select-toggle:focus-visible,.wmc-contact-option:focus-visible{outline:2px solid #fff;outline-offset:2px}',
     '@media(max-height:560px){.wmc-mask{align-items:flex-start;overflow-y:auto}.wmc-sheet{margin:auto 0}.wmc-contact-menu{max-height:min(134px,26vh)}}',
     '@media(max-width:350px){.wmc-sheet{padding:14px 14px}.wmc-album{padding:6px 9px}.wmc-art{width:56px;height:56px}.wmc-option{min-height:45px}}',
+    '.wmc-sheet{padding:13px 17px;border-radius:18px}.wmc-top{justify-content:center;position:relative;min-height:20px;margin-bottom:3px}.wmc-close{position:absolute;right:0;top:-2px;width:24px;height:24px}',
+    '.wmc-eyebrow{text-align:center;font-size:8px;letter-spacing:.15em;color:#8c8c8c}.wmc-title{text-align:center;font-size:29px;line-height:1.1;font-weight:400;letter-spacing:0;margin:0 0 1px;font-family:"Snell Roundhand","Brush Script MT","Segoe Script",cursive;font-style:italic}',
+    '.wmc-subtitle{text-align:center;margin:0 0 8px;font:italic 10px/1.25 Georgia,serif;letter-spacing:.02em;color:#8f8f8f}.wmc-album{margin-bottom:9px;padding:6px 10px}.wmc-pick-label,.wmc-action-label{margin-bottom:4px}.wmc-picker{margin-bottom:9px}',
+    '.wmc-option{min-height:43px;padding:5px 9px}.wmc-option-icon{width:25px;height:25px}.wmc-actions{gap:6px}.wmc-footer{margin-top:4px;font-size:9px}.wmc-notice{margin-top:5px}',
+    '.wmc-minimize{flex:none;border:1px solid #ffffff50;border-radius:50%;background:#111;color:#fff;width:27px;height:27px;display:grid;place-items:center;font-size:20px;line-height:1;cursor:pointer}',
+    '.wmc-speech-stack{position:fixed;right:13px;bottom:calc(env(safe-area-inset-bottom,0px) + 146px);z-index:1200;width:min(285px,75vw);display:flex;flex-direction:column;align-items:flex-end;gap:9px;pointer-events:none}',
+    '.wmc-speech-row{position:relative;max-width:95%;border:1px solid #ffffff1e;border-radius:14px;padding:9px 12px;font:12px/1.5 system-ui,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 5px 18px #0006;opacity:0;transform:translateY(13px);transition:opacity .38s ease,transform .38s ease}',
+    '.wmc-speech-row.wmc-speech-me{align-self:flex-end;background:#fff;color:#111}.wmc-speech-row.wmc-speech-them{align-self:flex-start;background:#181818;color:#fff}',
+    '.wmc-speech-row:after{content:"";position:absolute;bottom:-6px;width:10px;height:10px;background:inherit;transform:rotate(45deg);border-right:inherit;border-bottom:inherit}',
+    '.wmc-speech-me:after{right:18px}.wmc-speech-them:after{left:18px}',
+    '.wmc-speech-row.wmc-speech-visible{opacity:1;transform:translateY(0)}.wmc-speech-row.wmc-speech-fading{opacity:0;transform:translateY(-14px)}',
+    'body:has(#chatPanel.open) .wmc-speech-stack{opacity:0;visibility:hidden}',
+    'body #duetThemBubble,body #duetMeBubble{display:none!important}',
+    'body .quick-panel,body button[aria-label="调取对方说的话"]{display:none!important}',
+    '@media(prefers-reduced-motion:reduce){.wmc-speech-row{transition:none!important}}',
     '@media(prefers-reduced-motion:reduce){.wmc-mask,.wmc-sheet,.wmc-art,.wmc-eq i{animation:none!important}.wmc-option{transition:none}}'
   ].join('\n');
   document.head.append(style);

@@ -374,6 +374,123 @@
       return {ok:true};
     });
   }
+  // Parent-level floating listening dock. The actual iframe/audio stays mounted
+  // and keeps playing when the dock temporarily hides the music layer.
+  // Never substitute a second player or a mocked contact/audio stream.
+  const float={node:null,frame:null,origin:null,data:null,hidden:null,mini:false,
+    create(){
+      if(this.node)return;
+      const el=document.createElement('aside');
+      el.id='wmc-floating-player';el.hidden=true;
+      el.setAttribute('aria-label','一起听悬浮小窗');
+      const img=document.createElement('img');img.className='wmc-fp-avatar';img.alt='Char 头像';
+      const copy=document.createElement('div');copy.className='wmc-fp-copy';
+      const name=document.createElement('strong');name.className='wmc-fp-name';name.textContent='一起听';
+      const song=document.createElement('span');song.className='wmc-fp-song';song.textContent='等待歌曲';
+      copy.append(name,song);
+      const play=document.createElement('button');play.type='button';play.className='wmc-fp-play';play.setAttribute('aria-label','播放或暂停');play.textContent='▶';
+      const toggle=document.createElement('button');toggle.type='button';toggle.className='wmc-fp-toggle';toggle.setAttribute('aria-label','收起音乐界面');toggle.textContent='▁';
+      const open=document.createElement('button');open.type='button';open.className='wmc-fp-open';open.setAttribute('aria-label','打开一起听聊天');open.textContent='聊';
+      el.append(img,copy,play,toggle,open);
+      document.body.appendChild(el);
+      this.node=el;this.img=img;this.name=name;this.song=song;this.play=play;this.toggle=toggle;
+      play.addEventListener('click',()=>this.command('play'));
+      open.addEventListener('click',()=>{this.restore();this.command('chat');});
+      copy.addEventListener('click',()=>{this.restore();this.command('chat');});
+      img.addEventListener('click',()=>{this.restore();this.command('chat');});
+      toggle.addEventListener('click',()=>{this.mini?this.restore():this.minimize();});
+      let drag=null;
+      el.addEventListener('pointerdown',e=>{
+        if(e.button!==0||e.target.closest('button'))return;
+        const r=el.getBoundingClientRect();
+        drag={id:e.pointerId,dx:e.clientX-r.left,dy:e.clientY-r.top,startX:e.clientX,startY:e.clientY};
+        el.setPointerCapture?.(e.pointerId);
+      });
+      el.addEventListener('pointermove',e=>{
+        if(!drag||drag.id!==e.pointerId)return;
+        const right=Math.max(6,Math.min(window.innerWidth-el.offsetWidth-6,window.innerWidth-(e.clientX-drag.dx)-el.offsetWidth));
+        const top=Math.max(6,Math.min(window.innerHeight-el.offsetHeight-6,e.clientY-drag.dy));
+        el.style.right=right+'px';el.style.top=top+'px';el.style.bottom='auto';
+      });
+      const end=e=>{if(drag?.id===e.pointerId)drag=null;};
+      el.addEventListener('pointerup',end);el.addEventListener('pointercancel',end);
+    },
+    command(command){
+      if(!this.frame?.isConnected||!this.frame.contentWindow){this.close();return;}
+      try {
+        this.frame.contentWindow.postMessage({type:'whatever:music:ui:command',command},
+          this.origin==='null'?'*':this.origin);
+      }catch(error){console.warn('[Music Float] command failed',error?.message);}
+    },
+    minimize(){
+      if(!this.frame?.isConnected){this.close();return;}
+      const layer=document.getElementById('whatever-music-layer');
+      const win=document.getElementById('appWindow');
+      const target=(layer&&layer.contains(this.frame))?layer
+        :(win&&win.contains(this.frame)?win:null);
+      if(!target)return;
+      this.hidden={target,opacity:target.style.opacity,pointerEvents:target.style.pointerEvents,
+        inert:!!target.inert,active:target.classList.contains('active')};
+      // Opacity keeps the real iframe/audio mounted and avoids visibility-
+      // based media throttling. Inert/pointer-events disable its input.
+      target.style.opacity='0';target.style.pointerEvents='none';target.inert=true;
+      if(target===win)document.getElementById('homeScreen')?.classList.remove('scaled');
+      this.mini=true;this.toggle.textContent='▢';
+      this.toggle.setAttribute('aria-label','返回音乐界面');
+    },
+    restore(){
+      if(this.hidden){
+        const {target,opacity,pointerEvents,inert,active}=this.hidden;
+        target.style.opacity=opacity;target.style.pointerEvents=pointerEvents;target.inert=inert;
+        if(target.id==='appWindow'&&active){
+          target.classList.add('active');
+          document.getElementById('homeScreen')?.classList.add('scaled');
+        }
+        this.hidden=null;
+      }
+      this.mini=false;
+      if(this.toggle){this.toggle.textContent='▁';this.toggle.setAttribute('aria-label','收起音乐界面');}
+    },
+    close(){
+      this.restore();if(this.node)this.node.hidden=true;
+      this.frame=null;this.origin=null;this.data=null;
+    },
+    update(data,source,origin){
+      if(data.active===false){
+        if(!this.data||String(data.contactId)===String(this.data.contactId))this.close();
+        return {ok:true};
+      }
+      const sourceFrame=playerFrames().find(f=>f.contentWindow===source);
+      if(!sourceFrame)throw Error('音乐窗口未认证');
+      this.create();
+      this.frame=sourceFrame;this.origin=origin;this.data=data;
+      this.node.hidden=false;
+      this.name.textContent=truncate(data.name||'Char',65);
+      this.song.textContent=truncate(data.music?.title||'等待播放',75);
+      this.play.textContent=data.playing?'Ⅱ':'▶';
+      this.play.setAttribute('aria-label',data.playing?'暂停音乐':'播放音乐');
+      const avatar=avatarSource(data.avatar);
+      if(avatar&&this.img.src!==avatar)this.img.src=avatar;
+      if(data.minimize===true)this.minimize();
+      return {ok:true};
+    }
+  };
+  setInterval(()=>{
+    if(float.frame&&!float.frame.isConnected)float.close();
+  },4000);
+  const miniStyle=document.createElement('style');
+  miniStyle.textContent=[
+    '#wmc-floating-player{position:fixed;top:calc(env(safe-area-inset-top,0px) + 64px);right:12px;z-index:2147483550;width:min(268px,calc(100vw - 24px));box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:18px;border:1px solid #444;background:#000;color:#fff;box-shadow:0 8px 26px #0009;user-select:none;touch-action:none;font:12px/1.4 system-ui,sans-serif}',
+    '#wmc-floating-player[hidden]{display:none!important}',
+    '#wmc-floating-player .wmc-fp-avatar{height:33px;width:33px;flex:none;border-radius:50%;object-fit:cover;background:#333}',
+    '#wmc-floating-player .wmc-fp-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;cursor:pointer}',
+    '#wmc-floating-player .wmc-fp-name{font-size:12px;font-weight:650;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
+    '#wmc-floating-player .wmc-fp-song{font-size:10px;color:#b7b7b7;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}',
+    '#wmc-floating-player button{flex:0 0 27px;height:27px;width:27px;padding:0;border:1px solid #666;background:#111;border-radius:50%;color:#fff;display:grid;place-items:center;font-size:12px;cursor:pointer}',
+    '#wmc-floating-player .wmc-fp-play{background:#fff;color:#000;border-color:#fff}',
+    '@media(max-width:365px){#wmc-floating-player{gap:5px;padding:7px;width:min(245px,calc(100vw - 18px))}#wmc-floating-player button{width:24px;height:24px;flex-basis:24px}}'
+  ].join('\n');
+  document.head.appendChild(miniStyle);
   const handlers={
     contacts:async()=>({contacts:listContacts()}),
     invite,chat,pick,track,leave
@@ -384,8 +501,9 @@
     if(!d||d.type!=='whatever:music:request'||typeof d.id!=='string'||typeof d.action!=='string')return;
     try{
       const handler=handlers[d.action];
-      if(!handler)throw Error('未知操作');
-      const result=await handler(d.payload||{});
+      if(!handler&&d.action!=='ui')throw Error('未知操作');
+      // Only the sender already validated by validSender may control the dock.
+      const result=d.action==='ui'?float.update(d.payload||{},e.source,e.origin):await handler(d.payload||{});
       e.source.postMessage({type:'whatever:music:response',id:d.id,ok:true,result},responseOrigin(e));
     }catch(error){
       e.source.postMessage({type:'whatever:music:response',id:d.id,ok:false,error:truncate(error?.message||'操作失败',240)},responseOrigin(e));
@@ -399,26 +517,22 @@
   });
   const theme=document.createElement('style');
   theme.textContent=[
-    // A native chat .mrow.me uses row-reverse; make the button its only child
-    // so the card stays aligned at the right with no extra avatar spacer.
-    '.messages-app #thread .mrow.wmc-card-row{display:flex!important;width:100%;box-sizing:border-box;flex-direction:row-reverse!important;align-items:flex-end;margin:10px 0;gap:0;min-width:0}',
-    '.messages-app #thread .wmc-song-card{all:unset;box-sizing:border-box;display:flex!important;align-items:center;gap:13px;min-width:0;width:min(270px,calc(100% - 12px));max-width:100%;min-height:102px;padding:13px;border-radius:16px;background:#050505!important;color:#fff!important;border:1px solid #333;box-shadow:0 5px 17px #0002;cursor:pointer;overflow:hidden;text-align:left;flex-shrink:1}',
-    '.messages-app .wmc-card-disc{display:grid;place-items:center;width:66px;height:66px;flex:0 0 66px;border:1px solid #444;border-radius:50%;background:repeating-radial-gradient(circle,#121212 0 2px,#282828 3px,#0a0a0a 4px,#151515 5px);box-shadow:3px 4px 10px #0008}',
-    '.messages-app .wmc-card-disc-center{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:#eaeaea;color:#171717;font-size:14px}',
-    '.messages-app .wmc-card-main{display:flex;flex-direction:column;justify-content:center;min-width:0;flex:1;gap:4px;overflow:hidden}',
-    '.messages-app .wmc-card-head{display:block;font-size:9px;letter-spacing:.12em;color:#9c9c9c;line-height:1.2;font-weight:700}',
-    '.messages-app .wmc-card-title{display:block;font-size:14px;font-weight:700;line-height:1.35;color:#fff!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '.messages-app .wmc-card-artist{display:block;color:#aaa;font-size:11px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-    '.messages-app .wmc-card-status{display:block;margin-top:4px;font-size:10px;line-height:1.2;color:#ddd}',
+    // Mirror the existing white file-message card, not a black player card.
+    '.messages-app #thread .mrow.wmc-card-row{display:flex!important;width:100%;box-sizing:border-box;flex-direction:row-reverse!important;align-items:flex-end;margin:9px 0;gap:0;min-width:0}',
+    '.messages-app #thread .wmc-song-card{all:unset;box-sizing:border-box;display:inline-flex!important;align-items:center;gap:10px;min-width:190px;width:min(250px,calc(100% - 12px));max-width:100%;min-height:68px;padding:10px 14px 10px 10px;border-radius:14px;background:#fff!important;color:#3a3a3e!important;border:0!important;box-shadow:0 4px 12px rgba(60,40,55,.12);cursor:pointer;overflow:hidden;text-align:left;flex-shrink:1}',
+    '.messages-app .wmc-card-disc{display:grid;place-items:center;position:relative;width:38px;height:38px;flex:0 0 38px;border:1px solid #dddde1;border-radius:50%;background:repeating-radial-gradient(circle,#f5f5f7 0 2px,#e2e2e8 3px,#f3f3f5 4px,#dad9df 5px);box-shadow:0 2px 5px #00000010}',
+    '.messages-app .wmc-card-disc-center{display:grid;place-items:center;width:17px;height:17px;border-radius:50%;background:#f2dce4;color:#47434a;font-size:11px}',
+    '.messages-app .wmc-card-main{display:flex;flex-direction:column;justify-content:center;min-width:0;flex:1;gap:2px;overflow:hidden}',
+    '.messages-app .wmc-card-head{display:block;font-size:9px;letter-spacing:.08em;color:#aaa0a7;line-height:1.1;font-weight:650}',
+    '.messages-app .wmc-card-title{display:block;font-size:14px;font-weight:600;line-height:1.4;color:#3a3a3e!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.messages-app .wmc-card-artist{display:block;color:#8a8a90!important;font-size:11px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.messages-app .wmc-card-status{display:block;font-size:10px;line-height:1.3;color:#8a8a90!important}',
     '.messages-app .wmc-song-card:focus-visible{outline:2px solid #222;outline-offset:3px}',
-    '@media(max-width:350px){.messages-app #thread .wmc-song-card{width:min(244px,calc(100% - 8px));padding:10px;gap:9px}.messages-app .wmc-card-disc{width:57px;height:57px;flex-basis:57px}}',
-    // Existing common-memory fold and chat-log styling are retained.
+    '@media(max-width:350px){.messages-app #thread .wmc-song-card{width:min(238px,calc(100% - 8px))}}',
     '.messages-app #memPage .mem-fold .mem-chatlog{max-height:360px;overflow-y:auto;overscroll-behavior:contain}',
     '.messages-app #memPage .mem-fold .mem-chatlog .mem-cl-bub{white-space:pre-wrap;overflow-wrap:anywhere}'
   ].join('\n');
   document.head.appendChild(theme);
-  // Cards are native buttons: click, Enter and Space all work without
-  // additional key handlers that could open Music twice.
   w.WhateverMusicChatBridge=Object.freeze({
     registerHost(adapter){
       if(!adapter||!adapter.listContacts||!adapter.getThread||!adapter.mutateContact)throw Error('聊天室适配器不完整');
