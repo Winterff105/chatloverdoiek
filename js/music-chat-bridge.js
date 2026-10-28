@@ -532,6 +532,7 @@
     originalWinClip:null,paneStyles:null,panelBounds:null,persistentViewport:null,
     chatSize:{width:285,height:340},lastDockLayout:'',
     lyricTimeline:[],lyricSongId:'',lastHostLyricIndex:-1,
+    keyboardFocused:false,keyboardBottom:0,keyboardOldTop:null,
     create(){
       if(this.node)return;
       const el=document.createElement('button');
@@ -574,14 +575,41 @@
       el.addEventListener('pointerup',end);
       el.addEventListener('pointercancel',end);
       window.addEventListener('resize',()=>this.layoutDock());
+      window.visualViewport?.addEventListener('resize',()=>this.layoutDock());
+      window.visualViewport?.addEventListener('scroll',()=>this.layoutDock());
     },
     dockRect(){
       if(!this.node)return null;
-      const r=this.node.getBoundingClientRect();
+      const vv=w.visualViewport;
+      const parentBottom=vv?vv.offsetTop+vv.height:window.innerHeight;
+      const viewBottom=this.keyboardFocused?Math.min(parentBottom,this.keyboardBottom||parentBottom):parentBottom;
+      let r=this.node.getBoundingClientRect();
+      if(this.keyboardFocused&&r.bottom+125>viewBottom){
+        if(this.keyboardOldTop===null)
+          this.keyboardOldTop={top:this.node.style.top,right:this.node.style.right,
+            bottom:this.node.style.bottom,left:this.node.style.left};
+        this.node.style.top=Math.max(4,viewBottom-(r.height||90)-125)+'px';
+        this.node.style.bottom='auto';
+        r=this.node.getBoundingClientRect();
+      }
       const width=Math.max(190,Math.min(this.chatSize.width,window.innerWidth-r.left-8));
-      const visibleBottom=w.visualViewport?w.visualViewport.offsetTop+w.visualViewport.height:window.innerHeight;
-      const height=Math.max(170,Math.min(this.chatSize.height,visibleBottom-r.bottom-15));
+      const room=viewBottom-r.bottom-12;
+      const height=this.keyboardFocused?Math.max(105,Math.min(this.chatSize.height,room))
+        :Math.max(170,Math.min(this.chatSize.height,room));
       return {left:r.left,top:r.bottom+8,width,height};
+    },
+    onKeyboard(info){
+      const was=this.keyboardFocused;
+      this.keyboardFocused=!!info?.focused;
+      const v=Number(info?.availableBottom);
+      this.keyboardBottom=Number.isFinite(v)&&v>0?v:0;
+      if(was&&!this.keyboardFocused&&this.keyboardOldTop&&this.node){
+        const o=this.keyboardOldTop;
+        this.node.style.top=o.top;this.node.style.right=o.right;
+        this.node.style.bottom=o.bottom;this.node.style.left=o.left;
+        this.keyboardOldTop=null;
+      }
+      this.layoutDock();
     },
     moveDock(x,y){
       if(!this.node)return;
@@ -603,7 +631,7 @@
       if(!fr||!fr.width||!fr.height)return;
       const local={left:Math.max(0,r.left-fr.left),top:Math.max(0,r.top-fr.top),
         width:Math.min(r.width,fr.right-r.left),height:Math.min(r.height,fr.bottom-r.top)};
-      if(local.width<150||local.height<130)return;
+      if(local.width<150||local.height<100)return;
       const fingerprint=JSON.stringify(local);
       if(this.lastDockLayout!==fingerprint){
         this.lastDockLayout=fingerprint;
@@ -1164,6 +1192,10 @@
     }
     if(d?.type==='whatever:music:audio-leaving'){
       audioHandoff.takeOver();
+      return;
+    }
+    if(d?.type==='whatever:music:ui:keyboard'){
+      float.onKeyboard(d);
       return;
     }
     if(d?.type==='whatever:music:ui:dock-resize'){
