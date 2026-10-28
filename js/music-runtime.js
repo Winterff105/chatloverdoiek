@@ -361,7 +361,8 @@
   // Sync only CHANGED lyrics, never the whole playlist on every time tick.
   let lastFloatSample=0,lastFloatKey='',entrySeq=0;
   function sendFloatState(force=false,entry=null){
-    if(!participant)return;
+    // Lyrics are a solo music feature too: do not require an active Char
+    // session just to keep three-line synchronized lyrics visible.
     const now=Date.now();
     if(!force&&!entry&&now-lastFloatSample<900)return;
     lastFloatSample=now;
@@ -387,13 +388,38 @@
     }catch(_){}
     if(!title)title=document.getElementById('playingTrackName')?.textContent||'未知歌曲';
     if(!artist)artist=document.getElementById('playingTrackArtist')?.textContent||'';
+    // Original music.js owns lyricState; fall back to the rendered, timed
+    // lyrics when this separately loaded runtime cannot read that lexical
+    // binding. Using only the active text made the outer ticker look frozen.
+    if(!lyric||lyricIndex<0){
+      const activeLine=document.querySelector('.lyric-line.active');
+      const lineItems=document.querySelectorAll('.lyric-line[data-i]');
+      if(activeLine){
+        const n=Array.prototype.indexOf.call(lineItems,activeLine);
+        const read=el=>String(el?.querySelector?.('.lyric-main')?.textContent||'').trim();
+        lyric=read(activeLine)||lyric;
+        lyricPrev=n>0?read(lineItems[n-1]):'';
+        lyricNext=n>=0&&n<lineItems.length-1?read(lineItems[n+1]):'';
+        if(n>=0)lyricIndex=n;
+      }else{
+        const hero=document.querySelector('.hero-lyric-line.active');
+        if(hero){
+          const heroLines=hero.parentElement?.querySelectorAll('.hero-lyric-line')||[];
+          const n=Array.prototype.indexOf.call(heroLines,hero);
+          lyric=String(hero.textContent||'').trim()||lyric;
+          lyricPrev=n>0?String(heroLines[n-1].textContent||'').trim():'';
+          lyricNext=n>=0&&n<heroLines.length-1?String(heroLines[n+1].textContent||'').trim():'';
+          if(n>=0)lyricIndex=n;
+        }
+      }
+    }
     if(!lyric)lyric=document.querySelector('.lyric-line.active .lyric-main')?.textContent||'';
     const audio=document.getElementById('realAudio');
     const playing=!!audio&&!audio.paused&&!audio.ended;
     const fingerprint=[songId,title,lyricIndex,lyricPrev,lyric,lyricNext,playing].join('\u001f');
     if(!force&&!entry&&fingerprint===lastFloatKey)return;
     lastFloatKey=fingerprint;
-    const payload={active:true,contactId:participant.id,name:participant.name,avatar:participant.avatar||'',
+    const payload={active:true,contactId:participant?.id||'',name:participant?.name||'',avatar:participant?.avatar||'',
       music:{title:trim(title,160),artist:trim(artist,120),songId:trim(songId,90)},
       lyric:trim(lyric,170),lyricPrev:trim(lyricPrev,170),
       lyricNext:trim(lyricNext,170),lyricIndex,playing};
@@ -487,7 +513,9 @@
     'html.wmc-chat-isolated body::before,html.wmc-chat-isolated body::after,html.wmc-chat-isolated::before,html.wmc-chat-isolated::after{display:none!important}',
     'html.wmc-chat-isolated #chatPanel{background:#08080a!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}',
     'html:not(.wmc-chat-isolated) #wmc-native-chat-resize{display:none!important}',
-    '#wmc-native-chat-resize{position:absolute;right:8px;bottom:8px;z-index:8;width:29px;height:29px;display:grid;place-items:center;border:1px solid #ffffff25;border-radius:9px;background:#17171b;color:#ddd;font-size:19px;touch-action:none;cursor:nwse-resize}',
+    // A barely visible corner mark; keep a 28px touch target for resizing.
+    '#wmc-native-chat-resize{position:absolute;right:0;bottom:0;z-index:8;width:28px;height:28px;padding:0;border:0!important;outline:0;background:transparent!important;color:transparent!important;font-size:0;touch-action:none;cursor:nwse-resize;-webkit-tap-highlight-color:transparent}',
+    '#wmc-native-chat-resize::after{content:"";position:absolute;right:3px;bottom:3px;width:7px;height:7px;border-right:1.5px solid rgba(255,255,255,.5);border-bottom:1.5px solid rgba(255,255,255,.5);border-radius:1px;pointer-events:none}',
     'html.wmc-chat-isolated .chat-panel:not(.open){visibility:hidden!important;opacity:0!important}'
   ].join('\n');
   document.head.appendChild(isolationStyle);
@@ -598,9 +626,12 @@
     if(d.command==='chat-isolated'){setChatIsolated(d.value===true);return;}
     if(d.command==='chat-layout'){applyChatLayout(d.value);return;}
     if(!participant)return;
-    if(d.command==='chat'){
-      // Open the ORIGINAL music chatPanel, exactly as its partner avatar does.
-      w.ListenTogether?.openChat?.();
+    if(d.command==='chat'||d.command==='chat-toggle'){
+      // One tap opens; the NEXT tap closes the same original chatPanel.
+      // This must not create a separate replica over the music App.
+      const together=w.ListenTogether;
+      if(d.command==='chat-toggle'&&together?.isChatOpen?.())together.closeChat();
+      else together?.openChat?.();
     }else if(d.command==='send'){
       const message=trim(d.text,200);
       if(message)w.ListenTogether?.send?.(message);
@@ -648,12 +679,41 @@
     if(typeof lt.openChat!=='function'||typeof lt.closeChat!=='function')return;
     lt.__wmcPanelSync=true;
     installDockHeadDrag();
+    if(!document.__wmcRealCharRecall){
+      document.__wmcRealCharRecall=true;
+      let recalling=false;
+      // Both original “调取” buttons (inside together view and #chatPanel)
+      // were quick quote pickers. The intended action is instead to request
+      // a fresh Char reply from the configured canonical Messages API.
+      document.addEventListener('click',async e=>{
+        const btn=e.target?.closest?.('button[aria-label="调取对方说的话"]');
+        if(!btn||!btn.closest?.('#chatPanel,#duetInput'))return;
+        e.preventDefault();
+        e.stopImmediatePropagation(); // prevent original inline toggleQuick
+        if(recalling)return;
+        if(!participant){notify('请先邀请真实 Char 一起听');return;}
+        recalling=true;
+        btn.disabled=true;
+        btn.setAttribute('aria-busy','true');
+        try{
+          const result=await rpc('recall',{contactId:participant.id,music:snapshot()});
+          const messages=Array.isArray(result?.messages)?result.messages:[];
+          if(!messages.length)throw Error('API 没有返回可用回复');
+          for(const text of messages)w.ListenTogether?.receive?.(text);
+        }catch(error){notify('调取 API 回复失败：'+trim(error?.message||error,140));}
+        finally{
+          recalling=false;
+          btn.disabled=false;
+          btn.removeAttribute('aria-busy');
+        }
+      },true);
+    }
     // A resize grip INSIDE the music app's original chatPanel, never a second
     // floating popup. Native music markup/colors/buttons are retained.
     const panel=document.getElementById('chatPanel');
     if(panel&&!panel.querySelector('#wmc-native-chat-resize')){
       const grip=document.createElement('button');
-      grip.id='wmc-native-chat-resize';grip.type='button';grip.textContent='⤡';
+      grip.id='wmc-native-chat-resize';grip.type='button';grip.textContent='';
       grip.setAttribute('aria-label','调整原聊天窗的大小');
       panel.appendChild(grip);
       let resizing=null;
