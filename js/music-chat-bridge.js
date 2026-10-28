@@ -505,10 +505,13 @@
   // iframe. Promote that SAME DOM node (not a copy) into the top-level layer
   // and expose the live music context for its normal API requests.
   function promoteExistingAPIBall(){
+    if(!float.frame?.isConnected)return;
     const names=[
       '#apiFloatingBall','#apiFloatBall','#api-floating-ball',
-      '#apiFloat','#apiFab','.api-floating-ball','.api-float-ball',
-      '.api-fab','[data-api-ball]'
+      '#apiFloat','#apiFab','#apiBall','#apiStatusBall',
+      '#apiStatusFloat','.api-floating-ball','.api-float-ball',
+      '.api-fab','.api-status-ball','.api-status-float',
+      '.api-bubble','[data-api-ball]'
     ];
     for(const selector of names){
       const ball=document.querySelector(selector);
