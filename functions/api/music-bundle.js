@@ -8,16 +8,27 @@ const FILES = [
 ];
 const enc = new TextEncoder();
 
-const TEST_SALT='7302aae903254dda3fc2e32877a1b19c';
-const TEST_HASH='4b47762d7c0cc9a8de8e379a5acd53cc279b9588976f7cfbfd7906312c13c753';
-function asBytes(s){return Uint8Array.from(s.match(/../g),x=>parseInt(x,16))}
-async function checkMusicPassword(password){
- if(typeof password!=='string'||password.length<1||password.length>128)return false;
- const key=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveBits']);
- const bytes=new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',iterations:260000,salt:asBytes(TEST_SALT)},key,256));
- const expected=asBytes(TEST_HASH);let diff=0;
- for(let i=0;i<32;i++)diff|=bytes[i]^expected[i];
- return diff===0;
+// Password hash lives in the private Supabase database, not in public GitHub
+// and PBKDF2 is deliberately NOT run in Cloudflare's CPU-limited request handler.
+async function checkMusicPassword(password, serviceKey) {
+  if (typeof password !== 'string' || password.length < 1 || password.length > 128) return false;
+  const response = await fetch(
+    'https://tjgxfyblzgqwxwfwvfol.supabase.co/rest/v1/rpc/verify_music_test_password',
+    {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: 'Bearer ' + serviceKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json'
+      },
+      body: JSON.stringify({p_password:password}),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15000)
+    }
+  );
+  if (!response.ok) throw new Error('Password verifier HTTP ' + response.status);
+  return (await response.json()) === true;
 }
 
 function json(data, status=200) {
@@ -41,7 +52,14 @@ export async function onRequestPost({request, env}) {
   if (!env.TOKEN_SECRET||!env.SUPABASE_SERVICE_KEY) return json({success:false,message:'音乐接口未配置'},503);
   let data; try{data=await request.json();}catch(_){return json({success:false,message:'请求格式错误'},400)}
   if (!await verify(data?.token,env.TOKEN_SECRET)) return json({success:false,message:'请重新登录'},401);
-  if (!await checkMusicPassword(data?.password)) return json({success:false,message:'测试密码错误'},403);
+  let allowed = false;
+  try {
+    allowed = await checkMusicPassword(data?.password, env.SUPABASE_SERVICE_KEY);
+  } catch (error) {
+    console.error('[Music gate]', String(error?.message || error));
+    return json({success:false,message:'音乐测试锁验证服务暂时不可用，请稍后重试'},503);
+  }
+  if (!allowed) return json({success:false,message:'测试密码错误'},403);
   try {
     const results=await Promise.all(FILES.map(async path=>{
       const encoded=path.split('/').map(encodeURIComponent).join('/');
