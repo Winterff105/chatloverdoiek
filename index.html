@@ -174,22 +174,20 @@
     <!-- Whatever 新版本提示：不清理任何联系人/聊天数据 -->
     <div id="appUpdateToast" style="position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 100px);transform:translateX(-50%) translateY(15px);z-index:2147483646;background:#000;border:1px solid #555;color:#fff;padding:7px 8px 7px 15px;border-radius:100px;display:flex;gap:10px;align-items:center;box-shadow:0 10px 35px #0008;visibility:hidden;opacity:0;pointer-events:none;max-width:calc(100vw - 24px);font:12px/1.4 system-ui,sans-serif;">
         <span>发现新版本 <b id="appUpdateVersion"></b></span>
-        <button type="button" id="appUpdateOpen" style="border:0;background:#fff;color:#000;border-radius:100px;padding:7px 12px;font-size:12px;font-weight:700;white-space:nowrap;">查看更新</button>
+        <button type="button" id="appUpdateOpen" style="border:0;background:#fff;color:#000;border-radius:50%;width:42px;height:42px;padding:0;display:grid;place-items:center;font-size:11px;font-weight:700;white-space:nowrap;">查看</button>
     </div>
     <div id="appUpdateModal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="appUpdateHeading" style="position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:none;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;">
-        <section style="width:min(355px,100%);box-sizing:border-box;background:#000;border:1px solid #3c3c3c;border-radius:24px;color:#fff;padding:27px 24px;box-shadow:0 22px 80px #000b;">
-            <div style="font-size:10px;letter-spacing:2px;color:#aaa;font-weight:700;margin-bottom:19px;">WHATEVER · UPDATE</div>
-            <div style="width:52px;height:52px;border-radius:16px;border:1px solid #fff;display:grid;place-items:center;margin-bottom:18px;font-size:25px;">↻</div>
-            <h2 id="appUpdateHeading" style="font-size:23px;margin:0 0 8px;letter-spacing:-.4px;font-weight:700;">发现新版本</h2>
-            <p style="font-size:13px;line-height:1.7;color:#a6a6a6;margin:0 0 19px;">新版本已发布，点击更新即可清除旧资源缓存并重新载入。</p>
-            <div style="border:1px solid #333;background:#090909;border-radius:14px;padding:12px 15px;margin-bottom:18px;display:flex;align-items:center;gap:12px;">
-                <span id="appUpdateFrom" style="font-size:18px;font-weight:650;color:#999;"></span><span style="color:#777;font-size:18px;">→</span><span id="appUpdateTo" style="font-size:18px;font-weight:750;color:#fff;"></span>
+        <section style="width:min(355px,100%);max-height:min(235px,70dvh);overflow-y:auto;overscroll-behavior:contain;box-sizing:border-box;background:#000;border:1px solid #3c3c3c;border-radius:30px;color:#fff;padding:13px 18px;box-shadow:0 22px 80px #000b;text-align:center;">
+            <div style="font-size:9px;letter-spacing:2px;color:#aaa;font-weight:700;margin-bottom:5px;">WHATEVER · UPDATE</div>
+            <h2 id="appUpdateHeading" style="font-size:17px;margin:0 0 5px;font-weight:700;">发现新版本</h2>
+            <div style="border:1px solid #333;background:#090909;border-radius:999px;padding:5px 12px;margin-bottom:7px;display:flex;align-items:center;justify-content:center;gap:10px;">
+                <span id="appUpdateFrom" style="font-size:13px;font-weight:650;color:#999;"></span><span style="color:#777;font-size:14px;">→</span><span id="appUpdateTo" style="font-size:13px;font-weight:750;color:#fff;"></span>
             </div>
-            <ul id="appUpdateNotes" style="padding-left:20px;color:#bbb;font-size:12px;line-height:1.8;margin:0 0 17px;"></ul>
-            <p id="appUpdateStatus" role="status" style="color:#999;font-size:11px;line-height:1.6;margin:0 0 14px;">只更新应用文件，不删除登录、联系人、聊天记录或记忆。</p>
-            <div style="display:flex;gap:9px;">
-                <button id="appUpdateLater" type="button" style="flex:1;border:1px solid #555;background:#000;color:#fff;border-radius:12px;padding:13px 5px;font-size:13px;font-weight:600;">稍后</button>
-                <button id="appUpdateNow" type="button" style="flex:1;border:1px solid #fff;background:#fff;color:#000;border-radius:12px;padding:13px 5px;font-size:13px;font-weight:750;">立即更新</button>
+            <ul id="appUpdateNotes" style="padding-left:16px;color:#bbb;font-size:10px;line-height:1.35;margin:0 0 5px;text-align:left;max-height:31px;overflow:auto;"></ul>
+            <p id="appUpdateStatus" role="status" style="color:#999;font-size:10px;line-height:1.25;margin:0 0 6px;">只更新应用文件，不删除聊天记录。</p>
+            <div style="display:flex;gap:24px;align-items:center;justify-content:center;">
+                <button id="appUpdateLater" type="button" aria-label="稍后更新" title="稍后" style="flex:none;width:50px;height:50px;min-width:50px;min-height:50px;display:flex;flex-direction:column;justify-content:center;align-items:center;border:1px solid #555;background:#000;color:#fff;border-radius:50%;padding:0;font-size:10px;font-weight:600;"><span aria-hidden="true" style="font-size:17px;line-height:19px;">×</span><span>稍后</span></button>
+                <button id="appUpdateNow" type="button" aria-label="立即更新" title="立即更新" style="flex:none;width:50px;height:50px;min-width:50px;min-height:50px;display:flex;flex-direction:column;justify-content:center;align-items:center;border:1px solid #fff;background:#fff;color:#000;border-radius:50%;padding:0;font-size:10px;font-weight:700;"><span aria-hidden="true" style="font-size:17px;line-height:19px;">↻</span><span>更新</span></button>
             </div>
         </section>
     </div>
