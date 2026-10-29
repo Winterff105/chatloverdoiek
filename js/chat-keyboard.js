@@ -112,13 +112,14 @@
         // history behind it. Cap the actual scroll area at the lifted composer.
         const threadBox=thread.getBoundingClientRect();
         const composerTop=composer.getBoundingClientRect().top;
-        const messageBottom=Math.min(visibleBottom-8,composerTop-8);
+        // Leave a narrow separation between the scrolling history and composer.
+        const messageBottom=Math.min(visibleBottom-3,composerTop-3);
         const available=Math.round(messageBottom-threadBox.top);
         const nearLatest=thread.scrollHeight-thread.scrollTop-thread.clientHeight<96;
         thread.style.setProperty('max-height',Math.max(56,available)+'px','important');
         thread.style.setProperty('min-height','0','important');
         thread.style.setProperty('overflow-y','auto','important');
-        thread.style.setProperty('scroll-padding-bottom','8px');
+        thread.style.setProperty('scroll-padding-bottom','3px');
         // Keep the latest message visible only if the user was already
         // reading the end of the conversation; don't interrupt older reading.
         if(nearLatest){
