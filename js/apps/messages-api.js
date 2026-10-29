@@ -478,8 +478,8 @@ Never announce a topic change. Just change.
         const role = m.me ? 'user' : 'assistant';
         if (m.sticker) {
           const item = m.sticker;
-          const name = String(item.name || '表情包').slice(0, 100);
-          const label = head + '[表情包：' + name + ']';
+          const description = String(item.description || item.name || '表情包').slice(0, 180);
+          const label = head + '[表情包文字描述：' + description + ']';
           const recentStickers = slice.filter(x => x && x.me && x.sticker && x.sticker.vision !== false).slice(-4);
           const showImage = m.me && item.vision !== false && recentStickers.includes(m);
           let url = '';
