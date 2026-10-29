@@ -57,6 +57,19 @@ function fillSecondMenuBackground(file, source) {
     + '.messages-app #chatView .composer.wmc-menu-floating { box-shadow: 0 -48px 0 0 #fff, 0 36px 0 0 #fff; }\n'
     + '.messages-app #chatView .composer.wmc-menu-floating .wmc-toolbar { background: #fff; }\n';
 }
+// Optimize the private Messages input/keyboard path in memory only.
+function optimizeChatKeyboard(file, source) {
+  if (file !== 'js/apps/messages.js') return source;
+  const patches = [["function onTyping() { autoGrow(); updateSend(); }\nfunction autoGrow() { const t = document.getElementById('input'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 100) + 'px'; }","let wmcGrowFrame=0;\nfunction onTyping() { updateSend(); autoGrow(); }\nfunction autoGrow() {\n  if(wmcGrowFrame)return;\n  wmcGrowFrame=requestAnimationFrame(()=>{\n    wmcGrowFrame=0;\n    const t=document.getElementById('input');\n    if(!t||!t.isConnected)return;\n    t.style.height='auto';\n    t.style.height=Math.min(t.scrollHeight,100)+'px';\n  });\n}"],["const actualBottom=active.getBoundingClientRect().bottom;","const actualBottom=active.getBoundingClientRect().bottom;\n    // Measure before changing transforms to avoid a forced second layout.\n    const originalComposerTop=composer.getBoundingClientRect().top+lift;"],["const composerTop=composer.getBoundingClientRect().top;","const composerTop=originalComposerTop-lift;"],["const nearLatest=thread.scrollHeight-thread.scrollTop-thread.clientHeight<96;","const nearLatest=!root.classList.contains('wmc-messages-keyboard') && thread.scrollHeight-thread.scrollTop-thread.clientHeight<96;"],["thread.style.setProperty('max-height',Math.max(56,available)+'px','important');","const maxHeight=Math.max(56,available)+'px';\n        if(thread.style.getPropertyValue('max-height')!==maxHeight)\n          thread.style.setProperty('max-height',maxHeight,'important');"],["thread.style.setProperty('min-height','0','important');","if(thread.style.getPropertyValue('min-height')!=='0')thread.style.setProperty('min-height','0','important');"],["thread.style.setProperty('overflow-y','auto','important');","if(thread.style.getPropertyValue('overflow-y')!=='auto')thread.style.setProperty('overflow-y','auto','important');"],["thread.style.setProperty('scroll-padding-bottom','3px');","if(thread.style.getPropertyValue('scroll-padding-bottom')!=='3px')thread.style.setProperty('scroll-padding-bottom','3px');"],["composer.style.setProperty('translate','0 '+(-lift)+'px');","const nextTranslate='0 '+(-lift)+'px';\n      if(composer.style.getPropertyValue('translate')!==nextTranslate)composer.style.setProperty('translate',nextTranslate);"],["composer.style.setProperty('z-index','20');","if(composer.style.getPropertyValue('z-index')!=='20')composer.style.setProperty('z-index','20');"],["root.classList.toggle('wmc-messages-keyboard',keyboardOpen);\n    root.style.setProperty('--wmc-main-input-rise',lift+'px');","root.classList.toggle('wmc-messages-keyboard',keyboardOpen);\n    if(root.style.getPropertyValue('--wmc-main-input-rise')!==lift+'px')\n      root.style.setProperty('--wmc-main-input-rise',lift+'px');"],["},160);\n  },true);\n  viewport()?.addEventListener('resize',schedule","},280);\n  },true);\n  viewport()?.addEventListener('resize',schedule"]];
+  for (const [before] of patches) {
+    if (source.split(before).length !== 2) {
+      console.warn('[Messages keyboard] Unexpected source revision; skipping optimization');
+      return source;
+    }
+  }
+  for (const [before, after] of patches) source = source.replace(before, after);
+  return source;
+}
 // Allow the existing music dock icon to use openApp('music').
 // The desktop module is stored in the private Supabase bucket; keep it private.
 function allowExistingMusicTap(file, source) {
@@ -147,7 +160,7 @@ async function downloadOne(file, serviceKey) {
   for (let i = 0; i < 2; i++) {
     try {
       const res = await fetch(url, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });
-      if (res.ok) return fillSecondMenuBackground(file, gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, await res.text()))));
+      if (res.ok) return optimizeChatKeyboard(file, fillSecondMenuBackground(file, gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, await res.text())))));
       lastErr = new Error(`${file} 下载失败 (${res.status})`);
     } catch (e) {
       lastErr = e;
