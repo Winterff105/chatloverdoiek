@@ -106,6 +106,28 @@
     <script>
         (function() {
             var root = document.documentElement;
+            // Keep the app shell at its settled height during the chat keyboard
+            // animation; the Messages keyboard adapter positions the input.
+            var chatKeyboardHold = false;
+            var chatKeyboardSettleTimer = 0;
+            function isChatComposerInput(node) {
+                return !!(node && node.matches &&
+                    node.matches('.messages-app #chatView #composer #input'));
+            }
+            document.addEventListener('focusin', function(event) {
+                if (!isChatComposerInput(event.target)) return;
+                clearTimeout(chatKeyboardSettleTimer);
+                chatKeyboardHold = true;
+            }, true);
+            document.addEventListener('focusout', function(event) {
+                if (!isChatComposerInput(event.target)) return;
+                clearTimeout(chatKeyboardSettleTimer);
+                chatKeyboardSettleTimer = setTimeout(function() {
+                    if (isChatComposerInput(document.activeElement)) return;
+                    chatKeyboardHold = false;
+                    setAppHeight();
+                }, 460);
+            }, true);
 
             function isStandalone() {
                 return window.navigator.standalone === true ||
@@ -116,6 +138,7 @@
             // opens. Only the standalone iOS screen-height workaround remains;
             // the chat keyboard adapter compensates when native resize cannot.
             function setAppHeight() {
+                if (chatKeyboardHold) return;
                 var h = window.innerHeight;
                 if (isStandalone()) {
                     var landscape = window.innerWidth > window.innerHeight;
