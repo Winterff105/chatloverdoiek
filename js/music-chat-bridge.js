@@ -582,13 +582,18 @@
       this.node=el;this.track=track;
       this.previous=previous;this.lyric=lyric;this.next=next;
       this.lastLyricIndex=null;
-      el.addEventListener('click',()=>{
-        if(this.ignoreNextClick){this.ignoreNextClick=false;return;}
+      const toggleChat=()=>{
         if(this.frame?.isConnected)this.command('chat-toggle');
+      };
+      let drag=null,lastPointerEnd=0;
+      el.addEventListener('click',()=>{
+        // Pointer taps open on release: some mobile WebViews swallow click
+        // after pointer capture. Preserve a fallback for keyboard clicks.
+        if(Date.now()-lastPointerEnd<750)return;
+        toggleChat();
       });
-      let drag=null;
       el.addEventListener('pointerdown',e=>{
-        if(e.button!==0)return;
+        if(e.button!==0||e.isPrimary===false)return;
         const rect=el.getBoundingClientRect();
         drag={id:e.pointerId,dx:e.clientX-rect.left,dy:e.clientY-rect.top,
           x:e.clientX,y:e.clientY,moved:false};
@@ -601,15 +606,11 @@
         this.moveDock(e.clientX-drag.dx,e.clientY-drag.dy);
       });
       const end=e=>{
-        if(drag?.id===e.pointerId){
-          if(drag.moved){
-            this.ignoreNextClick=true;
-            // Touch devices do not always emit a click after a drag.
-            // Never let an old drag swallow the user's next real tap.
-            setTimeout(()=>{this.ignoreNextClick=false;},350);
-          }
-          drag=null;
-        }
+        if(!drag||drag.id!==e.pointerId)return;
+        const moved=drag.moved||Math.hypot(e.clientX-drag.x,e.clientY-drag.y)>6;
+        drag=null;
+        lastPointerEnd=Date.now();
+        if(e.type==='pointerup'&&!moved)toggleChat();
       };
       el.addEventListener('pointerup',end);
       el.addEventListener('pointercancel',end);
