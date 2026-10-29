@@ -53,6 +53,37 @@ const MUSIC_REAL_CHAR_GUARD = String.raw`
 `;
 
 
+// Patch the ORIGINAL music iframe command before loading the runtime adapter.
+// Reuses ListenTogether's own open/close and invite APIs, never a duplicate UI.
+const MUSIC_LYRIC_CHAT_TOGGLE_FIX = String.raw`
+;(function(){
+  if(window.__whateverMusicLyricToggleGuard)return;
+  window.__whateverMusicLyricToggleGuard=true;
+  window.addEventListener('message',function(event){
+    if(event.source!==window.parent)return;
+    var command=event.data;
+    if(!command||command.type!=='whatever:music:ui:command'||command.command!=='chat-toggle')return;
+    var together=window.ListenTogether;
+    if(!together)return;
+    if(typeof together.isActive!=='function'||!together.isActive()){
+      // When no Char is joined, the original invitation is the only valid UI.
+      var invite=window.__whateverMusicInviteReady;
+      if(typeof invite!=='function')return;
+      event.stopImmediatePropagation();
+      invite();
+      return;
+    }
+    if(typeof together.openChat!=='function'||typeof together.closeChat!=='function')return;
+    // Do not let the older participant-only handler toggle the same panel twice.
+    event.stopImmediatePropagation();
+    var panel=document.getElementById('chatPanel');
+    var open=(typeof together.isChatOpen==='function'&&together.isChatOpen())
+      ||!!(panel&&panel.classList.contains('open'));
+    if(open)together.closeChat();else together.openChat();
+  },true);
+})();
+`;
+
 // Password hash lives in the private Supabase database, not in public GitHub
 // and PBKDF2 is deliberately NOT run in Cloudflare's CPU-limited request handler.
 async function checkMusicPassword(password, serviceKey) {
@@ -123,6 +154,7 @@ export async function onRequestPost({request, env}) {
       // It reuses window.ListenTogether.chatPanel; no replacement of music.js,
       // song library, lyrics implementation, miniplayer or existing CSS.
       if (path === 'js/apps/music-api.js') {
+        contents += MUSIC_LYRIC_CHAT_TOGGLE_FIX;
         contents += '\n;(function(){ if (window.__whateverMusicRuntimeLoading) return; window.__whateverMusicRuntimeLoading=true; var s=document.createElement("script"); s.src="/js/music-runtime.js"; s.async=false; document.head.appendChild(s); })();';
       }
       return [path,contents];
