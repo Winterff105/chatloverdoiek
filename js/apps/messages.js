@@ -4829,6 +4829,18 @@ function wmcStickerButtons(host,manage){
             inner.append(wmcStickerStar(),name,count);
             button.append(dot,inner);fragment.appendChild(button);
         });
+        /* WMC V6 preview polish: manager's trailing plus tab focuses the existing input. */
+        if(manage){
+            const add=document.createElement('button');
+            add.type='button';add.className='wmc-sticker-add-tab';
+            add.title='新建分组';add.setAttribute('aria-label','新建分组');
+            add.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+            add.onclick=()=>{
+                const input=wmcStickerManager?.querySelector('.wmc-sticker-newgroup');
+                if(input){input.focus();input.scrollIntoView({behavior:'smooth',block:'nearest'});}
+            };
+            fragment.appendChild(add);
+        }
         host.replaceChildren(fragment);
         host.scrollLeft=left;
     }
@@ -4879,6 +4891,7 @@ function wmcStickerGrid(host,manage){
         b.addEventListener('contextmenu',e=>{e.preventDefault();b.dataset.long='yes';wmcStickerDetail(item,manage);});
     });
     host.appendChild(fragment);
+    if(!manage)wmcStickerDecorate(host);
     if(items.length>wmcStickerLimit){
         const caption=document.createElement('div');caption.className='wmc-sticker-load-caption';
         caption.textContent='已显示 '+wmcStickerLimit+' / '+items.length+' · 下滑加载更多';
