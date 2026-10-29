@@ -314,6 +314,13 @@
     <script>
         // 记录已经注入过的文件，重复调用时跳过，避免 "already declared" 报错
         window.__loadedCoreScripts = window.__loadedCoreScripts || new Set();
+        // Track the browser's real DOM-ready event before loading private modules.
+        // Avoid replaying DOMContentLoaded while the browser has yet to emit it.
+        window.__nativeDOMReady = false;
+        document.addEventListener('DOMContentLoaded', () => {
+            window.__nativeDOMReady = true;
+        }, { once: true });
+
 
         window.__appBootstrap = async function(token) {
             // 受保护的样式：顺序与原来 <link> 的顺序一致，后面的会覆盖前面的
@@ -438,9 +445,16 @@
             if (needScripts.length > 0 && !window.__coreInitDispatched) {
                 window.__coreInitDispatched = true;
                 console.log('[Core] Booting desktop…');
-                document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
-                window.dispatchEvent(new Event('load'));
-                console.log('[Core] Boot events dispatched…');
+                // Native DOMContentLoaded may still be pending on fast startup.
+                // Dispatch a catch-up event only when the native event already ran.
+                // Otherwise each desktop swipe listener would be registered twice.
+                if (window.__nativeDOMReady) {
+                    document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true }));
+                    window.dispatchEvent(new Event('load'));
+                    console.log('[Core] Boot events dispatched…');
+                } else {
+                    console.log('[Core] Waiting for native DOMContentLoaded…');
+                }
             }
         };
     </script>
