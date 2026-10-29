@@ -4784,11 +4784,82 @@ function wmcStickerItems(manage){
     const filter=(manage?'':wmcStickerSearch).toLocaleLowerCase();
     return WMCS.items.filter(s=>s.gid===wmcStickerGroup&&(manage||wmcStickerAllowed(activeId).includes(s.gid))&&(!filter||s.name.toLocaleLowerCase().includes(filter)));
 }
+/* WMC V6 group tabs: reuse elements to animate star expansion and dot collapse. */
+const WMC_STICKER_STAR="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.12 2.12 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.12 2.12 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.12 2.12 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.12 2.12 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.12 2.12 0 0 0 1.597-1.16z";
+function wmcStickerStar(){
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 24 24');
+    svg.setAttribute('aria-hidden','true');
+    svg.classList.add('wmc-sticker-star');
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',WMC_STICKER_STAR);
+    svg.appendChild(path);
+    return svg;
+}
+function wmcStickerDecorate(host){
+    if(!host||host.querySelector(':scope > .wmc-sticker-dust'))return;
+    const dust=document.createElement('div');
+    dust.className='wmc-sticker-dust';
+    dust.setAttribute('aria-hidden','true');
+    for(let i=0;i<6;i++)dust.appendChild(wmcStickerStar());
+    host.prepend(dust);
+}
+function wmcStickerAnimate(host){
+    if(!host||window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)return;
+    host.classList.remove('wmc-v6-content-in');
+    void host.offsetWidth;
+    host.classList.add('wmc-v6-content-in');
+}
 function wmcStickerButtons(host,manage){
+    if(!host)return;
     const groups=wmcStickerGroups(manage);
     if(groups.length&&!groups.some(g=>g.id===wmcStickerGroup))wmcStickerGroup=groups[0].id;
-    host.innerHTML=groups.map(g=>'<button type="button" data-wmc-group="'+wmcStickerEscape(g.id)+'" class="wmc-sticker-chip'+(g.id===wmcStickerGroup?' on':'')+'">'+wmcStickerEscape(g.name)+'</button>').join('');
+    const old=[...host.querySelectorAll('button[data-wmc-group]')];
+    if(old.length!==groups.length||old.some((button,i)=>button.dataset.wmcGroup!==groups[i].id)){
+        const left=host.scrollLeft;
+        const fragment=document.createDocumentFragment();
+        groups.forEach(g=>{
+            const button=document.createElement('button');
+            button.type='button';button.className='wmc-sticker-chip';button.dataset.wmcGroup=g.id;
+            button.setAttribute('role','tab');
+            const dot=document.createElement('span');dot.className='wmc-sticker-dot';dot.setAttribute('aria-hidden','true');
+            const inner=document.createElement('span');inner.className='wmc-sticker-chip-inner';
+            const name=document.createElement('span');name.className='wmc-sticker-chip-name';
+            const count=document.createElement('span');count.className='wmc-sticker-chip-count';
+            inner.append(wmcStickerStar(),name,count);
+            button.append(dot,inner);fragment.appendChild(button);
+        });
+        host.replaceChildren(fragment);
+        host.scrollLeft=left;
+    }
+    const counts=new Map();
+    WMCS.items.forEach(item=>counts.set(item.gid,(counts.get(item.gid)||0)+1));
+    host.querySelectorAll('button[data-wmc-group]').forEach(button=>{
+        const group=groups.find(g=>g.id===button.dataset.wmcGroup);
+        if(!group)return;
+        const selected=group.id===wmcStickerGroup;
+        const count=counts.get(group.id)||0;
+        button.classList.toggle('on',selected);
+        button.setAttribute('aria-selected',String(selected));
+        button.setAttribute('aria-label',group.name+' · '+count+' 张');
+        button.title=group.name;
+        button.querySelector('.wmc-sticker-chip-name').textContent=group.name;
+        button.querySelector('.wmc-sticker-chip-count').textContent=String(count);
+    });
 }
+function wmcStickerSyncGroupBody(){
+    const body=wmcStickerManager?.querySelector('.wmc-sticker-group-body');
+    if(!body)return;
+    const g=WMCS.groups.find(x=>x.id===wmcStickerGroup);
+    if(!g)return;
+    const total=WMCS.items.filter(x=>x.gid===g.id).length;
+    body.querySelector('.wmc-sticker-selected-name').textContent=g.name;
+    body.querySelector('.wmc-sticker-selected-count').textContent=total+' 张表情包';
+    const input=body.querySelector('.wmc-sticker-renamegroup');
+    if(input)input.value=g.name;
+    body.querySelector('.wmc-sticker-group-tip').textContent=total?'有表情包的分组需先移动图片才能删除':'该分组为空，可以删除';
+}
+
 function wmcStickerGrid(host,manage){
     const items=wmcStickerItems(manage);
     host.innerHTML='';
@@ -4877,6 +4948,7 @@ function wmcStickerRenderSheet(){
     wmcStickerButtons(wmcStickerSheet.querySelector('.wmc-sticker-groups'),false);
     const grid=wmcStickerSheet.querySelector('.wmc-sticker-grid');
     grid.scrollTop=0;wmcStickerGrid(grid,false);
+    wmcStickerAnimate(grid);
     const gs=wmcStickerGroups(false);
     wmcStickerSheet.querySelector('.wmc-sticker-summary').textContent=gs.length?'共 '+wmcStickerItems(false).length+' 张':'尚未绑定表情包分组';
 }
@@ -4903,6 +4975,7 @@ function wmcStickerMakeSheet(){
     };
     grid.addEventListener('scroll',()=>wmcStickerGridScroll(grid,false),{passive:true});
     composer.appendChild(sheet);wmcStickerSheet=sheet;
+    wmcStickerDecorate(sheet);
     document.addEventListener('pointerdown',e=>{
         if(!wmcStickerSheet||wmcStickerSheet.hidden||!wmcStickerSheet.classList.contains('is-open'))return;
         if(wmcStickerManager&&!wmcStickerManager.hidden)return;
@@ -4945,15 +5018,26 @@ function wmcStickerRenderManager(){
     page.querySelectorAll('[data-wmc-tab]').forEach(b=>b.classList.toggle('on',b.dataset.wmcTab===wmcStickerTab));
     const body=page.querySelector('.wmc-sticker-manager-body');body.innerHTML='';
     if(wmcStickerTab==='library'){
-        body.innerHTML='<section class="wmc-sticker-card"><h3>分组管理</h3><div class="wmc-sticker-groups"></div>'+
-          '<div class="wmc-sticker-formline"><input class="wmc-sticker-newgroup" placeholder="新分组名称"><button type="button" data-wmc-act="add-group">添加</button></div>'+
-          '<div class="wmc-sticker-formline"><input class="wmc-sticker-renamegroup" placeholder="修改当前分组名称"><button type="button" data-wmc-act="rename-group">重命名</button></div>'+
-          '<button type="button" class="wmc-sticker-minor" data-wmc-act="remove-group">删除空分组</button></section>'+
+        body.innerHTML='<section class="wmc-sticker-card wmc-sticker-group-card"><h3>分组管理</h3>'+
+          '<p class="wmc-sticker-group-hint">Swipe between tabs to organize your stickers</p>'+
+          '<div class="wmc-sticker-groups" role="tablist" aria-label="表情包分组"></div>'+
+          '<div class="wmc-sticker-group-body">'+
+             '<div class="wmc-sticker-group-head"><strong class="wmc-sticker-selected-name"></strong><span class="wmc-sticker-selected-count"></span></div>'+
+             '<label class="wmc-sticker-label">分组名称</label>'+
+             '<div class="wmc-sticker-formline"><input class="wmc-sticker-renamegroup" placeholder="修改当前分组名称"><button type="button" data-wmc-act="rename-group">保存名称</button></div>'+
+             '<div class="wmc-sticker-group-foot"><span class="wmc-sticker-group-tip"></span><button type="button" class="wmc-sticker-minor" data-wmc-act="remove-group">删除空分组</button></div>'+
+          '</div>'+
+          '<div class="wmc-sticker-group-add"><label class="wmc-sticker-label">新建分组</label>'+
+             '<div class="wmc-sticker-formline"><input class="wmc-sticker-newgroup" placeholder="新分组名称"><button type="button" data-wmc-act="add-group">添加分组</button></div>'+
+          '</div></section>'+
           '<section class="wmc-sticker-card"><h3>通过 URL 批量导入</h3><p>支持「名称 URL」「URL 名称」「名称+URL」，每行一个，导入到当前分组。</p>'+
           '<textarea class="wmc-sticker-import" rows="4" placeholder="晚安 https://example.com/goodnight.png&#10;https://example.com/happy.gif 开心"></textarea>'+
           '<button type="button" data-wmc-act="import">导入到当前分组</button></section>'+
           '<section class="wmc-sticker-card"><h3>当前分组 · 表情包</h3><div class="wmc-sticker-grid wmc-sticker-manager-grid"></div><div class="wmc-sticker-editor"></div></section>';
         wmcStickerButtons(body.querySelector('.wmc-sticker-groups'),true);
+        wmcStickerSyncGroupBody();
+        wmcStickerDecorate(body.querySelector('.wmc-sticker-group-body'));
+        wmcStickerDecorate(body.querySelector('.wmc-sticker-group-card'));
         const grid=body.querySelector('.wmc-sticker-grid');
         wmcStickerGrid(grid,true);
         grid.addEventListener('scroll',()=>wmcStickerGridScroll(grid,true),{passive:true});
@@ -4990,7 +5074,22 @@ function wmcStickerRenderManager(){
 }
 function wmcStickerManageClick(e){
     const group=e.target.closest('[data-wmc-group]');
-    if(group){wmcStickerGroup=group.dataset.wmcGroup;wmcStickerSelected='';wmcStickerLimit=60;wmcStickerRenderManager();return;}
+    if(group){
+        if(wmcStickerGroup===group.dataset.wmcGroup)return;
+        wmcStickerGroup=group.dataset.wmcGroup;wmcStickerSelected='';wmcStickerLimit=60;
+        const body=wmcStickerManager.querySelector('.wmc-sticker-manager-body');
+        wmcStickerButtons(body.querySelector('.wmc-sticker-groups'),true);
+        wmcStickerSyncGroupBody();
+        const grid=body.querySelector('.wmc-sticker-manager-grid');
+        if(grid){grid.scrollTop=0;wmcStickerGrid(grid,true);wmcStickerAnimate(grid);}
+        const editor=body.querySelector('.wmc-sticker-editor');
+        if(editor)editor.replaceChildren();
+        const caption=body.querySelector('.wmc-sticker-card:nth-child(3) h3');
+        const chosen=WMCS.groups.find(g=>g.id===wmcStickerGroup);
+        if(caption&&chosen)caption.textContent=chosen.name+' · 表情包';
+        wmcStickerAnimate(body.querySelector('.wmc-sticker-group-body'));
+        return;
+    }
     const cell=e.target.closest('[data-wmc-sticker]');
     if(cell){if(cell.dataset.long==='yes'){cell.dataset.long='';return;}wmcStickerSelected=cell.dataset.wmcSticker;wmcStickerRenderManager();return;}
     const action=e.target.closest('[data-wmc-act]');if(!action)return;
