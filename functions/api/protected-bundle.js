@@ -49,6 +49,14 @@ function revealMusicWindow(file, contents) {
     + '.app-window .app-content > div[style*="background:#0a0b0e"] { display:grid !important; box-sizing:border-box; width:100% !important; min-width:100%; height:100% !important; flex:1 0 auto; align-self:stretch; place-items:center; text-align:center; color:#fff !important; font-size:14px !important; }\n';
 }
 
+// Fill the area below the optional floating toolbar without changing its
+// geometry or the canonical stylesheet in private Supabase Storage.
+function fillSecondMenuBackground(file, source) {
+  if (file !== 'css/messages.css') return source;
+  return source + '\n/* Floating menu bottom background */\n'
+    + '.messages-app #chatView .composer.wmc-menu-floating { box-shadow: 0 -48px 0 0 #fff, 0 36px 0 0 #fff; }\n'
+    + '.messages-app #chatView .composer.wmc-menu-floating .wmc-toolbar { background: #fff; }\n';
+}
 // Allow the existing music dock icon to use openApp('music').
 // The desktop module is stored in the private Supabase bucket; keep it private.
 function allowExistingMusicTap(file, source) {
@@ -139,7 +147,7 @@ async function downloadOne(file, serviceKey) {
   for (let i = 0; i < 2; i++) {
     try {
       const res = await fetch(url, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });
-      if (res.ok) return gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, await res.text())));
+      if (res.ok) return fillSecondMenuBackground(file, gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, await res.text()))));
       lastErr = new Error(`${file} 下载失败 (${res.status})`);
     } catch (e) {
       lastErr = e;
