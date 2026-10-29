@@ -450,18 +450,6 @@
     </script>
     <script src="js/music-chat-bridge.js"></script>
     <script src="js/sanctuary-gate.js"></script>
-<!-- Eruda 移动端调试控制台：放在最高层，登录页也能打开 -->
-<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>
-    (function () {
-        var box = document.createElement('div');
-        box.id = 'erudaTopLayer';
-        box.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;z-index:2147483647;';
-        document.body.appendChild(box);
-        eruda.init({ container: box });
-    })();
-</script>
-
 <script src="js/update-manager.js" defer></script>
 <script>
 (function() {
