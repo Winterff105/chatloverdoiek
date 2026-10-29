@@ -6847,3 +6847,36 @@ html.wmc-messages-keyboard .messages-app #chatView .thread {
   animation:none!important;transition:none!important
  }
 }
+
+
+/* WMC V6 preview polish: compact new-group tab and faint star outlines behind grid gaps. */
+.messages-app #chatView .wmc-sticker-add-tab{
+ flex:0 0 31px;width:31px;min-width:31px;height:31px;margin-bottom:1px;
+ padding:0;box-sizing:border-box;border:1px solid #ededed;
+ border-radius:50%;background:#f3f3f4;color:#858585;
+ display:grid;place-items:center;cursor:pointer;
+ transition:transform .25s,background-color .25s;
+}
+.messages-app #chatView .wmc-sticker-add-tab svg{
+ width:15px;height:15px;fill:none;stroke:currentColor;
+ stroke-width:1.7;stroke-linecap:round;
+}
+.messages-app #chatView .wmc-sticker-add-tab:hover{
+ transform:rotate(90deg);background:#e9e9eb;
+}
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-grid .wmc-sticker-cell{
+ position:relative;z-index:1;
+}
+.messages-app #chatView .wmc-sticker-manager:not([hidden]){
+ animation:wmcV6ContentIn .3s ease both;
+}
+.messages-app #chatView .wmc-sticker-editor:not(:empty){
+ animation:wmcV6ContentIn .32s ease both;
+}
+@media(prefers-reduced-motion:reduce){
+ .messages-app #chatView .wmc-sticker-add-tab,
+ .messages-app #chatView .wmc-sticker-manager:not([hidden]),
+ .messages-app #chatView .wmc-sticker-editor:not(:empty){
+  animation:none!important;transition:none!important;
+ }
+}
