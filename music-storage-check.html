@@ -61,7 +61,7 @@
       <button class="secondary" id="export" type="button" disabled>导出四份源码</button>
       <button class="primary" id="mergeZip" type="button" disabled>直接下载合并版 ZIP</button>
     </div>
-    <p class="note">手机可直接选择「直接下载合并版 ZIP」，无需另开离线 HTML 网页；生成过程只在浏览器中运行，不会写入 Supabase。</p>
+    <p class="note">自己上传 Supabase：先点击「验证管理员并检查」→「直接下载合并版 ZIP」→ 解压 → 将里面的 css/music.css、js/apps/music.js、js/apps/music-api.js 分别上传到 protected-scripts 对应路径。ZIP 不能直接上传，也不要放进下方 JSON 输入框。下载不会修改 Supabase。</p>
     <p class="note">如果提示未登录：请使用同一个浏览器打开 <a href="/" style="color:#e5e5e8">Whatever 首页</a>并登录，然后返回本页。PWA、ChatGPT 内置浏览器与普通浏览器可能不共享登录状态。</p>
   </section>
 
@@ -78,9 +78,9 @@
     </div>
   </section>
   <section class="section" aria-labelledby="head-apply">
-    <h2 id="head-apply">03 · 定点修复原音乐源码</h2>
-    <p class="secondary">先完成四份私有备份，再选择经校验的修复包。仅允许预审的两份源码及其精确 SHA-256，其他内容全部拒绝。</p>
-    <label for="fixFile" class="name">选择当前聊天提供的修复包（JSON）</label>
+    <h2 id="head-apply">03 · 旧版 JSON 审核写回（自己上传 ZIP 请跳过）</h2>
+    <p class="secondary">这一栏仅用于旧版管理员审核 JSON 修复包，和上面的完整源码 ZIP 是两种不同格式。你如果选择自己上传 Supabase，下载 ZIP 后就不用操作这里。</p>
+    <label for="fixFile" class="name">仅选择经过审核的 .json 修复包（不能选择 ZIP）</label>
     <input id="fixFile" type="file" accept=".json,application/json" style="display:block;max-width:100%;width:100%;font-size:12px;margin:13px 0;color:#bbb">
     <p id="fixInfo" class="secondary">尚未载入修复包。music.css、music-markup.js 和 base.css 不会被修改。</p>
     <div class="actions">
@@ -237,9 +237,16 @@
     approvedBundle=null;fixInfo.textContent='正在校验修复包…';setBusy(false);
     const file=fixInput.files?.[0];
     if(!file){fixInfo.textContent='未选择修复包。';return;}
+    // ZIP is a complete-source download for manual upload, not an approved JSON write-back package.
+    if(/\.zip$/i.test(file.name)||! /\.json$/i.test(file.name)){
+      fixInfo.textContent='你选的是 '+file.name+'。这栏只接受审核用 JSON。已经生成的 ZIP 请先解压，再把完整 JS/CSS 文件分别上传到 Supabase Storage，不需要第 03 步。';
+      fixInput.value='';return;
+    }
     if(file.size>300000){fixInfo.textContent='修复包超过大小限制，已拒绝。';return;}
     try{
-      const pkg=JSON.parse(await file.text());
+      const raw=await file.text();
+      if(raw.startsWith('PK'))throw Error('这是 ZIP 压缩包，不是 JSON。请解压后自行上传 Supabase，跳过第 03 步。');
+      const pkg=JSON.parse(raw);
       const approved=['js/apps/music.js','js/apps/music-api.js'];
       if(pkg.kind!=='whatever-private-music-approved-fix'||pkg.project!=='苦临潭'||
         pkg.bucket!=='protected-scripts'||!pkg.changes||
@@ -447,7 +454,7 @@
       document.body.appendChild(link);link.click();link.remove();
       setTimeout(()=>URL.revokeObjectURL(url),15000);
       tell('已生成可上传完整文件 ZIP：\n'+changed.map(name=>'protected-scripts/'+name).join('\n')+
-        '\n解压后按路径替换；本次没有写入 Supabase。','success');
+        '\n请解压 ZIP，把每个文件分别上传到 Storage 对应路径。不要在下方「JSON 审核写回」里选择此 ZIP；本次没有写入 Supabase。','success');
     }catch(e){tell('生成失败：'+String(e?.message||e),'error');}
     finally{setBusy(false);}
   }
