@@ -6904,3 +6904,48 @@ html.wmc-messages-keyboard .messages-app #chatView .thread {
     border-top-left-radius: 0;
     background: #19191b;
 }
+
+/* v42.1.1: Join sticker group tabs to the image panel without a visible seam. */
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-groups{
+ margin-bottom:-2px;
+ padding-bottom:0;
+ position:relative;
+ z-index:4;
+}
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-chip.on{
+ border-bottom:0;
+ border-bottom-left-radius:0;
+ border-bottom-right-radius:0;
+ z-index:5;
+}
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-meta{
+ margin-top:0;
+ padding-top:9px;
+ border-top-left-radius:0;
+ position:relative;
+ z-index:2;
+}
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-grid{
+ margin-top:0;
+ border-top-left-radius:0;
+ border-top-right-radius:0;
+}
+/* Only the new-group-name field becomes shorter. */
+.messages-app #chatView .wmc-sticker-group-add input.wmc-sticker-newgroup{
+ height:25px;
+ min-height:25px;
+ padding:0 10px;
+ line-height:25px;
+ box-sizing:border-box;
+}
+/* Opening the full-screen sticker manager uses opacity, not translation. */
+.messages-app #chatView .wmc-sticker-manager:not([hidden]){
+ animation:wmcStickerOnlyOpacity .24s ease both;
+}
+@keyframes wmcStickerOnlyOpacity{
+ from{opacity:0}
+ to{opacity:1}
+}
+@media(prefers-reduced-motion:reduce){
+ .messages-app #chatView .wmc-sticker-manager:not([hidden]){animation:none}
+}
