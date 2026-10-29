@@ -6,7 +6,7 @@
   'use strict';
   if (window.__whateverUpdatesStarted) return;
   window.__whateverUpdatesStarted = true;
-  const PAGE_VERSION = '42.1.2';
+  const PAGE_VERSION = '42.1.3';
   const VERSION_KEY = 'whatever_app_version';
   const CHECK_INTERVAL_MS = 5 * 60 * 1000;
   const MAX_CHECK_MS = 10000;
@@ -33,6 +33,7 @@
   const notesContainer = document.getElementById('appUpdateNotes');
   let updating = false;
   let latest = '';
+  let showingInstalledNotes = false;
   let lastCheckAt = 0;
   const QUIET_HINT_KEY = 'whatever_update_hint_v1';
   const QUIET_HINT_DELAY_MS = 8000;
@@ -55,6 +56,7 @@
   // Existing installed v20 may be stored, but the new v21 shell is already
   // running when this script executes. Do not offer to "update" current code.
   const previous = stored();
+  const upgradedFrom = previous && compareAppVersions(PAGE_VERSION, previous) > 0 ? previous : '';
   if (!previous || previous !== PAGE_VERSION) installed(PAGE_VERSION);
   text('appVersionBadge', 'Whatever v' + PAGE_VERSION);
   if (previous && previous !== PAGE_VERSION) {
@@ -142,6 +144,26 @@
     if (!modal) return;
     modal.style.display = 'none';
     modal.setAttribute('aria-hidden', 'true');
+    if (showingInstalledNotes) {
+      showingInstalledNotes = false;
+      if (nowButton) nowButton.textContent = '立即更新';
+    }
+  }
+  // Show the full release notes once after a new shell has finished loading.
+  function showInstalledNotes(previousVersion, notes) {
+    if (!previousVersion || !modal || updating) return;
+    showingInstalledNotes = true;
+    text('appUpdateFrom', 'v' + previousVersion);
+    text('appUpdateTo', 'v' + PAGE_VERSION);
+    text('appUpdateVersion', 'v' + PAGE_VERSION);
+    text('appUpdateStatus', '已更新到最新版本，聊天记录和设置不会删除。');
+    setNotes(notes);
+    if (nowButton) {
+      nowButton.disabled = false;
+      nowButton.textContent = '完成';
+    }
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
   }
   function showDetails() {
     if (!latest || !modal) return;
@@ -183,7 +205,8 @@
         clearTimeout(quietHintTimer);
         pendingHintVersion = '';
         show(release.version, release.notes);
-      } else if (mode === 'startup') {
+      } else if (mode === 'startup' || mode === 'passive') {
+        // Retry a dismissed unsafe hint after leaving chat or music playback.
         scheduleQuietHint(release.version, release.notes);
       }
     } catch (error) {
@@ -258,7 +281,10 @@
   window.checkWhateverUpdate = () => checkUpdates(true, 'manual');
   openButton?.addEventListener('click', showDetails);
   laterButton?.addEventListener('click', dismiss);
-  nowButton?.addEventListener('click', applyUpdate);
+  nowButton?.addEventListener('click', () => {
+    if (showingInstalledNotes) { dismiss(); return; }
+    applyUpdate();
+  });
   modal?.addEventListener('click', e => {if (e.target === modal) dismiss();});
   modal?.addEventListener('keydown', e => {if (e.key === 'Escape') dismiss();});
 
@@ -288,7 +314,7 @@
     });
   }
   function refresh() {
-    checkUpdates(true);
+    checkUpdates(true, 'startup');
     if ('serviceWorker' in navigator) navigator.serviceWorker.getRegistration()
       .then(reg => reg?.update()).catch(() => {});
   }
@@ -315,4 +341,21 @@
   } catch (_) {}
   registerSW();
   checkUpdates(true, 'startup');
+  if (upgradedFrom) {
+    // Defer the notes until the desktop is visible and not busy.
+    let releaseNotesTimer = null;
+    const announce = async () => {
+      if (!isSafeToHint()) return;
+      clearInterval(releaseNotesTimer);
+      try {
+        const release = await fetchLatest();
+        if (release.version === PAGE_VERSION) showInstalledNotes(upgradedFrom, release.notes);
+      } catch (error) {
+        console.info('[Whatever Updates] Release notes unavailable:', error?.message || error);
+        showInstalledNotes(upgradedFrom, []);
+      }
+    };
+    releaseNotesTimer = setInterval(announce, 4000);
+    setTimeout(announce, 1200);
+  }
 })();
