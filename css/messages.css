@@ -6868,7 +6868,11 @@ html.wmc-messages-keyboard .messages-app #chatView .thread {
  position:relative;z-index:1;
 }
 .messages-app #chatView .wmc-sticker-manager:not([hidden]){
- animation:wmcV6ContentIn .3s ease both;
+ animation:wmcStickerManagerFade .24s ease-out both;
+}
+@keyframes wmcStickerManagerFade{
+ from{opacity:0}
+ to{opacity:1}
 }
 .messages-app #chatView .wmc-sticker-editor:not(:empty){
  animation:wmcV6ContentIn .32s ease both;
@@ -6881,6 +6885,12 @@ html.wmc-messages-keyboard .messages-app #chatView .thread {
  }
 }
 
+
+/* Keep new-group name field compact without changing the other form controls. */
+.messages-app #chatView .wmc-sticker-group-add input.wmc-sticker-newgroup{
+ height:28px;min-height:28px;padding:0 11px;line-height:28px;
+ box-sizing:border-box;
+}
 
 /* Connect the selected sticker tab to the panel below without a seam. */
 .messages-app #chatView .wmc-sticker-sheet .wmc-sticker-chip.on {
