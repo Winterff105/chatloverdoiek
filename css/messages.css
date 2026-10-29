@@ -6689,3 +6689,161 @@ html.wmc-messages-keyboard .messages-app #chatView .thread {
 }
 /* Second composer and classic composer share one vertical position. */
 .messages-app #chatView .composer.wmc-menu-floating{bottom:18px}
+
+
+/* WMC V6: active Lucide star tab and subtle collapsed group dots. */
+.messages-app #chatView .wmc-sticker-groups{
+ display:flex;align-items:flex-end;gap:6px;min-height:39px;
+ padding:6px 0 0;overflow-x:auto;scrollbar-width:none;
+ overscroll-behavior-x:contain;scroll-snap-type:none;
+}
+.messages-app #chatView .wmc-sticker-chip,
+.messages-app #chatView .wmc-sticker-chip:not(.on){
+ position:relative;isolation:isolate;display:flex;align-items:center;justify-content:center;
+ flex:0 0 30px;width:30px;min-width:30px;max-width:158px;
+ height:35px;min-height:35px;padding:0;border:1px solid transparent;
+ border-radius:999px;background:transparent;color:#b5b5b9;
+ box-sizing:border-box;white-space:nowrap;overflow:hidden;cursor:pointer;
+ transition:width .42s cubic-bezier(.2,.9,.2,1),
+   flex-basis .42s cubic-bezier(.2,.9,.2,1),
+   background-color .36s,border-color .36s,color .36s,transform .28s;
+}
+.messages-app #chatView .wmc-sticker-chip.on{
+ flex-basis:158px;width:158px;min-width:158px;max-width:158px;
+ border-radius:12px 12px 0 0;background:#19191b;border-color:#252528;color:#fff;
+}
+.messages-app #chatView .wmc-sticker-dot{
+ position:absolute;left:50%;top:50%;width:9px;height:9px;border-radius:50%;
+ background:#c3c3c8;opacity:.42;transform:translate(-50%,-50%) scale(1);
+ transition:opacity .26s,transform .38s cubic-bezier(.2,.9,.2,1);
+}
+.messages-app #chatView .wmc-sticker-chip:not(.on):hover .wmc-sticker-dot{opacity:.78}
+.messages-app #chatView .wmc-sticker-chip.on .wmc-sticker-dot{
+ opacity:0;transform:translate(-50%,-50%) scale(.1);
+}
+.messages-app #chatView .wmc-sticker-chip-inner{
+ position:absolute;inset:0;display:flex;align-items:center;gap:7px;
+ padding:0 12px;box-sizing:border-box;overflow:hidden;min-width:0;
+ opacity:0;transform:translateX(-7px);pointer-events:none;
+ transition:opacity .18s ease,transform .23s ease;
+}
+.messages-app #chatView .wmc-sticker-chip.on .wmc-sticker-chip-inner{
+ opacity:1;transform:translateX(0);transition-delay:.13s;
+}
+.messages-app #chatView .wmc-sticker-star{
+ display:block;flex:none;width:15px;height:15px;
+ fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;
+ stroke-linejoin:round;
+}
+.messages-app #chatView .wmc-sticker-chip-name{
+ flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+ color:inherit;text-align:left;font-size:11.5px;font-weight:650;
+}
+.messages-app #chatView .wmc-sticker-chip-count{
+ flex:none;min-width:18px;color:#c4c4c9;text-align:right;
+ font-size:10px;font-variant-numeric:tabular-nums;
+}
+.messages-app #chatView .wmc-sticker-group-card{position:relative;overflow:hidden;gap:0}
+.messages-app #chatView .wmc-sticker-group-card>h3{
+ margin:0 0 6px;text-align:center;font-size:16px;color:#292929;
+}
+.messages-app #chatView .wmc-sticker-group-hint{
+ text-align:center;font-size:10px;color:#a4a4a7;margin:0!important;
+}
+.messages-app #chatView .wmc-sticker-group-body{
+ position:relative;overflow:hidden;background:#19191b;border-radius:0 12px 12px 12px;
+ color:#f2f2f3;display:flex;flex-direction:column;gap:7px;
+ padding:13px 12px 11px;z-index:1;
+}
+.messages-app #chatView .wmc-sticker-group-body>:not(.wmc-sticker-dust){position:relative;z-index:1}
+.messages-app #chatView .wmc-sticker-group-head,.messages-app #chatView .wmc-sticker-group-foot{
+ display:flex;align-items:center;justify-content:space-between;gap:8px
+}
+.messages-app #chatView .wmc-sticker-selected-name{font-size:14px;color:#fafafa}
+.messages-app #chatView .wmc-sticker-selected-count{
+ font-size:10px;color:#c0c0c4;background:#343437;padding:4px 9px;border-radius:999px
+}
+.messages-app #chatView .wmc-sticker-label{font-size:10px;color:#b2b2b7}
+.messages-app #chatView .wmc-sticker-group-tip{
+ font-size:10px;color:#a5a5a9;min-width:0;flex:1
+}
+.messages-app #chatView .wmc-sticker-group-foot{
+ padding-top:8px;border-top:1px dashed #39393d
+}
+.messages-app #chatView .wmc-sticker-group-body input.wmc-sticker-renamegroup,
+.messages-app #chatView .wmc-sticker-group-add input.wmc-sticker-newgroup{
+ background:#323236;border-color:#47474b;color:#fff;
+}
+.messages-app #chatView .wmc-sticker-group-body button[data-wmc-act],
+.messages-app #chatView .wmc-sticker-group-add button[data-wmc-act]{
+ padding:7px 12px;border-radius:999px;background:#eee;color:#333;
+ white-space:nowrap;font-size:11px;line-height:16px
+}
+.messages-app #chatView .wmc-sticker-group-body button[data-wmc-act="remove-group"]{
+ background:#343438;color:#d5d5d8;border:1px solid #56565a
+}
+.messages-app #chatView .wmc-sticker-group-add{
+ display:flex;flex-direction:column;gap:5px;padding:10px 0 0
+}
+.messages-app #chatView .wmc-sticker-group-add .wmc-sticker-label{color:#97979c}
+.messages-app #chatView .wmc-sticker-group-add button[data-wmc-act]{background:#28282b;color:#fff}
+.messages-app #chatView .wmc-sticker-group-card>.wmc-sticker-groups{
+ position:relative;z-index:1
+}
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-meta{
+ background:#19191b;color:#babac0;border-radius:12px 12px 0 0;
+ padding:8px 10px 5px;position:relative;z-index:1
+}
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-grid{
+ background:#19191b;border-radius:0 0 12px 12px;
+ padding:4px 8px 10px;position:relative;z-index:1
+}
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-cell{
+ background:#38383b;transition:transform .2s,background-color .2s
+}
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-cell:active{
+ transform:scale(.955);background:#4b4b4e
+}
+.messages-app #chatView .wmc-sticker-dust{
+ position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden;
+}
+.messages-app #chatView .wmc-sticker-dust .wmc-sticker-star{
+ position:absolute;opacity:.055;color:#fff;width:18px;height:18px
+}
+.messages-app #chatView .wmc-sticker-dust .wmc-sticker-star:nth-child(1){left:9%;top:14%}
+.messages-app #chatView .wmc-sticker-dust .wmc-sticker-star:nth-child(2){left:72%;top:8%;width:13px;height:13px}
+.messages-app #chatView .wmc-sticker-dust .wmc-sticker-star:nth-child(3){left:40%;top:45%;width:16px;height:16px}
+.messages-app #chatView .wmc-sticker-dust .wmc-sticker-star:nth-child(4){left:89%;top:64%;width:13px;height:13px}
+.messages-app #chatView .wmc-sticker-dust .wmc-sticker-star:nth-child(5){left:23%;top:82%;width:12px;height:12px}
+.messages-app #chatView .wmc-sticker-dust .wmc-sticker-star:nth-child(6){left:60%;top:92%;width:19px;height:19px}
+.messages-app #chatView .wmc-sticker-group-card>.wmc-sticker-dust .wmc-sticker-star{color:#888;opacity:.045}
+.messages-app #chatView .wmc-v6-content-in{
+ animation:wmcV6ContentIn .36s cubic-bezier(.2,.9,.2,1) both
+}
+@keyframes wmcV6ContentIn{
+ from{opacity:.55;transform:translateY(8px)}
+ to{opacity:1;transform:translateY(0)}
+}
+.messages-app #chatView .wmc-sticker-group-card input,
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-search{
+ transition:background-color .22s,border-color .22s,box-shadow .22s
+}
+.messages-app #chatView .wmc-sticker-group-card input:focus,
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-search:focus{
+ box-shadow:0 0 0 3px rgba(150,150,155,.12)
+}
+.messages-app #chatView .wmc-sticker-group-card button[data-wmc-act]{
+ transition:transform .18s,background-color .22s
+}
+.messages-app #chatView .wmc-sticker-group-card button[data-wmc-act]:active{
+ transform:scale(.955)
+}
+@media(prefers-reduced-motion:reduce){
+ .messages-app #chatView .wmc-sticker-chip,
+ .messages-app #chatView .wmc-sticker-dot,
+ .messages-app #chatView .wmc-sticker-chip-inner,
+ .messages-app #chatView .wmc-v6-content-in,
+ .messages-app #chatView .wmc-sticker-cell{
+  animation:none!important;transition:none!important
+ }
+}
