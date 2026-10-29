@@ -6880,3 +6880,17 @@ html.wmc-messages-keyboard .messages-app #chatView .thread {
   animation:none!important;transition:none!important;
  }
 }
+
+
+/* Connect the selected sticker tab to the panel below without a seam. */
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-chip.on {
+    border-bottom: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.messages-app #chatView .wmc-sticker-sheet .wmc-sticker-meta {
+    margin-top: -2px;
+    padding-top: 10px;
+    border-top-left-radius: 0;
+    background: #19191b;
+}
