@@ -4713,6 +4713,8 @@ function wmcApplyToolbarState() {
     if (!composer) return;
     const floating = wmcToolbarState.style === 'floating';
     composer.classList.toggle('wmc-menu-floating', floating);
+    // Reserve space for the last chat message above the optional toolbar.
+    document.getElementById('chatView')?.classList.toggle('wmc-has-floating-menu', floating);
     composer.classList.toggle('wmc-actions-single', floating && wmcToolbarState.buttonMode === 'single');
     composer.classList.toggle('wmc-only-pull', floating && wmcToolbarState.buttonMode === 'single' && wmcToolbarState.singleAction === 'pull');
     composer.classList.toggle('wmc-only-send', floating && wmcToolbarState.buttonMode === 'single' && wmcToolbarState.singleAction === 'send');
@@ -4924,7 +4926,7 @@ function wmcStickerSend(id){
     if(!wmcStickerAllowed(c.id).includes(item.gid)){toast('联系人没有绑定此分组');return;}
     if(c._busy){toast('正在调取回复，请稍后再发送');return;}
     c.msgs=c.msgs||[];
-    c.msgs.push({me:true,text:'',sticker:{name:item.name,url:item.url,vision:WMCS.vision},t:nowTime(),ts:Date.now()});
+    c.msgs.push({me:true,text:'',sticker:{name:item.name,description:item.name,url:item.url,vision:WMCS.vision},t:nowTime(),ts:Date.now()});
     c.time=nowTime();wmcStickerClose();persistContacts();renderThread();renderChats();playSfx('send');vibrateTiny();
 }
 function wmcStickerMessageHtml(m,i,c,avo){
@@ -5065,13 +5067,17 @@ function wmcStickerRenderManager(){
             WMCS.groups.forEach(g=>{const o=document.createElement('option');o.textContent=g.name;o.value=g.id;select.appendChild(o);});select.value=sel.gid;
         }
     }else if(wmcStickerTab==='binding'){
+        if(!CONTACTS.some(c=>c.id===wmcStickerContact))wmcStickerContact=activeId||CONTACTS[0]?.id||'';
+        const selected=CONTACTS.find(c=>c.id===wmcStickerContact);
         body.innerHTML='<section class="wmc-sticker-card"><h3>联系人绑定分组</h3>'+
           '<p>未设置的联系人默认可以使用全部分组。这里使用现有联系人，不会新建联系人。</p>'+
-          '<select class="wmc-sticker-contact"></select><div class="wmc-sticker-bindings"></div></section>';
-        const select=body.querySelector('.wmc-sticker-contact');
-        CONTACTS.forEach(c=>{const o=document.createElement('option');o.textContent=dispName(c)||c.name;o.value=c.id;select.appendChild(o);});
-        if(!CONTACTS.some(c=>c.id===wmcStickerContact))wmcStickerContact=activeId||CONTACTS[0]?.id||'';
-        select.value=wmcStickerContact;
+          '<div class="wmc-sticker-contact-picker">'+
+          '<button type="button" class="wmc-sticker-contact-trigger" aria-haspopup="listbox" aria-expanded="false">'+
+          '<span class="wmc-sticker-contact-label">'+wmcStickerEscape(selected?(dispName(selected)||selected.name):'选择联系人')+'</span>'+
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>'+
+          '<div class="wmc-sticker-contact-options" role="listbox" hidden>'+
+          CONTACTS.map(c=>'<button type="button" role="option" aria-selected="'+String(c.id===wmcStickerContact)+'" data-wmc-contact-id="'+wmcStickerEscape(c.id)+'" class="wmc-sticker-contact-option'+(c.id===wmcStickerContact?' on':'')+'">'+wmcStickerEscape(dispName(c)||c.name)+'</button>').join('')+
+          '</div></div><div class="wmc-sticker-bindings"></div></section>';
         const bind=body.querySelector('.wmc-sticker-bindings');
         WMCS.groups.forEach(g=>{
             const label=document.createElement('label');label.className='wmc-sticker-binding';
@@ -5081,7 +5087,7 @@ function wmcStickerRenderManager(){
     }else{
         body.innerHTML='<section class="wmc-sticker-card"><h3>AI 识图</h3>'+
           '<label class="wmc-sticker-vision"><span>让对方 AI 查看新发送的表情包图片</span><input type="checkbox" class="wmc-sticker-vision-check"></label>'+
-          '<p>开启时，把图片 URL 作为视觉输入发送给支持识图的 AI；关闭时只发送表情包名称。不支持图片的接口可能返回错误。</p></section>';
+          '<p>开启时，联系人 AI 会接收表情包图片进行识图；关闭时，仅发送导入时填写的表情包名称作为文字描述。实际识图需模型支持视觉输入。</p></section>';
         body.querySelector('.wmc-sticker-vision-check').checked=WMCS.vision;
     }
 }
@@ -5105,6 +5111,26 @@ function wmcStickerManageClick(e){
     }
     const cell=e.target.closest('[data-wmc-sticker]');
     if(cell){if(cell.dataset.long==='yes'){cell.dataset.long='';return;}wmcStickerSelected=cell.dataset.wmcSticker;wmcStickerRenderManager();return;}
+    const contactOption=e.target.closest('[data-wmc-contact-id]');
+    if(contactOption){
+        wmcStickerContact=contactOption.dataset.wmcContactId;
+        wmcStickerRenderManager();
+        return;
+    }
+    const contactTrigger=e.target.closest('.wmc-sticker-contact-trigger');
+    if(contactTrigger){
+        const options=contactTrigger.closest('.wmc-sticker-contact-picker')?.querySelector('.wmc-sticker-contact-options');
+        if(options){
+            options.hidden=!options.hidden;
+            contactTrigger.setAttribute('aria-expanded',String(!options.hidden));
+        }
+        return;
+    }
+    const openContactOptions=wmcStickerManager?.querySelector('.wmc-sticker-contact-options:not([hidden])');
+    if(openContactOptions){
+        openContactOptions.hidden=true;
+        wmcStickerManager.querySelector('.wmc-sticker-contact-trigger')?.setAttribute('aria-expanded','false');
+    }
     const action=e.target.closest('[data-wmc-act]');if(!action)return;
     const type=action.dataset.wmcAct,body=wmcStickerManager.querySelector('.wmc-sticker-manager-body');
     if(type==='add-group'){
@@ -5141,7 +5167,6 @@ function wmcStickerManageClick(e){
     wmcStickerRenderManager();
 }
 function wmcStickerManageChange(e){
-    if(e.target.matches('.wmc-sticker-contact')){wmcStickerContact=e.target.value;wmcStickerRenderManager();return;}
     if(e.target.matches('[data-wmc-binding]')){
         const now=wmcStickerAllowed(wmcStickerContact).slice();
         WMCS.bindings[wmcStickerContact]=e.target.checked?[...new Set([...now,e.target.value])]:now.filter(g=>g!==e.target.value);
