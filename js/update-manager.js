@@ -6,11 +6,25 @@
   'use strict';
   if (window.__whateverUpdatesStarted) return;
   window.__whateverUpdatesStarted = true;
-  const PAGE_VERSION = '42';
+  const PAGE_VERSION = '42.1.0';
   const VERSION_KEY = 'whatever_app_version';
   const CHECK_INTERVAL_MS = 5 * 60 * 1000;
   const MAX_CHECK_MS = 10000;
   const RELEASE_URL = '/app-version.json';
+  // Compare numeric segments, including legacy versions such as "42".
+  function compareAppVersions(a, b) {
+    const parse = value => {
+      const str = String(value || '').trim();
+      if (!/^\d+(?:\.\d+){0,2}$/.test(str)) return null;
+      return str.split('.').map(Number).concat([0, 0]).slice(0, 3);
+    };
+    const left = parse(a), right = parse(b);
+    if (!left || !right) return null;
+    for (let i = 0; i < 3; i++) {
+      if (left[i] !== right[i]) return left[i] > right[i] ? 1 : -1;
+    }
+    return 0;
+  }
   const modal = document.getElementById('appUpdateModal');
   const toast = document.getElementById('appUpdateToast');
   const openButton = document.getElementById('appUpdateOpen');
@@ -156,8 +170,8 @@
       const release = await fetchLatest();
       // If a slower/older deployment finishes after this one, never invite
       // the user to downgrade to a smaller numeric version.
-      const n = Number(release.version), current = Number(PAGE_VERSION);
-      if (Number.isFinite(n) && Number.isFinite(current) && n <= current) return;
+      const order = compareAppVersions(release.version, PAGE_VERSION);
+      if (order !== null && order <= 0) return;
       // Foreground, timer and SW checks stay silent while someone is playing.
       if (mode === 'manual') {
         clearTimeout(quietHintTimer);
@@ -285,7 +299,8 @@
   // requested version. Preserve a pending request if an old shell reloaded.
   try {
     const requested = sessionStorage.getItem('whatever_update_requested');
-    if (requested && Number(PAGE_VERSION) >= Number(requested)) {
+    if (requested && compareAppVersions(PAGE_VERSION, requested) !== null &&
+        compareAppVersions(PAGE_VERSION, requested) >= 0) {
       sessionStorage.removeItem('whatever_update_requested');
       console.info('[Whatever Updates] Requested release loaded:', PAGE_VERSION);
     } else if (requested) {
