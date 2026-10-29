@@ -6,7 +6,7 @@
   'use strict';
   if (window.__whateverUpdatesStarted) return;
   window.__whateverUpdatesStarted = true;
-  const PAGE_VERSION = '42.1.1';
+  const PAGE_VERSION = '42.1.2';
   const VERSION_KEY = 'whatever_app_version';
   const CHECK_INTERVAL_MS = 5 * 60 * 1000;
   const MAX_CHECK_MS = 10000;
@@ -99,19 +99,25 @@
     } catch (_) {}
     clearTimeout(quietHintTimer);
     pendingHintVersion = version;
-    quietHintTimer = setTimeout(() => {
+    const tryShowWhenSafe = () => {
+      if (pendingHintVersion !== version) return;
+      // A chat or login screen may be open at startup. Retry safely instead
+      // of dropping this release notice until the next app launch.
+      if (!isSafeToHint()) {
+        quietHintTimer = setTimeout(tryShowWhenSafe, 15000);
+        return;
+      }
       pendingHintVersion = '';
-      // If any App is open, leave the notification for a future launch.
-      if (!isSafeToHint()) return;
       show(version, notes);
       try {
-        localStorage.setItem(QUIET_HINT_KEY, JSON.stringify({version,at:Date.now()}));
+        localStorage.setItem(QUIET_HINT_KEY, JSON.stringify({version, at:Date.now()}));
       } catch (_) {}
       clearTimeout(quietHideTimer);
       quietHideTimer = setTimeout(() => {
         if (!updating) hideCapsule();
       }, QUIET_HINT_VISIBLE_MS);
-    }, QUIET_HINT_DELAY_MS);
+    };
+    quietHintTimer = setTimeout(tryShowWhenSafe, QUIET_HINT_DELAY_MS);
   }
   function show(version, notes) {
     if (!version || version === PAGE_VERSION || updating) return;
