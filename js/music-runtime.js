@@ -308,37 +308,6 @@
     retry.addEventListener('click',loadContacts);
     loadContacts();
   }
-  // Transient speaking bubbles: multiple tails stack upward; old ones fade.
-  // The original ListenTogether chat list remains the full conversation, and
-  // all messages are saved separately in common memory by the parent bridge.
-  let liveFeed=null;
-  function stackBubble(side,value){
-    // Only Char's spoken replies create the transient avatar speech bubble.
-    if(side!=='them')return;
-    const text=trim(value,200);
-    if(!text)return;
-    if(!liveFeed){
-      liveFeed=node('div','wmc-speech-stack');
-      liveFeed.setAttribute('aria-live','off');
-      document.body.appendChild(liveFeed);
-    }
-    const line=node('div','wmc-speech-row wmc-speech-them',text);
-    // Match the actual player chat bubbles rather than inventing another style.
-    const nativeBubbles=document.querySelectorAll('#chatPanel .chat-bubble');
-    const nativeBubble=nativeBubbles[nativeBubbles.length-1];
-    if(nativeBubble){
-      const style=getComputedStyle(nativeBubble);
-      for(const key of ['backgroundColor','color','borderRadius','borderColor','borderWidth',
-        'borderStyle','fontFamily','fontSize','fontWeight','lineHeight','padding']){
-        if(style[key])line.style[key]=style[key];
-      }
-    }
-    liveFeed.appendChild(line);
-    while(liveFeed.children.length>4){const oldest=liveFeed.firstElementChild;if(!oldest)break;oldest.remove();}
-    requestAnimationFrame(()=>line.classList.add('wmc-speech-visible'));
-    setTimeout(()=>line.classList.add('wmc-speech-fading'),6500);
-    setTimeout(()=>line.remove(),7600);
-  }
   function protectOnlyAutomaticKeyboard(){
     // Keep all ORIGINAL '调取' and '发送' buttons and the quick-recall panel.
     // Suppress the old music openChat()/openInline() auto .focus() calls ONLY.
@@ -982,7 +951,6 @@
       const originalReceive=w.ListenTogether.receive.bind(w.ListenTogether);
       w.ListenTogether.receive=function(text){
         originalReceive(text);
-        stackBubble('them',text);
         sendFloatState(true,{me:false,text});
       };
       w.__wmcDecoratedReceive=true;
@@ -1066,13 +1034,6 @@
     '.wmc-eyebrow{text-align:center;font-size:8px;letter-spacing:.15em;color:#8c8c8c}.wmc-title{text-align:center;font-size:29px;line-height:1.1;font-weight:400;letter-spacing:0;margin:0 0 1px;font-family:"Snell Roundhand","Brush Script MT","Segoe Script",cursive;font-style:italic}',
     '.wmc-subtitle{text-align:center;margin:0 0 8px;font:italic 10px/1.25 Georgia,serif;letter-spacing:.02em;color:#8f8f8f}.wmc-album{margin-bottom:9px;padding:6px 10px}.wmc-pick-label,.wmc-action-label{margin-bottom:4px}.wmc-picker{margin-bottom:9px}',
     '.wmc-option{min-height:43px;padding:5px 9px}.wmc-option-icon{width:25px;height:25px}.wmc-actions{gap:6px}.wmc-footer{margin-top:4px;font-size:9px}.wmc-notice{margin-top:5px}',
-    '.wmc-speech-stack{position:fixed;right:13px;bottom:calc(env(safe-area-inset-bottom,0px) + 146px);z-index:1200;width:min(285px,75vw);display:flex;flex-direction:column;align-items:flex-end;gap:9px;pointer-events:none}',
-    '.wmc-speech-row{position:relative;max-width:95%;border:1px solid #ffffff1e;border-radius:14px;padding:9px 12px;font:12px/1.5 system-ui,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 5px 18px #0006;opacity:0;transform:translateY(13px);transition:opacity .38s ease,transform .38s ease}',
-    '.wmc-speech-row.wmc-speech-me{align-self:flex-end;background:#fff;color:#111}.wmc-speech-row.wmc-speech-them{align-self:flex-start;background:#181818;color:#fff}',
-    '.wmc-speech-row:after{content:"";position:absolute;bottom:-6px;width:10px;height:10px;background:inherit;transform:rotate(45deg);border-right:inherit;border-bottom:inherit}',
-    '.wmc-speech-me:after{right:18px}.wmc-speech-them:after{left:18px}',
-    '.wmc-speech-row.wmc-speech-visible{opacity:1;transform:translateY(0)}.wmc-speech-row.wmc-speech-fading{opacity:0;transform:translateY(-14px)}',
-    '@media(prefers-reduced-motion:reduce){.wmc-speech-row{transition:none!important}}',
     // Scoped invitation styles: all visible corners are fully rounded,
     // while the original Char picker, invitations and click handlers stay.
     '.wmc-sheet{border-radius:34px!important;overflow:visible!important}',
