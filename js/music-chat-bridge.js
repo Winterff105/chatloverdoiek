@@ -307,10 +307,30 @@
       purpose==='invite'?'用户向你发出了同听邀请。请结合人设决定；答应时首条台词必须以【接受邀请】开头，拒绝时以【婉拒邀请】开头，不要擅自跳过决定。':'请针对一起听中的真实互动回复，不要重复用户的话。',
       extra
     ].filter(Boolean).join('\n\n');
-    const result=await w.MessagesAPI.replyFor(snapshot,instruction,purpose==='invite'?2:3,[]);
+
+    // Use the same per-contact bubble range as the native Messages room.
+    const chatDefaults=(()=>{try{return JSON.parse(w.localStorage.getItem('whatever_messages_chat_opts_v1')||'null')||{};}catch{return {};}})();
+    const roomOpts=c.chatOpts||{};
+    const count=(value,fallback)=>{const n=parseInt(value,10);return Number.isFinite(n)?Math.max(1,n):fallback;};
+    const bubbleMin=count(roomOpts.min??chatDefaults.min,1);
+    const bubbleMax=Math.max(bubbleMin,count(roomOpts.max??chatDefaults.max,7));
+    const countRule=bubbleMin===bubbleMax
+      ?'本次对话台词气泡必须精确输出 '+bubbleMin+' 条'
+      :'本次对话台词气泡必须输出 '+bubbleMin+' 到 '+bubbleMax+' 条';
+    // Quick Cruise already observes the main MessagesAPI network request.
+    // Tag it with the actual listening contact, not a second recall log.
+    const cruise=w.CruiseTrace;
+    const previousCruiseContact=cruise?.currentContext?.()||null;
+    cruise?.setContext?.({id:String(c.id),name:c.remark||c.name});
+    let result;
+    try{
+      result=await w.MessagesAPI.replyFor(snapshot,instruction+'\\n\\n【台词气泡限制】：'+countRule+'。旁白不计入台词条数。',bubbleMax+3,[]);
+    }finally{
+      cruise?.setContext?.(previousCruiseContact);
+    }
     const msgs=Array.from(result||[]).map(x=>typeof x==='string'?{text:x}:x)
       .filter(x=>x&&typeof x.text==='string'&&x.text.trim())
-      .slice(0,5).map(x=>({text:truncate(x.text,2000),narr:!!x.narr,trans:truncate(x.trans,1200)}));
+      .map(x=>({text:truncate(x.text,2000),narr:!!x.narr,trans:truncate(x.trans,1200)}));
     if(!msgs.length)throw Error('AI 没有返回可用消息');
     return msgs;
   }
@@ -548,7 +568,7 @@
   // iframe. Promote that SAME DOM node (not a copy) into the top-level layer
   // and expose the live music context for its normal API requests.
   const EXISTING_API_BALL_SELECTORS=[
-    '#apiFloatingBall','#apiFloatBall','#api-floating-ball',
+    '#quickCruiseBall','#apiFloatingBall','#apiFloatBall','#api-floating-ball',
     '#apiFloat','#apiFab','#apiBall','#apiStatusBall',
     '#apiStatusFloat','.api-floating-ball','.api-float-ball',
     '.api-fab','.api-status-ball','.api-status-float',
@@ -576,7 +596,16 @@
       ball.style.zIndex='2147483562';
       if(ball.style.position!=='fixed')ball.style.position='fixed';
     }
+    // Quick Cruise panels belong to that same ball and must sit over Music.
+    for(const id of ['quickCruisePanel','quickCruisePresetPanel']){
+      const panel=document.getElementById(id);
+      if(panel)panel.style.zIndex='2147483561';
+    }
   }
+  document.addEventListener('click',event=>{
+    if(event.target?.closest?.('#quickCruiseBall'))
+      requestAnimationFrame(promoteExistingAPIBall);
+  },true);
   // Lyric-only floating ticker. Clicking it opens the music module's OWN
   // ListenTogether.chatPanel, identical to tapping the original partner avatar.
   // Never create a replacement chat form, send button, or quick-recall panel.
