@@ -424,6 +424,11 @@ Never announce a topic change. Just change.
       feed.map(p => `- postId=${p.id}｜发布者=${p.author}｜内容=${p.text || '（照片）'}｜已有评论=${p.comments || '无'}`).join('\n'),
       '【重要】只有写进 JSON 的 momentInteractions 才算真的点赞或评论。如果台词里说“我回了/点赞了某条朋友圈”，必须同时在 momentInteractions 里写出对应的 postId，否则等于没做，不要这样说。postId 必须逐字复制上面的 ID。要回复别人在这条朋友圈下的某条评论，就在那条互动里写 to 字段，填对方的名字（只能是评论明细里出现过的人），comment 写回复内容。不互动就让 momentInteractions 为空数组。'
     ].join('\n') : '';
+    // The active music session is shared with the original Messages API.
+    // Music-window requests already supply their own scene; avoid duplicating it.
+    const listeningPrompt = !String(instruction||'').includes('【一起听歌场景】')
+      ? (window.WhateverMusicChatBridge?.activeListeningPrompt?.(contact.id)||'')
+      : '';
     // 系统核心底层人设与对话环境
     const systemCoreText = [
       ROLEPLAY_PROMPT,
@@ -446,6 +451,7 @@ Never announce a topic change. Just change.
       hasPhoto ? '【照片】对话记录里标注“[照片]”的消息附带了用户发来的图片，请真实看图，并在回复里自然地回应图片内容。' : '',
       worldTiesBlock(contact),
       timeBlockOf(contact),
+      listeningPrompt,
       QUOTE_RULE,
       cmLow,
       (contact.msgs || []).length ? '【时间感知】每条消息开头方括号里是这条消息的发送时间，只用来理解时间流逝和时段（比如深夜、隔了几天）。你的回复不要写时间或方括号。' : '',
