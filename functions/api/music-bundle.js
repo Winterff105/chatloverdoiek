@@ -8,80 +8,6 @@ const FILES = [
 ];
 const enc = new TextEncoder();
 
-// Prevent the legacy virtual-partner fallback from pretending to be a Char.
-// This is appended to authenticated music.js in-memory; the original private
-// music source, playlist, chatPanel and lyrics remain untouched.
-const MUSIC_REAL_CHAR_GUARD = String.raw`
-;(function(){
-  if(window.__whateverMusicRealCharGuard) return;
-  window.__whateverMusicRealCharGuard = true;
-  function startRealChar(){
-    if(typeof window.__whateverMusicInviteReady === 'function')
-      return window.__whateverMusicInviteReady();
-    var msg='真实 Char 邀请尚未连接，请稍后重试。未启动模拟恋人。';
-    if(typeof window.showToast === 'function') window.showToast(msg, 'error');
-    else if(typeof window.alert === 'function') window.alert(msg);
-    else console.warn('[Music]', msg);
-  }
-  window.toggleTogether = startRealChar;
-  // Capture ahead of the private music-api's document/button handlers.
-  // Only a real user click on the ORIGINAL recall buttons may invoke Char.
-  // Never allow the old quick-quote handler to run as a second request.
-  window.addEventListener('click', function(e){
-    var button=e.target && e.target.closest &&
-      e.target.closest('button[aria-label="调取对方说的话"]');
-    if(!button || !button.closest('#chatPanel,#duetInput')) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    if(!e.isTrusted) return; // programmatic/open-chat events cannot recall
-    if(typeof window.__wmcExplicitMusicRecall === 'function')
-      window.__wmcExplicitMusicRecall(button);
-    else if(typeof window.showToast === 'function')
-      window.showToast('一起听正在连接，请稍后重试。');
-  }, true);
-  document.addEventListener('click', function(e){
-    var target=e.target;
-    if(!target || typeof target.closest !== 'function') return;
-    if(!target.closest('#togetherBtn, .modal-close[aria-label="结束一起听"]')) return;
-    e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    startRealChar();
-  }, true);
-})();
-`;
-
-
-// Patch the ORIGINAL music iframe command before loading the runtime adapter.
-// Reuses ListenTogether's own open/close and invite APIs, never a duplicate UI.
-const MUSIC_LYRIC_CHAT_TOGGLE_FIX = String.raw`
-;(function(){
-  if(window.__whateverMusicLyricToggleGuard)return;
-  window.__whateverMusicLyricToggleGuard=true;
-  window.addEventListener('message',function(event){
-    if(event.source!==window.parent)return;
-    var command=event.data;
-    if(!command||command.type!=='whatever:music:ui:command'||command.command!=='chat-toggle')return;
-    var together=window.ListenTogether;
-    if(!together)return;
-    if(typeof together.isActive!=='function'||!together.isActive()){
-      // Solo listening must not open an invitation from the lyric ticker.
-      // The player decides whether to invite a Char using its own controls.
-      event.stopImmediatePropagation();
-      return;
-    }
-    if(typeof together.openChat!=='function'||typeof together.closeChat!=='function')return;
-    // Do not let the older participant-only handler toggle the same panel twice.
-    event.stopImmediatePropagation();
-    var panel=document.getElementById('chatPanel');
-    var open=(typeof together.isChatOpen==='function'&&together.isChatOpen())
-      ||!!(panel&&panel.classList.contains('open'));
-    if(open)together.closeChat();else together.openChat();
-  },true);
-})();
-`;
-
 // Password hash lives in the private Supabase database, not in public GitHub
 // and PBKDF2 is deliberately NOT run in Cloudflare's CPU-limited request handler.
 async function checkMusicPassword(password, serviceKey) {
@@ -142,20 +68,7 @@ export async function onRequestPost({request, env}) {
         signal:AbortSignal.timeout(25000),cache:'no-store'
       });
       if(!r.ok) throw new Error('Storage '+path+' HTTP '+r.status);
-      let contents = await r.text();
-      if (path === 'js/apps/music.js' && !contents.includes('__whateverMusicRealCharGuard')) {
-        // Compatibility for legacy Storage revisions only.
-        contents += MUSIC_REAL_CHAR_GUARD;
-      }
-      // Add a small integration adapter AFTER the original music-api module.
-      // It reuses window.ListenTogether.chatPanel; no replacement of music.js,
-      // song library, lyrics implementation, miniplayer or existing CSS.
-      if (path === 'js/apps/music-api.js' && !contents.includes('__wmcPrivateMusicRuntimeIntegrated')) {
-        // Only older Storage revisions need the GitHub music adapter.
-        contents += MUSIC_LYRIC_CHAT_TOGGLE_FIX;
-        contents += '\n;(function(){ if (window.__whateverMusicRuntimeLoading) return; window.__whateverMusicRuntimeLoading=true; var s=document.createElement("script"); s.src="/js/music-runtime.js"; s.async=false; document.head.appendChild(s); })();';
-      }
-      return [path,contents];
+      return [path,await r.text()];
     }));
     return json({success:true,files:Object.fromEntries(results)});
   } catch(error) {
