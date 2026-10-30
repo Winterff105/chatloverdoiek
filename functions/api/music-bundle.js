@@ -143,15 +143,15 @@ export async function onRequestPost({request, env}) {
       });
       if(!r.ok) throw new Error('Storage '+path+' HTTP '+r.status);
       let contents = await r.text();
-      if (path === 'js/apps/music.js') {
-        // Safe fallback: never enter the old random-reply virtual mode if the
-        // real Char adapter cannot load, regardless of document readiness.
+      if (path === 'js/apps/music.js' && !contents.includes('__whateverMusicRealCharGuard')) {
+        // Compatibility for legacy Storage revisions only.
         contents += MUSIC_REAL_CHAR_GUARD;
       }
       // Add a small integration adapter AFTER the original music-api module.
       // It reuses window.ListenTogether.chatPanel; no replacement of music.js,
       // song library, lyrics implementation, miniplayer or existing CSS.
-      if (path === 'js/apps/music-api.js') {
+      if (path === 'js/apps/music-api.js' && !contents.includes('__wmcPrivateMusicRuntimeIntegrated')) {
+        // Only older Storage revisions need the GitHub music adapter.
         contents += MUSIC_LYRIC_CHAT_TOGGLE_FIX;
         contents += '\n;(function(){ if (window.__whateverMusicRuntimeLoading) return; window.__whateverMusicRuntimeLoading=true; var s=document.createElement("script"); s.src="/js/music-runtime.js"; s.async=false; document.head.appendChild(s); })();';
       }
