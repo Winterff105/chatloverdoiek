@@ -70,6 +70,18 @@ function optimizeChatKeyboard(file, source) {
   for (const [before, after] of patches) source = source.replace(before, after);
   return source;
 }
+// Preserve normal text and money actions in timestamped AI replies.
+// Modify only the private parser response, never its stored original.
+function supportTimestampedChatReplies(file, source) {
+  if (file !== 'js/apps/messages-api.js') return source;
+  const before = "    let list = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.messages) ? obj.messages : null);";
+  const after = "    // Keep timestamped dialogue and embedded JSON actions in their original order.\n    let timestamped = null;\n    const stamps = [...t.matchAll(/\\[\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?\\]/g)];\n    if (stamps.length && !t.slice(0, stamps[0].index).trim()) {\n      timestamped = [];\n      for (let i = 0; i < stamps.length; i++) {\n        const start = stamps[i].index + stamps[i][0].length;\n        const end = i + 1 < stamps.length ? stamps[i + 1].index : t.length;\n        const segment = t.slice(start, end).trim();\n        if (!segment) continue;\n        const event = segment[0] === '{' ? (tryJson(segment) || tryJson(fixRawNewlines(segment))) : null;\n        timestamped.push(event && typeof event === 'object' ? event : segment);\n      }\n      if (timestamped.length) obj = null;\n      else timestamped = null;\n    }\n    let list = timestamped || (Array.isArray(obj) ? obj : (obj && Array.isArray(obj.messages) ? obj.messages : null));";
+  if (source.split(before).length !== 2) {
+    console.warn('[Messages API] Parser source revision mismatch; patch skipped');
+    return source;
+  }
+  return source.replace(before, after);
+}
 // Allow the existing music dock icon to use openApp('music').
 // The desktop module is stored in the private Supabase bucket; keep it private.
 function allowExistingMusicTap(file, source) {
@@ -160,7 +172,7 @@ async function downloadOne(file, serviceKey) {
   for (let i = 0; i < 2; i++) {
     try {
       const res = await fetch(url, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });
-      if (res.ok) return optimizeChatKeyboard(file, fillSecondMenuBackground(file, gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, await res.text())))));
+      if (res.ok) return supportTimestampedChatReplies(file, optimizeChatKeyboard(file, fillSecondMenuBackground(file, gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, await res.text()))))));
       lastErr = new Error(`${file} 下载失败 (${res.status})`);
     } catch (e) {
       lastErr = e;
