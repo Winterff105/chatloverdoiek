@@ -171,6 +171,12 @@
           chatLog:[],keys:['一起听歌',session.music.title],
           startedAt:Date.now(),endedAt:null};
         c.memories.unshift(m);
+        // Session boundaries live in the original identity thread, not
+        // a parallel player transcript or a standalone widget.
+        if(!messages.some(x=>x.music?.kind==='boundary'&&x.music.sessionId===session.id&&x.music.phase==='start')){
+          messages.push({id:id(),me:false,text:'',ts:Date.now(),t:time(),
+            music:{kind:'boundary',phase:'start',sessionId:session.id,source:'music'}});
+        }
       }
       if(entry){
         // One atomic contact mutation synchronizes the music episode and
@@ -189,7 +195,13 @@
       if(session.music.artist)m.artist=session.music.artist;
       const n=m.chatLog.length;
       if(!m.endedAt)m.text='与{{char}}一起听《'+m.title+'》'+(m.artist?'（'+m.artist+'）':'')+'，同听交流 '+n+' 条';
-      if(session.status==='ended')m.endedAt=Date.now();
+      if(session.status==='ended'){
+        m.endedAt=Date.now();
+        if(!messages.some(x=>x.music?.kind==='boundary'&&x.music.sessionId===session.id&&x.music.phase==='end')){
+          messages.push({id:id(),me:false,text:'',ts:Date.now(),t:time(),
+            music:{kind:'boundary',phase:'end',sessionId:session.id,source:'music'}});
+        }
+      }
     });
   }
   function episodeContext(contactId,session){
@@ -535,15 +547,23 @@
   // Existing Whatever API ball sometimes sits under the full-screen Music
   // iframe. Promote that SAME DOM node (not a copy) into the top-level layer
   // and expose the live music context for its normal API requests.
+  const EXISTING_API_BALL_SELECTORS=[
+    '#apiFloatingBall','#apiFloatBall','#api-floating-ball',
+    '#apiFloat','#apiFab','#apiBall','#apiStatusBall',
+    '#apiStatusFloat','.api-floating-ball','.api-float-ball',
+    '.api-fab','.api-status-ball','.api-status-float',
+    '.api-bubble','[data-api-ball]'
+  ];
+  function findExistingAPIBall(){
+    for(const selector of EXISTING_API_BALL_SELECTORS){
+      const ball=document.querySelector(selector);
+      if(ball&&ball.id!=='wmc-floating-player'&&!ball.closest?.('#wmc-persistent-music'))return ball;
+    }
+    return null;
+  }
   function promoteExistingAPIBall(){
     if(!float.frame?.isConnected)return;
-    const names=[
-      '#apiFloatingBall','#apiFloatBall','#api-floating-ball',
-      '#apiFloat','#apiFab','#apiBall','#apiStatusBall',
-      '#apiStatusFloat','.api-floating-ball','.api-float-ball',
-      '.api-fab','.api-status-ball','.api-status-float',
-      '.api-bubble','[data-api-ball]'
-    ];
+    const names=EXISTING_API_BALL_SELECTORS;
     for(const selector of names){
       const ball=document.querySelector(selector);
       if(!ball||ball.id==='wmc-floating-player'||ball.closest?.('#wmc-persistent-music'))continue;
@@ -1240,70 +1260,37 @@
   // A small, host-owned recall indicator: always visible over the original
   // music iframe, including its clipped floating chat. No second chat window.
   // Entries are in-memory only and scoped to the current page session.
+  // Recall progress belongs to the API floating ball already configured in
+  // Settings. Never create a separate recall orb or history panel.
   const recallJournal={
-    entries:[],orb:null,panel:null,notice:null,list:null,noticeTimer:null,
-    mount(){
-      if(this.orb)return;
-      const orb=document.createElement('button');
-      orb.id='wmc-recall-orb';orb.type='button';orb.hidden=true;
-      orb.textContent='调取';
-      orb.setAttribute('aria-label','查看一起听调取记录');
-      orb.setAttribute('aria-expanded','false');
-      const notice=document.createElement('div');
-      notice.id='wmc-recall-notice';notice.hidden=true;
-      notice.setAttribute('role','status');
-      const panel=document.createElement('section');
-      panel.id='wmc-recall-panel';panel.hidden=true;
-      panel.setAttribute('aria-label','一起听调取记录');
-      const head=document.createElement('div');
-      head.className='wmc-recall-head';head.textContent='调取记录';
-      const list=document.createElement('div');
-      list.className='wmc-recall-list';panel.append(head,list);
-      orb.addEventListener('click',()=>{
-        panel.hidden=!panel.hidden;
-        orb.setAttribute('aria-expanded',String(!panel.hidden));
-      });
-      document.addEventListener('click',e=>{
-        if(!panel.hidden&&!panel.contains(e.target)&&!orb.contains(e.target)){
-          panel.hidden=true;orb.setAttribute('aria-expanded','false');
-        }
-      });
-      document.body.append(orb,notice,panel);
-      this.orb=orb;this.notice=notice;this.panel=panel;this.list=list;
-    },
+    ball:null,label:null,timer:0,
     update(data){
-      const id=truncate(data.intentId,90);
-      if(!/^wmc-recall-[a-z0-9]+-[a-z0-9]+$/.test(id))return;
-      if(!['loading','success','error'].includes(data.stage))return;
-      this.mount();
-      let entry=this.entries.find(item=>item.id===id);
-      if(!entry){
-        entry={id,name:truncate(data.name,80)||'Char',
-          source:data.source==='floating-chat'?'悬浮小窗':'音乐 App',
-          status:'loading',detail:'',stamp:Date.now()};
-        this.entries.push(entry);
-        if(this.entries.length>12)this.entries.shift();
+      const intentId=truncate(data.intentId,90);
+      if(!/^wmc-recall-[a-z0-9]+-[a-z0-9]+$/.test(intentId)
+        ||!['loading','success','error'].includes(data.stage))return;
+      const ball=findExistingAPIBall();
+      if(!ball||ball.hidden||getComputedStyle(ball).display==='none')return;
+      if(this.ball!==ball){
+        this.label?.remove();
+        this.ball=ball;
+        this.label=null;
       }
-      entry.status=data.stage;
-      entry.detail=truncate(data.summary,220);
-      this.orb.hidden=false;
-      const label=entry.status==='loading'?'正在调取':
-        entry.status==='success'?'已收到回复':'调取失败';
-      this.notice.textContent=entry.name+' · '+entry.source+' · '+label;
-      this.notice.hidden=false;
-      clearTimeout(this.noticeTimer);
-      this.noticeTimer=setTimeout(()=>{this.notice.hidden=true},entry.status==='loading'?15000:4500);
-      this.list.replaceChildren();
-      for(const item of [...this.entries].reverse()){
-        const row=document.createElement('div');row.className='wmc-recall-entry';
-        const meta=document.createElement('div');meta.className='wmc-recall-meta';
-        meta.textContent=item.name+' · '+item.source;
-        const body=document.createElement('div');body.className='wmc-recall-detail';
-        body.textContent=(item.status==='loading'?'正在调取':
-          item.status==='error'?'调取失败':'已回复')+
-          (item.detail?' · '+item.detail:'');
-        row.append(meta,body);this.list.appendChild(row);
+      if(!this.label){
+        const label=document.createElement('span');
+        label.className='wmc-api-recall-state';
+        label.setAttribute('aria-hidden','true');
+        ball.appendChild(label);
+        this.label=label;
       }
+      this.label.textContent=data.stage==='loading'?'调取中':
+        data.stage==='success'?'已收到回复':'调取失败';
+      this.label.hidden=false;
+      ball.dataset.wmcRecallStage=data.stage;
+      clearTimeout(this.timer);
+      this.timer=setTimeout(()=>{
+        if(this.label)this.label.hidden=true;
+        if(this.ball)delete this.ball.dataset.wmcRecallStage;
+      },data.stage==='loading'?15000:4500);
     }
   };
   const handlers={
@@ -1429,15 +1416,8 @@
     '@media(max-width:350px){.messages-app #thread .wmc-song-card{min-width:0!important;max-width:min(202px,calc(100vw - 66px))!important;gap:7px!important;padding:8px 9px}}',
     // Keep Quick Cruise status switching intact; suppress only its left flare.
     '#quickCruiseBall.qc-glow-left::after{display:none!important}',
-    '#wmc-recall-orb{position:fixed;top:calc(env(safe-area-inset-top,0px) + 13px);right:14px;z-index:2147483568;width:44px;height:44px;padding:0;border:1px solid #d5d5d8;border-radius:50%;background:#fff;color:#27272b;font:600 11px system-ui,sans-serif;box-shadow:0 3px 12px #0002;cursor:pointer}',
-    '#wmc-recall-orb[hidden],#wmc-recall-notice[hidden],#wmc-recall-panel[hidden]{display:none!important}',
-    '#wmc-recall-notice{position:fixed;top:calc(env(safe-area-inset-top,0px) + 18px);right:69px;z-index:2147483568;max-width:min(245px,calc(100vw - 90px));padding:10px 12px;border-radius:14px;background:#222328;color:#fff;font:12px/1.45 system-ui,sans-serif;overflow-wrap:anywhere;box-shadow:0 4px 18px #0002;pointer-events:none}',
-    '#wmc-recall-panel{position:fixed;top:calc(env(safe-area-inset-top,0px) + 66px);right:14px;z-index:2147483568;box-sizing:border-box;width:min(306px,calc(100vw - 28px));max-height:min(370px,55dvh);overflow-y:auto;overscroll-behavior:contain;border:1px solid #dedee1;border-radius:20px;background:#fff;color:#29292d;box-shadow:0 8px 28px #0002;padding:14px 15px;font-family:system-ui,sans-serif}',
-    '#wmc-recall-panel .wmc-recall-head{font-size:14px;font-weight:650;padding-bottom:9px}',
-    '#wmc-recall-panel .wmc-recall-entry{padding:9px 0;border-top:1px solid #efeff1}',
-    '#wmc-recall-panel .wmc-recall-meta{font-size:11px;font-weight:600;color:#505057}',
-    '#wmc-recall-panel .wmc-recall-detail{font-size:12px;line-height:1.55;color:#777780;margin-top:4px;overflow-wrap:anywhere}',
-    '#wmc-recall-orb:focus-visible{outline:2px solid #444;outline-offset:3px}',
+    '.wmc-api-recall-state{position:absolute;right:calc(100% + 7px);top:50%;transform:translateY(-50%);z-index:2;display:block;white-space:nowrap;pointer-events:none;padding:6px 9px;border:1px solid #e4e4e8;border-radius:999px;background:#fff;color:#444;font:500 11px/1.3 system-ui,sans-serif;box-shadow:0 2px 9px #0001}',
+    '.wmc-api-recall-state[hidden]{display:none!important}',
     '.messages-app #memPage .mem-fold .mem-chatlog{max-height:360px;overflow-y:auto;overscroll-behavior:contain}',
     '.messages-app #memPage .mem-fold .mem-chatlog .mem-cl-bub{white-space:pre-wrap;overflow-wrap:anywhere}'
   ].join('\n');
