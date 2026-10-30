@@ -438,11 +438,26 @@
                 console.log('[Style] Injected…', href, 'size =', css.length);
             });
 
+            // Older private chat sources still need the public bridge.
+            // Once uploaded, the Supabase messages.js owns it natively.
+            const messagesIndex = needScripts.indexOf('js/apps/messages.js');
+            const mergedMessages = messagesIndex >= 0 &&
+                jsTexts[messagesIndex].includes('__wmcPrivateMusicBridgeIntegrated');
+            if (messagesIndex >= 0 && !mergedMessages && !window.WhateverMusicChatBridge) {
+                await new Promise((resolve, reject) => {
+                    const bridge = document.createElement('script');
+                    bridge.src = 'js/music-chat-bridge.js';
+                    bridge.onload = resolve;
+                    bridge.onerror = () => reject(new Error('音乐桥接脚本加载失败'));
+                    document.head.appendChild(bridge);
+                });
+            }
+
             // 2. 按顺序注入脚本
             needScripts.forEach((src, i) => {
                 const script = document.createElement('script');
                 let contents = jsTexts[i];
-                if (src === 'js/apps/messages.js') {
+                if (src === 'js/apps/messages.js' && !contents.includes('__wmcPrivateMusicBridgeIntegrated')) {
                     const anchor = 'window.initMessagesModule = function(root) {';
                     if (contents.includes(anchor)) {
                         contents = contents.replace(anchor, anchor + '\n' + window.__wmcAdapterSource);
@@ -488,7 +503,7 @@
       // between normal chat bubbles, without turning them into text messages.
       window.__wmcCardSource = "if (m.music && m.music.kind === 'boundary') {\n  const listeningLabel = m.music.phase === 'start' ? '正在听' : '已结束';\n  html += '<div class=\"wmc-listening-divider\" data-i=\"' + i + '\"><span class=\"wmc-listening-divider-label\">' + listeningLabel + '</span></div>';\n  continue;\n}\n" + window.__wmcCardSource;
     </script>
-    <script src="js/music-chat-bridge.js"></script>
+    <!-- Music bridge is now part of the private chat source, with a legacy fallback. -->
     <script src="js/sanctuary-gate.js"></script>
 <script src="js/update-manager.js" defer></script>
 <script>
