@@ -182,7 +182,20 @@ async function downloadOne(file, serviceKey) {
   for (let i = 0; i < 2; i++) {
     try {
       const res = await fetch(url, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });
-      if (res.ok) return omitMusicUiBoundaries(file, supportTimestampedChatReplies(file, optimizeChatKeyboard(file, fillSecondMenuBackground(file, gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, await res.text())))))));
+      if (res.ok) {
+        const original = await res.text();
+        // Uploaded canonical Supabase sources already contain these changes.
+        // Skip all legacy response-time patches for those specific revisions.
+        const native = (
+          (file === 'js/apps/messages.js' && original.includes('__wmcPrivateMusicBridgeIntegrated')) ||
+          (file === 'js/apps/messages-api.js' && original.includes('__wmcPrivateMessagesApiIntegrated')) ||
+          (file === 'css/messages.css' && original.includes('/* Floating menu bottom background */')) ||
+          (file === 'js/apps/app-manager.js' && original.includes('__wmcPrivateAppMusicGateIntegrated')) ||
+          (file === 'css/app-window.css' && original.includes('Music full-screen loading fix v17'))
+        );
+        if (native) return original;
+        return omitMusicUiBoundaries(file, supportTimestampedChatReplies(file, optimizeChatKeyboard(file, fillSecondMenuBackground(file, gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, original)))))));
+      }
       lastErr = new Error(`${file} 下载失败 (${res.status})`);
     } catch (e) {
       lastErr = e;
