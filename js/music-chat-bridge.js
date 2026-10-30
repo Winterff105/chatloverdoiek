@@ -291,6 +291,26 @@
       '不要每句都分析歌词；若歌词契合当前关系，可适当自然提起。'
     ].filter(Boolean).join('\n');
   }
+  // The main Messages room reads the SAME authenticated player state as the native music chat.
+  // This only applies to the matching active identity/contact session.
+  function activeListeningPrompt(contactId){
+    if(contactId==null)return '';
+    const who=String(contactId),session=sessions.get(sessionKey(who));
+    if(!session||session.status!=='accepted'||session.identityId!==activeIdentity())return '';
+    const live=float.data;
+    const matched=!!(live&&String(live.contactId||'')===who&&float.frame?.isConnected);
+    const source=matched&&live.music?live.music:session.music;
+    const music=safeMusic({
+      ...session.music,...source,
+      lyric:matched?truncate(live.lyric||source.lyric,220):'',
+      context:matched?truncate(source.context||[live.lyricPrev,live.lyric,live.lyricNext].filter(Boolean).join(' / '),1200):''
+    });
+    return [
+      musicContext(music),
+      episodeContext(who,session),
+      '你正在和用户一起听歌。主聊天室与音乐小窗属于同一次听歌场景；请结合刚刚的聊天自然回复，不要把消息当成独立于音乐的对话。'
+    ].filter(Boolean).join('\n\n');
+  }
   async function reply(contactId, m, purpose, extra=''){
     const c=findContact(contactId);
     if(!w.MessagesAPI?.isConfigured?.()) throw Error('请先在主聊天室的 API 设置中配置模型');
@@ -1464,6 +1484,7 @@
     },
     hasHost:()=>!!host,
     onMainThreadChanged,
+    activeListeningPrompt,
     safeMusic
   });
 })(window);
