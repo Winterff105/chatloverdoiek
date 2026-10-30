@@ -837,12 +837,16 @@
         btn.disabled=true;
         btn.setAttribute('aria-busy','true');
         report('loading');
+        beginMusicReply();
+        let pendingDone=false;
+        const finishPending=()=>{if(!pendingDone){pendingDone=true;endMusicReply();}};
         try{
           const result=await rpc('recall',{contactId,music:snapshot(),intentId});
           if(result?.deduped){report('success','已合并重复调取');return;}
           const messages=Array.isArray(result?.messages)?result.messages:[];
           if(!messages.length)throw Error('API 没有返回可用回复');
           if(participant?.id!==contactId){report('error','联系人已切换');return;}
+          finishPending();
           for(const text of messages)w.ListenTogether?.receive?.(text);
           report('success',messages[0]);
         }catch(error){
@@ -850,6 +854,7 @@
           report('error',message);
           notify('调取 API 回复失败：'+message);
         }finally{
+          finishPending();
           recalling=false;lastRecallAt=Date.now();
           btn.disabled=false;
           btn.removeAttribute('aria-busy');
@@ -903,6 +908,15 @@
   }
   let installAttempts=0;
   let canonicalTransport=null;
+  let pendingMusicReplies=0;
+  function beginMusicReply(){
+    pendingMusicReplies++;
+    w.ListenTogether?.setReplyPending?.(true);
+  }
+  function endMusicReply(){
+    pendingMusicReplies=Math.max(0,pendingMusicReplies-1);
+    if(!pendingMusicReplies)w.ListenTogether?.setReplyPending?.(false);
+  }
   function install(){
     if(!w.ListenTogether?.setTransport){
       if(++installAttempts<=30)setTimeout(install,180);
@@ -926,22 +940,30 @@
     canonicalTransport={send(msg){
       if(!participant)return;
       const contactId=participant.id;
-      if(msg.type==='chat'){
-        rpc('chat',{contactId,text:msg.text,music:snapshot()}).then(r=>{
-          if(participant?.id===contactId)for(const t of r.messages||[])w.ListenTogether.receive(t);
-        }).catch(e=>notify('AI 回复失败：'+trim(e.message,130)));
-      }else if(msg.type==='pick-request'){
-        rpc('pick',{contactId,music:snapshot()}).then(r=>{
+      if(msg.type==='chat'||msg.type==='pick-request'){
+        const command=msg.type==='chat'?'chat':'pick';
+        let pendingDone=false;
+        const finishPending=()=>{if(!pendingDone){pendingDone=true;endMusicReply();}};
+        beginMusicReply();
+        rpc(command,command==='chat'
+          ?{contactId,text:msg.text,music:snapshot()}
+          :{contactId,music:snapshot()}).then(r=>{
+          finishPending();
           if(participant?.id!==contactId)return;
           for(const t of r.messages||[])w.ListenTogether.receive(t);
-          if(r.songId)w.ListenTogether.partnerPick(r.songId);
-        }).catch(e=>notify(trim(e.message,180)));
+          if(command==='pick'&&r.songId)w.ListenTogether.partnerPick(r.songId);
+        }).catch(e=>{
+          finishPending();
+          notify(command==='chat'?'AI 回复失败：'+trim(e.message,130):trim(e.message,180));
+        });
       }else if(msg.type==='track'){
         rpc('track',{contactId,music:snapshot()}).catch(e=>console.warn('[Music Chat] track',e.message));
       }else if(msg.type==='leave'){
         rpc('leave',{contactId}).catch(e=>console.warn('[Music Chat] leave',e.message));
         rpc('ui',{active:false,contactId}).catch(()=>{});
         participant=null;
+        pendingMusicReplies=0;
+        w.ListenTogether?.setReplyPending?.(false);
       }
     }};
     w.ListenTogether.setTransport(canonicalTransport);
