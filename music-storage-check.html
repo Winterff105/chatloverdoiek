@@ -59,9 +59,9 @@
     <div class="actions" style="margin-top:16px">
       <button class="primary" id="inspect" type="button">验证管理员并检查</button>
       <button class="secondary" id="export" type="button" disabled>导出四份源码</button>
-      <button class="primary" id="mergeZip" type="button" disabled>直接下载合并版 ZIP</button>
+      <button class="primary" id="mergeZip" type="button" disabled>下载 Supabase 完整归并 ZIP</button>
     </div>
-    <p class="note">自己上传 Supabase：先点击「验证管理员并检查」→「直接下载合并版 ZIP」→ 解压 → 将里面的 css/music.css、js/apps/music.js、js/apps/music-api.js 分别上传到 protected-scripts 对应路径。ZIP 不能直接上传，也不要放进下方 JSON 输入框。下载不会修改 Supabase。</p>
+    <p class="note">操作顺序：先验证管理员并检查全部源码，再创建并验证私有备份，最后点击「下载 Supabase 完整归并 ZIP」。解压后按目录逐个上传至 protected-scripts。此页面只生成文件，不修改原始 Storage。</p>
     <p class="note">如果提示未登录：请使用同一个浏览器打开 <a href="/" style="color:#e5e5e8">Whatever 首页</a>并登录，然后返回本页。PWA、ChatGPT 内置浏览器与普通浏览器可能不共享登录状态。</p>
   </section>
 
@@ -92,7 +92,7 @@
 <script>
 (() => {
   'use strict';
-  const names=['js/apps/music.js','js/apps/music-api.js','js/apps/music-markup.js','css/music.css'];
+  const names=['js/apps/music.js','js/apps/music-api.js','js/apps/music-markup.js','css/music.css','js/apps/messages.js','js/apps/messages-api.js','css/messages.css','js/apps/app-manager.js','js/desktop.js','css/app-window.css'];
   const rows=new Map(),results=new Map();
   const files=document.getElementById('files');
   const status=document.getElementById('status');
@@ -176,7 +176,7 @@
         row.hash.textContent='SHA-256：'+data.sha256;
       }
       verified=true;
-      tell('四份文件均已从 Supabase 读取并校验。现在可以创建私有备份，或将真实源码导出到设备。','success');
+      tell('全部文件均已从 Supabase 读取并校验。现在可以创建私有备份，或将真实源码导出到设备。','success');
     }catch(e){
       verified=false;
       tell(e?.name==='AbortError'?'网络超时，请重试。':String(e?.message||e),'error');
@@ -197,7 +197,7 @@
         row.backup.textContent='已验证备份：'+data.backup;
       }
       backupVerified=true;
-      tell('四份音乐原文件的私有备份均已创建，并已重新读取核对 SHA-256。原文件没有被覆盖。','success');
+      tell('这些原始文件的私有备份均已创建，并已重新读取核对 SHA-256。原文件没有被覆盖。','success');
     }catch(e){
       tell('备份未全部完成：'+String(e?.message||e)+'\n已显示“已验证备份”的文件仍然安全保留，其他文件可以再次点击继续。','error');
     }finally{setBusy(false);}
@@ -420,45 +420,209 @@
     e.setUint32(16,directoryStart,true);add(tail);
     return new Blob(chunks,{type:'application/zip'});
   }
+
+  // Exact, previously verified server-side compatibility transformations.
+  // They now modify the downloaded ORIGINAL source files, not server responses.
+function gateExistingMusic(file,source) {
+ if(file!=='js/apps/app-manager.js')return source;
+ const start=source.indexOf("} else if (appId === 'music') {");
+ const end=source.indexOf("} else if (appId === 'todo') {", start+1);
+ if(start<0||end<0) {
+   return source.replace('function openApp(appId) {',"function openApp(appId) { if(appId==='music'){alert('还在测试，请勿打开（请检查音乐模块）');return;}");
+ }
+ let part=source.slice(start,end);
+ const spinner="contentArea.innerHTML = '<div style=\"height:100%;display:grid;place-items:center;background:#0a0b0e;color:#fff\">音乐加载中…</div>';";
+ const authStart="let auth={}; try{auth=JSON.parse(localStorage.getItem('whatever_phone_auth')||'{}')}catch(_){}";
+ const authEnd="if(musicLoadSerial!==window.__whateverMusicLoadId||!win.classList.contains('active')) return;";
+ const spinnerAt=part.indexOf(spinner);
+ const authAt=part.indexOf(authStart);
+ const completedAt=part.indexOf(authEnd,authAt+1);
+ if(spinnerAt<0 || authAt<0 || completedAt<0) {
+   const locked="} else if (appId === 'music') { win.classList.add('noir-mode'); contentArea.innerHTML='<section class=\"whatever-music-test-lock\" style=\"width:100%;height:100%;display:grid;place-items:center;background:#0a0b0e;color:white;font-size:14px\">还在测试，请勿打开（测试模块需要更新）</section>'; ";
+   return source.slice(0,start)+locked+source.slice(end);
+ }
+ const lockMarkup="<section class=\"whatever-music-test-lock\" style=\"box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;min-width:100%;height:100%;min-height:100%;flex:1 0 100%;padding:24px;background:#0a0b0e;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;\"><div style=\"box-sizing:border-box;width:100%;max-width:330px;text-align:center;\"><div style=\"color:#b3b8c5;font-size:11px;letter-spacing:3px;margin-bottom:20px;\">PRIVATE PREVIEW</div><div style=\"color:white;font-size:24px;font-weight:650;line-height:1.5;margin-bottom:12px;\">还在测试，请勿打开</div><div style=\"color:#a5a9b4;font-size:13px;line-height:1.8;margin-bottom:22px;\">音乐功能尚未正式开放<br>输入访问密码才能进入</div><form class=\"whatever-music-test-form\" autocomplete=\"off\" style=\"display:flex;flex-direction:column;gap:12px;\"><input type=\"password\" aria-label=\"音乐测试密码\" maxlength=\"128\" placeholder=\"输入测试密码\" required autocomplete=\"off\" autocapitalize=\"none\" spellcheck=\"false\" style=\"box-sizing:border-box;width:100%;height:48px;background:#1c1e27;color:white;border:1px solid #444656;border-radius:12px;text-align:center;font-size:15px;outline:none;\"/><button type=\"submit\" style=\"height:48px;border:0;border-radius:12px;background:#efeff6;color:#191920;font-size:14px;font-weight:650;\">验证并打开</button></form><div class=\"whatever-music-test-status\" role=\"status\" aria-live=\"polite\" style=\"min-height:34px;padding:12px 0 0;color:#ffb6c1;font-size:12px;line-height:1.6;\"></div><button type=\"button\" class=\"whatever-music-test-back\" style=\"padding:10px;background:none;border:0;color:#9ca1b0;font-size:13px;\">返回桌面</button></div></section>";
+ part=part.replace(spinner,'contentArea.innerHTML = '+JSON.stringify(lockMarkup)+';');
+ const newAuthAt=part.indexOf(authStart);
+ const newCompletedAt=part.indexOf(authEnd,newAuthAt+1);
+ const authCode="\n   let data, musicGateError = '';\n   while(true) {\n     const musicTestPassword=await new Promise(resolve=>{\n       contentArea.innerHTML=\"<section class=\\\"whatever-music-test-lock\\\" style=\\\"box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;min-width:100%;height:100%;min-height:100%;flex:1 0 100%;padding:24px;background:#0a0b0e;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;\\\"><div style=\\\"box-sizing:border-box;width:100%;max-width:330px;text-align:center;\\\"><div style=\\\"color:#b3b8c5;font-size:11px;letter-spacing:3px;margin-bottom:20px;\\\">PRIVATE PREVIEW</div><div style=\\\"color:white;font-size:24px;font-weight:650;line-height:1.5;margin-bottom:12px;\\\">还在测试，请勿打开</div><div style=\\\"color:#a5a9b4;font-size:13px;line-height:1.8;margin-bottom:22px;\\\">音乐功能尚未正式开放<br>输入访问密码才能进入</div><form class=\\\"whatever-music-test-form\\\" autocomplete=\\\"off\\\" style=\\\"display:flex;flex-direction:column;gap:12px;\\\"><input type=\\\"password\\\" aria-label=\\\"音乐测试密码\\\" maxlength=\\\"128\\\" placeholder=\\\"输入测试密码\\\" required autocomplete=\\\"off\\\" autocapitalize=\\\"none\\\" spellcheck=\\\"false\\\" style=\\\"box-sizing:border-box;width:100%;height:48px;background:#1c1e27;color:white;border:1px solid #444656;border-radius:12px;text-align:center;font-size:15px;outline:none;\\\"/><button type=\\\"submit\\\" style=\\\"height:48px;border:0;border-radius:12px;background:#efeff6;color:#191920;font-size:14px;font-weight:650;\\\">验证并打开</button></form><div class=\\\"whatever-music-test-status\\\" role=\\\"status\\\" aria-live=\\\"polite\\\" style=\\\"min-height:34px;padding:12px 0 0;color:#ffb6c1;font-size:12px;line-height:1.6;\\\"></div><button type=\\\"button\\\" class=\\\"whatever-music-test-back\\\" style=\\\"padding:10px;background:none;border:0;color:#9ca1b0;font-size:13px;\\\">返回桌面</button></div></section>\";\n       const form=contentArea.querySelector('.whatever-music-test-form');\n       const note=contentArea.querySelector('.whatever-music-test-status');\n       if(musicGateError) note.textContent=musicGateError;\n       if(!form){resolve(null);return;}\n       form.addEventListener('submit',event=>{\n         event.preventDefault();\n         const input=form.querySelector('input');\n         const supplied=input.value;input.value='';\n         resolve(supplied);\n       },{once:true});\n       const back=contentArea.querySelector('.whatever-music-test-back');\n       if(back)back.addEventListener('click',()=>{closeApp();resolve(null);},{once:true});\n     });\n     if(!musicTestPassword || musicLoadSerial!==window.__whateverMusicLoadId||!win.classList.contains('active'))return;\n     contentArea.innerHTML='<div class=\"whatever-music-loading\" style=\"box-sizing:border-box;width:100%;min-width:100%;height:100%;display:grid;place-items:center;background:#0a0b0e;color:#fff;font-size:14px;\">正在验证访问权限…</div>';\n     try {\n       let auth={};try{auth=JSON.parse(localStorage.getItem('whatever_phone_auth')||'{}')}catch(_){}\n       if(!auth.token){musicGateError='登录状态已失效，请返回桌面重新登录';continue;}\n       const response=await fetch('/api/music-bundle',{\n         method:'POST',headers:{'Content-Type':'application/json'},\n         body:JSON.stringify({token:auth.token,password:musicTestPassword}),cache:'no-store'\n       });\n       const result=await response.json().catch(()=>({}));\n       if(musicLoadSerial!==window.__whateverMusicLoadId||!win.classList.contains('active'))return;\n       if(response.status===403){musicGateError='密码不正确，请重新输入';continue;}\n       if(response.status===401){musicGateError='登录凭证已过期，请返回桌面重新登录';continue;}\n       if(!response.ok||!result.success){\n         musicGateError=(result.message ? String(result.message) : '音乐接口暂时不可用')+' (HTTP '+response.status+')';\n         continue;\n       }\n       data=result;break;\n     }catch(e){\n       if(musicLoadSerial!==window.__whateverMusicLoadId||!win.classList.contains('active'))return;\n       musicGateError='连接音乐接口失败：'+String(e&&e.message||e);\n       console.warn('[Music] '+musicGateError);\n     }\n   }\n ";
+ part=part.slice(0,newAuthAt)+authCode+part.slice(newCompletedAt);
+ const errorLogger="console.error('[Music] ',error);";
+ const customError= "const musicProblem=String(error&&error.message||error);\n                console.warn('[Music] 启动失败：'+musicProblem);";
+ if(part.includes(errorLogger))part=part.replace(errorLogger,customError);
+ const ending='contentArea.replaceChildren(node);';
+ if(part.includes(ending)){
+  const more="\n                node.className='whatever-music-failure';\n                node.style.cssText='box-sizing:border-box;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px;color:#fff;background:#0a0b0e;line-height:1.7;font-size:14px;';\n                const retry=document.createElement('button');\n                retry.type='button'; retry.textContent='返回密码界面';\n                retry.style.cssText='margin-top:20px;padding:12px 20px;border:1px solid #525565;background:#292a36;color:#fff;border-radius:12px;font-size:13px;';\n                retry.addEventListener('click',()=>openApp('music'));\n                node.appendChild(retry);\n  ";
+  part=part.replace(ending,more+'\n'+ending);
+ }
+ return source.slice(0,start)+part+source.slice(end);
+}
+
+// v16: preserve the private app-window CSS while making the existing music UI visible.
+// The original CSS hides all direct children without class; the music iframe,
+// its loading indicator, and its error indicator are classless elements.
+function revealMusicWindow(file, contents) {
+  if (file !== 'css/app-window.css') return contents;
+  return contents + '\n/* Music full-screen loading fix v17: no narrow center strip */\n'
+    + '.app-window .app-content > iframe[title="音乐"] { display:block !important; width:100% !important; min-width:0 !important; height:100% !important; flex:1 1 auto; align-self:stretch; background:#0a0b0e; }\n'
+    + '.app-window .app-content > div[style*="background:#0a0b0e"] { display:grid !important; box-sizing:border-box; width:100% !important; min-width:100%; height:100% !important; flex:1 0 auto; align-self:stretch; place-items:center; text-align:center; color:#fff !important; font-size:14px !important; }\n';
+}
+
+// Fill the area below the optional floating toolbar without changing its
+// geometry or the canonical stylesheet in private Supabase Storage.
+function fillSecondMenuBackground(file, source) {
+  if (file !== 'css/messages.css') return source;
+  return source + '\n/* Floating menu bottom background */\n'
+    + '.messages-app #chatView .composer.wmc-menu-floating { box-shadow: 0 -48px 0 0 #fff, 0 36px 0 0 #fff; }\n'
+    + '.messages-app #chatView .composer.wmc-menu-floating .wmc-toolbar { background: #fff; }\n';
+}
+// Optimize the private Messages input/keyboard path in memory only.
+function optimizeChatKeyboard(file, source) {
+  if (file !== 'js/apps/messages.js') return source;
+  const patches = [["function onTyping() { autoGrow(); updateSend(); }\nfunction autoGrow() { const t = document.getElementById('input'); t.style.height = 'auto'; t.style.height = Math.min(t.scrollHeight, 100) + 'px'; }","let wmcGrowFrame=0;\nfunction onTyping() { updateSend(); autoGrow(); }\nfunction autoGrow() {\n  if(wmcGrowFrame)return;\n  wmcGrowFrame=requestAnimationFrame(()=>{\n    wmcGrowFrame=0;\n    const t=document.getElementById('input');\n    if(!t||!t.isConnected)return;\n    t.style.height='auto';\n    t.style.height=Math.min(t.scrollHeight,100)+'px';\n  });\n}"],["const actualBottom=active.getBoundingClientRect().bottom;","const actualBottom=active.getBoundingClientRect().bottom;\n    // Measure before changing transforms to avoid a forced second layout.\n    const originalComposerTop=composer.getBoundingClientRect().top+lift;"],["const composerTop=composer.getBoundingClientRect().top;","const composerTop=originalComposerTop-lift;"],["const nearLatest=thread.scrollHeight-thread.scrollTop-thread.clientHeight<96;","const nearLatest=!root.classList.contains('wmc-messages-keyboard') && thread.scrollHeight-thread.scrollTop-thread.clientHeight<96;"],["thread.style.setProperty('max-height',Math.max(56,available)+'px','important');","const maxHeight=Math.max(56,available)+'px';\n        if(thread.style.getPropertyValue('max-height')!==maxHeight)\n          thread.style.setProperty('max-height',maxHeight,'important');"],["thread.style.setProperty('min-height','0','important');","if(thread.style.getPropertyValue('min-height')!=='0')thread.style.setProperty('min-height','0','important');"],["thread.style.setProperty('overflow-y','auto','important');","if(thread.style.getPropertyValue('overflow-y')!=='auto')thread.style.setProperty('overflow-y','auto','important');"],["thread.style.setProperty('scroll-padding-bottom','3px');","if(thread.style.getPropertyValue('scroll-padding-bottom')!=='3px')thread.style.setProperty('scroll-padding-bottom','3px');"],["composer.style.setProperty('translate','0 '+(-lift)+'px');","const nextTranslate='0 '+(-lift)+'px';\n      if(composer.style.getPropertyValue('translate')!==nextTranslate)composer.style.setProperty('translate',nextTranslate);"],["composer.style.setProperty('z-index','20');","if(composer.style.getPropertyValue('z-index')!=='20')composer.style.setProperty('z-index','20');"],["root.classList.toggle('wmc-messages-keyboard',keyboardOpen);\n    root.style.setProperty('--wmc-main-input-rise',lift+'px');","root.classList.toggle('wmc-messages-keyboard',keyboardOpen);\n    if(root.style.getPropertyValue('--wmc-main-input-rise')!==lift+'px')\n      root.style.setProperty('--wmc-main-input-rise',lift+'px');"],["},160);\n  },true);\n  viewport()?.addEventListener('resize',schedule","},280);\n  },true);\n  viewport()?.addEventListener('resize',schedule"]];
+  for (const [before] of patches) {
+    if (source.split(before).length !== 2) {
+      console.warn('[Messages keyboard] Unexpected source revision; skipping optimization');
+      return source;
+    }
+  }
+  for (const [before, after] of patches) source = source.replace(before, after);
+  return source;
+}
+// Preserve normal text and money actions in timestamped AI replies.
+// Modify only the private parser response, never its stored original.
+function supportTimestampedChatReplies(file, source) {
+  if (file !== 'js/apps/messages-api.js') return source;
+  const before = "    let list = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.messages) ? obj.messages : null);";
+  const after = "    // Keep timestamped dialogue and embedded JSON actions in their original order.\n    let timestamped = null;\n    const stamps = [...t.matchAll(/\\[\\d{4}-\\d{2}-\\d{2}[ T]\\d{2}:\\d{2}(?::\\d{2})?\\]/g)];\n    if (stamps.length && !t.slice(0, stamps[0].index).trim()) {\n      timestamped = [];\n      for (let i = 0; i < stamps.length; i++) {\n        const start = stamps[i].index + stamps[i][0].length;\n        const end = i + 1 < stamps.length ? stamps[i + 1].index : t.length;\n        const segment = t.slice(start, end).trim();\n        if (!segment) continue;\n        const event = segment[0] === '{' ? (tryJson(segment) || tryJson(fixRawNewlines(segment))) : null;\n        timestamped.push(event && typeof event === 'object' ? event : segment);\n      }\n      if (timestamped.length) obj = null;\n      else timestamped = null;\n    }\n    let list = timestamped || (Array.isArray(obj) ? obj : (obj && Array.isArray(obj.messages) ? obj.messages : null));";
+  if (source.split(before).length !== 2) {
+    console.warn('[Messages API] Parser source revision mismatch; patch skipped');
+    return source;
+  }
+  return source.replace(before, after);
+}
+// UI-only session boundaries must never become empty AI dialogue turns.
+function omitMusicUiBoundaries(file, source) {
+  if(file!=='js/apps/messages-api.js')return source;
+  const before="      const slice = (contact.msgs || []).slice(-memCount);";
+  if(source.split(before).length!==2){
+    console.warn('[Music] Message history revision changed; skipping boundary filter');
+    return source;
+  }
+  return source.replace(before,"      const slice = (contact.msgs || []).filter(m => m?.music?.kind !== 'boundary').slice(-memCount);");
+}
+// Allow the existing music dock icon to use openApp('music').
+// The desktop module is stored in the private Supabase bucket; keep it private.
+function allowExistingMusicTap(file, source) {
+  if (file !== 'js/desktop.js') return source;
+  const pattern = /const TAP_OPENS\s*=\s*\[([^\]]*)\]/;
+  const match = source.match(pattern);
+  if (!match) {
+    console.warn('[Music] Desktop TAP_OPENS whitelist not found');
+    return source;
+  }
+  if (/(?:'|")music(?:'|")/.test(match[1])) return source;
+  return source.replace(pattern, (whole) => whole.slice(0, -1) + ", 'music']");
+}
+  const MUSIC_CHAR_SOURCE_GUARD="\n;(function(){\n  if(window.__whateverMusicRealCharGuard) return;\n  window.__whateverMusicRealCharGuard = true;\n  function startRealChar(){\n    if(typeof window.__whateverMusicInviteReady === 'function')\n      return window.__whateverMusicInviteReady();\n    var msg='真实 Char 邀请尚未连接，请稍后重试。未启动模拟恋人。';\n    if(typeof window.showToast === 'function') window.showToast(msg, 'error');\n    else if(typeof window.alert === 'function') window.alert(msg);\n    else console.warn('[Music]', msg);\n  }\n  window.toggleTogether = startRealChar;\n  // Capture ahead of the private music-api's document/button handlers.\n  // Only a real user click on the ORIGINAL recall buttons may invoke Char.\n  // Never allow the old quick-quote handler to run as a second request.\n  window.addEventListener('click', function(e){\n    var button=e.target && e.target.closest &&\n      e.target.closest('button[aria-label=\"调取对方说的话\"]');\n    if(!button || !button.closest('#chatPanel,#duetInput')) return;\n    e.preventDefault();\n    e.stopPropagation();\n    e.stopImmediatePropagation();\n    if(!e.isTrusted) return; // programmatic/open-chat events cannot recall\n    if(typeof window.__wmcExplicitMusicRecall === 'function')\n      window.__wmcExplicitMusicRecall(button);\n    else if(typeof window.showToast === 'function')\n      window.showToast('一起听正在连接，请稍后重试。');\n  }, true);\n  document.addEventListener('click', function(e){\n    var target=e.target;\n    if(!target || typeof target.closest !== 'function') return;\n    if(!target.closest('#togetherBtn, .modal-close[aria-label=\"结束一起听\"]')) return;\n    e.preventDefault();\n    e.stopPropagation();\n    e.stopImmediatePropagation();\n    startRealChar();\n  }, true);\n})();";
+  const MUSIC_SOLO_LYRIC_GUARD="\n;(function(){\n  if(window.__whateverMusicLyricToggleGuard)return;\n  window.__whateverMusicLyricToggleGuard=true;\n  window.addEventListener('message',function(event){\n    if(event.source!==window.parent)return;\n    var command=event.data;\n    if(!command||command.type!=='whatever:music:ui:command'||command.command!=='chat-toggle')return;\n    var together=window.ListenTogether;\n    if(!together)return;\n    if(typeof together.isActive!=='function'||!together.isActive()){\n      // Solo listening must not open an invitation from the lyric ticker.\n      // The player decides whether to invite a Char using its own controls.\n      event.stopImmediatePropagation();\n      return;\n    }\n    if(typeof together.openChat!=='function'||typeof together.closeChat!=='function')return;\n    // Do not let the older participant-only handler toggle the same panel twice.\n    event.stopImmediatePropagation();\n    var panel=document.getElementById('chatPanel');\n    var open=(typeof together.isChatOpen==='function'&&together.isChatOpen())\n      ||!!(panel&&panel.classList.contains('open'));\n    if(open)together.closeChat();else together.openChat();\n  },true);\n})();";
+  const CHAT_HOST_ADAPTER="queueMicrotask(() => {\n  if (!window.WhateverMusicChatBridge) return;\n  window.WhateverMusicChatBridge.registerHost({\n    listContacts: () => CONTACTS,\n    getThread: id => { const c = CONTACTS.find(c => String(c.id) === String(id)); return c ? c.msgs : []; },\n    mutateContact: (id, action) => {\n      const c = CONTACTS.find(c => String(c.id) === String(id));\n      if (!c) throw new Error('联系人不存在');\n      const before = c.msgs.length;\n      action(c, c.msgs);\n      c.time = nowTime();\n      if (!CHAT_IDS.map(String).includes(String(c.id))) {\n        CHAT_IDS.unshift(String(c.id));\n        persistChatIds();\n      }\n      persistContacts();\n      window.WhateverMusicChatBridge?.onMainThreadChanged?.(c.id, c.msgs);\n      if (activeId === c.id) renderThread({noAnim:true});\n      renderChats();\n      if (c.msgs.length > before) maybeAutoSummary(c);\n      return c;\n    }\n  });\n});";
+  const CHAT_ROOM_CARDS="if (m.music && m.music.kind === 'boundary') {\n  const listeningLabel = m.music.phase === 'start' ? '正在听' : '已结束';\n  html += '<div class=\"wmc-listening-divider\" data-i=\"' + i + '\"><span class=\"wmc-listening-divider-label\">' + listeningLabel + '</span></div>';\n  continue;\n}\n// Legacy compatibility: older listening messages are moved into common\n// memory by the bridge; do not show their leftover rows while it migrates.\nif (m.music && ['chat','reply','event'].includes(m.music.kind)) continue;\nif (m.music && m.music.kind === 'invite') {\n  const song = m.music;\n  const status = ({accepted:'已接受',pending:'等待回应',declined:'已婉拒',ended:'已结束',error:'待处理'})[song.status] || '等待回应';\n  const chatAvatar = (avo && avo.me) ? '<div class=\"av-col\"><span class=\"avf\">' + selfAvatarHtml('sm') + '</span></div>' : '';\n  // Exactly the established file attachment layout: ff-card, ff-mini,\n  // ff-txt. Replace its folder glyph with real cover art + a vinyl record.\n  const coverUrl = String(song.cover || '');\n  const validCover = /^(?:https?:\\/\\/|\\/(?!\\/)|\\.\\.?\\/)/i.test(coverUrl);\n  const art = validCover ? '<img class=\"wmc-card-cover\" src=\"' + esc(coverUrl) +\n    '\" alt=\"\" loading=\"lazy\" onerror=\"this.hidden=true\">' : '';\n  html += '<div class=\"mrow me wmc-card-row\" data-i=\"' + i + '\">' +\n    chatAvatar + '<button type=\"button\" class=\"ff-card wmc-song-card\" aria-label=\"一起听歌邀请：' + esc(song.title || '未知歌曲') + '\">' +\n    '<span class=\"ff-mini wmc-song-art\" aria-hidden=\"true\"><span class=\"wmc-card-vinyl\"></span><span class=\"wmc-card-sleeve\">' + art + '</span></span>' +\n    '<span class=\"ff-txt wmc-song-text\">' +\n      '<span class=\"ff-n\">' + esc(song.title || '未知歌曲') + '</span>' +\n      '<span class=\"ff-m\">' + esc(song.artist || '未知歌手') + ' · ' + esc(status) + '</span>' +\n    '</span></button></div>';\n  continue;\n}\n";
+  async function readRuntimeAsset(path,signature){
+    const response=await fetch(path+'?source_merge=1',{cache:'no-store',credentials:'same-origin'});
+    if(!response.ok)throw Error('读取当前版本 '+path+' 失败，停止打包');
+    const source=await response.text();
+    if(!source.includes(signature))throw Error(path+' 内容与预期不符，停止打包');
+    return source;
+  }
+  function checkedReplace(source,before,after,label){
+    if(source.split(before).length!==2)throw Error(label+' 源码与当前版本不匹配，停止打包以免损坏原功能');
+    return source.replace(before,after);
+  }
+  function combinePrivateChat(source,bridge){
+    if(source.includes('__wmcPrivateMusicBridgeIntegrated'))return source;
+    source=optimizeChatKeyboard('js/apps/messages.js',source);
+    if(!source.includes('let wmcGrowFrame=0;'))throw Error('聊天键盘优化未匹配到 Supabase 原脚本');
+    const init='window.initMessagesModule = function(root) {';
+    source=checkedReplace(source,init,init+'\n'+CHAT_HOST_ADAPTER,'聊天桥接初始化');
+    const photo='if (m.photo) { html += photoMsgHtml(m, i, c, avo); continue; }';
+    source=checkedReplace(source,photo,CHAT_ROOM_CARDS+'\n'+photo,'聊天室一起听卡片与分隔线');
+    source=checkedReplace(source,"x.kind === 'shot' ?","(x.kind === 'shot' || x.kind === 'music-listen') ?",'共同记忆折叠');
+    return source+'\n;/* __wmcPrivateMusicBridgeIntegrated */\n'+bridge;
+  }
+  function combinePrivateApi(source){
+    if(source.includes('__wmcPrivateMessagesApiIntegrated'))return source;
+    source=supportTimestampedChatReplies('js/apps/messages-api.js',source);
+    source=omitMusicUiBoundaries('js/apps/messages-api.js',source);
+    if(!source.includes('let timestamped = null;')||!source.includes("m?.music?.kind !== 'boundary'"))
+      throw Error('消息解析补丁未匹配 Supabase 原始 API');
+    return source+'\n/* __wmcPrivateMessagesApiIntegrated */\n';
+  }
+  function combinePrivateMusic(source,runtime){
+    if(source.includes('__wmcPrivateMusicRuntimeIntegrated'))return source;
+    if(!source.includes('ListenTogether'))throw Error('音乐原聊天 API 未找到');
+    return source+'\n;/* __wmcPrivateMusicRuntimeIntegrated */\n'+MUSIC_SOLO_LYRIC_GUARD+
+      '\n;window.__whateverMusicRuntimeLoading=true;\n'+runtime;
+  }
+  async function buildConsolidatedFiles(original){
+    const bridge=await readRuntimeAsset('/js/music-chat-bridge.js','WhateverMusicChatBridge');
+    const runtime=await readRuntimeAsset('/js/music-runtime.js','ListenTogether');
+    const out={};
+    const safe=(path,next)=>{if(typeof next!=='string'||!next.length)throw Error('空源码：'+path);if(next!==original[path])out[path]=next;};
+    const musicJs=original['js/apps/music.js'];
+    safe('js/apps/music.js',musicJs.includes('__whateverMusicRealCharGuard')?musicJs:musicJs+'\n'+MUSIC_CHAR_SOURCE_GUARD);
+    safe('js/apps/music-api.js',combinePrivateMusic(original['js/apps/music-api.js'],runtime));
+    safe('js/apps/messages.js',combinePrivateChat(original['js/apps/messages.js'],bridge));
+    safe('js/apps/messages-api.js',combinePrivateApi(original['js/apps/messages-api.js']));
+    safe('css/messages.css',fillSecondMenuBackground('css/messages.css',original['css/messages.css']));
+    safe('js/desktop.js',allowExistingMusicTap('js/desktop.js',original['js/desktop.js']));
+    const appManager=original['js/apps/app-manager.js'];
+    if(!appManager.includes('__wmcPrivateAppMusicGateIntegrated')){
+      if(!appManager.includes("} else if (appId === 'music') {")||!appManager.includes("} else if (appId === 'todo') {"))
+        throw Error('应用管理器音乐入口发生变化，停止打包');
+      safe('js/apps/app-manager.js',gateExistingMusic('js/apps/app-manager.js',appManager)+'\n/* __wmcPrivateAppMusicGateIntegrated */\n');
+    }
+    const windowCss=original['css/app-window.css'];
+    safe('css/app-window.css',windowCss.includes('Music full-screen loading fix v17')?windowCss:revealMusicWindow('css/app-window.css',windowCss));
+    const musicCss=original['css/music.css'];
+    safe('css/music.css',customizeMusicCss(musicCss));
+    return out;
+  }
   async function exportMergedZip(){
     if(busy||!verified)return;
+    if(!backupVerified){tell('请先点击创建并验证备份，再生成可上传源码 ZIP。','error');return;}
     setBusy(true);
     try{
       const original={};
       for(const name of names){
-        tell('正在读取原文件 '+name);
+        tell('正在从 Supabase 读取原文件：'+name);
         const response=await api('read',name);
         if(response.sha256!==results.get(name)?.sha256||typeof response.content!=='string')
-          throw Error('Supabase 源文件已更新，请重新检查：'+name);
+          throw Error('文件已变化，请重新检查：'+name);
         original[name]=response.content;
       }
-      const updated={
-        'css/music.css':customizeMusicCss(original['css/music.css']),
-        'js/apps/music.js':retainRealChar(original['js/apps/music.js']),
-        'js/apps/music-api.js':retainRuntimeLoader(original['js/apps/music-api.js'])
-      };
-      const changed=Object.keys(updated).filter(name=>original[name]!==updated[name]);
-      if(!changed.length)throw Error('这些音乐文件已经是修复版，不需要重复覆盖');
-      const pack=Object.fromEntries(changed.map(name=>[name,updated[name]]));
+      const updated=await buildConsolidatedFiles(original);
+      const changed=Object.keys(updated);
+      if(!changed.length)throw Error('原始文件已包含这些修复，没有需要上传的文件');
+      const pack={...updated};
       pack['UPLOAD_README.txt']=[
-        'Supabase bucket: protected-scripts',
-        'These are COMPLETE original source files with reviewed changes:',
+        'Supabase Storage bucket: protected-scripts',
+        'Upload ONLY the files listed below, preserving folders and file names.',
         ...changed.map(name=>'protected-scripts/'+name),
-        'Unchanged private files do not need uploading.',
-        'GitHub scripts music-chat-bridge.js, music-runtime.js and chat-keyboard.js remain on GitHub.',
-        'The page has NOT modified Supabase Storage.'
+        'All contents came from your authenticated private Supabase sources.',
+        'Backups were verified before export; this page has not overwritten the originals.',
+        'Upload these files FIRST. The site still provides legacy compatibility until upload is confirmed.',
+        'When uploaded, the app will use the native private source rather than the temporary compatibility hooks.'
       ].join('\n');
       const blob=createSourceZip(pack),url=URL.createObjectURL(blob);
-      const link=document.createElement('a');
-      link.href=url;link.download='whatever-supabase-ready-music.zip';
-      document.body.appendChild(link);link.click();link.remove();
+      const a=document.createElement('a');a.href=url;
+      a.download='whatever-supabase-consolidated-sources.zip';
+      document.body.appendChild(a);a.click();a.remove();
       setTimeout(()=>URL.revokeObjectURL(url),15000);
-      tell('已生成可上传完整文件 ZIP：\n'+changed.map(name=>'protected-scripts/'+name).join('\n')+
-        '\n请解压 ZIP，把每个文件分别上传到 Storage 对应路径。不要在下方「JSON 审核写回」里选择此 ZIP；本次没有写入 Supabase。','success');
-    }catch(e){tell('生成失败：'+String(e?.message||e),'error');}
+      tell('已生成 '+changed.length+' 份完整原始源码的归并 ZIP。\n解压后按目录逐个上传到 Supabase Storage 的 protected-scripts。\n本页面没有覆盖线上文件。','success');
+    }catch(e){tell('生成失败，原文件未改动：'+String(e?.message||e),'error');}
     finally{setBusy(false);}
   }
-
   mergedBtn.addEventListener('click',exportMergedZip);
   applyBtn.addEventListener('click',applyApproved);
   inspectBtn.addEventListener('click',inspectAll);
