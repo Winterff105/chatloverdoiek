@@ -313,6 +313,8 @@
   // all messages are saved separately in common memory by the parent bridge.
   let liveFeed=null;
   function stackBubble(side,value){
+    // Only Char's spoken replies create the transient avatar speech bubble.
+    if(side!=='them')return;
     const text=trim(value,200);
     if(!text)return;
     if(!liveFeed){
@@ -320,7 +322,16 @@
       liveFeed.setAttribute('aria-live','off');
       document.body.appendChild(liveFeed);
     }
-    const line=node('div','wmc-speech-row '+(side==='me'?'wmc-speech-me':'wmc-speech-them'),text);
+    const line=node('div','wmc-speech-row wmc-speech-them',text);
+    // Match the actual player chat bubbles rather than inventing another style.
+    const nativeBubble=document.querySelector('#chatPanel .chat-bubble');
+    if(nativeBubble){
+      const style=getComputedStyle(nativeBubble);
+      for(const key of ['backgroundColor','color','borderRadius','borderColor','borderWidth',
+        'borderStyle','fontFamily','fontSize','fontWeight','lineHeight','padding']){
+        if(style[key])line.style[key]=style[key];
+      }
+    }
     liveFeed.appendChild(line);
     while(liveFeed.children.length>4){const oldest=liveFeed.firstElementChild;if(!oldest)break;oldest.remove();}
     requestAnimationFrame(()=>line.classList.add('wmc-speech-visible'));
@@ -979,7 +990,7 @@
       const originalSend=w.ListenTogether.send.bind(w.ListenTogether);
       w.ListenTogether.send=function(text){
         const ok=originalSend(text);
-        if(ok){stackBubble('me',text);sendFloatState(true,{me:true,text});}
+        if(ok)sendFloatState(true,{me:true,text});
         return ok;
       };
       w.__wmcDecoratedSend=true;
