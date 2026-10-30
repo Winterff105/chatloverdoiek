@@ -48,8 +48,8 @@
 <main class="container">
   <a class="back" href="/">← 返回 Whatever</a>
   <div class="eyebrow">WHATEVER / PRIVATE SOURCES</div>
-  <h1>音乐源码保护</h1>
-  <p class="lead">使用你已经登录的管理员账号，核对 Supabase 私有 Storage 中的真实音乐文件，先备份，再修改。不涉及聊天记录、共同记忆和基础样式。</p>
+  <h1>Supabase 源码归并</h1>
+  <p class="lead">用已登录的管理员账号读取 Supabase 私有 Storage 里的音乐、聊天源码。先校验并备份，再下载整合版源码 ZIP。不会修改用户聊天记录或自动覆盖原文件。</p>
   <span class="flag">仅限已登录管理员 · 原文件覆盖关闭</span>
 
   <section class="section" aria-labelledby="head-files">
@@ -58,7 +58,7 @@
     <div id="files" class="files"></div>
     <div class="actions" style="margin-top:16px">
       <button class="primary" id="inspect" type="button">验证管理员并检查</button>
-      <button class="secondary" id="export" type="button" disabled>导出四份源码</button>
+      <button class="secondary" id="export" type="button" disabled>导出全部原始源码</button>
       <button class="primary" id="mergeZip" type="button" disabled>下载 Supabase 完整归并 ZIP</button>
     </div>
     <p class="note">操作顺序：先验证管理员并检查全部源码，再创建并验证私有备份，最后点击「下载 Supabase 完整归并 ZIP」。解压后按目录逐个上传至 protected-scripts。此页面只生成文件，不修改原始 Storage。</p>
@@ -69,7 +69,7 @@
     <h2 id="head-backup">02 · 创建可验证的备份</h2>
     <p class="secondary">每份原文件在 Supabase 私有桶创建单独备份，并重新读取校验内容哈希。不会覆盖原件。</p>
     <div class="actions">
-      <button class="secondary" id="backup" type="button" disabled>为四份原文件创建备份</button>
+      <button class="secondary" id="backup" type="button" disabled>为全部原文件创建备份</button>
     </div>
     <div class="status" id="status" role="status" aria-live="polite">准备就绪。请先点击「验证管理员并检查」。</div>
     <div class="lock">
