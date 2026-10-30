@@ -1418,6 +1418,10 @@
     '#quickCruiseBall.qc-glow-left::after{display:none!important}',
     '.wmc-api-recall-state{position:absolute;right:calc(100% + 7px);top:50%;transform:translateY(-50%);z-index:2;display:block;white-space:nowrap;pointer-events:none;padding:6px 9px;border:1px solid #e4e4e8;border-radius:999px;background:#fff;color:#444;font:500 11px/1.3 system-ui,sans-serif;box-shadow:0 2px 9px #0001}',
     '.wmc-api-recall-state[hidden]{display:none!important}',
+    // Keep the original room bubbles, with lightweight listening session rules.
+    '.messages-app #thread .wmc-listening-divider{width:100%;display:flex;align-items:center;gap:11px;margin:11px 0 8px;padding:0 11px;box-sizing:border-box;pointer-events:none}',
+    '.messages-app #thread .wmc-listening-divider::before,.messages-app #thread .wmc-listening-divider::after{content:"";height:1px;flex:1 1 auto;background:#e9e9ed}',
+    '.messages-app #thread .wmc-listening-divider-label{flex:0 0 auto;border-radius:999px;background:#f5f5f6;color:#999aa1;padding:4px 11px;font:500 10.5px/1.3 system-ui,-apple-system,sans-serif;letter-spacing:.02em}',
     '.messages-app #memPage .mem-fold .mem-chatlog{max-height:360px;overflow-y:auto;overscroll-behavior:contain}',
     '.messages-app #memPage .mem-fold .mem-chatlog .mem-cl-bub{white-space:pre-wrap;overflow-wrap:anywhere}'
   ].join('\n');
