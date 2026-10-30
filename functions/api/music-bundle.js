@@ -66,11 +66,9 @@ const MUSIC_LYRIC_CHAT_TOGGLE_FIX = String.raw`
     var together=window.ListenTogether;
     if(!together)return;
     if(typeof together.isActive!=='function'||!together.isActive()){
-      // When no Char is joined, the original invitation is the only valid UI.
-      var invite=window.__whateverMusicInviteReady;
-      if(typeof invite!=='function')return;
+      // Solo listening must not open an invitation from the lyric ticker.
+      // The player decides whether to invite a Char using its own controls.
       event.stopImmediatePropagation();
-      invite();
       return;
     }
     if(typeof together.openChat!=='function'||typeof together.closeChat!=='function')return;
