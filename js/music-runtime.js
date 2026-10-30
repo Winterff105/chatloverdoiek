@@ -324,7 +324,8 @@
     }
     const line=node('div','wmc-speech-row wmc-speech-them',text);
     // Match the actual player chat bubbles rather than inventing another style.
-    const nativeBubble=document.querySelector('#chatPanel .chat-bubble');
+    const nativeBubbles=document.querySelectorAll('#chatPanel .chat-bubble');
+    const nativeBubble=nativeBubbles[nativeBubbles.length-1];
     if(nativeBubble){
       const style=getComputedStyle(nativeBubble);
       for(const key of ['backgroundColor','color','borderRadius','borderColor','borderWidth',
