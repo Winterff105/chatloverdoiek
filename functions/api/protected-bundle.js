@@ -82,6 +82,16 @@ function supportTimestampedChatReplies(file, source) {
   }
   return source.replace(before, after);
 }
+// UI-only session boundaries must never become empty AI dialogue turns.
+function omitMusicUiBoundaries(file, source) {
+  if(file!=='js/apps/messages-api.js')return source;
+  const before="      const slice = (contact.msgs || []).slice(-memCount);";
+  if(source.split(before).length!==2){
+    console.warn('[Music] Message history revision changed; skipping boundary filter');
+    return source;
+  }
+  return source.replace(before,"      const slice = (contact.msgs || []).filter(m => m?.music?.kind !== 'boundary').slice(-memCount);");
+}
 // Allow the existing music dock icon to use openApp('music').
 // The desktop module is stored in the private Supabase bucket; keep it private.
 function allowExistingMusicTap(file, source) {
@@ -172,7 +182,7 @@ async function downloadOne(file, serviceKey) {
   for (let i = 0; i < 2; i++) {
     try {
       const res = await fetch(url, { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });
-      if (res.ok) return supportTimestampedChatReplies(file, optimizeChatKeyboard(file, fillSecondMenuBackground(file, gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, await res.text()))))));
+      if (res.ok) return omitMusicUiBoundaries(file, supportTimestampedChatReplies(file, optimizeChatKeyboard(file, fillSecondMenuBackground(file, gateExistingMusic(file, revealMusicWindow(file, allowExistingMusicTap(file, await res.text())))))));
       lastErr = new Error(`${file} 下载失败 (${res.status})`);
     } catch (e) {
       lastErr = e;
