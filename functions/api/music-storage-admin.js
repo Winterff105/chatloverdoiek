@@ -7,9 +7,16 @@ const TYPES=Object.freeze({
  'js/apps/music.js':'text/javascript',
  'js/apps/music-api.js':'text/javascript',
  'js/apps/music-markup.js':'text/javascript',
- 'css/music.css':'text/css'
+ 'css/music.css':'text/css',
+ // The same admin-only source export can also back up and merge chat assets.
+ 'js/apps/messages.js':'text/javascript',
+ 'js/apps/messages-api.js':'text/javascript',
+ 'css/messages.css':'text/css',
+ 'js/apps/app-manager.js':'text/javascript',
+ 'js/desktop.js':'text/javascript',
+ 'css/app-window.css':'text/css'
 });
-const MAX=384*1024, TE=new TextEncoder();
+const MAX=1024*1024, TE=new TextEncoder();
 // Exactly approved source transformations from the owner's verified export.
 const APPROVED_SOURCE_FIX=Object.freeze({
  'js/apps/music.js':Object.freeze({
