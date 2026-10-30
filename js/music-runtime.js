@@ -369,13 +369,14 @@
     lastFloatSample=now;
     // Lightweight lyric probe: no 50-song playlist map, album cover, or
     // AI-context preparation on audio timeupdate (often 4-10 times/sec).
-    let songId='',title='',artist='',lyric='',lyricPrev='',lyricNext='',lyricIndex=-1;
+    let songId='',title='',artist='',album='',lyric='',lyricPrev='',lyricNext='',lyricIndex=-1;
     try {
       if(typeof currentTrackList!=='undefined'&&typeof currentIndex!=='undefined'&&currentIndex>=0){
         const track=currentTrackList[currentIndex];
         songId=String(track?.id||'');
         title=String(track?.title||'');
         artist=String(track?.artist||'');
+        album=String(track?.album||'');
       }
       if(typeof lyricState!=='undefined'){
         const lines=Array.isArray(lyricState.lines)?lyricState.lines:[];
@@ -425,7 +426,10 @@
     if(!force&&!entry&&fingerprint===lastFloatKey)return;
     lastFloatKey=fingerprint;
     const payload={active:true,contactId:participant?.id||'',name:participant?.name||'',avatar:participant?.avatar||'',
-      music:{title:trim(title,160),artist:trim(artist,120),songId:trim(songId,90)},
+      music:{title:trim(title,160),artist:trim(artist,120),songId:trim(songId,90),
+        album:trim(album,120),position:Number(audio?.currentTime)||0,
+        duration:Number.isFinite(audio?.duration)?audio.duration:0,
+        lyric:trim(lyric,220),context:trim([lyricPrev,lyric,lyricNext].filter(Boolean).join(' / '),1200)},
       lyric:trim(lyric,170),lyricPrev:trim(lyricPrev,170),
       lyricNext:trim(lyricNext,170),lyricIndex,playing};
     if(entry)payload.entry={id:'music-entry-'+(++entrySeq),me:!!entry.me,text:trim(entry.text,200)};
