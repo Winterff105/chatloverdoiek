@@ -561,6 +561,12 @@ function allowExistingMusicTap(file, source) {
   function combinePrivateMusic(source,runtime){
     if(source.includes('__wmcPrivateMusicRuntimeIntegrated'))return source;
     if(!source.includes('ListenTogether'))throw Error('音乐原聊天 API 未找到');
+    // Earlier self-upload packages could already have a network loader.
+    // Replace that exact old adapter, rather than load the runtime twice.
+    const previousLoader="\n;(function(){if(window.__whateverMusicRuntimeLoading)return;window.__whateverMusicRuntimeLoading=true;var s=document.createElement('script');s.src='/js/music-runtime.js';s.async=false;document.head.appendChild(s);})();";
+    if(source.includes(previousLoader))source=source.replace(previousLoader,'');
+    if(source.includes('/js/music-runtime.js'))
+      throw Error('music-api.js 存在其他旧运行时加载器，请先审核，停止合并');
     return source+'\n;/* __wmcPrivateMusicRuntimeIntegrated */\n'+MUSIC_SOLO_LYRIC_GUARD+
       '\n;window.__whateverMusicRuntimeLoading=true;\n'+runtime;
   }
