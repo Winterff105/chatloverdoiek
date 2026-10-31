@@ -13,6 +13,10 @@
         body {
             background: var(--wallpaper-bg-root, #09090b);
         }
+        /* Show the active app's palette instead of the dark wallpaper fallback
+           if the OS exposes the page edge during keyboard animations. */
+        html.ime-shell-chat, html.ime-shell-chat body { background: #FFFFFF !important; }
+        html.ime-shell-archangel, html.ime-shell-archangel body { background: #F4F6F9 !important; }
         /* Update capsule follows the old gate's dark translucent toast palette. */
         #appUpdateToast {
             position: fixed;
@@ -108,53 +112,71 @@
             var root = document.documentElement;
             // Keep the app shell at its settled height during the chat keyboard
             // animation; the Messages keyboard adapter positions the input.
-            var chatKeyboardHold = false;
-            var chatKeyboardSettleTimer = 0;
-            var chatKeyboardHeight = 0;
-            var chatKeyboardBlurAt = 0;
-            function isChatComposerInput(node) {
-                return !!(node && node.matches &&
-                    node.matches('.messages-app #chatView #composer #input'));
+            // Keep both chat applications at their settled shell height during
+            // native IME animations; never commit transient keyboard-sized values.
+            var appKeyboardHold = false;
+            var appKeyboardHeight = 0;
+            var appKeyboardSettleTimer = 0;
+            var appKeyboardBlurAt = 0;
+            var appKeyboardInitialVisual = 0;
+            var appKeyboardInitialInner = 0;
+            function keyboardAppOf(node) {
+                if (!node || !node.matches) return '';
+                if (node.matches('.messages-app #chatView #composer #input')) return 'chat';
+                if (node.closest && node.closest('.archangel-app') &&
+                    node.matches('input:not([type="file"]), textarea, [contenteditable="true"]') &&
+                    !node.disabled && !node.readOnly) return 'archangel';
+                return '';
             }
             function visibleViewportBottom() {
                 var vv = window.visualViewport;
                 return vv ? vv.offsetTop + vv.height : window.innerHeight;
             }
-            function releaseChatKeyboardHold() {
-                if (isChatComposerInput(document.activeElement)) return;
-                // Wait until the visual viewport has recovered. A fixed 460ms
-                // delay can remeasure the smaller IME viewport and reveal the
-                // dark page underneath the chat window while the IME closes.
-                var visualRecovered = visibleViewportBottom() >= chatKeyboardHeight - 60;
+            function setKeyboardUnderlay(kind) {
+                root.classList.toggle('ime-shell-chat', kind === 'chat');
+                root.classList.toggle('ime-shell-archangel', kind === 'archangel');
+            }
+            function releaseKeyboardHold() {
+                if (!appKeyboardHold || keyboardAppOf(document.activeElement)) return;
+                var visualRecovered = visibleViewportBottom() >= appKeyboardInitialVisual - 55;
                 var layoutRecovered = isStandalone() ||
-                    window.innerHeight >= chatKeyboardHeight - 60;
-                if ((!visualRecovered || !layoutRecovered) &&
-                    Date.now() - chatKeyboardBlurAt < 1400) {
-                    chatKeyboardSettleTimer = setTimeout(releaseChatKeyboardHold, 80);
-                    return;
+                    window.innerHeight >= appKeyboardInitialInner - 55;
+                if (!visualRecovered || !layoutRecovered) {
+                    if (Date.now() - appKeyboardBlurAt < 1800) {
+                        clearTimeout(appKeyboardSettleTimer);
+                        appKeyboardSettleTimer = setTimeout(releaseKeyboardHold, 80);
+                    }
+                    return; // Retry on the next viewport resize if the IME is slow.
                 }
-                chatKeyboardHold = false;
-                // If the browser has not restored the layout viewport yet,
-                // retain the full-height shell until its next real resize.
-                if (!layoutRecovered) return;
-                chatKeyboardHeight = 0;
+                clearTimeout(appKeyboardSettleTimer);
+                appKeyboardHold = false;
+                appKeyboardHeight = 0;
+                appKeyboardInitialVisual = 0;
+                appKeyboardInitialInner = 0;
                 setAppHeight();
+                setKeyboardUnderlay('');
             }
             document.addEventListener('focusin', function(event) {
-                if (!isChatComposerInput(event.target)) return;
-                clearTimeout(chatKeyboardSettleTimer);
-                chatKeyboardHeight = Math.max(
-                    chatKeyboardHeight,
-                    parseFloat(root.style.getPropertyValue('--app-height')) || 0,
-                    window.innerHeight
-                );
-                chatKeyboardHold = true;
+                var kind = keyboardAppOf(event.target);
+                if (!kind) return;
+                clearTimeout(appKeyboardSettleTimer);
+                if (!appKeyboardHold) {
+                    appKeyboardInitialInner = window.innerHeight;
+                    appKeyboardInitialVisual = Math.max(
+                        visibleViewportBottom(), window.innerHeight);
+                    appKeyboardHeight = Math.max(
+                        parseFloat(root.style.getPropertyValue('--app-height')) || 0,
+                        window.innerHeight
+                    );
+                }
+                appKeyboardHold = true;
+                setKeyboardUnderlay(kind);
             }, true);
             document.addEventListener('focusout', function(event) {
-                if (!isChatComposerInput(event.target)) return;
-                clearTimeout(chatKeyboardSettleTimer);
-                chatKeyboardBlurAt = Date.now();
-                chatKeyboardSettleTimer = setTimeout(releaseChatKeyboardHold, 80);
+                if (!keyboardAppOf(event.target)) return;
+                clearTimeout(appKeyboardSettleTimer);
+                appKeyboardBlurAt = Date.now();
+                appKeyboardSettleTimer = setTimeout(releaseKeyboardHold, 80);
             }, true);
 
             function isStandalone() {
@@ -166,7 +188,7 @@
             // opens. Only the standalone iOS screen-height workaround remains;
             // the chat keyboard adapter compensates when native resize cannot.
             function setAppHeight() {
-                if (chatKeyboardHold) return;
+                if (appKeyboardHold) return;
                 var h = window.innerHeight;
                 if (isStandalone()) {
                     var landscape = window.innerWidth > window.innerHeight;
@@ -176,8 +198,8 @@
                     h = Math.max(h, screenH);
                 }
                 // Never commit a keyboard-sized intermediate viewport.
-                if (chatKeyboardHeight && h < chatKeyboardHeight - 60) return;
-                chatKeyboardHeight = 0;
+                if (appKeyboardHeight && h < appKeyboardHeight - 60) return;
+                appKeyboardHeight = 0;
                 if (root.style.getPropertyValue('--app-height') !== h + 'px') {
                     root.style.setProperty('--app-height', h + 'px');
                 }
@@ -206,7 +228,14 @@
             }
 
             setAppHeight();
-            window.addEventListener('resize', setAppHeight);
+            window.addEventListener('resize', function() {
+                setAppHeight();
+                releaseKeyboardHold();
+            });
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', releaseKeyboardHold, { passive: true });
+                window.visualViewport.addEventListener('scroll', releaseKeyboardHold, { passive: true });
+            }
             window.addEventListener('orientationchange', function() {
                 setTimeout(setAppHeight, 300);
             });
