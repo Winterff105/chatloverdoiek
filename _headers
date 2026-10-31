@@ -14,12 +14,6 @@
 /js/update-manager.js
   Cache-Control: no-cache, must-revalidate
 
-/js/music-runtime.js
-  Cache-Control: no-cache, must-revalidate
-
-/js/music-chat-bridge.js
-  Cache-Control: no-cache, must-revalidate
-
 /js/sanctuary-gate.js
   Cache-Control: no-cache, must-revalidate
 
