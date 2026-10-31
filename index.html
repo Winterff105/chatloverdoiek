@@ -125,12 +125,18 @@
                 // Wait until the visual viewport has recovered. A fixed 460ms
                 // delay can remeasure the smaller IME viewport and reveal the
                 // dark page underneath the chat window while the IME closes.
-                if (visibleViewportBottom() < chatKeyboardHeight - 60 &&
+                var visualRecovered = visibleViewportBottom() >= chatKeyboardHeight - 60;
+                var layoutRecovered = isStandalone() ||
+                    window.innerHeight >= chatKeyboardHeight - 60;
+                if ((!visualRecovered || !layoutRecovered) &&
                     Date.now() - chatKeyboardBlurAt < 1400) {
                     chatKeyboardSettleTimer = setTimeout(releaseChatKeyboardHold, 80);
                     return;
                 }
                 chatKeyboardHold = false;
+                // If the browser has not restored the layout viewport yet,
+                // retain the full-height shell until its next real resize.
+                if (!layoutRecovered) return;
                 chatKeyboardHeight = 0;
                 setAppHeight();
             }
@@ -169,6 +175,9 @@
                         : Math.max(screen.width, screen.height);
                     h = Math.max(h, screenH);
                 }
+                // Never commit a keyboard-sized intermediate viewport.
+                if (chatKeyboardHeight && h < chatKeyboardHeight - 60) return;
+                chatKeyboardHeight = 0;
                 if (root.style.getPropertyValue('--app-height') !== h + 'px') {
                     root.style.setProperty('--app-height', h + 'px');
                 }
