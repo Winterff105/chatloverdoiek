@@ -8,10 +8,10 @@
     <!-- 首屏兜底底色：CSS 还没加载时 html/body 也不是白色，iOS 26 Safari 状态栏取色依赖它 -->
     <style id="earlyBgFix">
         html {
-            background-color: #09090b;
+            background: var(--wallpaper-bg-root, #09090b);
         }
         body {
-            background-color: #09090b;
+            background: var(--wallpaper-bg-root, #09090b);
         }
         /* Update capsule follows the old gate's dark translucent toast palette. */
         #appUpdateToast {
@@ -110,23 +110,45 @@
             // animation; the Messages keyboard adapter positions the input.
             var chatKeyboardHold = false;
             var chatKeyboardSettleTimer = 0;
+            var chatKeyboardHeight = 0;
+            var chatKeyboardBlurAt = 0;
             function isChatComposerInput(node) {
                 return !!(node && node.matches &&
                     node.matches('.messages-app #chatView #composer #input'));
             }
+            function visibleViewportBottom() {
+                var vv = window.visualViewport;
+                return vv ? vv.offsetTop + vv.height : window.innerHeight;
+            }
+            function releaseChatKeyboardHold() {
+                if (isChatComposerInput(document.activeElement)) return;
+                // Wait until the visual viewport has recovered. A fixed 460ms
+                // delay can remeasure the smaller IME viewport and reveal the
+                // dark page underneath the chat window while the IME closes.
+                if (visibleViewportBottom() < chatKeyboardHeight - 60 &&
+                    Date.now() - chatKeyboardBlurAt < 1400) {
+                    chatKeyboardSettleTimer = setTimeout(releaseChatKeyboardHold, 80);
+                    return;
+                }
+                chatKeyboardHold = false;
+                chatKeyboardHeight = 0;
+                setAppHeight();
+            }
             document.addEventListener('focusin', function(event) {
                 if (!isChatComposerInput(event.target)) return;
                 clearTimeout(chatKeyboardSettleTimer);
+                chatKeyboardHeight = Math.max(
+                    chatKeyboardHeight,
+                    parseFloat(root.style.getPropertyValue('--app-height')) || 0,
+                    window.innerHeight
+                );
                 chatKeyboardHold = true;
             }, true);
             document.addEventListener('focusout', function(event) {
                 if (!isChatComposerInput(event.target)) return;
                 clearTimeout(chatKeyboardSettleTimer);
-                chatKeyboardSettleTimer = setTimeout(function() {
-                    if (isChatComposerInput(document.activeElement)) return;
-                    chatKeyboardHold = false;
-                    setAppHeight();
-                }, 460);
+                chatKeyboardBlurAt = Date.now();
+                chatKeyboardSettleTimer = setTimeout(releaseChatKeyboardHold, 80);
             }, true);
 
             function isStandalone() {
